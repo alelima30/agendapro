@@ -2,9 +2,21 @@
 -- AgendaPro — INSTALAÇÃO COMPLETA
 --
 -- Cole ESTE arquivo inteiro no SQL Editor do Supabase e clique em Run.
--- É a junção de 01_schema.sql + 02_rls.sql + 03_onboarding.sql + 04_imagens.sql
--- + 05_agenda.sql,
--- nesta ordem.
+--
+-- É a junção, nesta ordem, de:
+--   01_schema.sql      as tabelas
+--   02_rls.sql         quem enxerga o quê
+--   03_onboarding.sql  criar_salao(), o cadastro em uma transação
+--   04_imagens.sql     as pastas de foto, uma por salão
+--   05_agenda.sql      horarios_livres() e agendar(), o lado da cliente
+--   06_vitrine.sql     vitrine(), e o catálogo fechado para quem não tem o link
+--   07_plataforma.sql  o painel de quem é dono do AgendaPro
+--   08_conta.sql       o perfil que nasce junto com a conta
+--
+-- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
+-- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
+-- já criou. Rodar os arquivos avulsos e fora de ordem monta um banco
+-- diferente deste. Na dúvida, cole este aqui inteiro.
 --
 -- Pode rodar mais de uma vez sem medo: tudo aqui é 'create if not exists',
 -- 'create or replace' ou 'drop policy if exists' antes de criar.
@@ -1469,6 +1481,25 @@ create or replace view public.profissionais_publicos as
 -- mesmo num projeto criado por outra pessoa.
 -- ---------------------------------------------------------------------------
 
+-- ⚠ ESTA LINHA TEM ALCANCE MAIOR QUE ESTE ARQUIVO ⚠
+--
+-- `all tables` inclui as VISTAS, e algumas delas são liberadas mais adiante,
+-- por OUTROS arquivos: o 03 dá `select` em `minha_assinatura` para quem fez
+-- login, e o 06 decide o que acontece com as três vistas públicas. Na
+-- instalação completa a ordem resolve — 02 zera, 03 e 06 devolvem o que deve
+-- ser devolvido.
+--
+-- O que NÃO funciona é reaplicar só este arquivo depois, que é a coisa mais
+-- natural do mundo quando se quer reforçar a segurança. Ele zera e ninguém
+-- devolve nada: todo dono de salão logado perde `minha_assinatura` e o painel
+-- do plano passa a responder "permission denied for view minha_assinatura".
+-- Aconteceu numa bancada aqui, e o erro não fala em permissão revogada — fala
+-- como se a tela estivesse errada.
+--
+-- Então a regra é: para reaplicar segurança, cole o 00_tudo.sql inteiro. Ele
+-- é idempotente de ponta a ponta e existe exatamente para isso. Se precisar
+-- conferir se um banco ficou meio aplicado, tests/conferir_instalacao.sql tem
+-- um item só para isso.
 revoke all on all tables in schema public from anon, authenticated;
 
 -- E as tabelas que ainda não existem. `alter default privileges` sem `for
@@ -1478,18 +1509,36 @@ revoke all on all tables in schema public from anon, authenticated;
 alter default privileges in schema public
   revoke all on tables from anon, authenticated;
 
--- Agora sim, o que cada um recebe de volta.
-grant select on public.saloes_publicos        to anon, authenticated;
-grant select on public.servicos_publicos      to anon, authenticated;
-grant select on public.profissionais_publicos to anon, authenticated;
+-- ---------------------------------------------------------------------------
+-- AS VISTAS PÚBLICAS NÃO RECEBEM NADA AQUI
+--
+-- Até pouco tempo estas três linhas existiam:
+--
+--   grant select on public.saloes_publicos        to anon, authenticated;
+--   grant select on public.servicos_publicos      to anon, authenticated;
+--   grant select on public.profissionais_publicos to anon, authenticated;
+--
+-- O 06_vitrine.sql desfaz as três, porque um `GET /rest/v1/saloes_publicos`
+-- devolvia a plataforma inteira — nome, endereço e WhatsApp de todo salão
+-- cliente. Como o 06 roda depois, na instalação completa o resultado ficava
+-- certo, e por isso a contradição passava despercebida.
+--
+-- Só que "certo porque roda na ordem" não sobrevive ao dia em que alguém abre
+-- o SQL Editor e reaplica ESTE arquivo sozinho — que é a coisa mais natural
+-- do mundo quando se quer reforçar a segurança. Medido: `anon` volta a ter
+-- select em `saloes_publicos`, e o catálogo reabre em silêncio.
+--
+-- Dois arquivos mandando no mesmo grant é um bug esperando a ordem mudar.
+-- Quem manda nas vistas públicas é o 06, sozinho.
+-- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
 -- 11) PERMISSÕES DE TABELA
 --
 -- O RLS filtra LINHA; o grant decide se a pessoa chega na TABELA. Precisa dos
--- dois. `anon` não recebe nada: quem não fez login só enxerga as vistas acima.
--- A zeragem que garante esse "nada" está mais acima, antes dos grants das
--- vistas — se estivesse aqui, apagaria os três.
+-- dois. `anon` quase não recebe nada: quem não fez login enxerga a lista de
+-- planos (a página de preços precisa dela) e chega no salão pela função
+-- `vitrine()` do 06, que pede o apelido. Nada além disso.
 -- ---------------------------------------------------------------------------
 
 grant usage on schema public to anon, authenticated;
@@ -2275,6 +2324,56 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
+-- 5b) horarios_livres_periodo() — a mesma resposta, para a tela inteira
+--
+-- ── POR QUE UMA SEGUNDA FUNÇÃO EM VEZ DE CHAMAR A PRIMEIRA VÁRIAS VEZES ────
+-- A tela da cliente não mostra um dia: mostra a faixa de dias com "12 vagas",
+-- "3 vagas", "cheio" embaixo de cada um, e ainda o cartão "próximo horário
+-- disponível". Para desenhar isso ela precisa saber de TODOS os dias da
+-- janela, para TODOS os profissionais que fazem os serviços escolhidos.
+--
+-- Rodando na memória do navegador, como era antes, isso é um laço bobo. Vindo
+-- do banco, cada volta desse laço é uma viagem até o servidor: 28 dias × 3
+-- profissionais = 84 requisições para pintar uma tela. No 3G da cliente, com
+-- 300 ms cada, são 25 segundos olhando para uma tela cinza — e ela fecha
+-- antes, que é o único desfecho que interessa medir.
+--
+-- Então o banco responde a pergunta inteira de uma vez. Por dentro é a mesma
+-- `horarios_livres()`, chamada em laço aqui, onde o laço custa microssegundos:
+-- uma única fonte da verdade sobre o que é um horário livre. Se um dia a regra
+-- mudar — passo de 20 minutos, antecedência de uma hora — muda num lugar só, e
+-- as duas mudam juntas. Duplicar a lógica aqui seria pedir para as duas
+-- discordarem justamente no dia em que alguém marcasse em cima de outro.
+--
+-- A duração continua saindo dos SERVIÇOS, nunca do navegador: quem chama
+-- manda a lista de ids, e a soma acontece lá dentro.
+-- ---------------------------------------------------------------------------
+create or replace function public.horarios_livres_periodo(
+  p_profissionais uuid[], p_de date, p_ate date, p_servicos uuid[])
+returns table (profissional_id uuid, inicio timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_dia   date;
+  v_prof  uuid;
+  -- Teto de segurança. A janela que a tela pede é de 28 dias; 62 dá folga
+  -- para relatório e para o dia em que alguém aumentar a janela do salão,
+  -- sem deixar uma chamada de fora pedir dois anos de agenda de uma vez.
+  v_ate   date := least(p_ate, p_de + 62);
+begin
+  if p_de is null or p_ate is null or v_ate < p_de then return; end if;
+
+  foreach v_prof in array coalesce(p_profissionais, '{}'::uuid[]) loop
+    v_dia := p_de;
+    while v_dia <= v_ate loop
+      return query
+        select v_prof, h
+          from public.horarios_livres(v_prof, v_dia, p_servicos) h;
+      v_dia := v_dia + 1;
+    end loop;
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------------
 -- 6) Quem pode chamar
 --
 -- `anon` precisa das duas: a cliente que abre o link não fez login, e obrigar
@@ -2290,7 +2389,12 @@ revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, tex
   from public;
 revoke all on function public.porque_nao_agenda(uuid, date, uuid[]) from public;
 
+revoke all on function public.horarios_livres_periodo(uuid[], date, date, uuid[])
+  from public;
+
 grant execute on function public.horarios_livres(uuid, date, uuid[])
+  to anon, authenticated;
+grant execute on function public.horarios_livres_periodo(uuid[], date, date, uuid[])
   to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text, text)
   to anon, authenticated;
