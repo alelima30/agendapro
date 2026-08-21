@@ -580,7 +580,11 @@ const Demo = {
 
 const TABELAS_SINCRONIZADAS = [
   'saloes','profissionais','servicos','servicos_profissionais','jornadas',
-  'bloqueios','clientes','agendamentos','lista_espera','produtos',
+  'bloqueios','clientes','agendamentos',
+  // Logo depois do pai, e não em qualquer lugar: a chave estrangeira exige
+  // que o agendamento exista antes das linhas de serviço dele.
+  'agendamento_servicos',
+  'lista_espera','produtos',
   'comandas','comanda_itens','pagamentos',
 ];
 
