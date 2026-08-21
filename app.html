@@ -928,7 +928,10 @@ function pintarServicos(){
   alvo.innerHTML = `<table class="tabela"><thead><tr>
       <th>Serviço</th><th>Categoria</th><th>Duração</th><th>Preço</th><th>Comissão</th><th></th>
     </tr></thead><tbody>` + lista.map(s => `<tr>
-      <td><b>${s.nome}</b>${s.ativo ? '' : ' <span class="tag t-canc">inativo</span>'}</td>
+      <td><span class="sv-mini">${s.foto
+          ? `<img src="${s.foto}" alt="" loading="lazy">`
+          : `<span data-ico="tesoura"></span>`}</span
+        ><b>${s.nome}</b>${s.ativo ? '' : ' <span class="tag t-canc">inativo</span>'}</td>
       <td>${s.categoria || '—'}</td>
       <td>${s.duracaoMin} min</td>
       <td>${real(s.preco)}</td>
