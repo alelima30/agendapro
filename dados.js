@@ -268,6 +268,33 @@ const Nuvem = {
   // Código no WhatsApp: quem gera, valida e expira é o Supabase Auth. A
   // entrega passa pelo Send SMS Hook, que chama a Edge Function. Nada disso
   // acontece aqui — é justamente o ponto: o navegador nunca vê o código.
+  /* ── ESQUECI MINHA SENHA ────────────────────────────────────────────
+     O Supabase manda o e-mail; nós só pedimos. O `redirect_to` é para onde
+     o link do e-mail devolve a pessoa, e ele PRECISA estar na lista de
+     "Redirect URLs" do projeto — fora dela o Supabase manda para a home e a
+     pessoa clica no link, chega no lugar certo sem o token, e conclui que o
+     sistema está quebrado.
+
+     Nunca dizemos se o e-mail existe. Uma tela que responde "não achamos
+     esse e-mail" é um verificador de contas de graça para quem quiser saber
+     quem usa o sistema — e este é o mesmo motivo de o Supabase também
+     responder 200 para endereço que não existe. */
+  async pedirNovaSenha(email){
+    const volta = new URL('nova-senha.html', location.href).href;
+    await auth('recover', { email, gotrue_meta_security: {} });
+    return { redirect: volta };
+  },
+
+  /* Troca a senha de quem chegou pelo link do e-mail. O token de recuperação
+     vem no #fragmento da URL e já É uma sessão — por isso `guardarSessao()`
+     antes: sem Authorization, o PUT em /user é recusado. */
+  async trocarSenha({ token, refresh, senha }){
+    if(token) guardarSessao({ token, refresh: refresh || null, usuarioId: null });
+    const r = await auth('user', { password: senha }, 'PUT');
+    if(r && r.id) guardarSessao({ token, refresh: refresh || null, usuarioId: r.id });
+    return r;
+  },
+
   async pedirCodigo(telefone){
     return auth('otp', { phone: telefone, create_user: true });
   },
@@ -435,6 +462,8 @@ const Demo = {
     return { user: { id: p.id } };
   },
   async entrar(){ throw new Error('Login por senha só existe no modo nuvem.'); },
+  async pedirNovaSenha(){ throw new Error('Recuperação de senha só existe no modo nuvem.'); },
+  async trocarSenha(){ throw new Error('Recuperação de senha só existe no modo nuvem.'); },
   async pedirCodigo(){ return { demo: true }; },
   async conferirCodigo(telefone){
     const d = lerDemo();
