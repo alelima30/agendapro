@@ -1315,7 +1315,8 @@ function desenharProfs(){
     const sel = escolha.profissionalId === p.id;
     const pl = primeiroLivre(p);
     html += `<button class="opcao ${sel?'sel':''}" onclick="escolherProf('${p.id}')">
-      <span class="ic" style="background:${p.cor}">${p.nome[0]}</span>
+      <span class="ic" style="background:${p.cor}">${
+        p.foto ? `<img src="${p.foto}" alt="">` : p.nome[0]}</span>
       <span class="txt"><span class="tt">${p.nome}</span>
         <span class="dd">${pl ? 'Livre ' + dataLonga(pl.data) + ' às ' + hm(pl.min)
                              : 'sem horário nos próximos 15 dias'}</span></span>

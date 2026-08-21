@@ -239,6 +239,41 @@ igual('e a de sair também',                        await q.inputValue('#j2b'), 
 igual('o almoço no meio não se perde — volta às 14:00', await q.inputValue('#j2c'), '14:00');
 igual('e a saída da tarde',                        await q.inputValue('#j2d'), '18:00');
 
+/* ── A FOTO DE QUEM ATENDE ────────────────────────────────────────────────
+   Imagem é o único pedaço do sistema que não passa pelo PostgREST: outro
+   serviço, outro caminho, corpo binário. A bancada não tinha nada disso, e
+   por isso TODA foto — logo, capa, serviço, profissional — vivia fora de
+   teste no modo nuvem. Agora ela tem um arremedo do Storage, e este caso
+   passa por ele de ponta a ponta: escolher, reduzir, enviar, gravar o
+   endereço, recarregar e continuar lá. */
+const PNG_4x4 = 'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAHElEQVQI12P4'
+              + '//8/AzYEEwAAKzQD/6Ac0AAAAABJRU5ErkJggg==';
+await q.setInputFiles('#modalCorpo input[type=file]',
+  { name: 'rosto.png', mimeType: 'image/png', buffer: Buffer.from(PNG_4x4, 'base64') });
+await q.waitForTimeout(1200);
+verdade('a foto escolhida aparece na prévia antes de salvar',
+  await q.evaluate(() => !!document.querySelector('#previaProf img')));
+
+await q.click('#modalPe button:has-text("Salvar")');
+await q.waitForTimeout(3000);
+igual('salvar com foto não devolve erro', avisos.join(' | '), '');
+
+await q.reload();
+await q.waitForTimeout(3000);
+await q.click('a:has-text("Equipe"), button:has-text("Equipe")');
+await q.waitForTimeout(800);
+const rosto = await q.evaluate(() => {
+  const img = document.querySelector('#listaEquipe .eq-rosto img');
+  return img ? img.getAttribute('src') : null;
+});
+verdade('e continua lá depois de recarregar', !!rosto);
+/* O endereço tem que ser do servidor, não um `data:` de 200 KB. Uma base64
+   gravada na coluna funciona na tela do dono e faz a página da cliente
+   carregar um texto gigante por profissional — no 3G dela, isso é a
+   diferença entre abrir e desistir. */
+verdade('e é um endereço do servidor, não a imagem inteira dentro da coluna',
+  rosto && !rosto.startsWith('data:'));
+
 await nav.close();
 console.log('');
 if (falhou) { console.log(`✗ ${falhou} de ${passou + falhou} falharam.`); process.exit(1); }

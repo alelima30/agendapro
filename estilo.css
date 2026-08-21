@@ -287,6 +287,28 @@
 
 /* ── O pé da lateral ─────────────────────────────────────────────────── */
 .lat-pe{ padding:12px; border-top:1px solid var(--lat-borda) }
+
+/* Quem está usando o sistema agora. A recepção, a dona e quem atende dividem
+   o mesmo computador — sem esta linha, "Sair" é um botão que ninguém sabe de
+   quem, e comanda lançada na conta da colega é questão de tempo. */
+.lat-quem{
+  display:flex; align-items:center; gap:9px;
+  padding:9px 10px; margin-bottom:9px; border-radius:var(--r-sm);
+  background:rgba(255,255,255,.05);
+}
+.lat-quem-ini{
+  width:28px; height:28px; flex:none; border-radius:50%;
+  display:grid; place-items:center;
+  background:var(--acao); color:var(--acao-txt);
+  font-size:12px; font-weight:640; letter-spacing:-.01em;
+}
+.lat-quem-txt{ min-width:0; line-height:1.25 }
+.lat-quem-txt b{
+  display:block; font-size:13px; font-weight:560; color:var(--lat-txt);
+  /* Nome comprido não pode empurrar a lateral nem quebrar em duas linhas. */
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.lat-quem-txt small{ font-size:11px; color:var(--lat-txt3) }
 .lat-acao{
   display:flex; align-items:center; gap:9px; width:100%;
   padding:8px 10px; margin-bottom:3px; border-radius:var(--r-sm);
@@ -822,6 +844,15 @@ body[data-passo="capa"] .cabeca-linha{ min-height:34px }
 }
 .foto-previa img{ width:100%; height:100%; object-fit:cover; display:block }
 .foto-previa.logo{ width:76px; height:76px }
+/* Rosto é redondo em todo lugar do sistema: é como o olho distingue "pessoa"
+   de "coisa" sem ler nada. */
+.foto-previa.pessoa{ width:76px; height:76px; border-radius:50% }
+.eq-rosto{
+  width:26px; height:26px; flex:none; border-radius:50%; overflow:hidden;
+  display:inline-grid; place-items:center; vertical-align:-7px;
+  margin-right:8px; color:#fff; font-size:11px; font-weight:640;
+}
+.eq-rosto img{ width:100%; height:100%; object-fit:cover; display:block }
 .foto-previa.capa{ width:132px; aspect-ratio:3 / 2 }
 .foto-previa.servico{ width:104px; aspect-ratio:4 / 3 }
 .foto-previa .ic-svg{ width:22px; height:22px }
