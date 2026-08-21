@@ -312,6 +312,39 @@ igual('depois de recarregar, o dia volta igual', voltou && voltou.data, diaMarca
 igual('e a HORA volta igual, sem deslocar o fuso', voltou && voltou.inicio, 870);
 igual('e o serviço do atendimento também voltou', voltou && voltou.servicos, 1);
 
+/* ── O CAIXA ──────────────────────────────────────────────────────────────
+   Três defeitos moravam aqui, e os três só apareciam na nuvem:
+
+     · a comanda gravava `data`, coluna que não existe (ela tem `aberta_em`);
+     · os itens e os pagamentos moram em tabelas filhas, e ninguém traduzia —
+       o Caixa abria sempre zerado;
+     · e o PostgREST devolve `numeric` como STRING, então somar concatenava:
+       `0 + '80.00' + '45.00'` é '080.0045.00'. Faturamento do dia, comissão e
+       total de comanda saem dessa conta.
+
+   O último é o que assusta: um sistema de salão que erra a conta do caixa não
+   tem serventia nenhuma, e ele erraria em silêncio, com número plausível na
+   tela. Por isso o teste confere o TIPO, não só o valor. */
+const agId = await q.evaluate(() =>
+  (typeof bd !== 'undefined' && bd.agendamentos[0] || {}).id);
+await q.evaluate(id => comandaDoAgendamento(id), agId);
+await q.waitForTimeout(2500);
+igual('abrir a comanda do atendimento não devolve erro', avisos.join(' | '), '');
+
+await q.reload();
+await q.waitForTimeout(3500);
+const caixa = await q.evaluate(() => {
+  const c = (typeof bd !== 'undefined' && bd.comandas[0]) || {};
+  const sub = (c.itens || []).reduce((s, i) => s + i.qtd * i.precoUnit, 0);
+  return { comandas: (bd.comandas || []).length, itens: (c.itens || []).length,
+           subtotal: sub, tipo: typeof sub, dia: c.data };
+});
+igual('a comanda sobreviveu ao recarregamento', caixa.comandas, 1);
+igual('com o item do atendimento dentro', caixa.itens, 1);
+igual('o subtotal é NÚMERO, não texto — senão a soma concatena', caixa.tipo, 'number');
+igual('e vale o preço do serviço', caixa.subtotal, 80);
+verdade('e o dia da comanda saiu de `aberta_em`', /^\d{4}-\d{2}-\d{2}$/.test(caixa.dia || ''));
+
 await fecharModalAberto();
 await q.click('a:has-text("Equipe"), button:has-text("Equipe")');
 await q.waitForTimeout(700);

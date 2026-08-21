@@ -1405,6 +1405,9 @@ function comandaDoAgendamento(agId){
     const a = bd.agendamentos.find(x => x.id === agId);
     c = {
       id:id(), salaoId:salaoAtual, agendamentoId:agId, clienteId:a.clienteId,
+      // `numero` e `aberta_em` são do banco: o número vem de um gatilho, e a
+      // hora de abertura tem o `default now()`. `data` é só da tela, e o
+      // `desmontarAgenda()` a remove antes de gravar.
       numero: proximoNumero(), data:a.data, desconto:0, pagamentos:[],
       itens: (a.servicos||[]).map(s => ({
         tipo:'servico', descricao: acharServico(s.servicoId).nome,
@@ -2577,6 +2580,31 @@ function montarAgenda(d){
       .map(s => ({ servicoId: s.servicoId, duracaoMin: s.duracaoMin,
                    preco: Number(s.preco), comissaoPct: Number(s.comissaoPct) }));
   }
+
+  /* ── O CAIXA ────────────────────────────────────────────────────────────
+     Mesma história em outra mesa. A comanda guarda os itens e os pagamentos
+     DENTRO dela na tela, e em duas tabelas filhas no banco — e ninguém
+     traduzia, então o Caixa na nuvem abria sempre zerado.
+
+     E a tela filtra o dia por `c.data`, uma coluna que não existe: a comanda
+     tem `aberta_em`, que é um instante. O dia sai dele, no fuso do salão. */
+  const porCom = {}, pagPorCom = {};
+  for(const i of (d.comanda_itens || [])) (porCom[i.comandaId] = porCom[i.comandaId] || []).push(i);
+  for(const g of (d.pagamentos || [])) (pagPorCom[g.comandaId] = pagPorCom[g.comandaId] || []).push(g);
+
+  for(const c of (d.comandas || [])){
+    if(c.abertaEm) c.data = instanteParaTela(c.abertaEm, fuso).data;
+    c.itens = (porCom[c.id] || []).map(i => ({
+      id: i.id, tipo: i.tipo, descricao: i.descricao, qtd: Number(i.qtd),
+      servicoId: i.servicoId, produtoId: i.produtoId,
+      precoUnit: Number(i.precoUnit), profissionalId: i.profissionalId,
+      comissaoPct: Number(i.comissaoPct) || 0,
+    }));
+    c.pagamentos = (pagPorCom[c.id] || []).map(g => ({
+      id: g.id, forma: g.forma, valor: Number(g.valor),
+      parcelas: g.parcelas, taxa: Number(g.taxa) || 0,
+    }));
+  }
   return d;
 }
 
@@ -2615,6 +2643,35 @@ function desmontarAgenda(d){
     });
   }
   d.agendamento_servicos = linhas;
+
+  // ── O caixa, pelo mesmo caminho ──
+  const itens = [], pagos = [];
+  for(const c of (d.comandas || [])){
+    // `data` é da tela; no banco o dia sai de `aberta_em`. Deixá-la aqui é o
+    // 400 que derruba a gravação inteira, igual ao dos bloqueios.
+    delete c.data;
+    (c.itens || []).forEach(i => {
+      itens.push({
+        id: i.id || Dados.novoId(), comandaId: c.id,
+        tipo: i.tipo, descricao: i.descricao, qtd: i.qtd,
+        servicoId: i.servicoId || null, produtoId: i.produtoId || null,
+        precoUnit: i.precoUnit, profissionalId: i.profissionalId || null,
+        comissaoPct: i.comissaoPct,
+        // `total` e `comissao_valor` são colunas CALCULADAS pelo banco.
+        // Mandá-las de volta é pedir divergência — e o Postgres recusa
+        // escrita em coluna gerada.
+      });
+    });
+    (c.pagamentos || []).forEach(g => {
+      pagos.push({
+        id: g.id || Dados.novoId(), comandaId: c.id,
+        forma: g.forma, valor: g.valor,
+        parcelas: g.parcelas || 1, taxa: g.taxa || 0,
+      });
+    });
+  }
+  d.comanda_itens = itens;
+  d.pagamentos = pagos;
 }
 
 async function carregarTudo(){
