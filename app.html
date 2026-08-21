@@ -2216,10 +2216,109 @@ const NA_NUVEM = !!(window.Dados && window.Dados.ligado);
 let _baixado = null;                                  // retrato do banco
 const _copia = o => JSON.parse(JSON.stringify(o));
 
+/* ── SALÃO MEU É AQUELE EM QUE EU TENHO VÍNCULO ───────────────────────────
+   `bd.saloes` traz o que o RLS deixa esta conta LER — e para a conta de
+   plataforma isso é a plataforma inteira. O painel pegava `bd.saloes[0]`, e o
+   administrador entrava direto na agenda, na clientela e no caixa de um salão
+   CLIENTE, escolhido por ordem de cadastro, com permissão de editar tudo
+   achando que era a casa dele.
+
+   Ler é o poder que essa conta precisa ter, e o painel da plataforma é onde
+   ela lê. "O meu salão" é outra pergunta, e quem responde é `vinculos`: onde
+   EU sou dono ou funcionário. Sem vínculo não é meu, por mais que eu consiga
+   enxergar.
+
+   O filtro mora aqui, e não na partida, porque a partida carrega DUAS vezes —
+   uma para descobrir o salão e outra já com ele escolhido. Na primeira versão
+   eu filtrei só na partida, e a segunda carga trazia a plataforma inteira de
+   volta para o seletor de estabelecimento.
+   ──────────────────────────────────────────────────────────────────────── */
+function sohMeusSaloes(d){
+  if(!d || d.semSessao) return d;
+  const eu = (Dados.sessaoAtual() || {}).usuarioId;
+  if(!eu) return d;
+  const meus = (d.vinculos || []).filter(v => v.perfilId === eu).map(v => v.salaoId);
+  const souDaPlataforma = (d.perfis || []).some(p => p.id === eu && p.superAdmin);
+  // Sem vínculo nenhum: só zera se for conta de plataforma, que é quem
+  // enxerga salão dos outros. Dono comum sem vínculo já não veria nada.
+  if(meus.length) d.saloes = (d.saloes || []).filter(s => meus.includes(s.id));
+  else if(souDaPlataforma) d.saloes = [];
+  return d;
+}
+
+/* ── A JORNADA VAI E VOLTA EM DOIS FORMATOS ───────────────────────────────
+   A tela pensa em `p.jornada = {1:[[540,1140]], ...}` — dia da semana e
+   minutos desde a meia-noite. O banco guarda uma LINHA por faixa na tabela
+   `jornadas`, com horas de verdade ('09:00:00').
+
+   Faltavam as duas traduções, e o estrago era em três lugares ao mesmo tempo:
+
+     · a aba Equipe QUEBRAVA — `p.jornada[d]` de um objeto sem jornada;
+     · a agenda abria sem horário de trabalho, porque `jornadaDe()` não
+       achava nada;
+     · e horário de trabalho não tinha como ser salvo: `jornada` está em
+       SO_DA_TELA, então ele era removido antes de subir e nunca virava linha.
+
+   Esse terceiro era o mais caro: sem jornada no banco, `horarios_livres()`
+   não devolve nada, e o link que a cliente abre fica sem um horário sequer.
+   O dono configura a semana inteira, salva, e a agenda dele continua vazia
+   para o mundo.
+   ──────────────────────────────────────────────────────────────────────── */
+const horaParaMin = h => {
+  const [hh, mm] = String(h || '0:0').split(':').map(Number);
+  return (hh || 0) * 60 + (mm || 0);
+};
+const minParaHora = m =>
+  String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0') + ':00';
+
+function montarJornadas(d){
+  if(!d || !d.profissionais) return d;
+  const porProf = {};
+  for(const j of (d.jornadas || [])){
+    const p = (porProf[j.profissionalId] = porProf[j.profissionalId] || {});
+    (p[Number(j.diaSemana)] = p[Number(j.diaSemana)] || [])
+      .push([horaParaMin(j.inicio), horaParaMin(j.fim)]);
+  }
+  for(const p of d.profissionais){
+    const meu = porProf[p.id] || {};
+    // Duas faixas no mesmo dia é o almoço no meio; a ordem importa para o
+    // desenho da agenda.
+    for(const dia of Object.keys(meu)) meu[dia].sort((a, b) => a[0] - b[0]);
+    p.jornada = meu;
+  }
+  return d;
+}
+
+function desmontarJornadas(d){
+  if(!d || !d.profissionais) return;
+  // Reaproveita o id da linha que já existe para a mesma faixa. Sem isso,
+  // cada gravação apagaria e recriaria a semana inteira — barulho no banco e
+  // uma janela em que o profissional fica sem jornada nenhuma.
+  const antigas = new Map();
+  for(const j of ((_baixado && _baixado.jornadas) || [])){
+    antigas.set([j.profissionalId, j.diaSemana, horaParaMin(j.inicio),
+                 horaParaMin(j.fim)].join('|'), j.id);
+  }
+  const linhas = [];
+  for(const p of d.profissionais){
+    for(const dia of Object.keys(p.jornada || {})){
+      for(const faixa of (p.jornada[dia] || [])){
+        const chave = [p.id, Number(dia), faixa[0], faixa[1]].join('|');
+        linhas.push({
+          id: antigas.get(chave) || Dados.novoId(),
+          profissionalId: p.id, diaSemana: Number(dia),
+          inicio: minParaHora(faixa[0]), fim: minParaHora(faixa[1]),
+        });
+      }
+    }
+  }
+  d.jornadas = linhas;
+}
+
 async function carregarTudo(){
   if(!NA_NUVEM) return carregar();
   try{
-    const d = await Dados.baixar(salaoAtual);
+    const d = montarJornadas(sohMeusSaloes(await Dados.baixar(salaoAtual)));
     _baixado = _copia(d);
     return d;
   }catch(e){
@@ -2237,17 +2336,66 @@ async function carregarTudo(){
    chamada de upsert, e `carregar()` vira select — o resto da página nem fica
    sabendo.
    =========================================================================== */
+/* ── UMA AÇÃO, UM RECADO ──────────────────────────────────────────────────
+   O `subir()` tenta todas as tabelas e junta tudo que falhou. Recusado o
+   segundo profissional pela cota do plano, as seis faixas de jornada dele
+   também são recusadas — não têm em quem se apoiar — e o aviso chegava assim:
+
+     profissionais: O plano Teste grátis permite 1 profissional(is)... |
+     jornadas: new row violates row-level security policy for table
+     "jornadas" | jornadas: new row violates... (mais cinco vezes)
+
+   Tudo verdade, e ilegível. Pior: a frase que a pessoa PODE resolver fica
+   soterrada por seis que ela não pode.
+
+   Três limpezas: fora o nome da tabela, fora as repetidas, e a recusa de
+   política só aparece quando é a única coisa que houve — nos outros casos ela
+   é consequência da linha pai que já foi explicada acima.
+   ──────────────────────────────────────────────────────────────────────── */
+function limparRecusa(msg){
+  const partes = String(msg || '').split(' | ')
+    .map(p => p.replace(/^\w+(?: \(apagar\))?:\s*/, '').trim())
+    .filter(Boolean);
+  const unicas = [...new Set(partes)];
+  const explicadas = unicas.filter(p => !/row-level security/i.test(p));
+
+  const mostrar = explicadas.length ? explicadas : unicas.map(() =>
+    'O banco não autorizou esta gravação para a sua conta. Se você acabou de '
+    + 'trocar de salão, entre de novo.');
+
+  return mostrar.slice(0, 3).join('\n\n')
+       + (mostrar.length > 3 ? '\n\n(e mais ' + (mostrar.length - 3) + ')' : '');
+}
+
 function salvar(){
   if(NA_NUVEM){
     // Grava no banco e só então atualiza o retrato. Se falhar, a pessoa
     // fica sabendo — tela dizendo "salvo" com banco vazio é o pior erro
     // possível num sistema de agenda.
+    // A jornada que a tela editou vira linha antes de subir. Sem esta linha,
+    // horário de trabalho nunca chegava ao banco: `jornada` é campo de tela e
+    // some no caminho.
+    desmontarJornadas(bd);
     Dados.subir(_baixado, bd)
       .then(() => { _baixado = _copia(bd); })
-      .catch(e => {
+      .catch(async e => {
         console.error('[AgendaPro] falha ao gravar:', e);
-        alert('NÃO consegui salvar no banco:\n\n' + e.message
+        alert('NÃO consegui salvar no banco:\n\n' + limparRecusa(e.message)
             + '\n\nO que está na tela ainda não foi gravado.');
+
+        /* ── A LINHA RECUSADA NÃO PODE FICAR ────────────────────────────
+           Sem isto, o que o banco recusou continuava na memória da tela — e
+           como `_baixado` só é atualizado no sucesso, a PRÓXIMA gravação
+           tentava tudo de novo. Quer dizer: recusado o segundo profissional
+           por causa da cota do plano, criar um serviço mostrava o aviso da
+           cota, marcar um cliente mostrava o aviso da cota, e assim por
+           diante — um erro de ontem interrompendo o trabalho de hoje.
+
+           Recarregar do banco devolve a tela ao que de fato existe. O que
+           foi recusado some, e a próxima gravação parte de um retrato
+           verdadeiro. */
+        const novo = await carregarTudo();
+        if(novo){ bd = novo; pintar(); }
       });
     return;
   }
@@ -2384,17 +2532,29 @@ function iniciar(){
     if(NA_NUVEM && !bd) return;
     if(NA_NUVEM){
       if(bd.semSessao){
-        document.querySelector('.corpo').innerHTML =
-          '<div class="vazio"><b>Entre para ver sua agenda</b>'
+        semSalao(
+          '<b>Entre para ver sua agenda</b>'
           + 'Ainda não tem conta? <a class="link" href="criar.html">'
-          + 'Crie a sua em 2 minutos</a>.</div>';
+          + 'Crie a sua em 2 minutos</a>.');
         document.getElementById('abas').innerHTML = '';
         return;
       }
       if(!bd.saloes || !bd.saloes.length){
-        document.querySelector('.corpo').innerHTML =
-          '<div class="vazio"><b>Nenhum salão nesta conta</b>'
-          + 'Crie o seu em <a class="link" href="criar.html">criar.html</a>.</div>';
+        /* ── A CONTA DA PLATAFORMA CAI AQUI ─────────────────────────────
+           Quem administra o AgendaPro não tem salão — não deve mesmo ter.
+           Só que esta tela dizia a ele "crie o seu em criar.html", sem uma
+           palavra sobre o painel da plataforma, que é justamente o lugar
+           dessa conta. Mandar o administrador criar um salão é mandá-lo
+           para o lugar errado com instrução clara, que é a pior
+           combinação. */
+        const meu = (bd.perfis || []).find(p => p.superAdmin);
+        semSalao(meu
+          ? '<b>Esta é a sua conta de plataforma</b>'
+            + 'Ela administra o AgendaPro e não tem salão próprio — está certo '
+            + 'assim. O painel dela é o <a class="link" href="admin.html">'
+            + 'admin.html</a>.'
+          : '<b>Nenhum salão nesta conta</b>'
+            + 'Crie o seu em <a class="link" href="criar.html">dois minutos</a>.');
         return;
       }
       if(!salaoAtual || !acharSalao(salaoAtual)) salaoAtual = bd.saloes[0].id;
@@ -2409,11 +2569,37 @@ function iniciar(){
     }
     iniciar();
     registrarServiceWorker();
-    const rod = document.querySelector('.rodape');
-    if(rod) rod.innerHTML = NA_NUVEM
-      ? 'AgendaPro · ligado ao banco (' + Dados.ambiente + ')'
-      : rod.innerHTML;
+    arrumarRodape();
   })();
+
+  /* ── O RODAPÉ TEM QUE DIZER ONDE OS DADOS ESTÃO ─────────────────────────
+     O texto que vem no HTML é o do modo demonstração: "dados no próprio
+     navegador (localStorage). Nada é enviado para servidor nenhum."
+
+     Isso era corrigido na última linha da partida — depois de `iniciar()`. Só
+     que os dois caminhos de conta sem salão dão `return` bem antes, e a tela
+     ficava ligada ao banco de produção AFIRMANDO que nada sai do navegador.
+     Numa tela onde a pessoa vai digitar telefone e histórico de cliente, essa
+     é a frase errada para se estar errado.
+
+     Agora quem arruma é uma função, chamada nos três caminhos. */
+  function arrumarRodape(){
+    const rod = document.querySelector('.rodape');
+    if(rod && NA_NUVEM){
+      rod.innerHTML = 'AgendaPro · ligado ao banco (' + Dados.ambiente + ')';
+    }
+    // "Recomeçar demonstração" apaga e recria os dados de exemplo. Ligado ao
+    // banco ele não tem o que fazer, e o nome sozinho já assusta quem tem
+    // clientes de verdade cadastrados.
+    const bt = document.querySelector('.lat-acao[onclick="recomecar()"]');
+    if(bt && NA_NUVEM) bt.style.display = 'none';
+  }
+
+  // Tela sem salão: mostra o recado e ainda assim deixa o rodapé honesto.
+  function semSalao(html){
+    document.querySelector('.corpo').innerHTML = '<div class="vazio">' + html + '</div>';
+    arrumarRodape();
+  }
 })();
 </script>
 </body>

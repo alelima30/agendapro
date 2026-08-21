@@ -198,6 +198,47 @@ await q.waitForTimeout(800);
 verdade('e continua lá depois de recarregar, porque foi para o banco',
   (await q.textContent('body')).includes('Jucelia Barbosa'));
 
+/* ── A JORNADA DE TRABALHO ────────────────────────────────────────────────
+   Três defeitos moravam aqui ao mesmo tempo, todos por falta da tradução
+   entre `p.jornada` (o mapa da tela) e a tabela `jornadas` (uma linha por
+   faixa):
+
+     · a aba Equipe QUEBRAVA, lendo `p.jornada[d]` de quem não tinha jornada
+       — e uma aba que quebra parece uma aba que não existe, que foi como
+       este pedaço "sumiu";
+     · a agenda do dono abria sem horário de trabalho nenhum;
+     · e a jornada não tinha como ser salva, porque `jornada` é campo de tela
+       e era removido antes de subir.
+
+   O terceiro é o que custa dinheiro: sem linha em `jornadas`, a função
+   `horarios_livres()` não devolve nada, e o link que a cliente abre fica sem
+   um horário sequer. O dono configura a semana, salva, e continua invisível.
+   ──────────────────────────────────────────────────────────────────────── */
+await q.click('a:has-text("Equipe"), button:has-text("Equipe")');
+await q.waitForTimeout(700);
+igual('a aba Equipe abre sem quebrar', q.erros.length, 0);
+verdade('e mostra quem atende', (await q.textContent('body')).includes(NOME.split(' ')[0]));
+
+await q.click('#listaEquipe button:has-text("Editar")');
+await q.waitForTimeout(500);
+// Terça (2): entra 08:00, sai 12:00; volta 14:00, sai 18:00 — com almoço.
+await q.fill('#j2a', '08:00'); await q.fill('#j2b', '12:00');
+await q.fill('#j2c', '14:00'); await q.fill('#j2d', '18:00');
+await q.click('button:has-text("Salvar")');
+await q.waitForTimeout(2500);
+igual('salvar a jornada não devolve erro', avisos.join(' | '), '');
+
+await q.reload();
+await q.waitForTimeout(3000);
+await q.click('a:has-text("Equipe"), button:has-text("Equipe")');
+await q.waitForTimeout(700);
+await q.click('#listaEquipe button:has-text("Editar")');
+await q.waitForTimeout(600);
+igual('a hora de entrar na terça voltou do banco', await q.inputValue('#j2a'), '08:00');
+igual('e a de sair também',                        await q.inputValue('#j2b'), '12:00');
+igual('o almoço no meio não se perde — volta às 14:00', await q.inputValue('#j2c'), '14:00');
+igual('e a saída da tarde',                        await q.inputValue('#j2d'), '18:00');
+
 await nav.close();
 console.log('');
 if (falhou) { console.log(`✗ ${falhou} de ${passou + falhou} falharam.`); process.exit(1); }
