@@ -125,6 +125,13 @@ function paraBanco(tabela, obj){
   return saida;
 }
 
+/* Resposta de função que devolve ARRAY jsonb. Vem como a própria lista; se
+   algum dia vier embrulhada numa linha, o segundo caso desembrulha. */
+function listaJsonb(r){
+  if(Array.isArray(r)) return Array.isArray(r[0]) ? r[0] : r;
+  return r ? [r] : [];
+}
+
 function paraTela(tabela, linha){
   const mapa = COLUNAS[tabela] || {};
   const inverso = {};
@@ -372,6 +379,46 @@ const Nuvem = {
     // Função que devolve escalar vem crua; a de conjunto vem em lista.
     const v = Array.isArray(r) ? r[0] : r;
     return v && v.salao ? v : null;
+  },
+
+  /* ── O QUE É DELA ─────────────────────────────────────────────────────
+     Marcar devolve um SEGREDO daquela marcação, e é ele que abre "meus
+     horários", cancelar e a lista de espera. Quem tem o segredo é quem
+     marcou — ninguém mais o viu passar.
+
+     Os segredos ficam no navegador, e por isso a lista é por APARELHO. É uma
+     limitação honesta: quem marcou no computador do trabalho precisa do link
+     para cancelar do celular. No dia em que houver SMS, ela cai. */
+  /* ── UMA ARMADILHA DO POSTGREST ────────────────────────────────────────
+     Função que devolve escalar vem CRUA, sem linha em volta. Estas devolvem
+     um array jsonb, então a resposta JÁ É a lista.
+
+     A primeira versão fazia `Array.isArray(r) ? r[0] : r`, copiado do
+     `vitrine()` — que devolve um OBJETO e por isso precisa desembrulhar.
+     Aqui isso pegava a primeira marcação e chamava de lista: a tela dizia
+     "nenhum horário" para quem tinha acabado de marcar. O mesmo padrão, o
+     resultado oposto, porque o tipo por dentro é outro. */
+  async meusAgendamentos(tokens){
+    return listaJsonb(await rest('rpc/meus_agendamentos', {
+      method: 'POST', body: JSON.stringify({ p_tokens: tokens || [] }) }));
+  },
+  async cancelarAgendamento(token){
+    return rest('rpc/cancelar_agendamento', {
+      method: 'POST', body: JSON.stringify({ p_token: token }) });
+  },
+  async entrarNaFila(dados){
+    // Esta devolve um OBJETO jsonb, e aí sim o desembrulho faz sentido.
+    const r = await rest('rpc/entrar_na_fila', {
+      method: 'POST', body: JSON.stringify(dados) });
+    return (Array.isArray(r) ? r[0] : r) || {};
+  },
+  async minhaFila(tokens){
+    return listaJsonb(await rest('rpc/minha_fila', {
+      method: 'POST', body: JSON.stringify({ p_tokens: tokens || [] }) }));
+  },
+  async sairDaFila(token){
+    return rest('rpc/sair_da_fila', {
+      method: 'POST', body: JSON.stringify({ p_token: token }) });
   },
 
   // Compatibilidade: quem só quer o salão continua chamando isto.
