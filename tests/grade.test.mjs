@@ -162,7 +162,7 @@ secao('A profissional saiu do salão, mas a cliente dela já estava marcada');
 
 // O plano do teste grátis só comporta uma pessoa, e quem troca assinatura é a
 // plataforma — não o dono. Aqui a troca é feita por fora, como ela seria.
-const pg = exigir('./bancada/node_modules/pg');
+import pg from './pg.mjs';
 const banco = new pg.Client({ host: process.env.PGHOST || '/tmp',
   port: +(process.env.PGPORT || 5444), user: process.env.PGUSER || 'postgres',
   database: process.env.PGBANCO || 'app' });

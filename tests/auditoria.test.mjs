@@ -26,7 +26,7 @@ import { createRequire } from 'node:module';
    Uma auditoria de agenda precisa de dois profissionais na casa, então o
    plano sobe por fora, como a plataforma faria. */
 const exigir = createRequire(import.meta.url);
-const pg = exigir('./bancada/node_modules/pg');
+import pg from './pg.mjs';
 const bd = new pg.Client({
   host: process.env.PGHOST || '/tmp', port: +(process.env.PGPORT || 5444),
   user: process.env.PGUSER || 'postgres', database: process.env.PGBANCO || 'app' });

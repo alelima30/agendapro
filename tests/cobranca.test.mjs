@@ -59,7 +59,7 @@ const cr = await d.chamar('criar_salao', { p_nome_salao:'Salão Cobrança ' + ma
   p_documento:'11222333000181', p_origem:null });
 const SALAO = cr[0].salao_id;
 
-const pgLib = exigir('./bancada/node_modules/pg');
+import pgLib from './pg.mjs';
 const banco = new pgLib.Client({ host: process.env.PGHOST || '/tmp',
   port: +(process.env.PGPORT || 5444), user: process.env.PGUSER || 'postgres',
   database: process.env.PGBANCO || 'app' });

@@ -67,7 +67,7 @@ const SALAO = cr[0].salao_id;
 // Duas profissionais é o mínimo para provar que a comissão sai por PESSOA.
 // O trial permite uma; o plano se troca pelo banco, que é o que a assinatura
 // de verdade faria.
-const pg_ = exigir('./bancada/node_modules/pg');
+import pg_ from './pg.mjs';
 const banco = new pg_.Client({ host: process.env.PGHOST || '/tmp',
   port: +(process.env.PGPORT || 5444), user: process.env.PGUSER || 'postgres',
   database: process.env.PGBANCO || 'app' });

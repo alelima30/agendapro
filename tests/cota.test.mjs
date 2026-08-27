@@ -13,7 +13,7 @@
 // package.json na raiz, e não vai haver: o projeto não tem build.
 import { createRequire } from 'node:module';
 const exigir = createRequire(import.meta.url);
-const pg = exigir('./bancada/node_modules/pg');
+import pg from './pg.mjs';
 
 const cliente = new pg.Client({
   host: process.env.PGHOST || '/tmp', port: +(process.env.PGPORT || 5444),

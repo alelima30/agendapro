@@ -65,7 +65,7 @@ const cr = await dDona.chamar('criar_salao', { p_nome_salao:'Salão Papéis ' + 
   p_tipo:'salao', p_telefone:'(11) 3333-4444', p_documento:null, p_origem:null });
 const SALAO = cr[0].salao_id;
 
-const pg = exigir('./bancada/node_modules/pg');
+import pg from './pg.mjs';
 const banco = new pg.Client({ host: process.env.PGHOST || '/tmp',
   port: +(process.env.PGPORT || 5444), user: process.env.PGUSER || 'postgres',
   database: process.env.PGBANCO || 'app' });

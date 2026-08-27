@@ -1,2 +1,19 @@
 dist/
+
+# Duas pastas, porque o `pg` e o Playwright são instalados em dois lugares
+# diferentes conforme quem roda:
+#
+#   tests/bancada/node_modules/   o `subir.sh`, na máquina de desenvolvimento
+#   node_modules/                 o CI, com `npm install --no-save` na raiz
+#
+# Só a primeira estava listada — a segunda nunca tinha existido nesta máquina,
+# porque o CI rodava noutra. Um `npm install` na raiz deixaria centenas de
+# arquivos de dependência prontos para entrar num commit sem ninguém notar.
 tests/bancada/node_modules/
+node_modules/
+
+# O `npm init -y` do CI cria estes dois. Não são do projeto: aqui não há
+# build, não há dependência de produção, e a página é servida como arquivo
+# estático. Ficam de fora para ninguém confundir com um projeto npm.
+/package.json
+/package-lock.json
