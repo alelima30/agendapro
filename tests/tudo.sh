@@ -140,6 +140,7 @@ rodar "checkout"           node "$AQUI/cobranca.test.mjs"
 rodar "motor da agenda"    node "$AQUI/motor.test.mjs"
 rodar "banco atrasado"     node "$AQUI/banco-atrasado.test.mjs"
 rodar "escada da comissão" node "$AQUI/comissao.test.mjs"
+rodar "caixa na tela"     node "$AQUI/caixa-tela.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

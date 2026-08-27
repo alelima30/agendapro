@@ -74,6 +74,19 @@
 
 -- O par serviço+profissional. A tabela já existia para preço e duração
 -- diferentes por pessoa; comissão é a terceira coisa que varia pelo par.
+--
+-- ⚠ E ela ganha um `id`, que não é enfeite: o `Dados.subir()` do painel
+-- compara as linhas por `id`, e sem essa coluna TODAS viram a chave
+-- `undefined` — a segunda sobrescreve a primeira e sobe uma só, sem erro
+-- nenhum. Medido antes de existir tela que escrevesse aqui: dois pares
+-- pedidos, um gravado, silêncio.
+--
+-- A chave primária continua sendo o PAR; o `id` é só o endereço que a
+-- sincronização precisa para saber de que linha está falando.
+alter table public.servicos_profissionais
+  add column if not exists id uuid not null default gen_random_uuid();
+create unique index if not exists ux_sp_id on public.servicos_profissionais(id);
+
 alter table public.servicos_profissionais
   add column if not exists comissao_pct numeric(5,2)
     check (comissao_pct between 0 and 100);

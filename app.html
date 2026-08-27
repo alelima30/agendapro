@@ -1341,7 +1341,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.8244bb';
+const VERSAO_APP = 'v9.723bbc';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2373,9 +2373,18 @@ async function confirmarFecharGaveta(){
       { p_caixa: k.id, p_contado: contado, p_observacao: obs });
     fecharModal();
 
-    // O caixa mudou no banco, não no `bd`: sem reler, a tela continuaria
-    // achando que ele está aberto e ofereceria "Fechar caixa" de novo.
-    await carregarTudo();
+    /* ⚠ `carregarTudo()` DEVOLVE o `bd` novo; não o atribui.
+
+       Estava `await carregarTudo();` sem o `bd =`, e o efeito foi medido no
+       navegador: o caixa fechava no banco — a aba Hoje já dizia "não está
+       aberto" — e a tela do Caixa continuava mostrando "Caixa aberto", com
+       os botões de sangria e de fechar. A recepção fecharia a gaveta,
+       olharia a tela e concluiria que não fechou.
+
+       O `salvar()` já fazia certo no socorro dele (`bd = novo`); esta
+       chamada nova é que esqueceu. */
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
     await carregarGaveta();
     pintarCaixa();
 
@@ -3956,6 +3965,14 @@ function abrirServico(sid){
         <input type="number" id="sCom" value="${s && s.comissaoPct != null ? s.comissaoPct : ''}"
                min="0" max="100" placeholder="usa a do profissional"></div>
     </div>
+    <div class="campo"><label>Comissão fixa (R$)</label>
+      <input type="number" id="sComFixa" step="0.01" min="0"
+             value="${s && s.comissaoFixa != null ? s.comissaoFixa : ''}"
+             placeholder="em branco = não usa valor fixo">
+      <span style="font-size:12px;color:var(--txt2)">Por unidade, e soma com a
+        porcentagem. Deixar os dois em branco faz o serviço herdar a comissão
+        do profissional; preencher qualquer um dos dois — inclusive com zero —
+        faz valer o que está aqui.</span></div>
     <div class="campo"><label>Intervalo depois (min)</label>
       <input type="number" id="sInt" value="${s ? (s.intervaloMin||0) : 0}" min="0" step="5">
       <span style="font-size:12px;color:var(--txt2)">Tempo de arrumar a estação. Ocupa a agenda mas não é cobrado.</span></div>
@@ -3963,10 +3980,116 @@ function abrirServico(sid){
       <input type="checkbox" id="sAtivo" ${!s || s.ativo ? 'checked' : ''}>
       <span class="i"><span class="n">Ativo</span>
         <span class="d">Aparece na agenda e no link público</span></span></label>
+
+    ${paresDoServico(s)}
   `, [
     ['Cancelar','fecharModal()',''],
     ['Salvar', `salvarServico(${s ? `'${s.id}'` : 'null'})`, 'btn-p'],
   ]);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUANDO ESTE SERVIÇO É DIFERENTE COM ALGUÉM
+
+   A tabela `servicos_profissionais` existe desde o primeiro dia e nunca teve
+   tela. Ela guarda TRÊS exceções por dupla — duração, preço e comissão — e
+   todas as três estavam inalcançáveis: o dono não conseguia dizer que a Ana
+   cobra R$ 120 no corte enquanto o João cobra R$ 80, nem que a escova da Ana
+   paga 60%.
+
+   ⚠ É EXCEÇÃO, NÃO PORTEIRO. Ficar de fora desta lista não impede ninguém de
+   fazer o serviço: quem não tem linha aqui usa o preço, a duração e a
+   comissão do próprio serviço. O `05_agenda.sql` faz `left join` justamente
+   por isso, e trocar essa semântica sem querer esconderia profissional da
+   agenda online.
+
+   ⚠ O `id` NASCE AQUI, e não no banco. O `Dados.subir()` compara os retratos
+   por `id`; linha sem ele vira a chave `undefined`, e duas viram a mesma —
+   a segunda sobrescreve a primeira e sobe UMA. Foi medido antes de esta tela
+   existir: dois pares pedidos, um gravado, sem erro nenhum. Hoje o `subir()`
+   recusa e explica, mas o certo continua sendo cunhar aqui.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function paresDoServico(s){
+  if(!s) return `<p style="margin-top:14px;font-size:13px;color:var(--txt2)">
+      Salve o serviço primeiro. Depois dá para ajustar preço, duração e
+      comissão de cada profissional.</p>`;
+
+  const equipe = doSalao(bd.profissionais).filter(p => p.ativo);
+  if(!equipe.length) return '';
+
+  const par = pid => (bd.servicos_profissionais || []).find(
+    x => x.servicoId === s.id && x.profissionalId === pid) || {};
+  const v = x => (x == null ? '' : x);
+
+  return `
+    <h3 style="margin:20px 0 4px;font-size:15px">Quando é diferente com alguém</h3>
+    <p style="font-size:12px;color:var(--txt2);margin-bottom:10px">
+      Em branco = usa o que está acima. Quem não aparecer preenchido continua
+      fazendo o serviço normalmente — isto é exceção, não permissão.</p>
+    <div class="tabela-rola">
+      <table class="tabela" style="box-shadow:none"><thead><tr>
+        <th>Profissional</th>
+        <th style="width:92px">Preço</th>
+        <th style="width:92px">Duração</th>
+        <th style="width:82px">Com. %</th>
+        <th style="width:92px">Com. R$</th>
+      </tr></thead><tbody>
+      ${equipe.map(pr => {
+        const x = par(pr.id);
+        return `<tr>
+          <td>${escapar(pr.nome)}</td>
+          <td><input type="number" step="0.01" min="0" class="par-in"
+                     data-prof="${pr.id}" data-campo="preco"
+                     value="${v(x.preco)}" placeholder="${s.preco}"></td>
+          <td><input type="number" step="5" min="5" class="par-in"
+                     data-prof="${pr.id}" data-campo="duracaoMin"
+                     value="${v(x.duracaoMin)}" placeholder="${s.duracaoMin}"></td>
+          <td><input type="number" step="1" min="0" max="100" class="par-in"
+                     data-prof="${pr.id}" data-campo="comissaoPct"
+                     value="${v(x.comissaoPct)}" placeholder="—"></td>
+          <td><input type="number" step="0.01" min="0" class="par-in"
+                     data-prof="${pr.id}" data-campo="comissaoFixa"
+                     value="${v(x.comissaoFixa)}" placeholder="—"></td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+/* Lê a tabelinha e reescreve as linhas DESTE serviço.
+
+   Linha que ficou inteiramente em branco é REMOVIDA: "não tem exceção" e
+   "tem uma exceção vazia" precisam ser a mesma coisa no banco, senão a
+   escada da comissão encontraria uma linha que não diz nada e pararia nela
+   — o `comissao_de()` só aceita o degrau que tem pct OU fixa preenchida,
+   mas preço e duração nulos com a linha existindo continuariam sem efeito e
+   só poluiriam. */
+function guardarParesDoServico(servicoId){
+  const campos = [...document.querySelectorAll('.par-in')];
+  if(!campos.length) return;
+
+  bd.servicos_profissionais = (bd.servicos_profissionais || [])
+    .filter(x => x.servicoId !== servicoId);
+
+  const porProf = new Map();
+  for(const el of campos){
+    const pid = el.dataset.prof;
+    const txt = (el.value || '').trim();
+    if(txt === '') continue;
+    if(!porProf.has(pid)) porProf.set(pid, {});
+    porProf.get(pid)[el.dataset.campo] = parseFloat(txt);
+  }
+
+  for(const [pid, vals] of porProf){
+    bd.servicos_profissionais.push({
+      // O id nasce aqui. Ver o comentário do `paresDoServico`.
+      id: id(), servicoId, profissionalId: pid,
+      preco: vals.preco ?? null,
+      duracaoMin: vals.duracaoMin ?? null,
+      comissaoPct: vals.comissaoPct ?? null,
+      comissaoFixa: vals.comissaoFixa ?? null,
+    });
+  }
 }
 
 async function salvarServico(sid){
@@ -4005,17 +4128,26 @@ async function salvarServico(sid){
   }
 
   const comTxt = document.getElementById('sCom').value;
+  const fixaTxt = document.getElementById('sComFixa').value;
   const dados = {
     nome, categoria: document.getElementById('sCat').value || '',
     duracaoMin: dur,
     intervaloMin: parseInt(document.getElementById('sInt').value, 10) || 0,
     preco: parseFloat(document.getElementById('sPreco').value) || 0,
+    /* Vazio vira NULL, e não zero: no banco, null quer dizer "este degrau
+       não fala em comissão, herda de baixo", e zero quer dizer "fala, e é
+       zero". A diferença é o que permite escrever "a Ana ganha 40% em tudo,
+       menos neste serviço aqui". Ver a escada no 16_comissao.sql. */
     comissaoPct: comTxt === '' ? null : parseFloat(comTxt),
+    comissaoFixa: fixaTxt === '' ? null : parseFloat(fixaTxt),
     foto,
     ativo: document.getElementById('sAtivo').checked,
   };
   if(sid) Object.assign(acharServico(sid), dados);
   else bd.servicos.push({id:alvoId, salaoId:salaoAtual, ...dados});
+
+  // Os pares ANTES do salvar, para tudo subir numa gravação só.
+  guardarParesDoServico(alvoId);
 
   salvar(); fecharModal(); pintar();
 }
@@ -4093,6 +4225,10 @@ function abrirProf(pid){
     <div class="dupla">
       <div class="campo"><label>Comissão padrão (%)</label>
         <input type="number" id="qCom" value="${p ? p.comissaoPct : 40}" min="0" max="100"></div>
+      <div class="campo"><label>Comissão fixa (R$)</label>
+        <input type="number" id="qComFixa" step="0.01" min="0"
+               value="${p && p.comissaoFixa != null ? p.comissaoFixa : ''}"
+               placeholder="opcional"></div>
       <div class="campo"><label>Cor na agenda</label>
         <select id="qCor">${CORES.map(c =>
           `<option value="${c}"${p && p.cor===c?' selected':''}
@@ -4174,6 +4310,9 @@ async function salvarProf(pid){
   const dados = {
     nome,
     comissaoPct: parseFloat(document.getElementById('qCom').value) || 0,
+    // Vazio é NULL, não zero — ver a escada no 16_comissao.sql.
+    comissaoFixa: document.getElementById('qComFixa').value === ''
+      ? null : parseFloat(document.getElementById('qComFixa').value),
     cor: document.getElementById('qCor').value,
     ativo: document.getElementById('qAtivo').checked,
     foto,
@@ -4241,7 +4380,21 @@ function pintar(){
   if(telaAtual === 'servicos') pintarServicos();
   if(telaAtual === 'equipe')   pintarEquipe();
   if(telaAtual === 'hoje')     carregarHoje();
-  if(telaAtual === 'caixa')    pintarCaixa();
+  /* `carregarGaveta()` ANTES do `pintarCaixa()`, e não só depois de mexer
+     na gaveta.
+
+     Ela só era chamada ao abrir o caixa, lançar movimento ou fechar. Quem
+     recarregasse a página — todo mundo, toda manhã — entrava no Caixa com
+     `gavetaAtual` nulo e via um traço no lugar do esperado. O número
+     principal da tela, em branco, no caso mais comum de todos.
+
+     `pintarCaixa()` desenha na hora com o que já tem, e a gaveta se
+     completa quando a resposta chega: melhor a tela aparecer e o número
+     preencher do que a tela esperar o servidor. */
+  if(telaAtual === 'caixa'){
+    pintarCaixa();
+    carregarGaveta().then(pintarGaveta);
+  }
   if(telaAtual === 'relatorios') prepararRelatorios();
   if(telaAtual === 'salao')    pintarSalao();
   if(telaAtual === 'publico')  prepararPublico();
@@ -4347,6 +4500,29 @@ function pintarSalao(){
         <div class="campo"><label for="cZap">WhatsApp</label>
           <input id="cZap" value="${sl.whatsapp || ''}" placeholder="(11) 99999-8888">
           <span class="ajuda">É por onde sai a confirmação do cliente.</span></div>
+      </div>
+
+      <!-- ── A REGRA DA COMISSÃO ──────────────────────────────────────
+           Fica aqui, e não em Serviços, porque vale para o salão inteiro e
+           é uma decisão de contrato com quem atende — não um detalhe de
+           cadastro de serviço. -->
+      <div class="dupla">
+        <div class="campo"><label for="cComSobre">Comissão calculada sobre</label>
+          <select id="cComSobre">
+            <option value="bruto"${(sl.comissaoSobre||'bruto')==='bruto'?' selected':''}
+              >O valor cheio do serviço</option>
+            <option value="liquido"${sl.comissaoSobre==='liquido'?' selected':''}
+              >O valor com o desconto já tirado</option>
+          </select>
+          <span class="ajuda">No líquido, o desconto da comanda é dividido
+            entre os itens e a comissão sai sobre o que sobrou. O acréscimo
+            nunca entra: taxa de domingo é da casa.</span></div>
+        <div class="campo"><label for="cComDesde">Valendo a partir de</label>
+          <input type="date" id="cComDesde"
+                 value="${sl.comissaoRegraDesde || ''}">
+          <span class="ajuda">Sem data, nada muda — nem para as comandas de
+            hoje. A regra vale para comanda ABERTA a partir daqui; o que já
+            foi fechado não se mexe.</span></div>
       </div>
 
       <div class="campo">
@@ -4895,6 +5071,10 @@ function salvarCadastroSalao(){
   };
   // `cfg` é jsonb e guarda mais coisa com o tempo; sobrescrever o objeto
   // inteiro apagaria o que outra tela tiver posto lá.
+  sl.comissaoSobre = v('cComSobre') || 'bruto';
+  // Vazio vira NULL: sem data de corte a regra não vale para ninguém, e é
+  // assim que o banco lê (ver `tg_comanda_regra` no 16_comissao.sql).
+  sl.comissaoRegraDesde = v('cComDesde') || null;
   sl.cfg = Object.assign({}, sl.cfg, { diasLiberados: diasEscolhidos || 30 });
   salvar();
 
@@ -6064,6 +6244,25 @@ function avisoDeCarga(falhas){
       + 'suporte.');
 }
 
+/* ⚠ `salvar()` DEVOLVE A PROMESSA. Ela não devolvia, e isso mentia.
+
+   Ele dispara `Dados.subir(...)` e, na versão anterior, terminava com um
+   `return;` seco. Quer dizer: `await salvar()` esperava por `undefined` —
+   resolvia no mesmo instante, com a gravação ainda a caminho do servidor.
+
+   Ninguém tinha notado porque nenhuma tela precisava do banco logo depois
+   de gravar: empurrava a linha no `bd`, redesenhava da memória, e a
+   gravação chegava sozinha algum tempo depois.
+
+   O Caixa precisa. `conferir_caixa()` é uma pergunta AO BANCO — quanto tem
+   na gaveta — e a resposta só está certa depois de o movimento chegar lá.
+   Medido no navegador: lançar uma sangria de R$ 50 gravava a sangria e a
+   tela continuava dizendo "sangrias R$ 0,00", esperado R$ 200. A recepção
+   veria o número certo só depois de trocar de aba e voltar.
+
+   Devolver a promessa conserta na raiz e não quebra ninguém: quem chamava
+   sem `await` continua igual, porque promessa ignorada é o que já
+   acontecia. */
 function salvar(){
   if(NA_NUVEM){
     // Grava no banco e só então atualiza o retrato. Se falhar, a pessoa
@@ -6092,7 +6291,7 @@ function salvar(){
     desmontarJornadas(paraSubir);
     desmontarAgenda(paraSubir);
     _gravando++;
-    Dados.subir(_baixado, paraSubir)
+    return Dados.subir(_baixado, paraSubir)
       .then(() => { _baixado = _copia(paraSubir); })
       .catch(async e => {
         console.error('[AgendaPro] falha ao gravar:', e);
@@ -6117,7 +6316,6 @@ function salvar(){
          que recarrega o banco e troca o `bd` inteiro. Soltar antes deixaria a
          sincronização de fundo ler no meio dessa troca. */
       .finally(() => { _gravando = Math.max(0, _gravando - 1); });
-    return;
   }
   try{
     localStorage.setItem(CHAVE, JSON.stringify({...bd, salaoAtual}));

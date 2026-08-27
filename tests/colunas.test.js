@@ -39,8 +39,29 @@ const dirSql = path.join(RAIZ, 'supabase');
 const fontes = fs.readdirSync(dirSql)
   .filter(f => f.endsWith('.sql') && !GERADOS.has(f))
   .sort();
+/* ⚠ Comentário de bloco SAI ANTES de qualquer coisa.
+
+   O analisador tirava `--` linha a linha e não conhecia `/* *\/`. Enquanto
+   os comentários dentro de um `create table` foram só de traço, passou. No
+   dia em que um bloco explicativo entrou no meio da definição de
+   `servicos_profissionais`, cada linha de PROSA virou uma coluna:
+
+       ✗ faltam em VAZIO_E_NULO: servicos_profissionais.A (chave),
+         servicos_profissionais.tela (escrevia), servicos_profissionais.como…
+
+   Ou seja, o conferidor cobrava do dados.js colunas chamadas "A", "tela" e
+   "como" — e apontava para o arquivo errado, que é o pior tipo de vermelho:
+   o instinto é mexer no dados.js, que estava certo.
+
+   Bloco é SQL legítimo dentro de um `create table`, e vai voltar a
+   aparecer. Tirar aqui resolve de uma vez, para todos os arquivos.
+
+   `[\s\S]*?` e não `.*?`: bloco de comentário quase sempre atravessa
+   linhas, e `.` não casa quebra de linha. */
+const semBlocos = t => t.replace(/\/\*[\s\S]*?\*\//g, '');
+
 const sql = fontes
-  .map(f => fs.readFileSync(path.join(dirSql, f), 'utf8')).join('\n');
+  .map(f => semBlocos(fs.readFileSync(path.join(dirSql, f), 'utf8'))).join('\n');
 
 let ok = 0, falhas = 0;
 const dizer = (bom, msg) => {

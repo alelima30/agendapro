@@ -306,12 +306,33 @@ create index if not exists ix_serv_salao on public.servicos(salao_id) where ativ
 -- Quem faz o quê. Sem linha aqui, o profissional não aparece como opção.
 -- Duração e preço podem ser sobrescritos: a Ana faz mecha em 2h, a Bia em 3h.
 create table if not exists public.servicos_profissionais (
+  /* ⚠ `id` EXISTE PARA A GRAVAÇÃO DA TELA FUNCIONAR, e não por simetria.
+
+     A chave desta tabela é o PAR, e por muito tempo isso bastou: nenhuma
+     tela escrevia aqui. No dia em que uma passou a escrever, o defeito
+     apareceu — e apareceu calado, que é o pior jeito.
+
+     O `Dados.subir()` compara o retrato anterior com o atual usando `id`
+     como chave. Sem coluna `id`, TODA linha desta tabela vira a chave
+     `undefined`: as duas primeiras colapsam numa só, a segunda sobrescreve
+     a primeira no Map, e sobe uma.
+
+     Medido antes de escrever a tela: pedi para gravar dois pares, o
+     `subir()` não reclamou de nada, e o banco ficou com UM. O dono
+     cadastraria a comissão de cinco serviços, não veria erro nenhum, e um
+     seria salvo.
+
+     A chave primária continua sendo o par — é ela que garante uma linha por
+     dupla. O `id` é só o endereço que a sincronização precisa. */
+  id              uuid not null default gen_random_uuid(),
   servico_id      uuid not null references public.servicos(id) on delete cascade,
   profissional_id uuid not null references public.profissionais(id) on delete cascade,
   duracao_min     int check (duracao_min > 0 and duracao_min <= 600),
   preco           numeric(10,2) check (preco >= 0),
   primary key (servico_id, profissional_id)
 );
+
+create unique index if not exists ux_sp_id on public.servicos_profissionais(id);
 
 -- ---------------------------------------------------------------------------
 -- 4) QUANDO O PROFISSIONAL ATENDE

@@ -30,11 +30,25 @@
    Campo que não aparece aqui vai com o mesmo nome nos dois lados.
    ──────────────────────────────────────────────────────────────────────── */
 const COLUNAS = {
-  // `saloes` não entra no mapa de propósito. Uma versão anterior traduzia
-  // `id` para `salaoId` aqui, e isso renomeava a CHAVE PRIMÁRIA: o objeto
-  // chegava na tela sem `.id`, e todo `bd.saloes[0].id` virava undefined.
-  // A agenda abria vazia dizendo "nenhum profissional", porque o filtro por
-  // salão saía com undefined. Chave primária se chama `id` dos dois lados.
+  /* ⚠ `saloes` PRECISOU de mapa, e por muito tempo não precisou.
+
+     Todo campo dele era palavra única — `nome`, `tipo`, `telefone`,
+     `whatsapp`, `endereco`, `cfg` — e camelCase e snake_case são iguais
+     quando não há duas palavras. O mapa era desnecessário, e ficar sem ele
+     evitava um erro antigo: uma versão traduzia `id` para `salaoId` aqui, e
+     isso renomeava a CHAVE PRIMÁRIA. O objeto chegava na tela sem `.id`,
+     `bd.saloes[0].id` virava undefined, e a agenda abria dizendo "nenhum
+     profissional" porque o filtro por salão saía vazio.
+
+     `comissaoSobre` e `comissaoRegraDesde` são os primeiros campos de duas
+     palavras. Sem estas duas linhas, a tela mandaria `comissaoSobre` ao
+     PostgREST, que não tem essa coluna, e a gravação INTEIRA do cadastro do
+     salão cairia com 400 — nome, telefone, endereço, tudo.
+
+     `id` continua fora do mapa, de propósito: chave primária se chama `id`
+     dos dois lados. */
+  saloes:        { comissaoSobre:'comissao_sobre',
+                   comissaoRegraDesde:'comissao_regra_desde' },
   perfis:        { superAdmin:'super_admin', criadoEm:'criado_em' },
   vinculos:      { perfilId:'perfil_id', salaoId:'salao_id', criadoEm:'criado_em' },
   profissionais: { salaoId:'salao_id', perfilId:'perfil_id',
@@ -1104,6 +1118,33 @@ async function baixar(salaoId){
 async function subir(antes, agora){
   const problemas = [];
   for(const t of TABELAS_SINCRONIZADAS){
+    /* ⚠ LINHA SEM `id` NÃO PODE PASSAR CALADA.
+
+       Esta função inteira compara os dois retratos por `id`. Linha sem id
+       vira a chave `undefined` no Map — e duas linhas sem id viram a MESMA
+       chave: a segunda sobrescreve a primeira, e sobe uma só.
+
+       Sem erro. Sem aviso. A tela mostra as duas, o banco fica com uma.
+
+       Foi medido em `servicos_profissionais`, que não tinha coluna `id`:
+       pedi para gravar dois pares, o `subir()` não reclamou de nada, e o
+       banco ficou com um. Se a tela do par tivesse sido escrita sem essa
+       medição, o dono cadastraria a comissão de cinco serviços e uma seria
+       salva — em silêncio, que é o pior jeito de perder dado.
+
+       Recusar aqui transforma perda silenciosa em erro na cara, para toda
+       tabela, para sempre. O conserto de quem escreve tela continua sendo o
+       mesmo de sempre: cunhar o id na hora de criar a linha, como o
+       `somarItem()` faz. */
+    for(const [rotulo, lista] of [['anterior', antes[t]], ['atual', agora[t]]]){
+      const sem = (lista || []).filter(x => !x || !x.id).length;
+      if(sem){
+        problemas.push(t + ': ' + sem + ' linha(s) sem id no retrato '
+          + rotulo + ' — a gravação perderia linha em silêncio');
+      }
+    }
+    if(problemas.length) continue;
+
     const velhas = new Map((antes[t] || []).map(x => [x.id, x]));
     const novas  = new Map((agora[t] || []).map(x => [x.id, x]));
 

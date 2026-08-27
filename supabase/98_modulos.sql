@@ -1300,6 +1300,9 @@ revoke all on function public.reais(numeric) from public;
 grant execute on function public.reais(numeric) to anon, authenticated;
 
 alter table public.servicos_profissionais
+  add column if not exists id uuid not null default gen_random_uuid();
+create unique index if not exists ux_sp_id on public.servicos_profissionais(id);
+alter table public.servicos_profissionais
   add column if not exists comissao_pct numeric(5,2)
     check (comissao_pct between 0 and 100);
 alter table public.servicos_profissionais
