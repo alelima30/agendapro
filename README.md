@@ -313,37 +313,65 @@ separada por verbo: `for insert`, `for update`, `for delete`.
 
 ## O que falta
 
-1. **Cobrança.** Não há como um salão pagar. A troca de plano acontece à mão,
-   pelo `admin.html`. É o que separa isto de um negócio.
-2. **Entrega do código pelo WhatsApp.** O login por telefone depende do
-   *Send SMS Hook* do Supabase apontando para uma Edge Function com a Cloud
-   API da Meta. O login por email e senha (o do dono) já funciona.
-3. **"Meus horários" da cliente, no modo nuvem.** Ver, cancelar e remarcar
-   mexem em dado de alguém, então precisam de prova de identidade — e a
-   verificação por código ainda é simulada. Falta a função pública que
-   devolva os horários de um telefone JÁ verificado. Enquanto não existe, a
-   tela diz isso em vez de mostrar lista vazia: cliente que lê "nenhum
-   horário" depois de marcar, marca de novo.
-4. **Lista de espera, no modo nuvem.** Mesma história: `lista_espera` não tem
-   função pública de escrita, então o botão não é oferecido — em vez de
-   gravar num vetor da memória e prometer um aviso que nunca sai.
-5. **Lembretes automáticos.** `lembrete_whatsapp: true` nos cinco planos
-   pagos, e nada envia. Depende de `pg_cron` e Edge Function.
-6. CI com Postgres de serviço, rodando `tests/tudo.sh` a cada envio.
-7. Sinal por Pix, pacotes e fidelidade — os campos de sinal já existem na
-   tabela `agendamentos`, vazios.
+Revisado contra o código, e não de memória: quatro itens que estavam nesta
+lista já existiam e foram tirados — "meus horários" da cliente, a lista de
+espera na nuvem, o CI e a cobrança. Lista de pendência que envelhece é pior
+que nenhuma, porque dá trabalho a quem for conferir.
+
+### Depende de mim (código)
+
+1. **Lembretes automáticos.** `lembrete_whatsapp: true` nos cinco planos
+   pagos, e nada dispara. Falta o `pg_cron` chamando a Edge Function que já
+   existe. É a promessa mais visível do produto que ainda não se cumpre.
+2. **Entrega do código de login pelo WhatsApp.** O *Send SMS Hook* do
+   Supabase apontando para a Cloud API da Meta. Login por email e senha —
+   o do dono — já funciona; o da cliente por telefone, não.
+3. **Status "chegou".** Adiado a pedido. Quando entrar, tem que entrar
+   JUNTO com o `where` do gatilho anti-choque e das policies: só no `check`
+   ele vira um horário que não conta como ocupado, e abre buraco na agenda
+   em vez de fechar.
+4. **Sinal por Pix, pacotes e fidelidade.** Os campos `sinal_exigido` e
+   `sinal_pago` existem em `agendamentos`, vazios.
+5. **O primeiro dia.** Um salão novo abre o painel e encontra tudo vazio,
+   sem ordem sugerida. Proposto e nunca aprovado — fica registrado aqui
+   para não se perder.
+
+### Depende do dono (fora do código)
+
+6. **Chaves do Mercado Pago** em Edge Functions → Secrets, e as funções
+   `criar-cobranca` e `webhook-mp` publicadas. O SQL da cobrança está
+   instalado; sem as chaves, nenhum salão consegue pagar.
+7. **Verificação do Meta Business.** É ela que libera o template
+   transacional do lembrete — o item 1 depende dela para sair do papel.
 
 ### O que deixou de faltar
 
-- **`agendar.html` no modo nuvem.** O link que o cadastro entrega abre a
-  vitrine do banco, mostra os horários que `horarios_livres_periodo()`
-  calcula e marca por `agendar()`. Duração e preço saem do banco, nunca do
-  navegador. Coberto por `tests/cliente-nuvem.test.mjs`, que vai do cadastro
-  da dona até o horário existir na tabela.
-- **`horarios_livres()` e `agendar()` no banco**, em `05_agenda.sql`.
+- **Cobrança por Pix e boleto.** `13_cobranca.sql` mais as duas Edge
+  Functions, com verificação de assinatura e idempotência pelo `mp_id`.
+- **"Meus horários" e a lista de espera na nuvem.** `meus_agendamentos`,
+  `minha_fila`, `entrar_na_fila` e `sair_da_fila`, em `09_cliente.sql`.
+- **CI rodando `tests/tudo.sh` a cada envio**, com Postgres de serviço.
+  Verde desde 27/08 — antes disso reprovou 29 vezes seguidas por uma pasta
+  no lugar errado, o que é o mesmo que não existir.
+- **`agendar.html` no modo nuvem.** Duração e preço saem do banco, nunca do
+  navegador. Coberto por `tests/cliente-nuvem.test.mjs`.
+- **A agenda não aceita mais horário inválido** (Fase 1): `14_motor.sql`
+  põe choque, bloqueio e jornada num gatilho só, do lado do banco.
+- **As travas do dinheiro** (Fase 2A): uma comanda por atendimento, desconto
+  que não passa do subtotal, pagamento que não excede o total, comanda
+  fechada imutável.
+- **A comissão é do banco**, pela escada par → catálogo → pessoa, com valor
+  fixo e regra de bruto/líquido com data de corte.
+- **Caixa, sangria, suprimento e estorno**, e o **painel do dia**.
 
-## Onde este código vai morar
+## Onde este código mora
 
-Hoje ele está numa pasta do repositório `pradotec`, numa branch de trabalho —
-não encosta no site que está no ar. É tudo arquivo estático: quando virar
-produto, é copiar a pasta para um repositório próprio e apontar o Pages.
+`alelima30/agendapro`, servido pelo GitHub Pages. Até 27/08/2026 ele vivia
+numa subpasta do repositório `pradotec` — o site da Pradotec Piscinas — e a
+pasta de lá era uma CÓPIA, com história independente.
+
+Isso custou caro no dia em que foi descoberto: uma correção de produção foi
+commitada na cópia e ficou lá, fora do ar, enquanto era relatada como
+resolvida. E o CI nunca rodava, porque o workflow estava em
+`agendapro/.github/workflows/` e o GitHub só lê `.github/workflows/` na raiz.
+
