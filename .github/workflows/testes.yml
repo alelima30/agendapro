@@ -1,5 +1,5 @@
 # ===========================================================================
-# AgendaPro — as 12 suítes a cada envio
+# AgendaPro — a suíte inteira a cada envio
 #
 # POR QUE ISTO EXISTE
 # A suíte só valia quando alguém lembrava de rodar. Nesta semana três defeitos
@@ -92,7 +92,12 @@ jobs:
       # em segundo plano de um passo não tem sobrevida garantida no seguinte,
       # e a falha disso é confusa — a suíte reclama que a bancada não está no
       # ar, e o passo que a subiu aparece verde logo acima.
-      - name: As 12 suítes
+      # Sem número no nome, de propósito. Já esteve escrito "As 12 suítes"
+      # enquanto vinte e cinco entravam — e o mesmo defeito estava dentro do
+      # tudo.sh, que imprimia "as 35 suítes" contando trinta e sete. Número
+      # escrito à mão envelhece calado; o placar da suíte é justamente o que
+      # se olha antes de publicar.
+      - name: A suíte inteira
         env:
           PLAYWRIGHT: ${{ github.workspace }}/node_modules/playwright
           # O CHROMIUM não é passado de propósito: o tudo.sh pergunta ao
