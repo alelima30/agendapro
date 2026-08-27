@@ -57,8 +57,30 @@ jobs:
         with:
           node-version: '22'
 
+      # ── O psql ───────────────────────────────────────────────────────────
+      # A máquina do GitHub já vem com o cliente do Postgres. Este passo
+      # existia só para o caso de não vir — e era ele que derrubava a
+      # execução inteira.
+      #
+      # `apt-get update` é tudo ou nada: ele lê TODAS as listas de origem da
+      # máquina, e a imagem do runner traz umas da Microsoft (azure-cli, prod)
+      # que não têm nada a ver com este projeto. No dia em que elas passaram a
+      # responder 403, o update saiu com código 100, o passo morreu, e nada
+      # depois rodou — nem o Postgres, nem os testes. Um repositório de
+      # terceiro, que não usamos, parando o CI inteiro.
+      #
+      # Agora: se o psql já está aí, não se toca em apt nenhum. Se não está,
+      # as listas de terceiro saem da frente antes do update.
       - name: Cliente do Postgres
         run: |
+          if command -v psql >/dev/null 2>&1; then
+            echo "já vem na imagem: $(psql --version)"
+            exit 0
+          fi
+          echo "psql não está na imagem; instalando"
+          sudo rm -f /etc/apt/sources.list.d/microsoft*.list \
+                     /etc/apt/sources.list.d/microsoft*.sources \
+                     /etc/apt/sources.list.d/azure*.list || true
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends postgresql-client
 
