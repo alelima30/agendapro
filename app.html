@@ -548,11 +548,24 @@ body.carregando-tudo .tela{ display:none }
     <div class="card" id="cartaoAcessos" style="margin-top:20px"></div>
   </section>
 
+  <!-- ══════════ HOJE ══════════ -->
+  <section class="tela" id="tela-hoje">
+    <div class="barra">
+      <span class="dia" id="rotuloHoje"
+            style="min-width:auto;font-size:14px;color:var(--txt2)"></span>
+    </div>
+    <div id="hojeCorpo"></div>
+  </section>
+
   <!-- ══════════ CAIXA ══════════ -->
   <section class="tela" id="tela-caixa">
     <div class="barra">
       <span class="dia" id="rotuloCaixa" style="min-width:auto;font-size:14px;color:var(--txt2)"></span>
     </div>
+    <!-- A gaveta vem ANTES dos números do dia, de propósito: abrir é a
+         primeira coisa que a recepção faz de manhã, conferir é a última da
+         noite, e o resto da tela só faz sentido no meio disso. -->
+    <div class="card" id="cartaoGaveta" style="margin-bottom:16px"></div>
     <div class="kpis" id="kpisCaixa"></div>
     <div id="listaComandas"></div>
     <h2 style="margin:22px 0 11px;font-size:16px">Comissão por profissional</h2>
@@ -1181,6 +1194,12 @@ const BALCAO  = ['dono','admin','recepcao'];
 const EQUIPE  = ['dono','admin','recepcao','profissional'];
 
 const TELAS = [
+  /* "Hoje" vem antes da Agenda porque é a primeira pergunta do dono ao
+     abrir o sistema — "como está hoje?" — e a Agenda responde outra: "quem
+     vem". É GESTAO pela mesma linha do Relatórios: faturamento e comissão
+     da casa não são assunto da recepção nem de quem atende, e quem barra de
+     verdade é o `e_gestor()` dentro do `painel_hoje()`. */
+  ['hoje',     'Hoje',             'casa',       'Dia a dia', GESTAO],
   ['agenda',   'Agenda',           'calendario', 'Dia a dia', EQUIPE],
   ['caixa',    'Caixa',            'cartao',     'Dia a dia', EQUIPE],
   // Faturamento e comissão da casa inteira não são assunto de quem atende
@@ -1322,7 +1341,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.816a4a';
+const VERSAO_APP = 'v9.8244bb';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2061,8 +2080,318 @@ async function tirarAcesso(perfilId, papel, botao){
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOJE — o painel do dia
+
+   Tudo vem de UMA chamada, `painel_hoje()`, e a tela não recalcula nada.
+
+   Não é preguiça: o faturamento de hoje tem que ser o MESMO número que o
+   Relatórios mostra para este dia, e a única forma de garantir isso é os
+   dois lerem da mesma conta. Dois números com o mesmo nome discordando por
+   um centavo é o defeito que faz o dono parar de confiar no sistema inteiro
+   — e ele estaria certo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let hojePedido = 0;
+
+async function carregarHoje(){
+  const alvo = document.getElementById('hojeCorpo');
+  if(!alvo) return;
+
+  if(!NA_NUVEM){
+    alvo.innerHTML = '<div class="vazio"><b>O painel do dia precisa do banco</b>'
+      + 'Em demonstração não há faturamento para somar.</div>';
+    return;
+  }
+
+  // O mesmo contador do relatório: clicar duas vezes rápido não pode deixar
+  // a resposta mais VELHA sobrescrever a mais nova na tela.
+  const meu = ++hojePedido;
+  alvo.innerHTML = '<div class="vazio">Somando o dia…</div>';
+  let p;
+  try{
+    p = await Dados.chamar('painel_hoje', { p_salao: salaoAtual });
+  }catch(e){
+    if(meu !== hojePedido) return;
+    alvo.innerHTML = `<div class="vazio"><b>Não consegui montar o painel</b>${
+      escapar(e.message || '')}</div>`;
+    return;
+  }
+  if(meu !== hojePedido) return;
+  desenharHoje(p);
+}
+
+function desenharHoje(p){
+  const d = p.dinheiro || {};
+  const o = p.ontem || {};
+  const a = p.agenda || {};
+  const k = p.caixa;
+
+  document.getElementById('rotuloHoje').textContent =
+    porExtenso(String(p.dia).slice(0, 10));
+
+  const fat = Number(d.faturamento || 0);
+  const fatOntem = Number(o.faturamento || 0);
+
+  /* A comparação é o que transforma número em informação: R$ 1.200 é ótimo
+     numa terça e ruim num sábado. Sozinho, o número não diz o que fazer. */
+  const comp = fatOntem > 0
+    ? (() => {
+        const v = Math.round(((fat - fatOntem) / fatOntem) * 100);
+        const cor = v >= 0 ? 'var(--ok)' : 'var(--alerta)';
+        return `<span style="color:${cor}">${v >= 0 ? '+' : ''}${v}%</span>`
+             + '<span style="color:var(--txt3)"> que ontem</span>';
+      })()
+    : '<span style="color:var(--txt3)">ontem não houve fechamento</span>';
+
+  const kpis = `
+    <div class="kpis">
+      <div class="kpi"><div class="v">${real(fat)}</div>
+        <div class="r">faturamento de hoje</div></div>
+      <div class="kpi"><div class="v">${a.total || 0}</div>
+        <div class="r">na agenda${a.faltas ? ` · ${a.faltas} falta(s)` : ''}</div></div>
+      <div class="kpi"><div class="v">${real(Number(d.ticket || 0))}</div>
+        <div class="r">ticket médio</div></div>
+      <div class="kpi"><div class="v">${real(Number(d.comissoes || 0))}</div>
+        <div class="r">comissões</div></div>
+      <div class="kpi"><div class="v"${Number(p.aReceber) > 0
+          ? ' style="color:var(--alerta)"' : ''}>${real(Number(p.aReceber || 0))}</div>
+        <div class="r">a receber</div></div>
+    </div>
+    <p style="margin:10px 0 18px;font-size:13px">${comp}</p>`;
+
+  const gaveta = k
+    ? `<div class="card" style="margin-bottom:16px">
+         <b>Caixa aberto</b> · esperado na gaveta
+         <b>${real(Number(k.esperado || 0))}</b>
+         <span style="color:var(--txt2);font-size:13px">
+           (abertura ${real(Number(k.valorAbertura || 0))} ·
+            sangrias ${real(Number(k.sangrias || 0))} ·
+            suprimentos ${real(Number(k.suprimentos || 0))})</span>
+       </div>`
+    : `<div class="card" style="margin-bottom:16px">
+         <b>O caixa do dia não está aberto.</b>
+         <span style="color:var(--txt2);font-size:13px">
+           Abra em Caixa para ter o que conferir no fim do dia.</span>
+       </div>`;
+
+  const prox = (p.proximos || []).length
+    ? `<h2 style="margin:22px 0 11px;font-size:16px">Quem ainda vem</h2>
+       <table class="tabela"><tbody>${(p.proximos || []).map(x => `
+         <tr>
+           <td style="width:74px"><b>${escapar(horaDe(x.inicio, p.fuso))}</b></td>
+           <td>${escapar(x.cliente)}</td>
+           <td style="color:var(--txt2);font-size:13px">${escapar(x.profissional)}</td>
+         </tr>`).join('')}</tbody></table>`
+    : '<div class="vazio" style="margin-top:18px"><b>Ninguém mais hoje</b>'
+      + 'O que estava marcado já passou.</div>';
+
+  document.getElementById('hojeCorpo').innerHTML = kpis + gaveta + prox;
+}
+
+/* A hora no fuso do SALÃO, e é por isso que o `painel_hoje()` devolve o
+   `fuso` junto — não é enfeite do jsonb.
+
+   Sem passar o `timeZone`, o `toLocaleTimeString` usa o do NAVEGADOR: um
+   dono viajando veria 14:00 como 11:00 e acharia que a agenda mudou
+   sozinha. É o mesmo cuidado que a função do banco tem ao decidir o que é
+   "hoje", e de nada adiantaria lá se a tela desfizesse aqui. */
+function horaDe(iso, fuso){
+  try{
+    return new Date(iso).toLocaleTimeString('pt-BR',
+      { hour:'2-digit', minute:'2-digit', timeZone: fuso || undefined });
+  }catch(e){
+    // Fuso inválido derruba o Intl. Melhor a hora crua do que a tela em
+    // branco — e o ISO já vem com o deslocamento embutido.
+    return String(iso).slice(11, 16);
+  }
+}
+
 /* ── Desenho: caixa ──────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   A GAVETA
+
+   Tudo aqui é FACHADA: quem decide é o banco. `conferir_caixa()` faz a conta
+   do esperado, `fechar_caixa()` grava a contagem, e os gatilhos do
+   17_caixa.sql barram o segundo caixa aberto, o movimento em caixa fechado e
+   o estorno maior que o pagamento.
+
+   A tela não repete nenhuma dessas contas de propósito. O esperado depende
+   de pagamentos, estornos e movimentos — três coisas que a tela nem sempre
+   tem inteiras em memória — e uma segunda conta aqui seria uma segunda
+   verdade sobre quanto tem na gaveta. É melhor esperar a resposta do
+   servidor do que mostrar um número próprio.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let gavetaAtual = null;   // o jsonb do `conferir_caixa`, ou null
+
+function caixaAberto(){
+  return doSalao(bd.caixas || []).find(k => !k.fechadoEm) || null;
+}
+
+async function carregarGaveta(){
+  const k = caixaAberto();
+  if(!k || !NA_NUVEM){ gavetaAtual = null; return; }
+  try{
+    gavetaAtual = await Dados.chamar('conferir_caixa', { p_caixa: k.id });
+  }catch(e){
+    gavetaAtual = null;
+    console.error('[AgendaPro] conferir_caixa:', e);
+  }
+}
+
+function pintarGaveta(){
+  const alvo = document.getElementById('cartaoGaveta');
+  if(!alvo) return;
+  const k = caixaAberto();
+
+  if(!k){
+    alvo.innerHTML = `
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <b>O caixa do dia não está aberto.</b>
+          <div style="color:var(--txt2);font-size:13px;margin-top:3px">
+            Enquanto ele estiver fechado, os pagamentos em dinheiro não entram
+            em nenhuma gaveta — e não há o que conferir no fim do dia.</div>
+        </div>
+        <button class="btn btn-primario" onclick="abrirGaveta()">Abrir caixa</button>
+      </div>`;
+    return;
+  }
+
+  const g = gavetaAtual;
+  const esperado = g ? Number(g.esperado) : null;
+
+  alvo.innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <b>Caixa aberto</b>
+        <div style="color:var(--txt2);font-size:13px;margin-top:3px">
+          Aberto com ${real(k.valorAbertura || 0)}${
+            g ? ` · sangrias ${real(g.sangrias)} · suprimentos ${real(g.suprimentos)}` : ''}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:20px;font-weight:700">${
+          esperado == null ? '—' : real(esperado)}</div>
+        <div style="color:var(--txt2);font-size:12px">esperado na gaveta</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-peq" onclick="lancarMovimento('sangria')">Sangria</button>
+        <button class="btn btn-peq" onclick="lancarMovimento('suprimento')">Suprimento</button>
+        <button class="btn btn-primario" onclick="fecharGaveta()">Fechar caixa</button>
+      </div>
+    </div>`;
+}
+
+function abrirGaveta(){
+  abrirModal('Abrir o caixa', `
+    <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">
+      Quanto de troco está na gaveta agora?</p>
+    <label>Valor de abertura</label>
+    <input type="number" id="gAbertura" step="0.01" min="0" value="0">
+    <div class="acoes">
+      <button class="btn" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-primario" onclick="confirmarAbrirGaveta()">Abrir</button>
+    </div>`);
+}
+
+async function confirmarAbrirGaveta(){
+  const v = Number(document.getElementById('gAbertura').value || 0);
+  if(!(v >= 0)) return alert('Informe um valor válido.');
+  bd.caixas = bd.caixas || [];
+  bd.caixas.push({ id:id(), salaoId:salaoAtual, valorAbertura:v,
+                   abertoEm:new Date().toISOString() });
+  fecharModal();
+  await salvar();
+  await carregarGaveta();
+  pintarCaixa();
+}
+
+function lancarMovimento(tipo){
+  const k = caixaAberto();
+  if(!k) return alert('Abra o caixa primeiro.');
+  const eh = tipo === 'sangria';
+  abrirModal(eh ? 'Sangria' : 'Suprimento', `
+    <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">${
+      eh ? 'Dinheiro que SAI da gaveta e não é troco de cliente.'
+         : 'Dinheiro que ENTRA na gaveta e não é venda.'}</p>
+    <label>Valor</label>
+    <input type="number" id="mValor" step="0.01" min="0.01">
+    <label style="margin-top:10px">Motivo</label>
+    <input type="text" id="mMotivo" maxlength="120"
+           placeholder="${eh ? 'levei ao banco' : 'troco para o dia'}">
+    <div class="acoes">
+      <button class="btn" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-primario" onclick="confirmarMovimento('${tipo}')">Lançar</button>
+    </div>`);
+}
+
+async function confirmarMovimento(tipo){
+  const k = caixaAberto();
+  const valor = Number(document.getElementById('mValor').value || 0);
+  const motivo = (document.getElementById('mMotivo').value || '').trim();
+  if(!(valor > 0)) return alert('Informe o valor.');
+  // O banco também exige — este aviso existe só para não gastar uma ida ao
+  // servidor para dizer o óbvio.
+  if(motivo.length < 3) return alert('Escreva o motivo: sem ele, a diferença '
+    + 'da gaveta vira mistério daqui a três dias.');
+  bd.caixa_movimentos = bd.caixa_movimentos || [];
+  bd.caixa_movimentos.push({ id:id(), caixaId:k.id, salaoId:salaoAtual,
+                             tipo, valor, motivo });
+  fecharModal();
+  await salvar();
+  await carregarGaveta();
+  pintarCaixa();
+}
+
+function fecharGaveta(){
+  const g = gavetaAtual;
+  abrirModal('Fechar o caixa', `
+    <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">
+      Conte o dinheiro da gaveta e digite quanto tem. A diferença aparece
+      depois — conte antes de olhar o esperado.</p>
+    <label>Quanto tem na gaveta</label>
+    <input type="number" id="gContado" step="0.01" min="0">
+    <label style="margin-top:10px">Observação (opcional)</label>
+    <input type="text" id="gObs" maxlength="200">
+    <div class="acoes">
+      <button class="btn" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-primario" onclick="confirmarFecharGaveta()">Fechar caixa</button>
+    </div>`);
+  void g;
+}
+
+async function confirmarFecharGaveta(){
+  const k = caixaAberto();
+  const contado = Number(document.getElementById('gContado').value);
+  const obs = (document.getElementById('gObs').value || '').trim() || null;
+  if(!(contado >= 0)) return alert('Informe quanto tem na gaveta.');
+  try{
+    /* Quem fecha é o BANCO, não esta função: `fechar_caixa()` grava a
+       contagem, confere a permissão e devolve a conferência pronta. A tela
+       só mostra o que voltou — e é por isso que a diferença aqui nunca pode
+       discordar da que o dono vê no relatório. */
+    const r = await Dados.chamar('fechar_caixa',
+      { p_caixa: k.id, p_contado: contado, p_observacao: obs });
+    fecharModal();
+
+    // O caixa mudou no banco, não no `bd`: sem reler, a tela continuaria
+    // achando que ele está aberto e ofereceria "Fechar caixa" de novo.
+    await carregarTudo();
+    await carregarGaveta();
+    pintarCaixa();
+
+    const dif = Number(r.diferenca || 0);
+    alert(dif === 0
+      ? 'Caixa fechado, e a gaveta bateu certinho.'
+      : (dif > 0
+          ? `Caixa fechado. Sobraram ${real(dif)} na gaveta.`
+          : `Caixa fechado. Faltaram ${real(-dif)} na gaveta.`));
+  }catch(e){
+    alert(e.message || 'Não consegui fechar o caixa.');
+  }
+}
+
 function pintarCaixa(){
+  pintarGaveta();
   document.getElementById('rotuloCaixa').textContent = porExtenso(diaAtual);
   const todas = doSalao(bd.comandas).filter(c => c.data === diaAtual);
 
@@ -2082,7 +2411,9 @@ function pintarCaixa(){
   for(const c of comandas){
     for(const i of c.itens){
       const t = i.qtd * i.precoUnit;
-      const cm = Math.round(t * (i.comissaoPct||0)) / 100;
+      // Uma conta só, a de `comissaoDoItem`: ela sabe da comissão fixa e da
+      // regra de bruto/líquido, que uma multiplicação solta aqui não sabe.
+      const cm = comissaoDoItem(c, i);
       bruto += t; comissao += cm;
       if(i.profissionalId){
         porProf[i.profissionalId] = porProf[i.profissionalId] || {venda:0, com:0};
@@ -2312,7 +2643,9 @@ function relatorioLocal(de, ate){
   for(const c of fechadas){
     for(const i of c.itens){
       const t = i.qtd * i.precoUnit;
-      const cm = Math.round(t * (i.comissaoPct||0)) / 100;
+      // Uma conta só, a de `comissaoDoItem`: ela sabe da comissão fixa e da
+      // regra de bruto/líquido, que uma multiplicação solta aqui não sabe.
+      const cm = comissaoDoItem(c, i);
       const p = acharProf(i.profissionalId);
       const chave = i.profissionalId || '';
       const linha = porProf.get(chave)
@@ -3068,10 +3401,19 @@ function comandaDoAgendamento(agId){
       // hora de abertura tem o `default now()`. `data` é só da tela, e o
       // `desmontarAgenda()` a remove antes de gravar.
       numero: proximoNumero(), data:a.data, desconto:0, pagamentos:[],
+      /* ⚠ `servicoId` PRECISA ir junto, e não ia.
+
+          O item guardava só a descrição. Enquanto a comissão vinha pronta da
+          tela isso passava despercebido; com o 16_comissao.sql o gatilho
+          resolve a taxa pelo CADASTRO, e um item sem `servico_id` não tem
+          catálogo onde procurar — a escada cairia direto no profissional, e
+          todo serviço com comissão própria seria ignorado, em silêncio.
+
+          A comissão não vai mais daqui: quem decide é o banco. */
       itens: (a.servicos||[]).map(s => ({
-        id:id(), tipo:'servico', descricao: acharServico(s.servicoId).nome,
+        id:id(), tipo:'servico', servicoId:s.servicoId,
+        descricao: acharServico(s.servicoId).nome,
         qtd:1, precoUnit:s.preco, profissionalId:a.profissionalId,
-        comissaoPct:s.comissaoPct,
       })),
     };
     bd.comandas.push(c);
@@ -3117,6 +3459,134 @@ const totalDaComanda = c =>
   subtotalDaComanda(c) - (c.desconto||0) + (c.acrescimo||0);
 const pagoNaComanda = c => c.pagamentos.reduce((s,p) => s + p.valor, 0);
 const faltaNaComanda = c => Math.round((totalDaComanda(c) - pagoNaComanda(c))*100)/100;
+
+/* ── A COMISSÃO, ESPELHANDO O 16_comissao.sql ─────────────────────────────
+   Quem DECIDE a taxa é o banco: o gatilho `tg_item_comissao` sobrescreve o
+   que chegar, pela escada par → catálogo → pessoa → zero. Isto aqui não
+   decide nada; serve para a recepção ver a comissão no instante em que
+   lança o item, antes de a gravação voltar.
+
+   `comissaoDaEscada` existe porque um item recém-lançado ainda não tem taxa
+   congelada — ela chega na volta do banco. Mostrar R$ 0,00 e depois pular
+   para R$ 40,00 assusta quem está com a cliente na cadeira.
+
+   ⚠ Espelho tem que ser espelho. Se esta escada e a do SQL divergirem, a
+   tela mente por alguns segundos e ninguém liga uma coisa à outra. O
+   `tests/comissao.test.mjs` compara as duas em cima de dezenas de arranjos;
+   mexer aqui sem mexer lá reprova.
+
+   A ordem, e o que "diz alguma coisa" significa (pct OU fixa não nula),
+   estão explicados por extenso no 16_comissao.sql. */
+function comissaoDaEscada(tipo, servicoId, produtoId, profId){
+  const diz = o => o && (o.comissaoPct != null || o.comissaoFixa != null);
+  const sai = o => ({ pct: o.comissaoPct || 0, fixa: o.comissaoFixa || 0 });
+
+  if(tipo === 'servico' && servicoId && profId){
+    const par = (bd.servicos_profissionais || []).find(
+      x => x.servicoId === servicoId && x.profissionalId === profId);
+    if(diz(par)) return sai(par);
+  }
+  if(tipo === 'servico' && servicoId){
+    const sv = acharServico(servicoId);
+    if(diz(sv)) return sai(sv);
+  }
+  if(tipo === 'produto' && produtoId){
+    // Produto sempre diz: a coluna é `not null` no banco. Ver o 16.
+    const pd = (bd.produtos || []).find(x => x.id === produtoId);
+    if(pd) return sai(pd);
+  }
+  if(profId){
+    const pr = acharProf(profId);
+    if(pr) return sai(pr);
+  }
+  return { pct: 0, fixa: 0 };
+}
+
+/* A base da comissão de um item: o valor dele, menos a parte que lhe cabe do
+   desconto da comanda quando a regra congelada na comanda é 'liquido'.
+
+   O acréscimo NÃO entra, no bruto nem no líquido: taxa de domingo é do
+   salão, não é serviço de ninguém. */
+function baseDaComissao(c, i){
+  const t = i.qtd * i.precoUnit;
+  const sub = subtotalDaComanda(c);
+  if(c.comissaoSobre !== 'liquido' || !(c.desconto > 0) || sub <= 0) return t;
+  return t - Math.round((c.desconto * t / sub) * 100) / 100;
+}
+
+function comissaoDoItem(c, i){
+  // Item já gravado traz a taxa congelada; item recém-lançado ainda não.
+  const taxa = (i.comissaoPct != null || i.comissaoFixa != null)
+    ? { pct: i.comissaoPct || 0, fixa: i.comissaoFixa || 0 }
+    : comissaoDaEscada(i.tipo, i.servicoId, i.produtoId, i.profissionalId);
+  return Math.round(baseDaComissao(c, i) * taxa.pct) / 100
+       + Math.round(i.qtd * taxa.fixa * 100) / 100;
+}
+
+const comissaoDaComanda = c =>
+  Math.round(c.itens.reduce((s,i) => s + comissaoDoItem(c,i), 0) * 100) / 100;
+
+/* ── O ESTORNO ────────────────────────────────────────────────────────────
+   Quem barra é o `tg_estorno_cabe` do 17_caixa.sql: comanda fechada não
+   estorna, e não se devolve mais do que se recebeu. A tela confere as duas
+   coisas antes de mandar pelo motivo de sempre — dizer não na hora é melhor
+   do que dizer não depois de uma ida ao servidor —, e nunca no lugar do
+   banco. */
+const estornadoDe = pagamentoId =>
+  Math.round((bd.estornos || [])
+    .filter(e => e.pagamentoId === pagamentoId)
+    .reduce((s,e) => s + e.valor, 0) * 100) / 100;
+
+function pedirEstorno(comId, pagamentoId){
+  const c = bd.comandas.find(x => x.id === comId);
+  const p = c && c.pagamentos.find(x => x.id === pagamentoId);
+  if(!p) return;
+  if(comandaFechada(c)){
+    return alert('Reabra a comanda antes de estornar este pagamento.\n\n'
+      + 'Estornar sem reabrir deixaria a comanda fechada e devendo ao mesmo '
+      + 'tempo.');
+  }
+  const resta = Math.round((p.valor - estornadoDe(p.id)) * 100) / 100;
+
+  abrirModal('Estornar pagamento', `
+    <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">
+      ${escapar(p.forma)} de ${real(p.valor)} · disponível para estorno:
+      <b>${real(resta)}</b></p>
+    <label>Valor a devolver</label>
+    <input type="number" id="eValor" step="0.01" min="0.01" max="${resta}"
+           value="${resta}">
+    <label style="margin-top:10px">Motivo</label>
+    <input type="text" id="eMotivo" maxlength="120"
+           placeholder="valor digitado errado">
+    <div class="acoes">
+      <button class="btn" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-primario"
+              onclick="confirmarEstorno('${comId}','${pagamentoId}')">Estornar</button>
+    </div>`);
+}
+
+async function confirmarEstorno(comId, pagamentoId){
+  const c = bd.comandas.find(x => x.id === comId);
+  const p = c.pagamentos.find(x => x.id === pagamentoId);
+  const valor = Number(document.getElementById('eValor').value || 0);
+  const motivo = (document.getElementById('eMotivo').value || '').trim();
+  const resta = Math.round((p.valor - estornadoDe(p.id)) * 100) / 100;
+
+  if(!(valor > 0)) return alert('Informe o valor a devolver.');
+  if(valor > resta + 0.005){
+    return alert(`Este pagamento tem ${real(resta)} disponíveis para estorno.`);
+  }
+  if(motivo.length < 3){
+    return alert('Escreva o motivo. É ele que explica, no fim do mês, por que '
+      + 'a gaveta fechou com menos.');
+  }
+
+  bd.estornos = bd.estornos || [];
+  bd.estornos.push({ id:id(), pagamentoId, salaoId:salaoAtual, valor, motivo });
+  fecharModal();
+  await salvar();
+  abrirComanda(comId);
+}
 
 /* O espelho do `situacao` da vista. A tela mostra, o banco decide. */
 function situacaoDaComanda(c){
@@ -3178,7 +3648,7 @@ function abrirComanda(comId){
   if(!c) return;
 
   const subtotal = subtotalDaComanda(c);
-  const comissao = c.itens.reduce((s,i) => s + Math.round(i.qtd*i.precoUnit*(i.comissaoPct||0))/100, 0);
+  const comissao = comissaoDaComanda(c);
   const total = totalDaComanda(c);
   const pago = pagoNaComanda(c);
   const fechada = comandaFechada(c);
@@ -3195,7 +3665,7 @@ function abrirComanda(comId){
           <td>${escapar(i.descricao)}${i.qtd > 1 ? ` <span style="color:var(--txt2)">×${i.qtd}</span>` : ''}</td>
           <td style="font-size:13px">${escapar(p ? p.nome : '—')}</td>
           <td style="text-align:right">${real(t)}</td>
-          <td style="text-align:right;color:var(--txt2)">${real(Math.round(t*(i.comissaoPct||0))/100)}</td>
+          <td style="text-align:right;color:var(--txt2)">${real(comissaoDoItem(c,i))}</td>
           <td style="text-align:right">${fechada ? '' : `<button class="btn btn-peq"
               onclick="removerItem('${c.id}',${ix})" aria-label="Remover"
               >${ico('fechar')}</button>`}</td>
@@ -3251,8 +3721,20 @@ function abrirComanda(comId){
     </tbody></table>
 
     ${c.pagamentos.length ? `<div class="campo" style="margin-top:11px">
-      ${c.pagamentos.map(p => `<span class="tag t-conf" style="margin-right:5px">
-        ${p.forma} ${real(p.valor)}</span>`).join('')}</div>` : ''}
+      ${c.pagamentos.map(p => {
+        const dev = estornadoDe(p.id);
+        const resta = Math.round((p.valor - dev) * 100) / 100;
+        /* Estorno APARECE, não some. Um pagamento devolvido que sumisse da
+           lista deixaria a comanda com um buraco sem explicação — e é
+           justamente o rastro do erro que o estorno existe para guardar. */
+        return `<span class="tag ${resta > 0 ? 't-conf' : 't-canc'}"
+                      style="margin-right:5px">
+          ${p.forma} ${real(p.valor)}${
+            dev > 0 ? ` · devolvido ${real(dev)}` : ''}</span>${
+          fechada || resta <= 0 ? '' :
+          `<button class="btn btn-peq" style="margin-right:8px"
+                   onclick="pedirEstorno('${c.id}','${p.id}')">Estornar</button>`}`;
+      }).join('')}</div>` : ''}
 
     ${fechada ? '' : `
     <div class="dupla" style="margin-top:13px">
@@ -3301,14 +3783,21 @@ function somarItem(comId){
 
   // Mesmo motivo do `receber()`: o id nasce aqui, senão cada gravação apaga
   // o item e cria outro no lugar.
+  /* ⚠ `servicoId`/`produtoId` vão junto, e não iam: o item guardava só a
+     descrição. Sem eles o gatilho do banco não tem catálogo onde procurar a
+     taxa, e a escada cai direto no profissional — todo serviço com comissão
+     própria seria ignorado, sem aviso.
+
+     E a taxa não vai mais daqui. Quem decide é o banco; a tela só mostra,
+     pelo espelho em `comissaoDaEscada`. */
   if(tipo === 's'){
     const s = acharServico(ref);
-    c.itens.push({id:id(), tipo:'servico', descricao:s.nome, qtd:1, precoUnit:s.preco,
-      profissionalId:profId, comissaoPct: s.comissaoPct != null ? s.comissaoPct : prof.comissaoPct});
+    c.itens.push({id:id(), tipo:'servico', servicoId:s.id, descricao:s.nome,
+      qtd:1, precoUnit:s.preco, profissionalId:profId});
   } else {
     const p = bd.produtos.find(x => x.id === ref);
-    c.itens.push({id:id(), tipo:'produto', descricao:p.nome, qtd:1, precoUnit:p.preco,
-      profissionalId:profId, comissaoPct:p.comissaoPct});
+    c.itens.push({id:id(), tipo:'produto', produtoId:p.id, descricao:p.nome,
+      qtd:1, precoUnit:p.preco, profissionalId:profId});
   }
   salvar(); abrirComanda(comId);
 }
@@ -3751,6 +4240,7 @@ function pintar(){
   if(telaAtual === 'clientes') pintarClientes();
   if(telaAtual === 'servicos') pintarServicos();
   if(telaAtual === 'equipe')   pintarEquipe();
+  if(telaAtual === 'hoje')     carregarHoje();
   if(telaAtual === 'caixa')    pintarCaixa();
   if(telaAtual === 'relatorios') prepararRelatorios();
   if(telaAtual === 'salao')    pintarSalao();

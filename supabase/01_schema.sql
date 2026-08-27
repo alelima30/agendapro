@@ -948,7 +948,21 @@ with (security_invoker = true) as
          coalesce(sum(i.total), 0)                 as subtotal,
          c.desconto,
          coalesce(sum(i.total), 0) - c.desconto    as total,
-         coalesce(sum(i.comissao_valor), 0)        as comissao_total
+         -- ⚠ Calculado aqui, e NÃO lido de `i.comissao_valor`.
+         --
+         -- Aquela coluna gerada nasce neste arquivo e é REMOVIDA pelo
+         -- 16_comissao.sql, que refaz esta vista sobre a escada completa
+         -- (par, catálogo, pessoa) e sobre a regra de bruto/líquido —
+         -- coisas que uma coluna gerada não alcança, porque ela só enxerga
+         -- a própria linha.
+         --
+         -- Se esta linha continuasse lendo a coluna, a SEGUNDA colagem do
+         -- 00_tudo.sql morreria bem aqui: o 01 roda antes do 16, a coluna
+         -- já não existe, e o arquivo inteiro para numa linha que não tem
+         -- defeito nenhum. É o mesmo tropeço do `create or replace view`
+         -- que não deixa tirar coluna, noutro lugar.
+         coalesce(sum(round(i.qtd * i.preco_unit * i.comissao_pct / 100, 2)), 0)
+                                                   as comissao_total
     from public.comandas c
     left join public.comanda_itens i on i.comanda_id = c.id
    group by c.id;

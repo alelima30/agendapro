@@ -153,7 +153,12 @@ with (security_invoker = true) as
          c.desconto,
          c.acrescimo,
          coalesce(sum(i.total), 0) - c.desconto + c.acrescimo     as total,
-         coalesce(sum(i.comissao_valor), 0)                       as comissao_total,
+         -- Calculado, e não lido de `i.comissao_valor`: o 16_comissao.sql
+         -- remove aquela coluna e refaz esta vista. Lendo a coluna, a
+         -- segunda colagem do arquivo morreria aqui — o 15 roda antes do
+         -- 16, e a coluna já não existe.
+         coalesce(sum(round(i.qtd * i.preco_unit * i.comissao_pct / 100, 2)), 0)
+                                                                  as comissao_total,
          coalesce((select sum(p.valor) from public.pagamentos p
                     where p.comanda_id = c.id), 0)                as pago,
          -- O que ainda falta receber. Negativo significa troco a devolver.

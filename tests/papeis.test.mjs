@@ -150,9 +150,20 @@ const abasDe = p => p.evaluate(() =>
 secao('A dona');
 const pgDona = await abrirPainel(dDona, 'dona');
 const abasDona = await abasDe(pgDona);
-igual('vê as 9 abas', abasDona.length, 9);
+/* Contado a partir do TELAS, e não escrito à mão.
+
+   Estava "as 9 abas", e a aba Hoje entrou: o teste reprovaria dizendo que a
+   dona vê 10 quando devia ver 9 — culpando a mudança certa. Número escrito
+   à mão num teste envelhece igual ao de qualquer outro lugar, com o
+   agravante de que aqui ele parece uma asserção.
+
+   O que importa não é quantas são: é que a dona veja TODAS. */
+const totalDeTelas = await pgDona.evaluate(() => TELAS.length);
+igual('vê todas as abas do sistema', abasDona.length, totalDeTelas);
 verdade('inclusive Plano e Meu salão',
   abasDona.includes('plano') && abasDona.includes('salao'));
+verdade('e o painel do dia, que é dela',
+  abasDona.includes('hoje'), JSON.stringify(abasDona));
 verdade('e os Relatórios, que trazem faturamento e comissão da casa',
   abasDona.includes('relatorios'), JSON.stringify(abasDona));
 igual('e o papel dela aparece na lateral',
@@ -176,6 +187,8 @@ verdade('NÃO vê Equipe — que traz a comissão das colegas',
   !abasRecep.includes('equipe'), JSON.stringify(abasRecep));
 verdade('NÃO vê Relatórios — faturamento do mês não é assunto do balcão',
   !abasRecep.includes('relatorios'), JSON.stringify(abasRecep));
+verdade('NÃO vê Hoje — que traz o faturamento do dia e a comissão',
+  !abasRecep.includes('hoje'), JSON.stringify(abasRecep));
 
 /* ⚠ E ESCONDER A ABA NÃO É PROTEGER O DADO.
    Quem barra é o banco: `relatorio()` é `security definer` com `e_gestor()`

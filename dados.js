@@ -38,11 +38,16 @@ const COLUNAS = {
   perfis:        { superAdmin:'super_admin', criadoEm:'criado_em' },
   vinculos:      { perfilId:'perfil_id', salaoId:'salao_id', criadoEm:'criado_em' },
   profissionais: { salaoId:'salao_id', perfilId:'perfil_id',
-                   comissaoPct:'comissao_pct', aceitaOnline:'aceita_online',
+                   comissaoPct:'comissao_pct', comissaoFixa:'comissao_fixa',
+                   aceitaOnline:'aceita_online',
                    criadoEm:'criado_em' },
   servicos:      { salaoId:'salao_id', duracaoMin:'duracao_min',
                    intervaloMin:'intervalo_min', comissaoPct:'comissao_pct',
+                   comissaoFixa:'comissao_fixa',
                    aceitaOnline:'aceita_online', criadoEm:'criado_em' },
+  servicos_profissionais: { servicoId:'servico_id',
+                   profissionalId:'profissional_id', duracaoMin:'duracao_min',
+                   comissaoPct:'comissao_pct', comissaoFixa:'comissao_fixa' },
   jornadas:      { profissionalId:'profissional_id', diaSemana:'dia_semana' },
   bloqueios:     { salaoId:'salao_id', profissionalId:'profissional_id',
                    criadoEm:'criado_em' },
@@ -59,16 +64,27 @@ const COLUNAS = {
   lista_espera:  { salaoId:'salao_id', clienteId:'cliente_id',
                    profissionalId:'profissional_id', duracaoMin:'duracao_min',
                    avisadoEm:'avisado_em', criadoEm:'criado_em' },
-  produtos:      { salaoId:'salao_id', comissaoPct:'comissao_pct' },
+  produtos:      { salaoId:'salao_id', comissaoPct:'comissao_pct',
+                   comissaoFixa:'comissao_fixa' },
   comandas:      { salaoId:'salao_id', agendamentoId:'agendamento_id',
                    clienteId:'cliente_id', descontoMotivo:'desconto_motivo',
                    abertaEm:'aberta_em', fechadaEm:'fechada_em',
+                   comissaoSobre:'comissao_sobre',
                    abertaPor:'aberta_por' },
   comanda_itens: { comandaId:'comanda_id', servicoId:'servico_id',
                    produtoId:'produto_id', precoUnit:'preco_unit',
                    profissionalId:'profissional_id', comissaoPct:'comissao_pct',
-                   comissaoValor:'comissao_valor' },
-  pagamentos:    { comandaId:'comanda_id', recebidoEm:'recebido_em' },
+                   comissaoFixa:'comissao_fixa' },
+  pagamentos:    { comandaId:'comanda_id', recebidoEm:'recebido_em',
+                   caixaId:'caixa_id' },
+  caixas:        { salaoId:'salao_id', abertoEm:'aberto_em',
+                   abertoPor:'aberto_por', valorAbertura:'valor_abertura',
+                   fechadoEm:'fechado_em', fechadoPor:'fechado_por',
+                   valorContado:'valor_contado' },
+  caixa_movimentos: { caixaId:'caixa_id', salaoId:'salao_id',
+                   criadoEm:'criado_em' },
+  estornos:      { pagamentoId:'pagamento_id', salaoId:'salao_id',
+                   criadoEm:'criado_em' },
   planos:        { maxProfissionais:'max_profissionais', precoMes:'preco_mes' },
   assinaturas:   { salaoId:'salao_id', trialAte:'trial_ate', venceEm:'vence_em',
                    indicadoPor:'indicado_por', criadoEm:'criado_em',
@@ -82,10 +98,28 @@ const SO_DA_TELA = {
   comandas:     ['itens','pagamentos','numero','data'],
   profissionais:['jornada'],        // vira linhas em jornadas
   assinaturas:  ['planoPretendido'],
-  // `total` e `comissao_valor` são GENERATED ALWAYS no schema: o Postgres
-  // recusa escrita neles, e a gravação inteira cai junto. Quem calcula é o
-  // banco, e é assim que a conta da comanda não depende da versão da tela.
-  comanda_itens: ['total','comissaoValor'],
+  /* ⚠ `comissaoPct` e `comissaoFixa` estão aqui, e é o ponto do
+     16_comissao.sql: a taxa é decidida pelo BANCO, pela escada
+     par → catálogo → pessoa. A tela mandava a dela e o banco gravava o que
+     chegasse — medido contra um Postgres de verdade: serviço cadastrado a
+     40%, item inserido dizendo 100%, R$ 100 de comissão num serviço de
+     R$ 100.
+
+     O gatilho hoje sobrescreve de qualquer jeito, então continuar mandando
+     não faria estrago NENHUM hoje. Faria amanhã: quem lesse este código
+     acreditaria que a tela decide a comissão, e a próxima pessoa a mexer
+     "consertaria" o gatilho para respeitar o que a tela manda. Não mandar é
+     a única forma de o código dizer de quem é a regra.
+
+     Continuam sendo LIDAS — estão no COLUNAS — porque a tela precisa da
+     taxa congelada para mostrar a comissão de cada item.
+
+     `comissaoValor` deixou de ser coluna: quem calcula é a vista
+     `comanda_itens_calculados`. Mandá-la dá 400. */
+  // `total` é GENERATED ALWAYS no schema: o Postgres recusa escrita nele, e
+  // a gravação inteira cai junto. Quem calcula é o banco, e é assim que a
+  // conta da comanda não depende da versão da tela.
+  comanda_itens: ['total','comissaoValor','comissaoPct','comissaoFixa'],
 };
 
 /* ── CAMPO VAZIO NÃO É TEXTO VAZIO ────────────────────────────────────────
@@ -125,6 +159,22 @@ const VAZIO_E_NULO = new Set([
      escondido porque nada exercitava o caminho de "a pessoa saiu da lista e
      depois voltou". */
   'marketing_saiu_em', 'encaixe_por',
+  /* Estas cinco chegaram com o 16_comissao.sql, e quem as cobrou foi o
+     `colunas.test.js` no minuto em que ele passou a ler a pasta inteira em
+     vez de uma lista escrita à mão.
+
+     `comissao_fixa` é anulável de propósito nos quatro cadastros: null quer
+     dizer "este degrau não fala em valor fixo", e é diferente de zero, que
+     quer dizer "fala, e é zero". O campo do formulário deixado em branco
+     precisa virar null — se virasse `''`, o Postgres recusaria a gravação
+     inteira do serviço, não só o campo. */
+  'comissao_fixa', 'comissao_regra_desde',
+  /* As do caixa e do estorno. `quem`, `aberto_por` e `fechado_por` são uuid
+     de perfil: um formulário que não souber quem está logado manda `''`, e
+     `invalid input syntax for type uuid: ""` derruba a gravação inteira do
+     caixa — não só o campo de quem fez. */
+  'aberto_por', 'fechado_por', 'fechado_em', 'valor_contado',
+  'caixa_id', 'quem',
 ]);
 
 function paraBanco(tabela, obj){
@@ -167,6 +217,7 @@ function listaJsonb(r){
    completa: coluna numérica nova entra aqui ou reprova lá.
    ──────────────────────────────────────────────────────────────────────── */
 const NUMERICAS = new Set([
+  'comissao_fixa', 'valor_abertura', 'valor_contado',
   'comissao_pct', 'comissao_total', 'comissao_valor', 'custo', 'desconto',
   'estoque', 'preco', 'preco_mes', 'preco_unit', 'qtd', 'sinal_exigido',
   'sinal_pago', 'subtotal', 'taxa', 'total', 'valor', 'valor_previsto',
@@ -868,7 +919,16 @@ const TABELAS_SINCRONIZADAS = [
   // que o agendamento exista antes das linhas de serviço dele.
   'agendamento_servicos',
   'lista_espera','produtos',
+  /* `caixas` ANTES de `pagamentos`, e não é arrumação: o gatilho
+     `tg_pagamento_caixa` procura o caixa aberto para carimbar o pagamento.
+     Se o pagamento subisse primeiro, o caixa recém-aberto ainda não estaria
+     no banco e o pagamento nasceria órfão de gaveta — sem erro nenhum, só
+     faltando na conferência do fim do dia. */
+  'caixas',
   'comandas','comanda_itens','pagamentos',
+  // Depois de `caixas` pela chave estrangeira, e depois de `pagamentos`
+  // porque o estorno aponta para um.
+  'caixa_movimentos','estornos',
 ];
 
 // Só leitura: quem manda nelas é a plataforma, não a tela.

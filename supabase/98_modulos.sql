@@ -605,7 +605,7 @@ begin
                      round(sum(i.total), 2)          as vendido,
                      round(sum(i.comissao_valor), 2) as comissao,
                      count(*)                        as itens
-                from public.comanda_itens i
+                from public.comanda_itens_calculados i
                 join public.comandas c on c.id = i.comanda_id
                 left join public.profissionais pr on pr.id = i.profissional_id
                where c.salao_id = p_salao and c.status = 'fechada'
@@ -1143,7 +1143,8 @@ with (security_invoker = true) as
          c.desconto,
          c.acrescimo,
          coalesce(sum(i.total), 0) - c.desconto + c.acrescimo     as total,
-         coalesce(sum(i.comissao_valor), 0)                       as comissao_total,
+         coalesce(sum(round(i.qtd * i.preco_unit * i.comissao_pct / 100, 2)), 0)
+                                                                  as comissao_total,
          coalesce((select sum(p.valor) from public.pagamentos p
                     where p.comanda_id = c.id), 0)                as pago,
          (coalesce(sum(i.total), 0) - c.desconto + c.acrescimo)
@@ -1297,3 +1298,592 @@ create trigger tg_fechar_comanda
 revoke all on function public.conferir_desconto(uuid) from public, anon, authenticated;
 revoke all on function public.reais(numeric) from public;
 grant execute on function public.reais(numeric) to anon, authenticated;
+
+alter table public.servicos_profissionais
+  add column if not exists comissao_pct numeric(5,2)
+    check (comissao_pct between 0 and 100);
+alter table public.servicos_profissionais
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+alter table public.servicos
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+alter table public.produtos
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+alter table public.profissionais
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+alter table public.comanda_itens
+  add column if not exists comissao_fixa numeric(10,2) not null default 0
+    check (comissao_fixa >= 0);
+comment on column public.comanda_itens.comissao_pct is
+  'Congelada pelo gatilho no lançamento. NÃO é o que o navegador mandou.';
+comment on column public.comanda_itens.comissao_fixa is
+  'Por unidade: 2 itens a R$ 5 fixos = R$ 10. Congelada junto com a pct.';
+alter table public.saloes
+  add column if not exists comissao_sobre text not null default 'bruto'
+    check (comissao_sobre in ('bruto','liquido'));
+alter table public.saloes
+  add column if not exists comissao_regra_desde date;
+comment on column public.saloes.comissao_regra_desde is
+  'A regra vale para comanda aberta a partir daqui. Nulo = nunca virou.';
+alter table public.comandas
+  add column if not exists comissao_sobre text not null default 'bruto'
+    check (comissao_sobre in ('bruto','liquido'));
+create or replace function public.comissao_de(
+  p_tipo text, p_servico uuid, p_produto uuid, p_profissional uuid,
+  out pct numeric, out fixa numeric)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if p_tipo = 'servico' and p_servico is not null and p_profissional is not null then
+    select sp.comissao_pct, sp.comissao_fixa into pct, fixa
+      from public.servicos_profissionais sp
+     where sp.servico_id = p_servico and sp.profissional_id = p_profissional
+       and (sp.comissao_pct is not null or sp.comissao_fixa is not null);
+    if found then
+      return;
+    end if;
+  end if;
+  if p_tipo = 'servico' and p_servico is not null then
+    select sv.comissao_pct, sv.comissao_fixa into pct, fixa
+      from public.servicos sv
+     where sv.id = p_servico
+       and (sv.comissao_pct is not null or sv.comissao_fixa is not null);
+    if found then
+      return;
+    end if;
+  elsif p_tipo = 'produto' and p_produto is not null then
+    select pd.comissao_pct, pd.comissao_fixa into pct, fixa
+      from public.produtos pd
+     where pd.id = p_produto;
+    if found then
+      return;
+    end if;
+  end if;
+  if p_profissional is not null then
+    select pr.comissao_pct, pr.comissao_fixa into pct, fixa
+      from public.profissionais pr
+     where pr.id = p_profissional;
+    if found then
+      return;
+    end if;
+  end if;
+  pct := 0; fixa := 0;
+end $$;
+comment on function public.comissao_de(text, uuid, uuid, uuid) is
+  'A escada: par, catálogo, pessoa, zero. Não aceita taxa por parâmetro.';
+create or replace function public.tg_item_comissao() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  t record;
+begin
+  if tg_op = 'UPDATE'
+     and new.tipo is not distinct from old.tipo
+     and new.servico_id is not distinct from old.servico_id
+     and new.produto_id is not distinct from old.produto_id
+     and new.profissional_id is not distinct from old.profissional_id then
+    new.comissao_pct  := old.comissao_pct;
+    new.comissao_fixa := old.comissao_fixa;
+    return new;
+  end if;
+  select * into t from public.comissao_de(
+    new.tipo, new.servico_id, new.produto_id, new.profissional_id);
+  new.comissao_pct  := coalesce(t.pct, 0);
+  new.comissao_fixa := coalesce(t.fixa, 0);
+  return new;
+end $$;
+drop trigger if exists tg_item_comissao on public.comanda_itens;
+create trigger tg_item_comissao
+  before insert or update on public.comanda_itens
+  for each row execute function public.tg_item_comissao();
+create or replace function public.tg_comanda_regra() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_sobre text;
+  v_desde date;
+  v_fuso  text;
+begin
+  select coalesce(s.comissao_sobre, 'bruto'), s.comissao_regra_desde,
+         coalesce(s.fuso, 'America/Sao_Paulo')
+    into v_sobre, v_desde, v_fuso
+    from public.saloes s where s.id = new.salao_id;
+  if v_desde is null
+     or (new.aberta_em at time zone v_fuso)::date < v_desde then
+    new.comissao_sobre := 'bruto';
+  else
+    new.comissao_sobre := v_sobre;
+  end if;
+  return new;
+end $$;
+drop trigger if exists tg_comanda_regra on public.comandas;
+create trigger tg_comanda_regra
+  before insert on public.comandas
+  for each row execute function public.tg_comanda_regra();
+drop view if exists public.comandas_totais;
+drop view if exists public.comanda_itens_calculados;
+alter table public.comanda_itens drop column if exists comissao_valor;
+create view public.comanda_itens_calculados
+with (security_invoker = true) as
+  select i.id, i.comanda_id, i.tipo, i.servico_id, i.produto_id, i.descricao,
+         i.qtd, i.preco_unit, i.profissional_id,
+         i.comissao_pct, i.comissao_fixa, i.total,
+         b.base_comissao,
+         round(b.base_comissao * i.comissao_pct / 100, 2)
+           + round(i.qtd * i.comissao_fixa, 2) as comissao_valor
+    from public.comanda_itens i
+    join public.comandas c on c.id = i.comanda_id
+    cross join lateral (
+      select case
+               when c.comissao_sobre = 'liquido' and c.desconto > 0 and s.sub > 0
+               then i.total - round(c.desconto * i.total / s.sub, 2)
+               else i.total
+             end as base_comissao
+        from (select coalesce(sum(x.total), 0) as sub
+                from public.comanda_itens x
+               where x.comanda_id = i.comanda_id) s
+    ) b;
+comment on view public.comanda_itens_calculados is
+  'O único lugar que calcula comissão. Relatório, totais e tela leem daqui.';
+grant select on public.comanda_itens_calculados to authenticated;
+create view public.comandas_totais
+with (security_invoker = true) as
+  select c.id,
+         c.salao_id,
+         c.cliente_id,
+         c.agendamento_id,
+         c.numero,
+         c.status,
+         c.aberta_em,
+         c.fechada_em,
+         c.comissao_sobre,
+         coalesce(i.subtotal, 0)                        as subtotal,
+         c.desconto,
+         c.acrescimo,
+         coalesce(i.subtotal, 0) - c.desconto + c.acrescimo as total,
+         coalesce(i.comissao, 0)                        as comissao_total,
+         coalesce(p.pago, 0)                            as pago,
+         coalesce(i.subtotal, 0) - c.desconto + c.acrescimo
+           - coalesce(p.pago, 0)                        as falta,
+         case
+           when c.status = 'cancelada' then 'cancelado'
+           when coalesce(p.pago, 0) = 0 then 'pendente'
+           when coalesce(p.pago, 0)
+                >= coalesce(i.subtotal, 0) - c.desconto + c.acrescimo
+             then 'pago'
+           else 'parcial'
+         end                                            as situacao
+    from public.comandas c
+    left join (select k.comanda_id,
+                      sum(k.total)          as subtotal,
+                      sum(k.comissao_valor) as comissao
+                 from public.comanda_itens_calculados k
+                group by k.comanda_id) i on i.comanda_id = c.id
+    left join (select g.comanda_id, sum(g.valor) as pago
+                 from public.pagamentos g
+                group by g.comanda_id) p on p.comanda_id = c.id;
+grant select on public.comandas_totais to authenticated;
+
+create table if not exists public.caixas (
+  id            uuid primary key default gen_random_uuid(),
+  salao_id      uuid not null references public.saloes(id) on delete cascade,
+  aberto_em     timestamptz not null default now(),
+  aberto_por    uuid references public.perfis(id) on delete set null,
+  valor_abertura numeric(10,2) not null default 0 check (valor_abertura >= 0),
+  fechado_em    timestamptz,
+  fechado_por   uuid references public.perfis(id) on delete set null,
+  valor_contado numeric(10,2) check (valor_contado >= 0),
+  observacao    text,
+  check ( (fechado_em is null and valor_contado is null)
+       or (fechado_em is not null and valor_contado is not null) )
+);
+create index if not exists ix_caixa_salao
+  on public.caixas(salao_id, aberto_em desc);
+create unique index if not exists ux_caixa_aberto
+  on public.caixas(salao_id) where (fechado_em is null);
+alter table public.caixas enable row level security;
+alter table public.caixas force row level security;
+drop policy if exists caixa_ver on public.caixas;
+create policy caixa_ver on public.caixas for select to authenticated
+  using ( public.ve_agenda_toda(salao_id) );
+drop policy if exists caixa_gerir on public.caixas;
+create policy caixa_gerir on public.caixas for all to authenticated
+  using ( public.ve_agenda_toda(salao_id) )
+  with check ( public.ve_agenda_toda(salao_id) );
+revoke all on public.caixas from anon;
+grant select, insert, update on public.caixas to authenticated;
+create table if not exists public.caixa_movimentos (
+  id         uuid primary key default gen_random_uuid(),
+  caixa_id   uuid not null references public.caixas(id) on delete cascade,
+  salao_id   uuid not null references public.saloes(id) on delete cascade,
+  tipo       text not null check (tipo in ('sangria','suprimento')),
+  valor      numeric(10,2) not null check (valor > 0),
+  motivo     text not null check (length(btrim(motivo)) >= 3),
+  quem       uuid references public.perfis(id) on delete set null,
+  criado_em  timestamptz not null default now()
+);
+create index if not exists ix_mov_caixa on public.caixa_movimentos(caixa_id);
+alter table public.caixa_movimentos enable row level security;
+alter table public.caixa_movimentos force row level security;
+drop policy if exists mov_gerir on public.caixa_movimentos;
+create policy mov_gerir on public.caixa_movimentos for all to authenticated
+  using ( public.ve_agenda_toda(salao_id) )
+  with check ( public.ve_agenda_toda(salao_id) );
+revoke all on public.caixa_movimentos from anon;
+grant select, insert on public.caixa_movimentos to authenticated;
+create or replace function public.tg_mov_caixa_aberto() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from public.caixas c
+              where c.id = new.caixa_id and c.fechado_em is not null) then
+    raise exception 'Este caixa já foi fechado. Abra o caixa do dia para lançar.'
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+drop trigger if exists tg_mov_caixa_aberto on public.caixa_movimentos;
+create trigger tg_mov_caixa_aberto
+  before insert on public.caixa_movimentos
+  for each row execute function public.tg_mov_caixa_aberto();
+alter table public.pagamentos
+  add column if not exists caixa_id uuid
+  references public.caixas(id) on delete set null;
+create index if not exists ix_pgto_caixa on public.pagamentos(caixa_id);
+create or replace function public.tg_pagamento_caixa() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_salao uuid;
+begin
+  if new.caixa_id is not null then
+    return new;
+  end if;
+  select c.salao_id into v_salao from public.comandas c where c.id = new.comanda_id;
+  select k.id into new.caixa_id
+    from public.caixas k
+   where k.salao_id = v_salao and k.fechado_em is null
+   limit 1;
+  return new;
+end $$;
+drop trigger if exists tg_pagamento_caixa on public.pagamentos;
+create trigger tg_pagamento_caixa
+  before insert on public.pagamentos
+  for each row execute function public.tg_pagamento_caixa();
+create table if not exists public.estornos (
+  id           uuid primary key default gen_random_uuid(),
+  pagamento_id uuid not null references public.pagamentos(id) on delete cascade,
+  salao_id     uuid not null references public.saloes(id) on delete cascade,
+  valor        numeric(10,2) not null check (valor > 0),
+  motivo       text not null check (length(btrim(motivo)) >= 3),
+  quem         uuid references public.perfis(id) on delete set null,
+  criado_em    timestamptz not null default now()
+);
+create index if not exists ix_estorno_pgto on public.estornos(pagamento_id);
+alter table public.estornos enable row level security;
+alter table public.estornos force row level security;
+drop policy if exists estorno_gerir on public.estornos;
+create policy estorno_gerir on public.estornos for all to authenticated
+  using ( public.ve_agenda_toda(salao_id) )
+  with check ( public.ve_agenda_toda(salao_id) );
+revoke all on public.estornos from anon;
+grant select, insert on public.estornos to authenticated;
+create or replace function public.tg_estorno_cabe() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_valor  numeric;
+  v_ja     numeric;
+  v_status text;
+  v_salao  uuid;
+begin
+  select p.valor, c.status, c.salao_id
+    into v_valor, v_status, v_salao
+    from public.pagamentos p
+    join public.comandas c on c.id = p.comanda_id
+   where p.id = new.pagamento_id;
+  if v_valor is null then
+    raise exception 'Pagamento não encontrado.' using errcode = 'no_data_found';
+  end if;
+  new.salao_id := v_salao;
+  if v_status = 'fechada' then
+    raise exception 'Reabra a comanda antes de estornar este pagamento.'
+      using errcode = 'check_violation';
+  end if;
+  if v_status = 'cancelada' then
+    raise exception 'Esta comanda foi cancelada.' using errcode = 'check_violation';
+  end if;
+  select coalesce(sum(e.valor), 0) into v_ja
+    from public.estornos e where e.pagamento_id = new.pagamento_id;
+  if new.valor > v_valor - v_ja + 0.005 then
+    raise exception 'Estorno de % maior que o disponível neste pagamento: %.',
+      public.reais(new.valor), public.reais(v_valor - v_ja)
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+drop trigger if exists tg_estorno_cabe on public.estornos;
+create trigger tg_estorno_cabe
+  before insert on public.estornos
+  for each row execute function public.tg_estorno_cabe();
+drop view if exists public.comandas_totais;
+create view public.comandas_totais
+with (security_invoker = true) as
+  select c.id,
+         c.salao_id,
+         c.cliente_id,
+         c.agendamento_id,
+         c.numero,
+         c.status,
+         c.aberta_em,
+         c.fechada_em,
+         c.comissao_sobre,
+         coalesce(i.subtotal, 0)                        as subtotal,
+         c.desconto,
+         c.acrescimo,
+         coalesce(i.subtotal, 0) - c.desconto + c.acrescimo as total,
+         coalesce(i.comissao, 0)                        as comissao_total,
+         coalesce(p.pago, 0)                            as pago,
+         coalesce(p.estornado, 0)                       as estornado,
+         coalesce(i.subtotal, 0) - c.desconto + c.acrescimo
+           - coalesce(p.pago, 0)                        as falta,
+         case
+           when c.status = 'cancelada' then 'cancelado'
+           when coalesce(p.pago, 0) = 0 then 'pendente'
+           when coalesce(p.pago, 0)
+                >= coalesce(i.subtotal, 0) - c.desconto + c.acrescimo
+             then 'pago'
+           else 'parcial'
+         end                                            as situacao
+    from public.comandas c
+    left join (select k.comanda_id,
+                      sum(k.total)          as subtotal,
+                      sum(k.comissao_valor) as comissao
+                 from public.comanda_itens_calculados k
+                group by k.comanda_id) i on i.comanda_id = c.id
+    left join (select g.comanda_id,
+                      sum(g.valor) - coalesce(sum(e.estornado), 0) as pago,
+                      coalesce(sum(e.estornado), 0)                as estornado
+                 from public.pagamentos g
+                 left join (select x.pagamento_id, sum(x.valor) as estornado
+                              from public.estornos x
+                             group by x.pagamento_id) e
+                        on e.pagamento_id = g.id
+                group by g.comanda_id) p on p.comanda_id = c.id;
+grant select on public.comandas_totais to authenticated;
+create or replace function public.tg_pagamento_cabe()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_total numeric(10,2);
+  v_pago  numeric(10,2);
+begin
+  select t.total into v_total from public.comandas_totais t where t.id = new.comanda_id;
+  select coalesce(sum(p.valor), 0) - coalesce(sum(e.estornado), 0)
+    into v_pago
+    from public.pagamentos p
+    left join (select x.pagamento_id, sum(x.valor) as estornado
+                 from public.estornos x group by x.pagamento_id) e
+           on e.pagamento_id = p.id
+   where p.comanda_id = new.comanda_id
+     and (tg_op = 'INSERT' or p.id <> new.id);
+  if v_total is null then
+    raise exception 'Comanda não encontrada.' using errcode = 'check_violation';
+  end if;
+  if v_pago + new.valor > v_total + 0.005 then
+    raise exception
+      'Pagamento de % excede o que falta nesta comanda: %.',
+      public.reais(new.valor), public.reais(greatest(v_total - v_pago, 0))
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+create or replace function public.conferir_caixa(p_caixa uuid)
+returns jsonb language plpgsql stable security definer
+set search_path = public as $$
+declare
+  k         public.caixas%rowtype;
+  v_dinheiro numeric;
+  v_sangria  numeric;
+  v_suprim   numeric;
+  v_esperado numeric;
+begin
+  select * into k from public.caixas where id = p_caixa;
+  if k.id is null then
+    raise exception 'Caixa não encontrado.' using errcode = 'no_data_found';
+  end if;
+  if not public.ve_agenda_toda(k.salao_id) then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+  select coalesce(sum(g.valor), 0) - coalesce(sum(e.estornado), 0)
+    into v_dinheiro
+    from public.pagamentos g
+    left join (select x.pagamento_id, sum(x.valor) as estornado
+                 from public.estornos x group by x.pagamento_id) e
+           on e.pagamento_id = g.id
+   where g.caixa_id = p_caixa and g.forma = 'dinheiro';
+  select coalesce(sum(m.valor) filter (where m.tipo = 'sangria'), 0),
+         coalesce(sum(m.valor) filter (where m.tipo = 'suprimento'), 0)
+    into v_sangria, v_suprim
+    from public.caixa_movimentos m where m.caixa_id = p_caixa;
+  v_esperado := k.valor_abertura + v_dinheiro + v_suprim - v_sangria;
+  return jsonb_build_object(
+    'id',            k.id,
+    'abertoEm',      k.aberto_em,
+    'fechadoEm',     k.fechado_em,
+    'valorAbertura', k.valor_abertura,
+    'dinheiro',      v_dinheiro,
+    'suprimentos',   v_suprim,
+    'sangrias',      v_sangria,
+    'esperado',      v_esperado,
+    'contado',       k.valor_contado,
+    'diferenca',     case when k.valor_contado is null then null
+                          else round(k.valor_contado - v_esperado, 2) end,
+    'outrosMeios', coalesce((
+      select jsonb_agg(jsonb_build_object('forma', y.forma, 'valor', y.valor)
+                       order by y.valor desc)
+        from (select g.forma,
+                     round(sum(g.valor) - coalesce(sum(e.estornado), 0), 2) as valor
+                from public.pagamentos g
+                left join (select x.pagamento_id, sum(x.valor) as estornado
+                             from public.estornos x group by x.pagamento_id) e
+                       on e.pagamento_id = g.id
+               where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
+               group by g.forma) y), '[]'::jsonb),
+    'movimentos', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'tipo', m.tipo, 'valor', m.valor, 'motivo', m.motivo,
+               'criadoEm', m.criado_em) order by m.criado_em)
+        from public.caixa_movimentos m where m.caixa_id = p_caixa), '[]'::jsonb)
+  );
+end $$;
+revoke all on function public.conferir_caixa(uuid) from public, anon;
+grant execute on function public.conferir_caixa(uuid) to authenticated;
+create or replace function public.fechar_caixa(
+  p_caixa uuid, p_contado numeric, p_observacao text default null)
+returns jsonb language plpgsql security definer
+set search_path = public as $$
+declare k public.caixas%rowtype;
+begin
+  select * into k from public.caixas where id = p_caixa;
+  if k.id is null then
+    raise exception 'Caixa não encontrado.' using errcode = 'no_data_found';
+  end if;
+  if not public.ve_agenda_toda(k.salao_id) then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+  if k.fechado_em is not null then
+    raise exception 'Este caixa já foi fechado.' using errcode = 'check_violation';
+  end if;
+  if p_contado is null or p_contado < 0 then
+    raise exception 'Informe quanto tem na gaveta.' using errcode = 'check_violation';
+  end if;
+  update public.caixas
+     set fechado_em = now(), fechado_por = auth.uid(),
+         valor_contado = p_contado,
+         observacao = coalesce(p_observacao, observacao)
+   where id = p_caixa;
+  return public.conferir_caixa(p_caixa);
+end $$;
+revoke all on function public.fechar_caixa(uuid, numeric, text) from public, anon;
+grant execute on function public.fechar_caixa(uuid, numeric, text) to authenticated;
+
+create or replace function public.painel_hoje(
+  p_salao uuid, p_dia date default null)
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_fuso  text;
+  v_hoje  date;
+  v_ini   timestamptz;
+  v_fim   timestamptz;
+  v_ini_o timestamptz;
+  v_fim_o timestamptz;
+  v_caixa uuid;
+begin
+  if not public.e_gestor(p_salao) then
+    raise exception 'Sem permissão neste salão.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  select fuso into v_fuso from public.saloes where id = p_salao;
+  if not found then
+    raise exception 'Salão não encontrado.' using errcode = 'no_data_found';
+  end if;
+  v_fuso := coalesce(v_fuso, 'America/Sao_Paulo');
+  v_hoje := coalesce(p_dia, (now() at time zone v_fuso)::date);
+  v_ini   := (v_hoje::timestamp) at time zone v_fuso;
+  v_fim   := ((v_hoje + 1)::timestamp) at time zone v_fuso;
+  v_fim_o := v_ini;
+  v_ini_o := v_ini - interval '1 day';
+  select k.id into v_caixa
+    from public.caixas k
+   where k.salao_id = p_salao and k.fechado_em is null
+   limit 1;
+  return jsonb_build_object(
+    'dia',  v_hoje,
+    'fuso', v_fuso,
+    'agenda', (
+      select jsonb_build_object(
+        'total',     count(*),
+        'aguardando', count(*) filter (where a.status in ('pendente','confirmado')),
+        'atendendo', count(*) filter (where a.status = 'em_atendimento'),
+        'concluidos', count(*) filter (where a.status = 'concluido'),
+        'faltas',    count(*) filter (where a.status = 'faltou'),
+        'cancelados', count(*) filter (where a.status = 'cancelado'))
+        from public.agendamentos a
+       where a.salao_id = p_salao
+         and a.arquivado_em is null
+         and a.inicio >= v_ini and a.inicio < v_fim),
+    'dinheiro', (
+      select jsonb_build_object(
+        'faturamento', coalesce(round(sum(t.total) filter (
+                         where c.status = 'fechada'), 2), 0),
+        'comandas',    count(*) filter (where c.status = 'fechada'),
+        'ticket',      case when count(*) filter (where c.status = 'fechada') > 0
+                            then round(sum(t.total) filter (where c.status = 'fechada')
+                                       / count(*) filter (where c.status = 'fechada'), 2)
+                            else 0 end,
+        'comissoes',   coalesce(round(sum(t.comissao_total) filter (
+                         where c.status = 'fechada'), 2), 0),
+        'estornado',   coalesce(round(sum(t.estornado) filter (
+                         where c.status = 'fechada'), 2), 0))
+        from public.comandas c
+        join public.comandas_totais t on t.id = c.id
+       where c.salao_id = p_salao
+         and c.fechada_em >= v_ini and c.fechada_em < v_fim),
+    'aReceber', coalesce((
+      select round(sum(t.falta), 2)
+        from public.comandas c
+        join public.comandas_totais t on t.id = c.id
+       where c.salao_id = p_salao
+         and c.status = 'aberta'
+         and t.falta > 0), 0),
+    'ontem', (
+      select jsonb_build_object(
+        'faturamento', coalesce(round(sum(t.total), 2), 0),
+        'comandas',    count(*))
+        from public.comandas c
+        join public.comandas_totais t on t.id = c.id
+       where c.salao_id = p_salao and c.status = 'fechada'
+         and c.fechada_em >= v_ini_o and c.fechada_em < v_fim_o),
+    'caixa', case when v_caixa is null then null
+                  else public.conferir_caixa(v_caixa) end,
+    'proximos', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'inicio', x.inicio, 'cliente', x.cliente,
+               'profissional', x.profissional, 'status', x.status)
+             order by x.inicio)
+        from (select a.inicio, a.status,
+                     coalesce(cl.nome, a.atendido_nome, 'sem nome') as cliente,
+                     coalesce(pr.apelido, pr.nome, '—')             as profissional
+                from public.agendamentos a
+                left join public.clientes cl on cl.id = a.cliente_id
+                left join public.profissionais pr on pr.id = a.profissional_id
+               where a.salao_id = p_salao
+                 and a.arquivado_em is null
+                 and a.status in ('pendente','confirmado','em_atendimento')
+                 and a.inicio >= greatest(v_ini, now())
+                 and a.inicio < v_fim
+               order by a.inicio
+               limit 6) x), '[]'::jsonb)
+  );
+end $$;
+comment on function public.painel_hoje(uuid, date) is
+  'O dia do salão num jsonb só: agenda, dinheiro, gaveta e quem ainda vem.';
+revoke all on function public.painel_hoje(uuid, date) from public, anon;
+grant execute on function public.painel_hoje(uuid, date) to authenticated;

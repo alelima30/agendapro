@@ -257,9 +257,23 @@ values
    'cccccccc-0000-0000-0000-000000000001', 'Corte feminino', 1, 90.00,
    'bbbbbbbb-0000-0000-0000-000000000001', 40);
 
-insert into public.produtos (id, salao_id, nome, preco)
+/* ⚠ A comissão do produto é CADASTRADA aqui, e não era.
+
+   Este bloco se chama "comissão sai do banco, item a item" e passava pelo
+   motivo errado: o produto era cadastrado sem comissão nenhuma — a coluna é
+   `not null default 0` — e os 10% chegavam no INSERT do item, vindos de
+   quem escreveu o teste. Ou seja, provava exatamente o contrário do nome:
+   que a comissão saía de QUEM INSERIA.
+
+   Com o gatilho do 16_comissao.sql a taxa passa a vir do cadastro, o
+   produto diz 0%, e a conta caiu de 43 para 36. O teste reprovou, e estava
+   certo em reprovar — o defeito era dele.
+
+   Cadastrando os 10% no produto, o número volta a 43 e agora significa o
+   que o nome promete. */
+insert into public.produtos (id, salao_id, nome, preco, comissao_pct)
 values ('99999999-0000-0000-0000-000000000001',
-        'aaaaaaaa-0000-0000-0000-000000000001', 'Máscara capilar', 35.00);
+        'aaaaaaaa-0000-0000-0000-000000000001', 'Máscara capilar', 35.00, 10);
 
 insert into public.comanda_itens
   (comanda_id, tipo, produto_id, descricao, qtd, preco_unit, profissional_id, comissao_pct)

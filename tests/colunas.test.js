@@ -19,15 +19,28 @@ const fs = require('fs');
 const path = require('path');
 
 const RAIZ = path.join(__dirname, '..');
-/* ⚠ Arquivo que cria ou ALTERA tabela precisa entrar nesta lista.
-   O `14_motor.sql` acrescenta `encaixe` e `encaixe_por` em `agendamentos` por
-   `alter table`. Sem ele aqui, a varredura lê um schema desatualizado e acusa
-   o mapa do dados.js de inventar coluna — foi o que aconteceu, e a mensagem
-   apontava para o lugar errado. */
-const sql = ['supabase/01_schema.sql', 'supabase/03_onboarding.sql',
-             'supabase/09_cliente.sql', 'supabase/10_campanhas.sql',
-             'supabase/13_cobranca.sql', 'supabase/14_motor.sql']
-  .map(f => fs.readFileSync(path.join(RAIZ, f), 'utf8')).join('\n');
+/* ── TODO arquivo de schema, e não uma lista escrita à mão ─────────────────
+   Aqui havia uma lista fixa de seis arquivos, com um aviso em cima mandando
+   acrescentar os novos. Aviso não funciona: o `16_comissao.sql` entrou,
+   ninguém veio aqui, e o conferidor acusou SETE colunas inventadas no
+   dados.js — quando quem estava lendo schema velho era ele.
+
+   É o pior tipo de vermelho, o que culpa o lugar errado: o primeiro
+   instinto é desfazer o mapa do dados.js, que estava certo.
+
+   Lista escrita à mão é a mesma dívida do contador de suítes e do carimbo
+   de versão — envelhece calada. Lendo a pasta inteira, módulo novo entra
+   sozinho.
+
+   Fora ficam só os três arquivos GERADOS a partir dos outros; lê-los seria
+   contar tudo duas vezes. */
+const GERADOS = new Set(['00_tudo.sql', '98_modulos.sql', '99_remendo.sql']);
+const dirSql = path.join(RAIZ, 'supabase');
+const fontes = fs.readdirSync(dirSql)
+  .filter(f => f.endsWith('.sql') && !GERADOS.has(f))
+  .sort();
+const sql = fontes
+  .map(f => fs.readFileSync(path.join(dirSql, f), 'utf8')).join('\n');
 
 let ok = 0, falhas = 0;
 const dizer = (bom, msg) => {

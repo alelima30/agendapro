@@ -139,6 +139,7 @@ rodar "assinatura do webhook" node "$AQUI/webhook-assinatura.test.js"
 rodar "checkout"           node "$AQUI/cobranca.test.mjs"
 rodar "motor da agenda"    node "$AQUI/motor.test.mjs"
 rodar "banco atrasado"     node "$AQUI/banco-atrasado.test.mjs"
+rodar "escada da comissão" node "$AQUI/comissao.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

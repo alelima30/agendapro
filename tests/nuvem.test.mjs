@@ -92,9 +92,19 @@ secao('O limite do plano barra mesmo vindo da tela');
 
 // ── Cadastro do catálogo ──────────────────────────────────────────────────
 secao('O dono monta o catálogo');
+/* A comissão do serviço é CADASTRADA, e não era.
+
+   O bloco lá embaixo se chama "comissão de 60% = 30, calculada pelo banco" e
+   passava pelo motivo oposto ao do nome: o serviço nascia sem comissão e os
+   60% chegavam no INSERT do item, escritos pelo próprio teste. Com o gatilho
+   do 16_comissao.sql a taxa passa a vir do cadastro, o serviço não dizia
+   nada, a escada caía no profissional, e a conta mudou.
+
+   Cadastrando os 60% aqui, o número volta a 30 e agora significa o que o
+   nome promete. Foi o terceiro teste deste projeto com o mesmo vício. */
 const corte = await dono.inserir('servicos',
   { salaoId, nome: 'Corte masculino', categoria: 'Cabelo',
-    duracaoMin: 30, intervaloMin: 5, preco: 50 });
+    duracaoMin: 30, intervaloMin: 5, preco: 50, comissaoPct: 60 });
 dizer(!!corte && corte.duracaoMin === 30,
   'serviço gravado e lido de volta com duracaoMin');
 
@@ -215,9 +225,10 @@ secao('Comanda fecha e a comissão sai do banco');
   dizer(!!comanda && Number(comanda.numero) === 1,
     'a comanda ganhou o número 1 pelo gatilho do banco');
 
+  // Sem mandar `comissaoPct`: é o banco que resolve, pelo cadastro acima.
   await dono.inserir('comanda_itens', { comandaId: comanda.id, tipo: 'servico',
     servicoId: corte.id, descricao: 'Corte masculino', qtd: 1,
-    precoUnit: 50, profissionalId: profs[0].id, comissaoPct: 60 });
+    precoUnit: 50, profissionalId: profs[0].id });
 
   const totais = await dono.lista('comandas_totais', {});
   const t = totais.find(x => x.id === comanda.id);

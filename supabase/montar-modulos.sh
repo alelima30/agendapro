@@ -59,6 +59,9 @@ partes.append(limpar(open('supabase/12_relatorios.sql', encoding='utf-8').read()
 partes.append(limpar(open('supabase/13_cobranca.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/14_motor.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/15_comanda.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/16_comissao.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/17_caixa.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/18_painel.sql', encoding='utf-8').read()))
 
 saida = '\n\n'.join(partes) + '\n'
 assert '--' not in saida, 'sobrou comentário: o arquivo perde a imunidade'

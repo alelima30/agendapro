@@ -66,6 +66,9 @@ preparar() {
   carregar "$RAIZ/supabase/13_cobranca.sql"
   carregar "$RAIZ/supabase/14_motor.sql"
   carregar "$RAIZ/supabase/15_comanda.sql"
+  carregar "$RAIZ/supabase/16_comissao.sql"
+  carregar "$RAIZ/supabase/17_caixa.sql"
+  carregar "$RAIZ/supabase/18_painel.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

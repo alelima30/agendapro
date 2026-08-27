@@ -129,7 +129,21 @@ begin
                      round(sum(i.total), 2)          as vendido,
                      round(sum(i.comissao_valor), 2) as comissao,
                      count(*)                        as itens
-                from public.comanda_itens i
+                /* ⚠ `comanda_itens_calculados`, e não `comanda_itens`.
+
+                   A vista é o ÚNICO lugar deste sistema que calcula
+                   comissão, e o único que enxerga a comanda inteira — sem
+                   isso não há como tirar do item a parte que lhe cabe do
+                   desconto da comanda, que é o que a regra "comissão sobre
+                   o líquido" pede.
+
+                   Ela nasce no 16_comissao.sql, que roda DEPOIS deste
+                   arquivo. Não é problema: o corpo de uma função plpgsql
+                   não é conferido contra o schema na hora do `create`, e
+                   quando alguém chamar o relatório o 16 já rodou. Se um dia
+                   isto virar `language sql`, quebra na instalação — e é
+                   para lembrar disso que está escrito aqui. */
+                from public.comanda_itens_calculados i
                 join public.comandas c on c.id = i.comanda_id
                 left join public.profissionais pr on pr.id = i.profissional_id
                where c.salao_id = p_salao and c.status = 'fechada'

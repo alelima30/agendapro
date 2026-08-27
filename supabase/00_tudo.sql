@@ -19,6 +19,9 @@
 --   13_cobranca.sql    Pix e boleto pelo Mercado Pago, e a renovação
 --   14_motor.sql       o motor da disponibilidade: uma regra, um lugar
 --   15_comanda.sql     as travas do dinheiro: comanda, desconto e pagamento
+--   16_comissao.sql    a comissão sai do navegador e passa a ser do banco
+--   17_caixa.sql       o caixa do dia, a sangria, o suprimento e o estorno
+--   18_painel.sql      o painel do dia: agenda, dinheiro, gaveta e quem vem
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -988,7 +991,21 @@ with (security_invoker = true) as
          coalesce(sum(i.total), 0)                 as subtotal,
          c.desconto,
          coalesce(sum(i.total), 0) - c.desconto    as total,
-         coalesce(sum(i.comissao_valor), 0)        as comissao_total
+         -- ⚠ Calculado aqui, e NÃO lido de `i.comissao_valor`.
+         --
+         -- Aquela coluna gerada nasce neste arquivo e é REMOVIDA pelo
+         -- 16_comissao.sql, que refaz esta vista sobre a escada completa
+         -- (par, catálogo, pessoa) e sobre a regra de bruto/líquido —
+         -- coisas que uma coluna gerada não alcança, porque ela só enxerga
+         -- a própria linha.
+         --
+         -- Se esta linha continuasse lendo a coluna, a SEGUNDA colagem do
+         -- 00_tudo.sql morreria bem aqui: o 01 roda antes do 16, a coluna
+         -- já não existe, e o arquivo inteiro para numa linha que não tem
+         -- defeito nenhum. É o mesmo tropeço do `create or replace view`
+         -- que não deixa tirar coluna, noutro lugar.
+         coalesce(sum(round(i.qtd * i.preco_unit * i.comissao_pct / 100, 2)), 0)
+                                                   as comissao_total
     from public.comandas c
     left join public.comanda_itens i on i.comanda_id = c.id
    group by c.id;
@@ -4833,7 +4850,21 @@ begin
                      round(sum(i.total), 2)          as vendido,
                      round(sum(i.comissao_valor), 2) as comissao,
                      count(*)                        as itens
-                from public.comanda_itens i
+                /* ⚠ `comanda_itens_calculados`, e não `comanda_itens`.
+
+                   A vista é o ÚNICO lugar deste sistema que calcula
+                   comissão, e o único que enxerga a comanda inteira — sem
+                   isso não há como tirar do item a parte que lhe cabe do
+                   desconto da comanda, que é o que a regra "comissão sobre
+                   o líquido" pede.
+
+                   Ela nasce no 16_comissao.sql, que roda DEPOIS deste
+                   arquivo. Não é problema: o corpo de uma função plpgsql
+                   não é conferido contra o schema na hora do `create`, e
+                   quando alguém chamar o relatório o 16 já rodou. Se um dia
+                   isto virar `language sql`, quebra na instalação — e é
+                   para lembrar disso que está escrito aqui. */
+                from public.comanda_itens_calculados i
                 join public.comandas c on c.id = i.comanda_id
                 left join public.profissionais pr on pr.id = i.profissional_id
                where c.salao_id = p_salao and c.status = 'fechada'
@@ -5959,7 +5990,12 @@ with (security_invoker = true) as
          c.desconto,
          c.acrescimo,
          coalesce(sum(i.total), 0) - c.desconto + c.acrescimo     as total,
-         coalesce(sum(i.comissao_valor), 0)                       as comissao_total,
+         -- Calculado, e não lido de `i.comissao_valor`: o 16_comissao.sql
+         -- remove aquela coluna e refaz esta vista. Lendo a coluna, a
+         -- segunda colagem do arquivo morreria aqui — o 15 roda antes do
+         -- 16, e a coluna já não existe.
+         coalesce(sum(round(i.qtd * i.preco_unit * i.comissao_pct / 100, 2)), 0)
+                                                                  as comissao_total,
          coalesce((select sum(p.valor) from public.pagamentos p
                     where p.comanda_id = c.id), 0)                as pago,
          -- O que ainda falta receber. Negativo significa troco a devolver.
@@ -6234,3 +6270,1031 @@ create trigger tg_fechar_comanda
 revoke all on function public.conferir_desconto(uuid) from public, anon, authenticated;
 revoke all on function public.reais(numeric) from public;
 grant execute on function public.reais(numeric) to anon, authenticated;
+
+-- ###########################################################################
+-- ## 16_comissao.sql
+-- ###########################################################################
+
+-- ===========================================================================
+-- AgendaPro — 16: a comissão passa a ser do banco
+--
+-- ── O DEFEITO QUE ESTE ARQUIVO EXISTE PARA CONSERTAR ───────────────────────
+-- A comissão de cada item da comanda vinha PRONTA do navegador. O `app.html`
+-- fazia o `coalesce(servico.comissaoPct, profissional.comissaoPct)` em
+-- JavaScript e mandava o número; o banco gravava o que chegasse.
+--
+-- Medido contra um banco de verdade, antes de escrever uma linha disto:
+-- serviço cadastrado com 40% de comissão, item inserido dizendo 100%, e o
+-- banco aceitou — R$ 100 de venda, R$ 100 de comissão.
+--
+--    descricao | preco_unit | comissao_pct | comissao_valor
+--    Corte     |     100.00 |       100.00 |         100.00
+--
+-- O que torna isso indefensável é que a MESMA regra já era aplicada no banco
+-- pelo outro caminho: quando a cliente marca pelo link, o `agendar()` resolve
+-- `coalesce(sv.comissao_pct, pr.comissao_pct, 0)` dentro do Postgres. Duas
+-- portas para a mesma regra, uma trancada e outra encostada — o mesmo padrão
+-- que já produziu quase todo defeito sério deste projeto.
+--
+-- ── O QUE MUDA, E POR QUE ASSIM ────────────────────────────────────────────
+-- 1. A TAXA é resolvida pelo banco e CONGELADA no item.
+-- 2. O VALOR é DERIVADO da taxa congelada — não guardado.
+--
+-- A segunda metade é o que impede o relatório de um mês fechado de mudar
+-- sozinho. Se o valor fosse recalculado ao vivo a partir do cadastro, mudar
+-- a comissão de um serviço em dezembro reescreveria o faturamento de março.
+-- Se a taxa fica no item, o valor é função de coisas que já não mudam mais:
+-- a taxa daquele dia, o preço daquele dia, o desconto daquela comanda.
+--
+-- Determinístico e impossível de divergir, porque só existe UM lugar que
+-- calcula: a vista `comanda_itens_calculados`. O relatório lê dela, a vista
+-- de totais lê dela, a tela lê dela.
+--
+-- ── A ESCADA DA COMISSÃO ───────────────────────────────────────────────────
+-- Ganha o primeiro degrau que DIZ ALGUMA COISA:
+--
+--   1. o par serviço+profissional   "a escova da Ana paga 60%"
+--   2. o serviço (ou o produto)     "toda escova paga 50%"
+--   3. o profissional               "a Ana paga 40% no que fizer"
+--   4. nada                         zero
+--
+-- Cada degrau pode falar em PORCENTAGEM, em VALOR FIXO, ou nos dois — R$ 5
+-- por unidade vendida mais 10% do preço é um arranjo comum em produto.
+--
+-- "Diz alguma coisa" é ter `comissao_pct` OU `comissao_fixa` não nulo. Um
+-- degrau que diz `0` está dizendo zero de propósito, e ganha do degrau de
+-- baixo: é assim que se combina "a Ana ganha 40% em tudo, MENOS na escova".
+--
+-- ⚠ `produtos.comissao_pct` é `not null default 0`, diferente de
+-- `servicos.comissao_pct`, que é nulo para herdar. Então produto nunca herda
+-- do profissional: a comissão do produto é do produto. Não é descuido, é o
+-- que já estava valendo — mudar para nulo transformaria "0%" em "herda" em
+-- todo salão que já usa, e ninguém pediu isso.
+--
+-- ── BRUTO OU LÍQUIDO, COM DATA DE CORTE ────────────────────────────────────
+-- `comissao_sobre` é do SALÃO, mas fica CONGELADO NA COMANDA quando ela
+-- abre. Sem isso, virar a chave hoje mudaria a comissão de toda comanda
+-- ainda aberta — e a de qualquer mês que fosse reaberto.
+--
+-- `comissao_regra_desde` é a data de corte: a regra nova vale para comanda
+-- aberta a partir dela. Antes disso, bruto, que é como sempre foi. A data
+-- existe para a mudança ter um começo declarado, e não "o dia em que
+-- alguém mexeu no ajuste".
+--
+-- O acréscimo NÃO entra na comissão, no bruto nem no líquido: taxa de
+-- domingo é do salão, não é serviço de ninguém.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1) ONDE A COMISSÃO PODE SER DITA
+-- ---------------------------------------------------------------------------
+
+-- O par serviço+profissional. A tabela já existia para preço e duração
+-- diferentes por pessoa; comissão é a terceira coisa que varia pelo par.
+alter table public.servicos_profissionais
+  add column if not exists comissao_pct numeric(5,2)
+    check (comissao_pct between 0 and 100);
+alter table public.servicos_profissionais
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+
+alter table public.servicos
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+
+alter table public.produtos
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+
+alter table public.profissionais
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+
+-- No item, a taxa congelada. `comissao_pct` já existia; a fixa é nova.
+alter table public.comanda_itens
+  add column if not exists comissao_fixa numeric(10,2) not null default 0
+    check (comissao_fixa >= 0);
+
+comment on column public.comanda_itens.comissao_pct is
+  'Congelada pelo gatilho no lançamento. NÃO é o que o navegador mandou.';
+comment on column public.comanda_itens.comissao_fixa is
+  'Por unidade: 2 itens a R$ 5 fixos = R$ 10. Congelada junto com a pct.';
+
+-- A regra do salão, e desde quando.
+alter table public.saloes
+  add column if not exists comissao_sobre text not null default 'bruto'
+    check (comissao_sobre in ('bruto','liquido'));
+alter table public.saloes
+  add column if not exists comissao_regra_desde date;
+
+comment on column public.saloes.comissao_regra_desde is
+  'A regra vale para comanda aberta a partir daqui. Nulo = nunca virou.';
+
+-- E a regra congelada na comanda, no dia em que ela abriu.
+alter table public.comandas
+  add column if not exists comissao_sobre text not null default 'bruto'
+    check (comissao_sobre in ('bruto','liquido'));
+
+-- ---------------------------------------------------------------------------
+-- 2) A ESCADA
+-- ---------------------------------------------------------------------------
+-- Devolve a taxa que vale para este item. É `stable`, não `volatile`: só lê.
+--
+-- Não recebe nada do navegador além de QUEM e O QUÊ — o resto sai do
+-- cadastro. É essa assinatura que faz a regra ser inegociável: não há
+-- parâmetro por onde passar uma taxa.
+create or replace function public.comissao_de(
+  p_tipo text, p_servico uuid, p_produto uuid, p_profissional uuid,
+  out pct numeric, out fixa numeric)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  -- 1) o par
+  if p_tipo = 'servico' and p_servico is not null and p_profissional is not null then
+    select sp.comissao_pct, sp.comissao_fixa into pct, fixa
+      from public.servicos_profissionais sp
+     where sp.servico_id = p_servico and sp.profissional_id = p_profissional
+       and (sp.comissao_pct is not null or sp.comissao_fixa is not null);
+    if found then
+      return;
+    end if;
+  end if;
+
+  -- 2) o catálogo
+  if p_tipo = 'servico' and p_servico is not null then
+    select sv.comissao_pct, sv.comissao_fixa into pct, fixa
+      from public.servicos sv
+     where sv.id = p_servico
+       and (sv.comissao_pct is not null or sv.comissao_fixa is not null);
+    if found then
+      return;
+    end if;
+  elsif p_tipo = 'produto' and p_produto is not null then
+    -- Produto sempre diz alguma coisa: `comissao_pct` é not null aqui.
+    select pd.comissao_pct, pd.comissao_fixa into pct, fixa
+      from public.produtos pd
+     where pd.id = p_produto;
+    if found then
+      return;
+    end if;
+  end if;
+
+  -- 3) a pessoa
+  if p_profissional is not null then
+    select pr.comissao_pct, pr.comissao_fixa into pct, fixa
+      from public.profissionais pr
+     where pr.id = p_profissional;
+    if found then
+      return;
+    end if;
+  end if;
+
+  -- 4) ninguém disse nada
+  pct := 0; fixa := 0;
+end $$;
+
+comment on function public.comissao_de(text, uuid, uuid, uuid) is
+  'A escada: par, catálogo, pessoa, zero. Não aceita taxa por parâmetro.';
+
+-- ---------------------------------------------------------------------------
+-- 3) O GATILHO QUE CONGELA A TAXA
+-- ---------------------------------------------------------------------------
+-- ⚠ Ele IGNORA o que veio no INSERT. De propósito.
+--
+-- A tentação era conferir e recusar quando divergisse. Seria pior: a tela
+-- que hoje manda a taxa continuaria mandando, e qualquer diferença de
+-- arredondamento entre o JavaScript e o Postgres viraria um erro na cara da
+-- recepção no meio do atendimento. Sobrescrever não tem esse risco e fecha
+-- a porta do mesmo jeito.
+--
+-- Só recalcula quando algo que MUDA a taxa muda: o serviço, o produto ou
+-- quem executou. Editar a quantidade de um item não pode reabrir a taxa —
+-- se o cadastro tiver mudado no meio, o item sairia com uma comissão que
+-- não é a do dia em que foi lançado.
+create or replace function public.tg_item_comissao() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  t record;
+begin
+  if tg_op = 'UPDATE'
+     and new.tipo is not distinct from old.tipo
+     and new.servico_id is not distinct from old.servico_id
+     and new.produto_id is not distinct from old.produto_id
+     and new.profissional_id is not distinct from old.profissional_id then
+    -- Nada que mexa na taxa mudou: preserva a congelada.
+    new.comissao_pct  := old.comissao_pct;
+    new.comissao_fixa := old.comissao_fixa;
+    return new;
+  end if;
+
+  select * into t from public.comissao_de(
+    new.tipo, new.servico_id, new.produto_id, new.profissional_id);
+
+  new.comissao_pct  := coalesce(t.pct, 0);
+  new.comissao_fixa := coalesce(t.fixa, 0);
+  return new;
+end $$;
+
+drop trigger if exists tg_item_comissao on public.comanda_itens;
+create trigger tg_item_comissao
+  before insert or update on public.comanda_itens
+  for each row execute function public.tg_item_comissao();
+
+-- ---------------------------------------------------------------------------
+-- 4) O GATILHO QUE CONGELA A REGRA NA COMANDA
+-- ---------------------------------------------------------------------------
+create or replace function public.tg_comanda_regra() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_sobre text;
+  v_desde date;
+  v_fuso  text;
+begin
+  select coalesce(s.comissao_sobre, 'bruto'), s.comissao_regra_desde,
+         coalesce(s.fuso, 'America/Sao_Paulo')
+    into v_sobre, v_desde, v_fuso
+    from public.saloes s where s.id = new.salao_id;
+
+  -- Sem data de corte, a regra nova não vale para ninguém: virar a chave e
+  -- esquecer a data não pode mudar comissão às escondidas.
+  if v_desde is null
+     or (new.aberta_em at time zone v_fuso)::date < v_desde then
+    new.comissao_sobre := 'bruto';
+  else
+    new.comissao_sobre := v_sobre;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists tg_comanda_regra on public.comandas;
+create trigger tg_comanda_regra
+  before insert on public.comandas
+  for each row execute function public.tg_comanda_regra();
+
+-- ---------------------------------------------------------------------------
+-- 5) O ÚNICO LUGAR QUE CALCULA COMISSÃO
+-- ---------------------------------------------------------------------------
+-- `comissao_valor` era uma coluna GERADA E GUARDADA:
+--
+--     generated always as (round(qtd * preco_unit * comissao_pct / 100, 2))
+--
+-- Coluna gerada só enxerga a PRÓPRIA LINHA. Comissão sobre líquido precisa
+-- do desconto da comanda e do subtotal dela — que estão noutras linhas — e
+-- por isso a coluna gerada não tinha como existir junto com esta regra.
+--
+-- Vira vista. E a vista consegue ser a única, porque tudo que ela lê já
+-- está congelado: a taxa no item, a regra na comanda, o preço no item, o
+-- desconto na comanda. Mudar o cadastro amanhã não mexe em nada disto.
+--
+-- ⚠ Rateio com centavo: o desconto é dividido entre os itens na proporção
+-- do valor de cada um, e a soma dos rateios arredondados pode ficar um
+-- centavo longe do desconto total. Para comissão isso é aceitável e está
+-- dito aqui para ninguém "consertar" depois achando que é defeito.
+drop view if exists public.comandas_totais;
+drop view if exists public.comanda_itens_calculados;
+
+alter table public.comanda_itens drop column if exists comissao_valor;
+
+create view public.comanda_itens_calculados
+with (security_invoker = true) as
+  select i.id, i.comanda_id, i.tipo, i.servico_id, i.produto_id, i.descricao,
+         i.qtd, i.preco_unit, i.profissional_id,
+         i.comissao_pct, i.comissao_fixa, i.total,
+         b.base_comissao,
+         round(b.base_comissao * i.comissao_pct / 100, 2)
+           + round(i.qtd * i.comissao_fixa, 2) as comissao_valor
+    from public.comanda_itens i
+    join public.comandas c on c.id = i.comanda_id
+    cross join lateral (
+      select case
+               when c.comissao_sobre = 'liquido' and c.desconto > 0 and s.sub > 0
+               then i.total - round(c.desconto * i.total / s.sub, 2)
+               else i.total
+             end as base_comissao
+        from (select coalesce(sum(x.total), 0) as sub
+                from public.comanda_itens x
+               where x.comanda_id = i.comanda_id) s
+    ) b;
+
+comment on view public.comanda_itens_calculados is
+  'O único lugar que calcula comissão. Relatório, totais e tela leem daqui.';
+
+grant select on public.comanda_itens_calculados to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 6) A VISTA DE TOTAIS, REFEITA SOBRE A DE CIMA
+-- ---------------------------------------------------------------------------
+create view public.comandas_totais
+with (security_invoker = true) as
+  select c.id,
+         c.salao_id,
+         c.cliente_id,
+         c.agendamento_id,
+         c.numero,
+         c.status,
+         c.aberta_em,
+         c.fechada_em,
+         c.comissao_sobre,
+         coalesce(i.subtotal, 0)                        as subtotal,
+         c.desconto,
+         c.acrescimo,
+         coalesce(i.subtotal, 0) - c.desconto + c.acrescimo as total,
+         coalesce(i.comissao, 0)                        as comissao_total,
+         coalesce(p.pago, 0)                            as pago,
+         coalesce(i.subtotal, 0) - c.desconto + c.acrescimo
+           - coalesce(p.pago, 0)                        as falta,
+         /* ⚠ O VOCABULÁRIO É O MESMO DE ANTES, palavra por palavra.
+
+            Ao refazer esta vista eu escrevi 'paga', 'fechada', 'em aberto'.
+            Parecia melhor português e era mudança gratuita: o
+            `comanda.test.sql` reprovou com «esperava "pago", veio "paga"»,
+            e estava certo — a tela mapeia estes valores em
+            `{parcial:[...], pago:[...]}`, e renomear aqui apagaria a cor do
+            cartão da comanda sem ninguém ligar uma coisa à outra.
+
+            Este arquivo mexe em COMISSÃO. Trocar nome de estado de pagamento
+            de carona é como se corrige uma coisa e se quebra outra. */
+         case
+           when c.status = 'cancelada' then 'cancelado'
+           when coalesce(p.pago, 0) = 0 then 'pendente'
+           when coalesce(p.pago, 0)
+                >= coalesce(i.subtotal, 0) - c.desconto + c.acrescimo
+             then 'pago'
+           else 'parcial'
+         end                                            as situacao
+    from public.comandas c
+    left join (select k.comanda_id,
+                      sum(k.total)          as subtotal,
+                      sum(k.comissao_valor) as comissao
+                 from public.comanda_itens_calculados k
+                group by k.comanda_id) i on i.comanda_id = c.id
+    left join (select g.comanda_id, sum(g.valor) as pago
+                 from public.pagamentos g
+                group by g.comanda_id) p on p.comanda_id = c.id;
+
+grant select on public.comandas_totais to authenticated;
+
+-- ###########################################################################
+-- ## 17_caixa.sql
+-- ###########################################################################
+
+-- ===========================================================================
+-- AgendaPro — 17: o caixa do dia, e o estorno
+--
+-- ── O QUE FALTAVA ─────────────────────────────────────────────────────────
+-- Havia pagamento e não havia GAVETA. O sistema sabia que a cliente pagou
+-- R$ 50 em dinheiro e não sabia responder a única pergunta que a recepção
+-- faz no fim do dia: "quanto tem que ter aqui dentro?"
+--
+-- E não havia como desfazer. Pagamento lançado errado — R$ 50 no débito que
+-- foram em dinheiro, o valor digitado com um zero a mais — só saía apagando
+-- a linha, o que some com o rastro: some o erro, some quem errou, e some a
+-- razão de a gaveta não bater.
+--
+-- ── AS DUAS COISAS SÃO A MESMA COISA ──────────────────────────────────────
+-- Estão no mesmo arquivo porque a conferência da gaveta é justamente o que
+-- torna o estorno necessário: o caixa não bate, e aí se descobre o
+-- pagamento errado. Um sem o outro deixa a recepção com um problema e sem a
+-- ferramenta.
+--
+-- ── POR QUE O ESTORNO EXIGE A COMANDA ABERTA ──────────────────────────────
+-- Estornar uma comanda FECHADA a deixaria fechada e com saldo a receber —
+-- dois fatos que se contradizem, e que a tela teria de exibir juntos.
+--
+-- Reabrir sozinha seria pior: `fechada_em` viraria nulo, e a venda sairia do
+-- mês em que aconteceu sem entrar em nenhum outro. Um relatório já conferido
+-- encolheria, e ninguém saberia por quê.
+--
+-- Então o estorno não reabre nada: ele EXIGE que a comanda já esteja aberta.
+-- Reabrir é um gesto que já existe, é deliberado, e quem o faz sabe que está
+-- mexendo num fechamento. A ordem fica: reabrir, estornar, corrigir, fechar.
+--
+-- ── O QUE CONTA NA GAVETA ─────────────────────────────────────────────────
+-- Só DINHEIRO. Cartão e Pix não estão na gaveta — conferir a gaveta contra o
+-- total recebido faria a recepção procurar a tarde inteira uma diferença que
+-- é só a maquininha. Os outros meios aparecem no fechamento como informação,
+-- separados, sem entrar na conta do que se conta à mão.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1) O CAIXA
+-- ---------------------------------------------------------------------------
+create table if not exists public.caixas (
+  id            uuid primary key default gen_random_uuid(),
+  salao_id      uuid not null references public.saloes(id) on delete cascade,
+
+  aberto_em     timestamptz not null default now(),
+  aberto_por    uuid references public.perfis(id) on delete set null,
+  -- O troco que fica na gaveta de um dia para o outro.
+  valor_abertura numeric(10,2) not null default 0 check (valor_abertura >= 0),
+
+  fechado_em    timestamptz,
+  fechado_por   uuid references public.perfis(id) on delete set null,
+  -- O que foi CONTADO à mão no fim do dia. Nulo enquanto aberto.
+  valor_contado numeric(10,2) check (valor_contado >= 0),
+
+  observacao    text,
+
+  -- Fechado tem que ter as três coisas juntas, ou nenhuma.
+  check ( (fechado_em is null and valor_contado is null)
+       or (fechado_em is not null and valor_contado is not null) )
+);
+
+create index if not exists ix_caixa_salao
+  on public.caixas(salao_id, aberto_em desc);
+
+/* ⚠ UM CAIXA ABERTO POR SALÃO, e o índice é quem garante.
+
+   Conferir com `select ... where fechado_em is null` antes de inserir não
+   garante nada: duas recepções abrindo ao mesmo tempo passam as duas pela
+   conferência antes de qualquer uma gravar. O dinheiro do dia se dividiria
+   entre dois caixas, e a gaveta não bateria em nenhum dos dois — com os dois
+   "corretos" pela conta deles.
+
+   Índice único parcial não tem essa brecha: quem chega em segundo lugar
+   esbarra no banco. */
+create unique index if not exists ux_caixa_aberto
+  on public.caixas(salao_id) where (fechado_em is null);
+
+alter table public.caixas enable row level security;
+alter table public.caixas force row level security;
+
+drop policy if exists caixa_ver on public.caixas;
+create policy caixa_ver on public.caixas for select to authenticated
+  using ( public.ve_agenda_toda(salao_id) );
+
+drop policy if exists caixa_gerir on public.caixas;
+create policy caixa_gerir on public.caixas for all to authenticated
+  using ( public.ve_agenda_toda(salao_id) )
+  with check ( public.ve_agenda_toda(salao_id) );
+
+-- Quem atende NÃO enxerga o caixa: é dinheiro do salão inteiro, e a Fase 2
+-- pede que profissional não veja informação financeira global.
+revoke all on public.caixas from anon;
+grant select, insert, update on public.caixas to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 2) SANGRIA E SUPRIMENTO
+-- ---------------------------------------------------------------------------
+-- Sangria: dinheiro que SAI da gaveta sem ser troco (levar ao banco, pagar o
+-- entregador). Suprimento: dinheiro que ENTRA sem ser venda (trazer troco).
+--
+-- `motivo` é obrigatório, e não é burocracia: uma sangria sem motivo é
+-- indistinguível de um desfalque na hora de conferir, três dias depois.
+create table if not exists public.caixa_movimentos (
+  id         uuid primary key default gen_random_uuid(),
+  caixa_id   uuid not null references public.caixas(id) on delete cascade,
+  salao_id   uuid not null references public.saloes(id) on delete cascade,
+  tipo       text not null check (tipo in ('sangria','suprimento')),
+  valor      numeric(10,2) not null check (valor > 0),
+  motivo     text not null check (length(btrim(motivo)) >= 3),
+  quem       uuid references public.perfis(id) on delete set null,
+  criado_em  timestamptz not null default now()
+);
+
+create index if not exists ix_mov_caixa on public.caixa_movimentos(caixa_id);
+
+alter table public.caixa_movimentos enable row level security;
+alter table public.caixa_movimentos force row level security;
+
+drop policy if exists mov_gerir on public.caixa_movimentos;
+create policy mov_gerir on public.caixa_movimentos for all to authenticated
+  using ( public.ve_agenda_toda(salao_id) )
+  with check ( public.ve_agenda_toda(salao_id) );
+
+revoke all on public.caixa_movimentos from anon;
+grant select, insert on public.caixa_movimentos to authenticated;
+
+-- Movimento em caixa já fechado reescreveria uma conferência assinada.
+create or replace function public.tg_mov_caixa_aberto() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from public.caixas c
+              where c.id = new.caixa_id and c.fechado_em is not null) then
+    raise exception 'Este caixa já foi fechado. Abra o caixa do dia para lançar.'
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists tg_mov_caixa_aberto on public.caixa_movimentos;
+create trigger tg_mov_caixa_aberto
+  before insert on public.caixa_movimentos
+  for each row execute function public.tg_mov_caixa_aberto();
+
+-- ---------------------------------------------------------------------------
+-- 3) O PAGAMENTO SABE EM QUAL CAIXA CAIU
+-- ---------------------------------------------------------------------------
+-- Sem esta coluna, "quanto entrou hoje em dinheiro" só poderia ser respondido
+-- por intervalo de horas — e um caixa que vira a madrugada, ou dois turnos no
+-- mesmo dia, dariam a resposta errada.
+alter table public.pagamentos
+  add column if not exists caixa_id uuid
+  references public.caixas(id) on delete set null;
+
+create index if not exists ix_pgto_caixa on public.pagamentos(caixa_id);
+
+-- Preenchido pelo BANCO, com o caixa que estiver aberto. A tela não escolhe:
+-- deixar a tela mandar o caixa é deixar um pagamento cair no caixa de ontem
+-- por causa de uma aba que ficou aberta.
+create or replace function public.tg_pagamento_caixa() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare v_salao uuid;
+begin
+  if new.caixa_id is not null then
+    -- Já veio escolhido (importação, correção): respeita, mas não inventa.
+    return new;
+  end if;
+  select c.salao_id into v_salao from public.comandas c where c.id = new.comanda_id;
+  select k.id into new.caixa_id
+    from public.caixas k
+   where k.salao_id = v_salao and k.fechado_em is null
+   limit 1;
+  return new;
+end $$;
+
+drop trigger if exists tg_pagamento_caixa on public.pagamentos;
+create trigger tg_pagamento_caixa
+  before insert on public.pagamentos
+  for each row execute function public.tg_pagamento_caixa();
+
+-- ---------------------------------------------------------------------------
+-- 4) O ESTORNO
+-- ---------------------------------------------------------------------------
+create table if not exists public.estornos (
+  id           uuid primary key default gen_random_uuid(),
+  pagamento_id uuid not null references public.pagamentos(id) on delete cascade,
+  salao_id     uuid not null references public.saloes(id) on delete cascade,
+  valor        numeric(10,2) not null check (valor > 0),
+  motivo       text not null check (length(btrim(motivo)) >= 3),
+  quem         uuid references public.perfis(id) on delete set null,
+  criado_em    timestamptz not null default now()
+);
+
+create index if not exists ix_estorno_pgto on public.estornos(pagamento_id);
+
+alter table public.estornos enable row level security;
+alter table public.estornos force row level security;
+
+drop policy if exists estorno_gerir on public.estornos;
+create policy estorno_gerir on public.estornos for all to authenticated
+  using ( public.ve_agenda_toda(salao_id) )
+  with check ( public.ve_agenda_toda(salao_id) );
+
+revoke all on public.estornos from anon;
+-- Sem UPDATE e sem DELETE de propósito: estorno é registro do que aconteceu.
+-- Corrigir um estorno errado é lançar o pagamento de novo, não apagar a
+-- linha — apagar sumiria com o rastro, que é exatamente o que o estorno
+-- existe para preservar.
+grant select, insert on public.estornos to authenticated;
+
+/* As três travas do estorno, num gatilho só.
+
+   Elas moram aqui, e não na tela, pelo mesmo motivo de sempre neste
+   projeto: regra de dinheiro que não está num gatilho é regra que não
+   existe. A recepção alcança a tabela `estornos` direto pelo PostgREST. */
+create or replace function public.tg_estorno_cabe() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_valor  numeric;
+  v_ja     numeric;
+  v_status text;
+  v_salao  uuid;
+begin
+  select p.valor, c.status, c.salao_id
+    into v_valor, v_status, v_salao
+    from public.pagamentos p
+    join public.comandas c on c.id = p.comanda_id
+   where p.id = new.pagamento_id;
+
+  if v_valor is null then
+    raise exception 'Pagamento não encontrado.' using errcode = 'no_data_found';
+  end if;
+
+  -- 1) o salão do estorno é o da comanda, e não o que a tela disser
+  new.salao_id := v_salao;
+
+  -- 2) comanda fechada não estorna. Ver o cabeçalho: estornar sem reabrir
+  --    deixaria a comanda fechada e devendo ao mesmo tempo.
+  if v_status = 'fechada' then
+    raise exception 'Reabra a comanda antes de estornar este pagamento.'
+      using errcode = 'check_violation';
+  end if;
+  if v_status = 'cancelada' then
+    raise exception 'Esta comanda foi cancelada.' using errcode = 'check_violation';
+  end if;
+
+  -- 3) não se estorna mais do que se recebeu
+  select coalesce(sum(e.valor), 0) into v_ja
+    from public.estornos e where e.pagamento_id = new.pagamento_id;
+
+  if new.valor > v_valor - v_ja + 0.005 then
+    raise exception 'Estorno de % maior que o disponível neste pagamento: %.',
+      public.reais(new.valor), public.reais(v_valor - v_ja)
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists tg_estorno_cabe on public.estornos;
+create trigger tg_estorno_cabe
+  before insert on public.estornos
+  for each row execute function public.tg_estorno_cabe();
+
+-- ---------------------------------------------------------------------------
+-- 5) O QUE JÁ FOI PAGO PASSA A DESCONTAR O QUE FOI ESTORNADO
+-- ---------------------------------------------------------------------------
+-- Sem isto, uma comanda estornada continuaria "paga" e fecharia de novo sem
+-- ninguém receber nada — o estorno seria enfeite.
+drop view if exists public.comandas_totais;
+
+create view public.comandas_totais
+with (security_invoker = true) as
+  select c.id,
+         c.salao_id,
+         c.cliente_id,
+         c.agendamento_id,
+         c.numero,
+         c.status,
+         c.aberta_em,
+         c.fechada_em,
+         c.comissao_sobre,
+         coalesce(i.subtotal, 0)                        as subtotal,
+         c.desconto,
+         c.acrescimo,
+         coalesce(i.subtotal, 0) - c.desconto + c.acrescimo as total,
+         coalesce(i.comissao, 0)                        as comissao_total,
+         coalesce(p.pago, 0)                            as pago,
+         coalesce(p.estornado, 0)                       as estornado,
+         coalesce(i.subtotal, 0) - c.desconto + c.acrescimo
+           - coalesce(p.pago, 0)                        as falta,
+         case
+           when c.status = 'cancelada' then 'cancelado'
+           when coalesce(p.pago, 0) = 0 then 'pendente'
+           when coalesce(p.pago, 0)
+                >= coalesce(i.subtotal, 0) - c.desconto + c.acrescimo
+             then 'pago'
+           else 'parcial'
+         end                                            as situacao
+    from public.comandas c
+    left join (select k.comanda_id,
+                      sum(k.total)          as subtotal,
+                      sum(k.comissao_valor) as comissao
+                 from public.comanda_itens_calculados k
+                group by k.comanda_id) i on i.comanda_id = c.id
+    left join (select g.comanda_id,
+                      -- `pago` já é LÍQUIDO de estorno: é o que sobrou de
+                      -- verdade. Quem lê esta coluna — a trava do
+                      -- fechamento, a tela, o relatório — passa a enxergar
+                      -- o estorno sem precisar saber que ele existe.
+                      sum(g.valor) - coalesce(sum(e.estornado), 0) as pago,
+                      coalesce(sum(e.estornado), 0)                as estornado
+                 from public.pagamentos g
+                 left join (select x.pagamento_id, sum(x.valor) as estornado
+                              from public.estornos x
+                             group by x.pagamento_id) e
+                        on e.pagamento_id = g.id
+                group by g.comanda_id) p on p.comanda_id = c.id;
+
+grant select on public.comandas_totais to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5b) A TRAVA DO PAGAMENTO PRECISA ENXERGAR O ESTORNO
+-- ---------------------------------------------------------------------------
+-- `tg_pagamento_cabe` nasceu na Fase 2A somando `pagamentos.valor` cru. Com
+-- o estorno existindo, essa soma passa a mentir na pior hora:
+--
+--   comanda de R$ 100, paga em dinheiro, valor errado
+--   estorno de R$ 100
+--   a recepção tenta lançar o pagamento certo  →  RECUSADO
+--   "Pagamento de R$ 100,00 excede o que falta nesta comanda: R$ 0,00"
+--
+-- A trava diria que a comanda está paga por uma soma que já não é verdade, e
+-- travaria justamente a correção que o estorno existe para permitir. O
+-- estorno viraria um beco sem saída.
+--
+-- Foi o `caixa.test.sql` que pegou, na seção que lança o pagamento novo
+-- depois de estornar — e não numa seção sobre a trava, três arquivos longe
+-- da causa.
+create or replace function public.tg_pagamento_cabe()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_total numeric(10,2);
+  v_pago  numeric(10,2);
+begin
+  select t.total into v_total from public.comandas_totais t where t.id = new.comanda_id;
+
+  select coalesce(sum(p.valor), 0) - coalesce(sum(e.estornado), 0)
+    into v_pago
+    from public.pagamentos p
+    left join (select x.pagamento_id, sum(x.valor) as estornado
+                 from public.estornos x group by x.pagamento_id) e
+           on e.pagamento_id = p.id
+   where p.comanda_id = new.comanda_id
+     and (tg_op = 'INSERT' or p.id <> new.id);
+
+  if v_total is null then
+    raise exception 'Comanda não encontrada.' using errcode = 'check_violation';
+  end if;
+
+  if v_pago + new.valor > v_total + 0.005 then
+    raise exception
+      'Pagamento de % excede o que falta nesta comanda: %.',
+      public.reais(new.valor), public.reais(greatest(v_total - v_pago, 0))
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 6) A CONFERÊNCIA DA GAVETA
+-- ---------------------------------------------------------------------------
+-- Devolve tudo o que o fechamento precisa mostrar, num jsonb só: o esperado
+-- em dinheiro, o que veio por cada meio, os movimentos, e — quando já
+-- fechado — a diferença entre o contado e o esperado.
+create or replace function public.conferir_caixa(p_caixa uuid)
+returns jsonb language plpgsql stable security definer
+set search_path = public as $$
+declare
+  k         public.caixas%rowtype;
+  v_dinheiro numeric;
+  v_sangria  numeric;
+  v_suprim   numeric;
+  v_esperado numeric;
+begin
+  select * into k from public.caixas where id = p_caixa;
+  if k.id is null then
+    raise exception 'Caixa não encontrado.' using errcode = 'no_data_found';
+  end if;
+  if not public.ve_agenda_toda(k.salao_id) then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+
+  -- Só dinheiro entra na conta da gaveta, e já descontado o que foi
+  -- estornado: devolver R$ 50 tira R$ 50 da gaveta.
+  select coalesce(sum(g.valor), 0) - coalesce(sum(e.estornado), 0)
+    into v_dinheiro
+    from public.pagamentos g
+    left join (select x.pagamento_id, sum(x.valor) as estornado
+                 from public.estornos x group by x.pagamento_id) e
+           on e.pagamento_id = g.id
+   where g.caixa_id = p_caixa and g.forma = 'dinheiro';
+
+  select coalesce(sum(m.valor) filter (where m.tipo = 'sangria'), 0),
+         coalesce(sum(m.valor) filter (where m.tipo = 'suprimento'), 0)
+    into v_sangria, v_suprim
+    from public.caixa_movimentos m where m.caixa_id = p_caixa;
+
+  v_esperado := k.valor_abertura + v_dinheiro + v_suprim - v_sangria;
+
+  return jsonb_build_object(
+    'id',            k.id,
+    'abertoEm',      k.aberto_em,
+    'fechadoEm',     k.fechado_em,
+    'valorAbertura', k.valor_abertura,
+    'dinheiro',      v_dinheiro,
+    'suprimentos',   v_suprim,
+    'sangrias',      v_sangria,
+    'esperado',      v_esperado,
+    'contado',       k.valor_contado,
+    -- Positivo: sobrou na gaveta. Negativo: faltou.
+    'diferenca',     case when k.valor_contado is null then null
+                          else round(k.valor_contado - v_esperado, 2) end,
+    -- Os outros meios NÃO entram no esperado, e aparecem à parte para a
+    -- recepção conferir com a maquininha sem confundir com a gaveta.
+    'outrosMeios', coalesce((
+      select jsonb_agg(jsonb_build_object('forma', y.forma, 'valor', y.valor)
+                       order by y.valor desc)
+        from (select g.forma,
+                     round(sum(g.valor) - coalesce(sum(e.estornado), 0), 2) as valor
+                from public.pagamentos g
+                left join (select x.pagamento_id, sum(x.valor) as estornado
+                             from public.estornos x group by x.pagamento_id) e
+                       on e.pagamento_id = g.id
+               where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
+               group by g.forma) y), '[]'::jsonb),
+    'movimentos', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'tipo', m.tipo, 'valor', m.valor, 'motivo', m.motivo,
+               'criadoEm', m.criado_em) order by m.criado_em)
+        from public.caixa_movimentos m where m.caixa_id = p_caixa), '[]'::jsonb)
+  );
+end $$;
+
+revoke all on function public.conferir_caixa(uuid) from public, anon;
+grant execute on function public.conferir_caixa(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7) FECHAR O CAIXA
+-- ---------------------------------------------------------------------------
+-- Fechar é gravar o que foi CONTADO. A diferença não é gravada: ela é
+-- sempre recalculada de coisas que já não mudam — o valor de abertura, os
+-- pagamentos daquele caixa, os movimentos daquele caixa. Diferença guardada
+-- é mais um número para ficar velho.
+create or replace function public.fechar_caixa(
+  p_caixa uuid, p_contado numeric, p_observacao text default null)
+returns jsonb language plpgsql security definer
+set search_path = public as $$
+declare k public.caixas%rowtype;
+begin
+  select * into k from public.caixas where id = p_caixa;
+  if k.id is null then
+    raise exception 'Caixa não encontrado.' using errcode = 'no_data_found';
+  end if;
+  if not public.ve_agenda_toda(k.salao_id) then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+  if k.fechado_em is not null then
+    raise exception 'Este caixa já foi fechado.' using errcode = 'check_violation';
+  end if;
+  if p_contado is null or p_contado < 0 then
+    raise exception 'Informe quanto tem na gaveta.' using errcode = 'check_violation';
+  end if;
+
+  update public.caixas
+     set fechado_em = now(), fechado_por = auth.uid(),
+         valor_contado = p_contado,
+         observacao = coalesce(p_observacao, observacao)
+   where id = p_caixa;
+
+  return public.conferir_caixa(p_caixa);
+end $$;
+
+revoke all on function public.fechar_caixa(uuid, numeric, text) from public, anon;
+grant execute on function public.fechar_caixa(uuid, numeric, text) to authenticated;
+
+-- ###########################################################################
+-- ## 18_painel.sql
+-- ###########################################################################
+
+-- ===========================================================================
+-- AgendaPro — 18: o painel do dia
+--
+-- ── QUE PERGUNTA ELE RESPONDE ─────────────────────────────────────────────
+-- A que o dono faz ao abrir o sistema de manhã, e de novo no fim da tarde:
+-- "como está hoje?". Hoje ele só tinha a agenda — que mostra horários, não
+-- dinheiro — e o Relatórios, que é do MÊS e exige escolher um período.
+--
+-- Não é um relatório menor. É outra pergunta: o relatório olha para trás e
+-- fecha contas; o painel olha para AGORA e responde o que ainda dá para
+-- fazer com o dia — quem falta chegar, quanto ainda há para receber, se a
+-- gaveta está aberta.
+--
+-- ── UMA CHAMADA SÓ, PELO MESMO MOTIVO DO RELATÓRIO ────────────────────────
+-- Seis perguntas em seis chamadas seriam seis idas ao servidor para montar
+-- UMA tela, e seis chances de mostrar um pedaço de hoje e outro de ontem se
+-- a virada do dia acontecer no meio. Vai tudo num jsonb.
+--
+-- ── O DIA É O DO SALÃO ────────────────────────────────────────────────────
+-- Pelo `fuso` do salão, como no relatório. Um dono olhando o painel de outro
+-- fuso veria o dia começar na hora errada, e a agenda "de hoje" traria os
+-- atendimentos de ontem à noite.
+--
+-- ── QUEM VÊ ───────────────────────────────────────────────────────────────
+-- `e_gestor`. Faturamento do dia e o que falta receber são da casa, não da
+-- recepção nem de quem atende — a Fase 2 pede isso em uma linha, e é a mesma
+-- trava que impede ler o dia do salão do vizinho trocando o uuid.
+-- ===========================================================================
+
+create or replace function public.painel_hoje(
+  p_salao uuid, p_dia date default null)
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_fuso  text;
+  v_hoje  date;
+  v_ini   timestamptz;
+  v_fim   timestamptz;
+  v_ini_o timestamptz;   -- ontem, para a comparação
+  v_fim_o timestamptz;
+  v_caixa uuid;
+begin
+  if not public.e_gestor(p_salao) then
+    raise exception 'Sem permissão neste salão.'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  select fuso into v_fuso from public.saloes where id = p_salao;
+  if not found then
+    raise exception 'Salão não encontrado.' using errcode = 'no_data_found';
+  end if;
+  v_fuso := coalesce(v_fuso, 'America/Sao_Paulo');
+
+  -- `p_dia` existe para o teste poder fixar o dia, e para o dono conseguir
+  -- olhar ontem sem abrir o relatório. Sem ele, hoje NO FUSO DO SALÃO.
+  v_hoje := coalesce(p_dia, (now() at time zone v_fuso)::date);
+
+  v_ini   := (v_hoje::timestamp) at time zone v_fuso;
+  v_fim   := ((v_hoje + 1)::timestamp) at time zone v_fuso;   -- exclusivo
+  v_fim_o := v_ini;
+  v_ini_o := v_ini - interval '1 day';
+
+  select k.id into v_caixa
+    from public.caixas k
+   where k.salao_id = p_salao and k.fechado_em is null
+   limit 1;
+
+  return jsonb_build_object(
+    'dia',  v_hoje,
+    'fuso', v_fuso,
+
+    /* ── A AGENDA DE HOJE ────────────────────────────────────────────────
+       Contada por `inicio`, que é quando o atendimento acontece — e não por
+       quando foi marcado. Arquivado fica de fora: é o mesmo critério da
+       agenda na tela, e divergir aqui faria o painel contar um atendimento
+       que a agenda não mostra. */
+    'agenda', (
+      select jsonb_build_object(
+        'total',     count(*),
+        'aguardando', count(*) filter (where a.status in ('pendente','confirmado')),
+        'atendendo', count(*) filter (where a.status = 'em_atendimento'),
+        'concluidos', count(*) filter (where a.status = 'concluido'),
+        'faltas',    count(*) filter (where a.status = 'faltou'),
+        'cancelados', count(*) filter (where a.status = 'cancelado'))
+        from public.agendamentos a
+       where a.salao_id = p_salao
+         and a.arquivado_em is null
+         and a.inicio >= v_ini and a.inicio < v_fim),
+
+    /* ── O DINHEIRO DE HOJE ──────────────────────────────────────────────
+       Faturamento é o das comandas FECHADAS, pelo `fechada_em` — é o mesmo
+       critério do relatório, de propósito: dois números com o mesmo nome
+       contados de jeitos diferentes é o defeito mais caro que um sistema
+       assim pode ter, porque os dois parecem certos.
+
+       `aReceber` é o outro lado: o que está lançado e ainda não entrou.
+       Nunca soma com o faturamento — some ao lado, com nome próprio. */
+    'dinheiro', (
+      select jsonb_build_object(
+        'faturamento', coalesce(round(sum(t.total) filter (
+                         where c.status = 'fechada'), 2), 0),
+        'comandas',    count(*) filter (where c.status = 'fechada'),
+        'ticket',      case when count(*) filter (where c.status = 'fechada') > 0
+                            then round(sum(t.total) filter (where c.status = 'fechada')
+                                       / count(*) filter (where c.status = 'fechada'), 2)
+                            else 0 end,
+        'comissoes',   coalesce(round(sum(t.comissao_total) filter (
+                         where c.status = 'fechada'), 2), 0),
+        'estornado',   coalesce(round(sum(t.estornado) filter (
+                         where c.status = 'fechada'), 2), 0))
+        from public.comandas c
+        join public.comandas_totais t on t.id = c.id
+       where c.salao_id = p_salao
+         and c.fechada_em >= v_ini and c.fechada_em < v_fim),
+
+    'aReceber', coalesce((
+      select round(sum(t.falta), 2)
+        from public.comandas c
+        join public.comandas_totais t on t.id = c.id
+       where c.salao_id = p_salao
+         and c.status = 'aberta'
+         and t.falta > 0), 0),
+
+    /* ── ONTEM, PARA SABER SE HOJE ESTÁ BOM ──────────────────────────────
+       Número sozinho não diz nada: R$ 1.200 é ótimo numa terça e ruim num
+       sábado. A comparação é o que transforma o número em informação. */
+    'ontem', (
+      select jsonb_build_object(
+        'faturamento', coalesce(round(sum(t.total), 2), 0),
+        'comandas',    count(*))
+        from public.comandas c
+        join public.comandas_totais t on t.id = c.id
+       where c.salao_id = p_salao and c.status = 'fechada'
+         and c.fechada_em >= v_ini_o and c.fechada_em < v_fim_o),
+
+    /* ── A GAVETA ────────────────────────────────────────────────────────
+       Só o essencial: se está aberta e quanto deveria ter. O detalhe fica
+       na tela do caixa. */
+    'caixa', case when v_caixa is null then null
+                  else public.conferir_caixa(v_caixa) end,
+
+    /* ── QUEM AINDA VEM ──────────────────────────────────────────────────
+       Os próximos do dia, para o dono saber se pode sair para almoçar.
+       Nome da cliente só para quem é gestor — e esta função já é. */
+    'proximos', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'inicio', x.inicio, 'cliente', x.cliente,
+               'profissional', x.profissional, 'status', x.status)
+             order by x.inicio)
+        from (select a.inicio, a.status,
+                     coalesce(cl.nome, a.atendido_nome, 'sem nome') as cliente,
+                     coalesce(pr.apelido, pr.nome, '—')             as profissional
+                from public.agendamentos a
+                left join public.clientes cl on cl.id = a.cliente_id
+                left join public.profissionais pr on pr.id = a.profissional_id
+               where a.salao_id = p_salao
+                 and a.arquivado_em is null
+                 and a.status in ('pendente','confirmado','em_atendimento')
+                 and a.inicio >= greatest(v_ini, now())
+                 and a.inicio < v_fim
+               order by a.inicio
+               limit 6) x), '[]'::jsonb)
+  );
+end $$;
+
+comment on function public.painel_hoje(uuid, date) is
+  'O dia do salão num jsonb só: agenda, dinheiro, gaveta e quem ainda vem.';
+
+revoke all on function public.painel_hoje(uuid, date) from public, anon;
+grant execute on function public.painel_hoje(uuid, date) to authenticated;
