@@ -89,9 +89,27 @@ console.log('\nQuem é');
 
 {
   const c = await conta('plataforma-' + Date.now() + '@teste.com');
-  // A promoção só existe por SQL — é o mesmo caminho do promover_admin.sql.
+  /* A promoção só existe por SQL — é o mesmo caminho do promover_admin.sql.
+
+     ⚠ O ENDEREÇO DO BANCO VEM DO AMBIENTE, NÃO ESCRITO AQUI.
+
+     Estava `-h /tmp -p 5444`: o Postgres desta máquina de desenvolvimento,
+     gravado dentro do teste. No CI o banco é um contêiner em localhost:5432,
+     e a linha morria com «connection to server on socket
+     "/tmp/.s.PGSQL.5444" failed: No such file or directory», arrastando a
+     suíte inteira da plataforma junto sem chegar a testar nada.
+
+     Mesmo defeito que deixou o `pg` num caminho fixo: supor que a única
+     máquina que existe é esta. O `psql` já lê PGHOST/PGPORT/PGUSER/
+     PGDATABASE sozinho — o certo é não passar nada e deixar o ambiente
+     mandar, com o padrão desta máquina só como último recurso. */
   const { execSync } = exigir('node:child_process');
-  execSync(`psql -q -h /tmp -p 5444 -U postgres -d app -c "update public.perfis set super_admin = true where id = '${c.id}'"`);
+  execSync(`psql -q -c "update public.perfis set super_admin = true where id = '${c.id}'"`,
+    { env: { ...process.env,
+             PGHOST:     process.env.PGHOST  || '/tmp',
+             PGPORT:     process.env.PGPORT  || '5444',
+             PGUSER:     process.env.PGUSER  || 'postgres',
+             PGDATABASE: process.env.PGBANCO || 'app' } });
 
   const p = await abrir(c.sessao);
   const txt = await p.textContent('#corpo');
