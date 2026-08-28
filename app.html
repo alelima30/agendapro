@@ -733,7 +733,44 @@ let diaAtual = hoje();
 let telaAtual = 'agenda';
 
 /* ── Utilidades de tempo ─────────────────────────────────────────────── */
-function hoje(){ const d = new Date(); return iso(d); }
+/* ⚠ "HOJE" É O DIA DO SALÃO, NÃO O DO APARELHO.
+
+   Esta função devolvia `iso(new Date())` — a data do celular de quem está
+   olhando. Todo o resto da tela conta o dia pelo `fuso` do salão: `a.data` e
+   `c.data` saem do `instanteParaTela(..., fusoDoSalaoAtual())`, e as funções
+   do banco (`relatorio`, `painel_hoje`) usam `saloes.fuso` também.
+
+   Enquanto os dois fusos coincidem ninguém vê nada. Quando não coincidem, as
+   duas contas de dia se desencontram e o resultado é a tela vazia sem
+   explicação: a agenda abre num dia em que não há nada, e o Caixa filtra
+   `c.data === diaAtual` e não acha comanda nenhuma — nem as que ele mesmo
+   acabou de listar em outra aba.
+
+   Acontece de verdade em dois casos comuns: salão em Manaus ou Rio Branco
+   que nunca mexeu no `fuso` (o padrão é America/Sao_Paulo) e o proprietário
+   viajando. Foi medido aqui na bancada, que roda em UTC: o Caixa mostrou
+   R$ 0,00 de faturamento com uma comanda fechada de R$ 230 no banco.
+
+   E conserta de lambuja o `reabrirComanda()`, que comparava `diaFecho` — já
+   no fuso do salão — com este `hoje()`, que estava no do aparelho.
+
+   ── POR QUE A PERGUNTA É "TEM `fuso`?" E NÃO "ESTÁ NA NUVEM?" ─────────────
+   Porque `NA_NUVEM` só nasce lá embaixo, e esta função é chamada na terceira
+   linha do script, no `let diaAtual = hoje()`. Ler uma `const` antes da
+   declaração não devolve `undefined`: derruba o script inteiro.
+
+   E `saloes.fuso` é `not null default 'America/Sao_Paulo'` no banco, então a
+   pergunta separa exatamente os dois casos que precisam de respostas
+   diferentes: salão de verdade sempre tem fuso e manda nele; a demonstração
+   — que semeia a agenda com a data do próprio aparelho, no demo.js — não
+   tem, e continua no aparelho. Sem isso a demonstração aberta no Japão
+   abriria num dia sem nada. */
+function hoje(){
+  const s = (bd && acharSalao && acharSalao(salaoAtual)) || null;
+  return s && s.fuso
+    ? instanteParaTela(new Date().toISOString(), s.fuso).data
+    : iso(new Date());
+}
 function iso(d){
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0')
        + '-' + String(d.getDate()).padStart(2,'0');
@@ -1201,7 +1238,25 @@ const TELAS = [
      verdade é o `e_gestor()` dentro do `painel_hoje()`. */
   ['hoje',     'Hoje',             'casa',       'Dia a dia', GESTAO],
   ['agenda',   'Agenda',           'calendario', 'Dia a dia', EQUIPE],
-  ['caixa',    'Caixa',            'cartao',     'Dia a dia', EQUIPE],
+  /* ⚠ CAIXA É BALCÃO, e estava EQUIPE — quem atende via a aba.
+
+     O quadro logo acima já dizia `ve_agenda_toda → agenda inteira, caixa`,
+     e o 17_caixa.sql diz a mesma coisa em uma frase: "Quem atende NÃO
+     enxerga o caixa: é dinheiro do salão inteiro". As policies obedecem: as
+     três tabelas da gaveta (`caixas`, `caixa_movimentos`, `estornos`) pedem
+     `ve_agenda_toda`, que não inclui `profissional`.
+
+     Só a linha desta tabela discordava. Medido no navegador, com uma conta de
+     profissional de verdade: a aba aparecia, o cartão da gaveta oferecia
+     "Abrir caixa", e apertar devolvia
+
+         "O banco não autorizou esta gravação para a sua conta.
+          Se você acabou de trocar de salão, entre de novo."
+
+     — um conselho que nunca ia funcionar, porque não é sessão velha: é o RLS
+     fazendo o que foi escrito para fazer. É exatamente o defeito que este
+     quadro nasceu para acabar: a tela oferecendo o que o banco nega. */
+  ['caixa',    'Caixa',            'cartao',     'Dia a dia', BALCAO],
   // Faturamento e comissão da casa inteira não são assunto de quem atende
   // nem da recepção — é a mesma linha que a função `relatorio()` do banco
   // desenha com `e_gestor()`. Esconder aqui é conforto; quem barra é o banco.
@@ -1341,7 +1396,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.ad69ad';
+const VERSAO_APP = 'v9.e08d14';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2342,8 +2397,10 @@ async function confirmarMovimento(tipo){
   pintarCaixa();
 }
 
+/* Sem mostrar o esperado, e é decisão, não esquecimento: quem conta a gaveta
+   olhando o número que devia dar conta até chegar nele. A diferença aparece
+   depois de confirmar — é o `confirmarFecharGaveta()` que a diz. */
 function fecharGaveta(){
-  const g = gavetaAtual;
   abrirModal('Fechar o caixa', `
     <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">
       Conte o dinheiro da gaveta e digite quanto tem. A diferença aparece
@@ -2356,7 +2413,6 @@ function fecharGaveta(){
       <button class="btn" onclick="fecharModal()">Cancelar</button>
       <button class="btn btn-primario" onclick="confirmarFecharGaveta()">Fechar caixa</button>
     </div>`);
-  void g;
 }
 
 async function confirmarFecharGaveta(){
@@ -2415,7 +2471,7 @@ function pintarCaixa(){
   const comandas = todas.filter(c => comandaFechada(c));
   const abertas  = todas.filter(c => !comandaFechada(c) && c.status !== 'cancelada');
 
-  let bruto = 0, comissao = 0;
+  let comissao = 0;
   const porProf = {};
   for(const c of comandas){
     for(const i of c.itens){
@@ -2423,7 +2479,7 @@ function pintarCaixa(){
       // Uma conta só, a de `comissaoDoItem`: ela sabe da comissão fixa e da
       // regra de bruto/líquido, que uma multiplicação solta aqui não sabe.
       const cm = comissaoDoItem(c, i);
-      bruto += t; comissao += cm;
+      comissao += cm;
       if(i.profissionalId){
         porProf[i.profissionalId] = porProf[i.profissionalId] || {venda:0, com:0};
         porProf[i.profissionalId].venda += t;
@@ -2431,14 +2487,34 @@ function pintarCaixa(){
       }
     }
   }
-  const descontos = comandas.reduce((s,c) => s + (c.desconto||0), 0);
+  /* ⚠ O FATURAMENTO SAI DO `totalDaComanda()`, E NÃO DE UMA SOMA PRÓPRIA.
+
+     Estava `bruto − descontos`, com o `bruto` sendo a soma de `qtd × preço`
+     dos itens. Faltava o ACRÉSCIMO — taxa de urgência, domingo,
+     deslocamento —, que nasceu na Fase 2A, entrou no `totalDaComanda()` e na
+     vista `comandas_totais` do banco, e não entrou aqui.
+
+     Resultado: uma comanda de R$ 200 com R$ 30 de acréscimo aparecia como
+     R$ 200 no Caixa e R$ 230 nos Relatórios e no Hoje. Foi medido na
+     bancada, exatamente com esses números. É o defeito que o aviso lá em
+     cima diz que este bloco existe para não ter.
+
+     Segunda vez que este campo escapa de um lugar; a primeira foi a lista
+     `NUMERICAS` do dados.js. A lição é a mesma dita ali: a conta da comanda
+     mora no `totalDaComanda()`, e quem soma dinheiro de comanda chama a
+     função em vez de refazer a fórmula.
+
+     A soma por ITEM continua no laço acima, e continua sem acréscimo — de
+     propósito: ali é a venda de cada profissional, e acréscimo não gera
+     comissão de ninguém. */
+  const faturamento = comandas.reduce((s,c) => s + totalDaComanda(c), 0);
   const emAberto = abertas.reduce((s,c) => s + totalDaComanda(c), 0);
 
   document.getElementById('kpisCaixa').innerHTML = `
     <div class="kpi"><div class="v">${comandas.length}</div><div class="r">comandas fechadas</div></div>
-    <div class="kpi"><div class="v">${real(bruto - descontos)}</div><div class="r">faturamento</div></div>
+    <div class="kpi"><div class="v">${real(faturamento)}</div><div class="r">faturamento</div></div>
     <div class="kpi"><div class="v">${real(comissao)}</div><div class="r">comissões</div></div>
-    <div class="kpi"><div class="v">${real(comandas.length ? (bruto-descontos)/comandas.length : 0)}</div>
+    <div class="kpi"><div class="v">${real(comandas.length ? faturamento/comandas.length : 0)}</div>
       <div class="r">ticket médio</div></div>
     <div class="kpi"><div class="v"${abertas.length ? ' style="color:var(--alerta)"' : ''}>${real(emAberto)}</div>
       <div class="r">${abertas.length} em aberto</div></div>`;
@@ -3268,7 +3344,6 @@ function abrirDetalhe(agId){
   const a = bd.agendamentos.find(x => x.id === agId);
   if(!a) return;
   const p = acharProf(a.profissionalId), c = acharCliente(a.clienteId);
-  const comanda = bd.comandas.find(x => x.agendamentoId === agId);
 
   abrirModal('Atendimento', `
     <div class="campo">
@@ -3310,7 +3385,22 @@ function abrirDetalhe(agId){
        que não está lá. */
     ...(zapDoCliente(a.clienteId)
         ? [['Falar no WhatsApp', `falarNoWhatsapp('${agId}')`, 'btn-zap']] : []),
-    [comanda ? 'Abrir comanda' : 'Abrir comanda', `comandaDoAgendamento('${agId}')`, ''],
+    /* ⚠ A COMANDA É DO BALCÃO, e este botão aparecia para quem atende.
+
+       A policy `com_caixa` do 00_tudo.sql pede `ve_agenda_toda` para criar
+       comanda, e `pgto_caixa` pede o mesmo para o pagamento. Quem atende não
+       está nessa lista — de propósito: a comanda é o dinheiro da casa.
+
+       Medido no navegador com uma conta de profissional: o botão aparecia na
+       ficha do atendimento DELA, o clique montava a comanda na memória, o
+       `salvar()` levava recusa do RLS e a tela mostrava "entre de novo". A
+       comanda nunca chegava ao banco — conferido: zero linhas.
+
+       Pior que a aba do Caixa, porque é na agenda, que é a tela onde quem
+       atende passa o dia. O `vejoTudo()` já existia para isto e não estava
+       ligado em lugar nenhum. */
+    ...(vejoTudo()
+        ? [['Abrir comanda', `comandaDoAgendamento('${agId}')`, '']] : []),
     ['Salvar', `salvarStatus('${agId}')`, 'btn-p'],
   ]);
 }
@@ -3466,7 +3556,29 @@ const subtotalDaComanda = c =>
   c.itens.reduce((s,i) => s + i.qtd*i.precoUnit, 0);
 const totalDaComanda = c =>
   subtotalDaComanda(c) - (c.desconto||0) + (c.acrescimo||0);
-const pagoNaComanda = c => c.pagamentos.reduce((s,p) => s + p.valor, 0);
+/* ⚠ O QUE FOI DEVOLVIDO NÃO ESTÁ MAIS RECEBIDO.
+
+   Esta linha somava `pagamentos.valor` cru. A vista `comandas_totais` do
+   banco nunca somou: o `pago` dela é LÍQUIDO de estorno, e o
+   `tg_fechar_comanda` recusa fechar enquanto `falta > 0`.
+
+   Quer dizer que, do dia em que o estorno passou a existir, a tela e o banco
+   discordavam sobre quanto a cliente devia. Medido no navegador: comanda de
+   R$ 100 paga em dinheiro, estorno de R$ 40 — e a janela mostrava
+   "Recebido R$ 100,00" em verde, sem linha de "Falta receber", com o campo
+   do próximo pagamento em R$ 0,00. Tudo isso logo abaixo da etiqueta que ela
+   mesma desenha: "dinheiro R$ 100,00 · devolvido R$ 40,00".
+
+   O caminho é o normal, não um caso de canto: recebeu errado → reabre →
+   estorna → cobra o certo. É no meio dele que a recepção apertava "Fechar
+   comanda" numa comanda que a tela dizia quitada e levava, do banco, um
+   "NÃO consegui salvar" — na frente da cliente.
+
+   Descontar aqui conserta os quatro lugares de uma vez, porque todos leem
+   desta função: a situação na lista do Caixa, a linha "Falta receber", o
+   valor sugerido do próximo pagamento e a trava do fechamento. */
+const pagoNaComanda = c => Math.round(
+  c.pagamentos.reduce((s,p) => s + p.valor - estornadoDe(p.id), 0) * 100) / 100;
 const faltaNaComanda = c => Math.round((totalDaComanda(c) - pagoNaComanda(c))*100)/100;
 
 /* ── A COMISSÃO, ESPELHANDO O 16_comissao.sql ─────────────────────────────
@@ -6527,6 +6639,11 @@ function iniciar(){
   document.getElementById('tbSalao').textContent = s.nome;
   const t = TELAS.find(x => x[0] === telaAtual);
   document.getElementById('tituloTela').textContent = t ? t[1] : '';
+  /* O `diaAtual` nasceu lá em cima, na primeira linha do script, quando
+     ainda não havia salão nenhum — então o `hoje()` de lá caiu no fuso
+     padrão. Aqui o salão já chegou, e é o primeiro instante em que dá para
+     saber que dia é hoje NELE. */
+  diaAtual = hoje();
   pintarDataTopo();
   rotularTema();
   montarAbas();

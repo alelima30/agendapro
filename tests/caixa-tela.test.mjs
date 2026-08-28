@@ -268,6 +268,101 @@ const est2 = (await banco.query(
 verdade('o estorno continua lá depois da segunda gravação', est2 === 1, String(est2));
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   4b) DEPOIS DE DEVOLVER, A COMANDA VOLTA A DEVER
+
+   O banco sempre soube: `comandas_totais.pago` é LÍQUIDO de estorno, e o
+   `tg_fechar_comanda` recusa fechar com `falta > 0`.
+
+   A tela não sabia. `pagoNaComanda()` somava `pagamentos.valor` cru, sem
+   descontar o que foi devolvido — então, depois de estornar R$ 40 de uma
+   comanda de R$ 100, a tela continuava dizendo "Recebido R$ 100,00" em
+   verde, sem linha de "Falta receber", com o campo de valor do próximo
+   pagamento em R$ 0,00.
+
+   O caminho todo é o normal: recebeu errado → reabre → estorna → cobra o
+   certo. É no meio dele que a recepção olhava uma comanda quitada e, ao
+   apertar "Fechar comanda", levava um erro do banco dizendo que faltavam
+   R$ 40. A tela e o banco discordando sobre quanto a cliente deve — na
+   frente da cliente.
+   ═══════════════════════════════════════════════════════════════════════════ */
+secao('4b) A comanda depois do estorno');
+
+await p.evaluate(id => abrirComanda(id), com.id);
+await p.waitForTimeout(700);
+
+const corpoComanda = await p.textContent('#modalCorpo');
+verdade('a comanda mostra que voltou a faltar R$ 40',
+  /Falta receber/.test(corpoComanda) && /40,00/.test(corpoComanda),
+  corpoComanda.replace(/\s+/g, ' ').slice(0, 320));
+
+verdade('e o "Recebido" conta os R$ 60 que sobraram, não os R$ 100 brutos',
+  await p.evaluate(id => {
+    const c = bd.comandas.find(x => x.id === id);
+    return Math.abs(pagoNaComanda(c) - 60) < 0.005;
+  }, com.id),
+  'pagoNaComanda veio ' + await p.evaluate(id =>
+    pagoNaComanda(bd.comandas.find(x => x.id === id)), com.id));
+
+/* O par de sempre: a tela concordando com o banco, e não só consigo mesma. */
+const totaisDoBanco = (await banco.query(
+  `select pago, falta, situacao from public.comandas_totais where id=$1`,
+  [com.id])).rows[0];
+verdade('e o banco diz a mesma coisa: falta 40, situação parcial',
+  Math.abs(Number(totaisDoBanco.falta) - 40) < 0.005
+    && totaisDoBanco.situacao === 'parcial',
+  JSON.stringify(totaisDoBanco));
+
+verdade('a situação na tela também é parcial, e não "pago"',
+  await p.evaluate(id =>
+    situacaoDaComanda(bd.comandas.find(x => x.id === id)), com.id) === 'parcial',
+  await p.evaluate(id =>
+    situacaoDaComanda(bd.comandas.find(x => x.id === id)), com.id));
+
+/* ⚠ E ESTE É O SINTOMA MAIS CARO DOS TRÊS.
+
+   O campo do próximo pagamento vem preenchido com `total − pago`. Com o
+   `pago` sem descontar o estorno, ele vinha R$ 0,00 — e o `receber()` recusa
+   qualquer valor acima do que falta. Quer dizer: dava para DEVOLVER e não
+   dava para COBRAR de novo. O caminho "recebeu errado → reabre → estorna →
+   cobra o certo" morria no último passo, com a tela dizendo
+   "Faltam R$ 0,00 nesta comanda, e você digitou R$ 40,00". */
+verdade('e o campo do próximo pagamento já vem com os R$ 40 que faltam',
+  Math.abs(Number(await p.inputValue('#cValor')) - 40) < 0.005,
+  'veio ' + JSON.stringify(await p.inputValue('#cValor')));
+
+/* ⚠ E QUEM RECUSA PRIMEIRO TEM QUE SER A TELA.
+
+   O banco recusa de qualquer jeito — o `tg_fechar_comanda` está lá. Mas
+   recusar só no banco significa uma ida ao servidor para devolver um erro
+   que a tela já tinha como saber, e o aviso que a recepção lê vira o de
+   gravação recusada, com "entre de novo" no fim. */
+avisos.length = 0;
+await p.evaluate(id => fecharComanda(id), com.id);
+await p.waitForTimeout(2000);
+/* O texto procurado é o da TELA, não o do banco.
+
+   As duas recusas começam com "Ainda faltam R$ 40,00" — a do gatilho e a
+   daqui. Procurar só por isso deixaria esta verificação passar exatamente no
+   estado que ela existe para reprovar: a tela mandando, o banco recusando.
+   "Registre o pagamento que falta" só existe no aviso da tela. */
+verdade('e "Fechar comanda" é barrado pela própria tela, com a conta certa',
+  avisos.some(a => /40,00/.test(a) && /Registre o pagamento que falta/.test(a)),
+  JSON.stringify(avisos));
+verdade('sem virar recusa de gravação do banco',
+  !avisos.some(a => /NÃO consegui salvar/i.test(a)), JSON.stringify(avisos));
+
+const aindaAberta = (await banco.query(
+  `select status from public.comandas where id=$1`, [com.id])).rows[0].status;
+verdade('e a comanda continua aberta no banco', aindaAberta === 'aberta',
+  aindaAberta);
+
+/* De propósito NÃO cobramos os R$ 40 aqui: a seção 5 confere a gaveta em
+   210 (200 de abertura + 100 recebidos − 40 devolvidos − 50 de sangria), e
+   um pagamento a mais nesta seção mudaria aquele número — deixando a
+   reprova de lá parecendo defeito do caixa em vez de mexida daqui. */
+await p.evaluate(() => { try{ fecharModal(); }catch(e){} });
+
+/* ═══════════════════════════════════════════════════════════════════════════
    5) FECHAR O CAIXA
    ═══════════════════════════════════════════════════════════════════════════ */
 secao('5) Fechar a gaveta');
@@ -421,6 +516,100 @@ verdade('a escada do banco passa a usar a taxa do par (70%)',
 verdade('e nada disso derrubou a gravação',
   !avisos.some(a => /NÃO consegui salvar/.test(a)),
   JSON.stringify(avisos.slice(-2)));
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8b) O ACRÉSCIMO CONTA NO FATURAMENTO DO CAIXA
+
+   O aviso em cima do `pintarCaixa()` diz, com todas as letras, que o Caixa
+   tem que contar a MESMA coisa que o relatório — "dois faturamentos
+   diferentes na mesma tela é o tipo de coisa que faz o dono parar de confiar
+   no sistema inteiro".
+
+   E o KPI somava `qtd × preço` dos itens e subtraía o desconto. Só isso. O
+   acréscimo — taxa de domingo, urgência, deslocamento — nasceu na Fase 2A,
+   entrou no `totalDaComanda()`, entrou na vista `comandas_totais`, e ficou
+   de fora daqui. Segunda vez que este campo escapa de um lugar: a primeira
+   foi a lista `NUMERICAS` do dados.js, e o sintoma apareceu três arquivos
+   adiante.
+
+   A conferência é contra o BANCO, não contra um número escrito à mão: a
+   pergunta não é "dá 230?", é "dá o mesmo que o relatório vai dar?".
+   ═══════════════════════════════════════════════════════════════════════════ */
+secao('8b) O acréscimo no faturamento do Caixa');
+
+const com2 = await dona.inserir('comandas', { salaoId: SALAO, clienteId: cli.id });
+await dona.inserir('comanda_itens', { comandaId: com2.id, tipo:'servico',
+  servicoId: serv.id, descricao:'Corte', qtd:1, precoUnit:200,
+  profissionalId: prof.id });
+// O acréscimo ANTES do pagamento: o `tg_comanda_valor_travado` não deixa
+// mexer no valor de uma comanda que já recebeu dinheiro, e com razão.
+await dona.atualizar('comandas', com2.id, { acrescimo: 30 });
+await dona.inserir('pagamentos',
+  { comandaId: com2.id, forma:'pix', valor: 230 });
+await dona.atualizar('comandas', com2.id, { status:'fechada' });
+
+const t2 = (await banco.query(
+  `select total from public.comandas_totais where id=$1`, [com2.id])).rows[0];
+verdade('o banco põe o acréscimo no total da comanda',
+  Math.abs(Number(t2.total) - 230) < 0.005, JSON.stringify(t2));
+
+await carregarNaTela();
+await irPara('caixa');
+
+/* Lê o KPI pelo RÓTULO, e devolve o número — comparar textos formatados
+   faria esta verificação reprovar no dia em que alguém trocar o separador de
+   milhar, por um motivo que não é o desta seção. */
+const fatCaixa = await p.evaluate(() => {
+  const r = [...document.querySelectorAll('#kpisCaixa .kpi')].find(k =>
+    /faturamento/.test(k.textContent));
+  if(!r) return null;
+  const t = ((r.querySelector('.v') || {}).textContent || '')
+    .replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+  return t === '' ? null : Number(t);
+});
+verdade('e o Caixa mostra o MESMO faturamento que o banco calculou',
+  fatCaixa !== null && Math.abs(fatCaixa - Number(t2.total)) < 0.005,
+  'a tela somou ' + fatCaixa + ', o banco calculou ' + t2.total);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8c) "HOJE" É O DIA DO SALÃO
+
+   O `hoje()` da tela devolvia a data do APARELHO, enquanto `a.data` e
+   `c.data` saem do fuso do SALÃO. Enquanto os dois coincidem — celular
+   brasileiro, salão brasileiro — não se vê nada. Quando não coincidem, a
+   agenda abre num dia vazio e o Caixa filtra `c.data === diaAtual` sem achar
+   comanda nenhuma. Sem erro nenhum para investigar.
+
+   Foi assim que a seção 8b acima apareceu: a bancada roda em UTC, o salão é
+   America/Sao_Paulo, e o Caixa mostrou R$ 0,00 com R$ 230 fechados no banco.
+
+   O fuso escolhido aqui é o que GARANTE data diferente da do aparelho a
+   qualquer hora do dia. Sem esse cuidado o teste passaria por sorte de
+   horário — que é o mesmo que não testar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+secao('8c) O dia é o do salão, não o do aparelho');
+
+const agora = new Date();
+const FUSO_LONGE = agora.getUTCHours() >= 12
+  ? 'Pacific/Kiritimati'   // UTC+14: já é amanhã lá
+  : 'Pacific/Niue';        // UTC−11: ainda é ontem lá
+const emFuso = f => new Intl.DateTimeFormat('en-CA',
+  Object.assign({ year:'numeric', month:'2-digit', day:'2-digit' },
+                f ? { timeZone: f } : {})).format(agora);
+
+await dona.atualizar('saloes', SALAO, { fuso: FUSO_LONGE });
+await carregarNaTela();
+const diaDaTela = await p.evaluate(() => ({ hoje: hoje(), diaAtual }));
+
+verdade('o fuso escolhido de fato cai noutro dia que o do aparelho',
+  emFuso(FUSO_LONGE) !== emFuso(null),
+  FUSO_LONGE + ' → ' + emFuso(FUSO_LONGE) + ' · aparelho → ' + emFuso(null));
+verdade('e o hoje() da tela segue o salão',
+  diaDaTela.hoje === emFuso(FUSO_LONGE),
+  'a tela disse ' + diaDaTela.hoje + ', no salão é ' + emFuso(FUSO_LONGE));
+
+await dona.atualizar('saloes', SALAO, { fuso: 'America/Sao_Paulo' });
+await carregarNaTela();
 
 /* ═══════════════════════════════════════════════════════════════════════════
    9) NENHUM ERRO DE JAVASCRIPT NO CAMINHO INTEIRO

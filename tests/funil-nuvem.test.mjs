@@ -26,6 +26,7 @@
    a senha que escolheu. No fim, o painel tem que mostrar o salão dela.
    =========================================================================== */
 import { createRequire } from 'node:module';
+import { diaDaSemana } from './dia.mjs';
 const exigir = createRequire(import.meta.url);
 const { chromium } = exigir(process.env.PLAYWRIGHT || 'playwright');
 const CHROMIUM = process.env.CHROMIUM || '/opt/pw-browsers/chromium';
@@ -268,8 +269,17 @@ await q.fill('#j2c', '14:00'); await q.fill('#j2d', '18:00');
    teste lê a confirmação como se fosse erro.
 
    Preencher os dois é o cenário honesto: um salão que trabalha na terça e
-   também hoje. (Se hoje for terça, preenche duas vezes e não faz mal.) */
-const dowHoje = new Date().getDay();
+   também hoje. (Se hoje for terça, preenche duas vezes e não faz mal.)
+
+   ⚠ E "hoje" é o dia DO SALÃO, que é o que o painel usa para escolher o dia
+   da agenda. Aqui estava `new Date().getDay()` — o dia da semana do processo
+   Node, que roda em UTC na bancada e no CI. Com o salão em
+   America/Sao_Paulo, das 00:00 às 03:00 UTC os dois caem em dias
+   diferentes: a jornada era preenchida numa quarta e o painel marcava numa
+   terça, o profissional aparecia de folga, e cinco verificações reprovavam
+   falando de encaixe — três horas por dia de reprova que não era defeito de
+   ninguém. */
+const dowHoje = diaDaSemana(await q.evaluate(() => diaAtual));
 await q.fill('#j' + dowHoje + 'a', '08:00');
 await q.fill('#j' + dowHoje + 'b', '12:00');
 await q.fill('#j' + dowHoje + 'c', '14:00');

@@ -264,6 +264,76 @@ verdade('e nenhuma coluna de colega aparecendo vazia',
     .some(n => /Ju Barbosa/.test(n.textContent))),
   'coluna vazia de colega faz a agenda mentir sobre quem está livre');
 
+/* ══════════════════════════════════════════════════════════════════════════
+   4. O DINHEIRO DA CASA NÃO É DE QUEM ATENDE
+
+   Esta seção nasceu de dois botões medidos no navegador, com uma conta de
+   profissional de verdade, os dois terminando na MESMA frase:
+
+       "O banco não autorizou esta gravação para a sua conta.
+        Se você acabou de trocar de salão, entre de novo."
+
+   Que é um conselho impossível de seguir: não era sessão velha, era o RLS
+   fazendo exatamente o que foi escrito para fazer. Entrar de novo devolve a
+   pessoa ao mesmo lugar, agora achando que o sistema está quebrado.
+
+   As policies sempre estiveram certas — `caixas` e `comandas` pedem
+   `ve_agenda_toda`, que não inclui `profissional`. Quem discordava era a
+   tela. Por isso cada verificação abaixo vem em par: a tela não oferece, E o
+   banco recusa. Sozinha, a primeira aprovaria uma aba escondida sobre uma
+   porta aberta; sozinha, a segunda aprovaria um botão que só serve para dar
+   erro.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('O caixa e a comanda, para quem atende');
+
+verdade('NÃO vê a aba Caixa — a gaveta é dinheiro do salão inteiro',
+  !abasProf.includes('caixa'), JSON.stringify(abasProf));
+
+await pgProf.evaluate(() => irPara('caixa'));
+await pgProf.waitForTimeout(400);
+igual('e digitar a aba na mão cai na agenda',
+  await pgProf.evaluate(() => telaAtual), 'agenda');
+
+const caixaRecusado = await pgProf.evaluate(async s => {
+  try{ await Dados.inserir('caixas',
+         { salaoId:s, valorAbertura:100, abertoEm:new Date().toISOString() });
+       return null;
+  }catch(e){ return e.message || 'recusado'; }
+}, SALAO);
+verdade('e o BANCO recusa abrir o caixa para ela, não só a tela',
+  caixaRecusado !== null, 'quem atende abriu a gaveta do salão');
+
+// Volta para a agenda dela e abre a ficha do atendimento.
+await pgProf.evaluate(dd => { irPara('agenda'); diaAtual = dd; pintar(); }, AMANHA);
+await pgProf.waitForTimeout(700);
+await pgProf.evaluate(() => document.querySelector('.ag').click());
+await pgProf.waitForTimeout(600);
+
+/* Só os botões do RODAPÉ do modal. Perguntar a `document` traria a barra
+   lateral inteira junto, e o detalhe da reprova — cortado em doze itens —
+   mostraria "Agenda, Caixa, Clientes…" para um defeito que não é esse. */
+const botoesFicha = await pgProf.evaluate(() =>
+  [...document.querySelectorAll('#modalPe button')].map(b => b.textContent.trim()));
+verdade('a ficha do atendimento NÃO oferece "Abrir comanda"',
+  !botoesFicha.some(t => /Abrir comanda/i.test(t)), JSON.stringify(botoesFicha));
+
+/* E o que ela PODE continua lá: sem isto o conserto viraria uma tela
+   inútil, que é o outro jeito de errar a mesma decisão. */
+verdade('mas continua podendo mudar o status e arquivar o dela',
+  botoesFicha.some(t => /^Salvar$/.test(t))
+    && botoesFicha.some(t => /^Arquivar$/.test(t)),
+  JSON.stringify(botoesFicha));
+
+const comandaRecusada = await pgProf.evaluate(async s => {
+  try{ await Dados.inserir('comandas', { salaoId:s, status:'aberta' });
+       return null;
+  }catch(e){ return e.message || 'recusado'; }
+}, SALAO);
+verdade('e o BANCO recusa criar comanda para ela',
+  comandaRecusada !== null, 'quem atende abriu comanda no caixa da casa');
+
+await pgProf.evaluate(() => fecharModal());
+
 secao('Sem erro de JavaScript');
 igual('nenhum erro no console', erros.length, 0, erros.join(' | '));
 

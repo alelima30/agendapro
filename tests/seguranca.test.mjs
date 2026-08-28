@@ -42,6 +42,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { maisDias, deslocamento } from './dia.mjs';
 
 const exigir = createRequire(import.meta.url);
 const { chromium } = exigir(process.env.PLAYWRIGHT || 'playwright');
@@ -99,11 +100,20 @@ const nav = await chromium.launch({ executablePath: CHROMIUM });
    ══════════════════════════════════════════════════════════════════════════ */
 secao('A cliente marca horário com um nome hostil');
 
-const amanha = new Date(Date.now() + 864e5).toISOString().slice(0,10);
+/* Amanhã NO SALÃO, não amanhã no relógio deste processo.
+
+   O `mudarDia(1)` lá embaixo anda um dia a partir do `hoje()` do painel, que
+   é o dia do salão. Com a bancada em UTC e o salão em America/Sao_Paulo, das
+   00:00 às 03:00 UTC os dois calendários discordam: o horário era marcado
+   num dia e o painel abria noutro, e as três verificações de baixo
+   reprovavam dizendo que a agenda estava vazia — culpando o escape de texto,
+   que não tinha nada a ver. */
+const amanha = maisDias(1);
 const marcado = await fetch(BASE + '/rest/v1/rpc/agendar', {
   method:'POST', headers:{ apikey:'k', 'Content-Type':'application/json' },
   body: JSON.stringify({ p_profissional: prof.id,
-    p_inicio: amanha + 'T13:00:00-03:00', p_servicos:[servico.id],
+    p_inicio: amanha + 'T13:00:00' + deslocamento(amanha),
+    p_servicos:[servico.id],
     p_nome: CARGA('agenda') + 'Maria', p_telefone:'11977665544',
     p_obs: CARGA('obs') }) });
 verdade('o banco aceita a marcação — é para aceitar, ela é uma cliente',
