@@ -53,6 +53,21 @@ auxiliares = [
 ]
 
 partes = [limpar(a) for a in auxiliares]
+
+# ⚠ O 06_vitrine.sql pega carona aqui, e ele NÃO é um módulo.
+#
+# É a função que a página da cliente chama para saber tudo sobre o salão, e
+# ela mora nos arquivos de base — que só chegam ao banco de produção pelo
+# 00_tudo.sql, de 170 KB, que ninguém cola por vontade própria.
+#
+# O efeito de deixá-la de fora é silencioso e desanimador: o dono escolhe um
+# ajuste novo em Aparência, o painel grava, a prévia obedece, e a página da
+# cliente continua igual. Aconteceu com `cartoes`, e vai acontecer com o
+# próximo ajuste que nascer.
+#
+# `create or replace function` — colar por cima é seguro, e colar duas vezes
+# dá no mesmo.
+partes.append(limpar(open('supabase/06_vitrine.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/10_campanhas.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/11_equipe.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/12_relatorios.sql', encoding='utf-8').read()))

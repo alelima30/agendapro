@@ -2892,7 +2892,16 @@ language sql stable security definer set search_path = public as $$
       -- Enquadramento da foto de capa (0 = topo à vista, 100 = pé) e quanto
       -- da imagem de fundo aparece por baixo do véu. Nulo = o padrão da tela.
       'capaFoco', (s.cfg->>'capaFoco')::int,
-      'veu', (s.cfg->>'veu')::int
+      'veu', (s.cfg->>'veu')::int,
+      /* Quanto os cartões fecham sobre a foto de fundo: 'auto', 'vidro' ou
+         'fechado'. Nulo = 'auto', que é o que a tela faz sozinha — então
+         salão criado antes disto não precisa de migração nenhuma.
+
+         ⚠ Precisa ESTAR AQUI para existir. O `cfg` inteiro nunca é
+         devolvido, cada chave é nomeada uma a uma, e ajuste que não aparece
+         nesta lista fica preso no painel: o dono escolhe, o painel grava, a
+         prévia obedece, e a página da cliente nunca fica sabendo. */
+      'cartoes', s.cfg->>'cartoes'
     ),
 
     'servicos', coalesce((

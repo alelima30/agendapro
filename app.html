@@ -1341,7 +1341,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.d10229';
+const VERSAO_APP = 'v9.ad69ad';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -4635,6 +4635,10 @@ function pintarSalao(){
         aí os cartões ficam mais fechados sozinhos, para o preço não se perder
         na imagem.</p>
 
+      <div class="rot" style="margin:18px 0 8px">Cartões sobre a foto</div>
+      <div class="regua" id="reguaCartoes" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaCartoes" style="margin-top:9px"></p>
+
       <div class="rot" style="margin:18px 0 8px">Letra do nome</div>
       <div class="regua" id="reguaLetra" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaLetra" style="margin-top:9px"></p>
@@ -4749,6 +4753,30 @@ const CORES = [
    estão no aparelho, com lista de reserva que cobre Android, iPhone, Windows
    e Mac. Fonte de fora seria mais vistosa e traria o risco de o nome do salão
    piscar — ou aparecer em Times — quando o servidor de fontes demora. */
+/* ── OS CARTÕES SOBRE A FOTO DE FUNDO ─────────────────────────────────────
+   Isto existia como um limiar fixo no CSS: abaixo de 35% de véu os cartões
+   engrossavam sozinhos. Funcionava, e mesmo assim estava errado — era um
+   palpite meu decidindo a aparência do salão dos outros.
+
+   Foto de fundo varia demais para um número servir a todas: uma parede de
+   tijolo escura pede cartão fechado com véu alto; um mármore claro aguenta
+   vidro com véu zero. Quem sabe qual é a foto é o dono, e ele está olhando
+   para ela.
+
+   O automático continua sendo o padrão — quem não quiser pensar nisso não
+   precisa —, mas agora é um padrão, e não uma imposição. */
+const CARTOES = [
+  ['auto',    'Automático', 'Vidro quando há bastante branco por cima da foto, '
+                          + 'e cartão fechado quando a foto aparece muito. '
+                          + 'É o que serve para quase toda foto.'],
+  ['vidro',   'Vidro',      'A foto sempre se insinua atrás do texto. Fica '
+                          + 'bonito com foto clara e de pouco contraste — e '
+                          + 'atrapalha a leitura do preço com foto viva.'],
+  ['fechado', 'Fechado',    'Cartão quase opaco sempre. A foto fica só em '
+                          + 'volta, e o preço nunca disputa com ela. É a '
+                          + 'escolha segura para foto escura ou movimentada.'],
+];
+
 const LETRAS = [
   ['moderno',  'Moderno',  'Limpa e neutra, a mesma do resto do sistema. '
                          + 'Combina com quase tudo e nunca briga com a foto.'],
@@ -4799,6 +4827,10 @@ function lerAparencia(){
     // 50 = centro, que é o que o navegador faz sozinho. 84 = o véu de antes.
     capaFoco: Number.isFinite(Number(c.capaFoco)) ? Number(c.capaFoco) : 50,
     veu: Number.isFinite(Number(c.veu)) ? Number(c.veu) : 84,
+    /* `auto` para quem nunca escolheu — inclusive para todo salão criado
+       antes disto existir. Não há o que migrar: o automático faz o que o
+       limiar fixo fazia. */
+    cartoes: ['vidro','fechado'].includes(c.cartoes) ? c.cartoes : 'auto',
   };
 }
 
@@ -4846,6 +4878,7 @@ function pintarAparencia(){
   const fv = document.getElementById('fxVeu');
   if(fv) fv.value = 135 - aparencia.veu;
 
+  regua('reguaCartoes', CARTOES, 'cartoes', 'explicaCartoes');
   regua('reguaLetra', LETRAS, 'letra', 'explicaLetra');
   regua('reguaSlide', SLIDES, 'slideDe', 'explicaSlide');
 
@@ -4984,6 +5017,7 @@ function salvarAparencia(){
     slideDe: aparencia.slideDe,
     capaFoco: aparencia.capaFoco,
     veu: aparencia.veu,
+    cartoes: aparencia.cartoes,
   });
   salvar();
   const aviso = document.getElementById('salvouAparencia');

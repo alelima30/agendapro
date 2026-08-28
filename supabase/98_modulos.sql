@@ -19,6 +19,57 @@ language sql stable security definer set search_path = public as $$
   select coalesce(is_super() or papel_no_salao(p_salao) in ('dono','admin','recepcao'), false)
 $$;
 
+create or replace function public.vitrine(p_slug text)
+returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'salao', jsonb_build_object(
+      'id', s.id, 'slug', s.slug, 'nome', s.nome, 'tipo', s.tipo,
+      'logo', s.logo, 'capa', s.capa,
+      'telefone', s.telefone, 'whatsapp', s.whatsapp,
+      'endereco', s.endereco, 'fuso', s.fuso,
+      'diasLiberados', public.dias_liberados(s.id),
+      'cor',  s.cfg->>'cor',
+      'tema', s.cfg->>'tema',
+      'precoNaCapa', coalesce((s.cfg->>'precoNaCapa')::boolean, false),
+      'fundo', s.cfg->>'fundo',
+      'brilho', coalesce((s.cfg->>'brilho')::boolean, true),
+      'letra', s.cfg->>'letra',
+      'slideDe', s.cfg->>'slideDe',
+      'galeria', coalesce(s.cfg->'galeria', '[]'::jsonb),
+      'capaFoco', (s.cfg->>'capaFoco')::int,
+      'veu', (s.cfg->>'veu')::int,
+      'cartoes', s.cfg->>'cartoes'
+    ),
+    'servicos', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', v.id, 'nome', v.nome, 'categoria', v.categoria,
+               'descricao', v.descricao, 'duracaoMin', v.duracao_min,
+               'preco', v.preco, 'foto', v.foto)
+             order by v.categoria nulls last, v.nome)
+        from public.servicos v
+       where v.salao_id = s.id and v.ativo and v.aceita_online), '[]'::jsonb),
+    'profissionais', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', p.id, 'nome', coalesce(p.apelido, p.nome),
+               'foto', p.foto,
+               'servicos', (select coalesce(jsonb_agg(sp.servico_id), '[]'::jsonb)
+                              from public.servicos_profissionais sp
+                             where sp.profissional_id = p.id))
+             order by p.criado_em, p.id)
+        from public.profissionais p
+       where p.salao_id = s.id and p.ativo and p.aceita_online
+         and public.profissional_na_cota(p.id)), '[]'::jsonb)
+  )
+  from public.saloes s
+  where s.slug = p_slug and s.status = 'ativo'
+$$;
+revoke all on public.saloes_publicos        from anon, authenticated;
+revoke all on public.servicos_publicos      from anon, authenticated;
+revoke all on public.profissionais_publicos from anon, authenticated;
+revoke all on function public.vitrine(text) from public;
+grant execute on function public.vitrine(text) to anon, authenticated;
+
 alter table public.clientes
   add column if not exists aceita_marketing boolean not null default true;
 alter table public.clientes
