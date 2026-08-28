@@ -7446,10 +7446,22 @@ $$;
 -- minutos, e o freio manda todas embora — justamente no melhor momento do
 -- mês. Um limite que estraga o dia bom não é proteção, é prejuízo.
 --
--- Contando só ficha NOVA, o freio passa a separar as duas coisas: cliente
--- que já foi ao salão nunca é freada, por mais depressa que a turma remarque;
--- e um script, que só sabe inventar telefone, é 100% ficha nova e bate no
--- teto na hora.
+-- Contando só ficha NOVA, o freio passa a separar as duas coisas: uma correria
+-- de clientes conhecidas — a turma remarcando depois de um story — não ENCHE o
+-- contador e nunca aciona o freio; um script, que só sabe inventar telefone, é
+-- 100% ficha nova e bate no teto na hora.
+--
+-- ⚠ E o que isto NÃO quer dizer, para ninguém se enganar lendo depois: quando
+-- o freio DISPARA, ele segura o link para todo mundo por até dez minutos —
+-- inclusive para uma cliente conhecida que chegar no meio. A função
+-- `porque_nao_agenda()` responde sobre o DIA e o PROFISSIONAL; ela não sabe
+-- quem está do outro lado, porque quem descobre a ficha é o `agendar()`, mais
+-- adiante. Deixar cada cliente de fora exigiria copiar o `agendar()` inteiro
+-- para dentro deste módulo e mantê-lo igual ao 09_cliente.sql para sempre —
+-- caro demais para dez minutos de porta fechada num evento raro.
+--
+-- É por isso que o padrão é dez, e não cinco: o custo de errar para o lado
+-- apertado é fechar a porta num dia bom.
 --
 -- Dez é muito para um salão de uma a três pessoas — dez desconhecidas
 -- marcando no mesmo intervalo de dez minutos é um dia excepcional — e é pouco
@@ -7629,7 +7641,7 @@ end $$;
 comment on function public.teto_online_pct(uuid) is
   'Quanto da jornada de um profissional o link pode ocupar num dia. cfg.tetoOnlinePct, padrão 70.';
 comment on function public.teto_online_rajada(uuid) is
-  'Quantas marcações o link aceita no salão em 10 minutos. cfg.tetoOnlineRajada, padrão 5.';
+  'Quantas pessoas NOVAS o link aceita no salão em 10 minutos. cfg.tetoOnlineRajada, padrão 10.';
 
 -- ###########################################################################
 -- ## 20_corrida.sql

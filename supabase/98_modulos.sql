@@ -2056,7 +2056,7 @@ end $$;
 comment on function public.teto_online_pct(uuid) is
   'Quanto da jornada de um profissional o link pode ocupar num dia. cfg.tetoOnlinePct, padrão 70.';
 comment on function public.teto_online_rajada(uuid) is
-  'Quantas marcações o link aceita no salão em 10 minutos. cfg.tetoOnlineRajada, padrão 5.';
+  'Quantas pessoas NOVAS o link aceita no salão em 10 minutos. cfg.tetoOnlineRajada, padrão 10.';
 
 create or replace function public.travar_agenda(p_salao uuid)
 returns void language sql set search_path = public as $$
