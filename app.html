@@ -1341,7 +1341,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.723bbc';
+const VERSAO_APP = 'v9.d10229';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -4617,14 +4617,23 @@ function pintarSalao(){
         no meio corta a cabeça de quem está nela — puxe para a esquerda para
         mostrar mais de cima.</p>
 
+      <!-- A régua vai a 135 porque o valor é INVERTIDO: 135 menos a
+           posição vira o véu. Em 40 o véu é 95 (quase só fundo liso); em
+           135 é 0, e a foto aparece inteira. O fim da régua era 95 — véu
+           40 — e com isso a foto nunca aparecia por completo.
+
+           Sem crase neste comentário de propósito: ele mora DENTRO de um
+           template literal, e uma crase aqui encerra a string no meio.
+           Foi o que aconteceu, e o teste de sintaxe pegou. -->
       <div class="rot" style="margin:18px 0 8px">Quanto o fundo aparece</div>
-      <input type="range" id="fxVeu" class="desliza" min="40" max="95" step="1"
+      <input type="range" id="fxVeu" class="desliza" min="40" max="135" step="1"
              oninput="escolherAparencia('veu', 135 - Number(this.value))">
       <p class="secao-sub" style="margin-top:6px">Só vale se você anexou um
         <b>Fundo da página</b> em Identidade visual. Para a direita a imagem
-        aparece mais; para a esquerda ela some atrás do fundo liso. Não vai
-        até o fim de propósito: passando disso, a foto começa a atrapalhar a
-        leitura do preço.</p>
+        aparece mais; para a esquerda ela some atrás do fundo liso.
+        <b>No fim da régua a foto aparece inteira, sem branco por cima</b> — e
+        aí os cartões ficam mais fechados sozinhos, para o preço não se perder
+        na imagem.</p>
 
       <div class="rot" style="margin:18px 0 8px">Letra do nome</div>
       <div class="regua" id="reguaLetra" style="justify-content:flex-start"></div>
@@ -4907,7 +4916,8 @@ function pintarPreviaFone(){
     .filter(x => x.salaoId === salaoAtual && x.ativo !== false).slice(0, 2);
 
   alvo.innerHTML =
-    `<div class="fone ${escuro ? 'fone-escuro' : ''}"
+    `<div class="fone ${escuro ? 'fone-escuro' : ''}${
+          aparencia.veu < 35 ? ' pouco-veu' : ''}"
           style="--fone-marca:${escapar(aparencia.cor)};--fone-marca-txt:${letraSobre(aparencia.cor)}">
        ${imagemDoSalao(sl, 'fundo')
          ? `<div class="fone-fundo" style="background-image:url('${imagemDoSalao(sl, 'fundo')}');

@@ -813,6 +813,18 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 }
 .fone-escuro .fone-fundo::after{ background:#141416 }
 .fone-topo, .fone-cta, .fone-svs, .fone-boas{ position:relative; z-index:1 }
+
+/* Com pouco véu, a prévia engrossa os cartões igual à página da cliente.
+
+   Sem isto ela mentiria justamente onde a decisão é tomada: o dono arrasta a
+   régua até o fim, vê o texto disputando com a foto na prévia, e volta atrás
+   por causa de um problema que a página real não tem. Prévia que não repete
+   a compensação é pior que prévia nenhuma — ela desaconselha o ajuste que
+   acabou de ser criado. */
+.fone.pouco-veu .fone-svs, .fone.pouco-veu .fone-boas{
+  background:color-mix(in srgb, var(--painel) 97%, transparent);
+}
+.fone.pouco-veu .fone-topo b{ text-shadow:0 1px 3px rgba(0,0,0,.28) }
 /* A prévia repete a letra escolhida. Sem isto ela mostraria o nome sempre na
    mesma fonte, e a escolha de letra seria feita no escuro. */
 .fone-topo[data-letra] b{ display:block; font-size:16px; line-height:1.15 }
@@ -1163,9 +1175,16 @@ body[data-passo="capa"] .cabeca-linha{ min-height:34px }
    natureza — simplesmente não aparecia: o dono anexava a imagem e via a
    página branca de sempre.
 
-   Agora é ele quem decide, de 40% a 95%. Não desce de 40 de propósito: abaixo
-   disso a foto começa a competir com o texto, e a página do salão vira um
-   lugar onde não se lê o preço. */
+   Agora vai de 0% a 95%. O piso era 40, com o argumento de que abaixo disso
+   a foto compete com o texto — e o argumento estava certo sobre o RISCO e
+   errado sobre a solução: proibir a foto de aparecer resolve a legibilidade
+   à custa da única coisa que o dono queria.
+
+   O certo é deixar a foto aparecer inteira E manter o texto legível, que são
+   coisas independentes: a foto fica no fundo da página, o texto fica sobre
+   os cartões. Abaixo de 35% de véu, os cartões param de ser vidro e viram
+   superfície quase opaca (ver `body.fundo-forte` mais abaixo). A foto aparece
+   em volta, e o preço continua num lugar onde se lê. */
 .fundo-veu{
   position:fixed; inset:0; z-index:-1; pointer-events:none;
   background:var(--bg); opacity:var(--veu, .84);
@@ -1195,6 +1214,36 @@ body.tem-fundo .na-fila, body.tem-fundo .aviso{
 body.tem-fundo .barra-baixo{
   background:color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+}
+
+/* ── FOTO EM CHEIO, TEXTO AINDA LEGÍVEL ───────────────────────────────────
+   Com o véu perto de zero, a foto passa a ser o fundo de verdade — e o vidro
+   de 88% que servia sobre um branco de 84% deixa de servir: uma foto viva
+   atravessa e o preço fica em cima de um galho.
+
+   Então o cartão engrossa. Não vira chapa opaca — a foto ainda se insinua
+   nas beiras, que é o efeito que o dono quer — mas para de deixar contraste
+   passar por baixo da letra.
+
+   O limiar é 35% porque é onde a foto começa a mandar na leitura: acima
+   disso o branco ainda domina e o vidro leve basta.
+
+   A classe vem do JavaScript (`aplicarAparencia`), e não de uma media query,
+   porque o valor é do salão e não da tela. */
+body.fundo-forte .cartao, body.fundo-forte .opcao, body.fundo-forte .boas,
+body.fundo-forte .na-fila, body.fundo-forte .aviso{
+  background:color-mix(in srgb, var(--painel) 97%, transparent);
+  box-shadow:0 6px 22px -8px rgba(0,0,0,.42);
+}
+body.fundo-forte .barra-baixo{
+  background:color-mix(in srgb, var(--bg) 97%, transparent);
+}
+/* O nome da casa e o endereço ficam SOBRE a foto, sem cartão atrás. Uma
+   sombra curta é o que os segura numa foto clara — sem ela, letra escura
+   sobre céu branco some, e é o nome do negócio. */
+body.fundo-forte .marca-salao h2,
+body.fundo-forte .marca-end{
+  text-shadow:0 1px 3px rgba(0,0,0,.28);
 }
 
 body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
@@ -1258,6 +1307,70 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
     0 12px 28px -8px rgba(0,0,0,.34);
 }
 .marca-selo img{ width:100%; height:100%; object-fit:cover; display:block }
+
+/* ── A FAIXA DE LUZ, A MESMA DO BOTÃO ─────────────────────────────────────
+   Reaproveita `brilho-metal` de propósito: mesma curva, mesma duração,
+   mesmo descanso de quatro segundos. Duas animações parecidas mas
+   diferentes na mesma tela leem como defeito — uma passa, a outra passa
+   quase junto, e o olho percebe o "quase".
+
+   Fica ACIMA do vidro (`::after`) e da imagem, e o `overflow:hidden` do
+   selo é o que a recorta no canto arredondado — sem ele a faixa vaza para
+   fora da peça e vira um risco atravessando a foto.
+
+   `::before` porque o `::after` já é o brilho de vidro parado. */
+.marca-selo::before{
+  content:""; position:absolute; top:0; bottom:0; left:0; width:38%;
+  z-index:2; pointer-events:none; border-radius:inherit;
+  background:linear-gradient(100deg, transparent,
+             rgba(255,255,255,.34) 45%, rgba(255,255,255,.5) 55%, transparent);
+  transform:translateX(-180%);
+  animation:brilho-metal 5.2s cubic-bezier(.4,0,.2,1) infinite;
+}
+/* O vidro parado precisa ficar por baixo da faixa que anda. */
+.marca-selo::after{ z-index:1 }
+
+/* ── E A BORDA ACENDE JUNTO ───────────────────────────────────────────────
+   Era isto o pedido: brilho NA BORDA. A faixa por dentro dá o metal; o anel
+   por fora dá o contorno aceso.
+
+   `outline` e não `border`: borda mudaria a caixa e empurraria o layout
+   dois pixels. `outline` desenha por fora sem ocupar espaço, e `box-shadow`
+   já está inteiro em uso pelo relevo da peça. */
+.marca-selo{
+  outline:1.5px solid transparent; outline-offset:-1.5px;
+  animation:borda-acesa 5.2s cubic-bezier(.4,0,.2,1) infinite;
+}
+/* ⚠ O PICO EM 8%, e não em 21%.
+
+   21% é onde a faixa TERMINA o percurso, e foi o meu primeiro palpite: a
+   varredura vai de 0% a 21% do ciclo, logo a borda acende no fim dela.
+   Medido no navegador, dava 400 ms de atraso — a faixa cruzava o selo entre
+   200 e 400 ms e a borda só acendia aos 800.
+
+   Quatrocentos milissegundos é pouco no relógio e muito no olho: lê como
+   dois efeitos, um logo depois do outro, e não como uma luz passando. É
+   exatamente o "quase junto" contra o qual o comentário do botão adverte.
+
+   A faixa está SOBRE o selo na primeira metade do percurso, não no fim —
+   ela entra pela esquerda e sai pela direita, e o meio da travessia é por
+   volta de 8%. É ali que a borda tem que acender. */
+@keyframes borda-acesa{
+  0%,  2%  { outline-color:rgba(255,255,255,.16) }
+  8%       { outline-color:rgba(255,255,255,.72) }
+  18%,100% { outline-color:rgba(255,255,255,.16) }
+}
+
+/* Mesma regra do botão, e pelos mesmos dois motivos: quem pediu ao sistema
+   para parar de mover coisas não recebe luz varrendo o logo a cada cinco
+   segundos, e o dono que achar demais desliga em Aparência — o mesmo
+   interruptor do botão, porque são o mesmo efeito. */
+@media (prefers-reduced-motion: reduce){
+  .marca-selo::before{ animation:none; opacity:0 }
+  .marca-selo{ animation:none }
+}
+body.sem-brilho .marca-selo::before{ animation:none; opacity:0 }
+body.sem-brilho .marca-selo{ animation:none }
 /* O brilho de vidro por cima: uma faixa clara na metade de cima, que é o que
    uma superfície lisa faz com a luz do ambiente. Fica ACIMA da imagem, e por
    isso é pseudo-elemento e não um degradê no fundo. */

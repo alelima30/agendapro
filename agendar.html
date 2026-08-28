@@ -2885,10 +2885,19 @@ function aplicarAparencia(s){
 
   /* O véu: quanto da foto de fundo aparece. Vem do salão, com o mesmo piso e
      teto da tela de Aparência — a página da cliente não confia num número que
-     chegou de fora sem conferir. */
-  const veu = Number(salao.veu != null ? salao.veu : c.veu);
-  raiz.style.setProperty('--veu',
-    (Number.isFinite(veu) ? Math.min(95, Math.max(40, veu)) : 84) / 100);
+     chegou de fora sem conferir.
+
+     O piso era 40 e passou a ser 0: dá para deixar a foto aparecer inteira.
+     O teto continua em 95 porque 100 seria "sem foto nenhuma" por outro
+     caminho, e já existe o jeito certo de não ter foto — não anexar uma.
+
+     Abaixo de 35 a foto manda na leitura, e aí os cartões engrossam. Quem
+     decide isso é o CSS (`body.fundo-forte`); aqui só se diz que é o caso. */
+  const veuBruto = Number(salao.veu != null ? salao.veu : c.veu);
+  const veu = Number.isFinite(veuBruto)
+    ? Math.min(95, Math.max(0, veuBruto)) : 84;
+  raiz.style.setProperty('--veu', veu / 100);
+  document.body.classList.toggle('fundo-forte', !!fundo && veu < 35);
 
   aplicarFundo(fundo);
   // O brilho do botão é escolha do salão. Vem ligado por padrão porque é o
