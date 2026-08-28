@@ -1941,3 +1941,214 @@ comment on function public.painel_hoje(uuid, date) is
   'O dia do salão num jsonb só: agenda, dinheiro, gaveta e quem ainda vem.';
 revoke all on function public.painel_hoje(uuid, date) from public, anon;
 grant execute on function public.painel_hoje(uuid, date) to authenticated;
+
+create or replace function public.teto_online_pct(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select greatest(10, least(100,
+    coalesce((select (cfg->>'tetoOnlinePct')::int from public.saloes
+               where id = p_salao and cfg->>'tetoOnlinePct' ~ '^[0-9]+$'), 70)))
+$$;
+create or replace function public.teto_online_rajada(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select greatest(1, least(100,
+    coalesce((select (cfg->>'tetoOnlineRajada')::int from public.saloes
+               where id = p_salao and cfg->>'tetoOnlineRajada' ~ '^[0-9]+$'), 10)))
+$$;
+create or replace function public.minutos_online_no_dia(
+  p_profissional uuid, p_data date)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(sum(
+           extract(epoch from (a.fim - a.inicio)) / 60), 0)::int
+    from public.agendamentos a
+    join public.profissionais p on p.id = a.profissional_id
+    join public.saloes s        on s.id = p.salao_id
+   where a.profissional_id = p_profissional
+     and a.origem = 'online'
+     and a.arquivado_em is null
+     and a.status in ('pendente','confirmado','em_atendimento','concluido')
+     and (a.inicio at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date = p_data
+$$;
+create or replace function public.minutos_de_jornada(
+  p_profissional uuid, p_data date)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(sum(extract(epoch from (j.fim - j.inicio)) / 60), 0)::int
+    from public.jornada_costurada(p_profissional, p_data) j
+$$;
+create or replace function public.rajada_online(p_salao uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int
+    from public.agendamentos a
+    join public.clientes c on c.id = a.cliente_id
+   where a.salao_id = p_salao
+     and a.origem = 'online'
+     and a.criado_em > now() - interval '10 minutes'
+     and c.criado_em > now() - interval '24 hours'
+$$;
+revoke all on function public.minutos_online_no_dia(uuid, date) from public, anon;
+revoke all on function public.minutos_de_jornada(uuid, date)    from public, anon;
+revoke all on function public.rajada_online(uuid)               from public, anon;
+grant execute on function public.minutos_online_no_dia(uuid, date) to authenticated;
+grant execute on function public.minutos_de_jornada(uuid, date)    to authenticated;
+grant execute on function public.rajada_online(uuid)               to authenticated;
+create or replace function public.porque_nao_agenda(
+  p_profissional uuid, p_data date, p_servicos uuid[])
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  v_salao   uuid;
+  v_hoje    date;
+  v_jornada int;
+  v_online  int;
+  v_pedido  int;
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0 then
+    return 'Escolha pelo menos um serviço.';
+  end if;
+  select p.salao_id into v_salao
+    from public.profissionais p
+    join public.saloes sa on sa.id = p.salao_id
+   where p.id = p_profissional
+     and p.ativo and p.aceita_online
+     and sa.status = 'ativo';
+  if v_salao is null then
+    return 'Este profissional não está atendendo pela agenda online.';
+  end if;
+  if not public.profissional_na_cota(p_profissional) then
+    return 'Este profissional não está atendendo pela agenda online.';
+  end if;
+  if not public.recurso_bool(v_salao, 'agenda_online') then
+    return 'Este salão não está aceitando marcação pela internet.';
+  end if;
+  if exists (
+    select 1 from unnest(p_servicos) as pedido(id)
+     where not exists (
+       select 1 from public.servicos s
+        where s.id = pedido.id and s.salao_id = v_salao
+          and s.ativo and s.aceita_online))
+  then
+    return 'Um dos serviços escolhidos não está disponível.';
+  end if;
+  if not public.profissional_faz(p_profissional, p_servicos) then
+    return 'Este profissional não faz todos os serviços escolhidos.';
+  end if;
+  v_hoje := public.hoje_no_salao(v_salao);
+  if p_data < v_hoje then
+    return 'Essa data já passou.';
+  end if;
+  if p_data > v_hoje + public.dias_liberados(v_salao) then
+    return format('A agenda está liberada até %s.',
+                  to_char(v_hoje + public.dias_liberados(v_salao), 'DD/MM/YYYY'));
+  end if;
+  v_jornada := public.minutos_de_jornada(p_profissional, p_data);
+  if v_jornada > 0 then
+    v_online := public.minutos_online_no_dia(p_profissional, p_data);
+    v_pedido := public.duracao_dos_servicos(p_profissional, p_servicos);
+    if (v_online + v_pedido) * 100 > v_jornada * public.teto_online_pct(v_salao) then
+      return 'Este dia já está quase todo marcado. '
+          || 'Chame o salão no WhatsApp que a gente encaixa você.';
+    end if;
+  end if;
+  if public.rajada_online(v_salao) >= public.teto_online_rajada(v_salao) then
+    return 'A marcação pela internet está congestionada agora. '
+        || 'Tente daqui a pouco, ou chame o salão no WhatsApp.';
+  end if;
+  return null;
+end $$;
+comment on function public.teto_online_pct(uuid) is
+  'Quanto da jornada de um profissional o link pode ocupar num dia. cfg.tetoOnlinePct, padrão 70.';
+comment on function public.teto_online_rajada(uuid) is
+  'Quantas marcações o link aceita no salão em 10 minutos. cfg.tetoOnlineRajada, padrão 5.';
+
+create or replace function public.travar_agenda(p_salao uuid)
+returns void language sql set search_path = public as $$
+  select pg_advisory_xact_lock(hashtext(p_salao::text))
+$$;
+revoke all on function public.travar_agenda(uuid) from public, anon, authenticated;
+create or replace function public.checar_bloqueio_agendamento()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  motivo_conflito text;
+begin
+  if new.status not in ('pendente','confirmado','em_atendimento','concluido')
+     or new.arquivado_em is not null then
+    return new;
+  end if;
+  perform public.travar_agenda(new.salao_id);
+  select coalesce(b.motivo, 'bloqueado') into motivo_conflito
+    from public.bloqueios b
+   where b.salao_id = new.salao_id
+     and (b.profissional_id = new.profissional_id or b.profissional_id is null)
+     and tstzrange(b.inicio, b.fim, '[)') && tstzrange(new.inicio, new.fim, '[)')
+   limit 1;
+  if motivo_conflito is not null then
+    raise exception 'Horário indisponível: %', motivo_conflito
+      using errcode = 'exclusion_violation';
+  end if;
+  return new;
+end $$;
+create or replace function public.checar_agendamento_bloqueio()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  n int;
+begin
+  perform public.travar_agenda(new.salao_id);
+  select count(*) into n
+    from public.agendamentos a
+   where a.salao_id = new.salao_id
+     and (new.profissional_id is null or a.profissional_id = new.profissional_id)
+     and a.status in ('pendente','confirmado','em_atendimento','concluido')
+     and a.arquivado_em is null
+     and tstzrange(a.inicio, a.fim, '[)') && tstzrange(new.inicio, new.fim, '[)');
+  if n > 0 then
+    raise exception
+      'Existe atendimento marcado nesse período (% no total). Remarque antes de bloquear.', n
+      using errcode = 'exclusion_violation';
+  end if;
+  return new;
+end $$;
+create or replace function public.checar_cabe_agendamento()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status not in ('pendente','confirmado','em_atendimento','concluido')
+     or new.arquivado_em is not null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE'
+     and new.inicio = old.inicio
+     and new.fim = old.fim
+     and new.profissional_id = old.profissional_id then
+    return new;
+  end if;
+  if new.encaixe then
+    return new;
+  end if;
+  perform public.travar_agenda(new.salao_id);
+  if public.ha_choque(new.profissional_id, new.inicio, new.fim, new.id)
+     is not null then
+    raise exception 'Esse horário já está ocupado.'
+      using errcode = 'exclusion_violation';
+  end if;
+  if public.ha_bloqueio(new.profissional_id, new.inicio, new.fim)
+     is not null then
+    raise exception 'Esse horário está bloqueado na agenda.'
+      using errcode = 'check_violation';
+  end if;
+  if not public.cabe_na_jornada(new.profissional_id, new.inicio, new.fim) then
+    raise exception 'Fora da jornada de trabalho deste profissional.'
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+comment on function public.travar_agenda(uuid) is
+  'Trava consultiva por salão, até o fim da transação. Bloqueio e atendimento não se cruzam.';

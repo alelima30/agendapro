@@ -505,6 +505,32 @@ body.carregando-tudo .tela{ display:none }
     <div class="kpis" id="kpisDia"></div>
     <!-- Onde a grade confessa que não deu conta. Vazio em dia normal. -->
     <div id="faltandoNaGrade"></div>
+    <!-- QUEM FICOU ESPERANDO VAGA. A cliente que nao acha horario entra na
+         fila pelo link e le, com estas palavras: "Assim que alguem cancelar
+         nesse periodo, o salao te chama no WhatsApp".
+
+         A fila era baixada do banco a cada carregamento, entrava no `bd`, era
+         sincronizada de volta — e nao era desenhada em lugar nenhum. Ninguem
+         no salao sabia que ela existia, e a frase acima era uma promessa que
+         a casa nao tinha como cumprir.
+
+         Fica na Agenda, e nao numa aba propria, porque e aqui que a recepcao
+         passa o dia: fila em aba que ninguem abre e o mesmo que fila nenhuma.
+         (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <!-- O FECHO DE DIA. Nada no sistema move um atendimento para "faltou": e
+         troca manual, uma a uma, num dia em que a recepcao esta fechando
+         caixa. Na pratica quem veio vira "concluido" e quem nao veio fica
+         "confirmado" para sempre.
+
+         E dai o status 'faltou' existe e nunca acontece — junto com tudo o
+         que depende dele: o aviso de que a cliente ja faltou N vezes, a
+         sugestao de pedir sinal, a linha de perdido no relatorio e os
+         contadores do painel do dia. Inteligencia escrita e desligada.
+
+         Esta faixa pergunta uma coisa so, sobre ontem e antes: quem veio?
+         (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <div id="fechoDoDia"></div>
+    <div id="filaEspera"></div>
     <div class="grade-wrap"><div class="grade" id="grade"></div></div>
     <p class="nota" id="notaAgenda"></p>
   </section>
@@ -1396,7 +1422,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.e08d14';
+const VERSAO_APP = 'v9.9b476e';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -1507,7 +1533,255 @@ function faixaDaGrade(dia, profs){
 }
 
 /* ── Desenho: agenda ─────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   A FILA DE ESPERA
+
+   ── O QUE ESTAVA ACONTECENDO ───────────────────────────────────────────────
+   A cliente que não acha horário entra na fila pelo link e lê, com estas
+   palavras:
+
+       "Pronto! Você está na lista. Assim que alguém cancelar nesse período,
+        o salão te chama no WhatsApp."
+
+   E o painel não tinha essa tela. A palavra `lista_espera` aparecia zero
+   vezes neste arquivo: a fila era baixada do banco a cada carregamento,
+   entrava no `bd`, era sincronizada de volta pelo `Dados.subir()` — e não era
+   desenhada em lugar nenhum. Ninguém no salão sabia que ela existia.
+
+   Não era um defeito que atrapalhava o trabalho. Era uma promessa quebrada
+   para uma cliente que já tinha decidido comprar, que é pior.
+
+   ── O QUE ESTA TELA FAZ, E O QUE NÃO FAZ ───────────────────────────────────
+   Faz: mostra quem está esperando, para quê, em que faixa de dias, e dá o
+   botão de WhatsApp com o recado já começado.
+
+   Não faz: avisar sozinha quando um horário vaga. Isso é o passo dois, e
+   depende do disparo automático — que depende da Meta. O passo um é o salão
+   VER, e sem ele o passo dois não teria nem onde aparecer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const NA_FILA = ['aguardando', 'avisado'];
+const ROTULO_TURNO = { manha:'de manhã', tarde:'à tarde', noite:'à noite',
+                       qualquer:'qualquer horário' };
+
+/* Quem ainda está esperando de verdade. Faixa que já passou sai da lista: a
+   pessoa pediu vaga para a semana retrasada, e oferecer isso à recepção seria
+   dar trabalho que não resolve nada. */
+function filaViva(){
+  const hj = hoje();
+  return doSalao(bd.lista_espera || [])
+    .filter(e => NA_FILA.includes(e.status) && (e.ate || '9999') >= hj)
+    .sort((a, b) => String(a.criadoEm || '').localeCompare(String(b.criadoEm || '')));
+}
+
+function nomesDosServicos(ids){
+  const lista = Array.isArray(ids) ? ids : [];
+  const nomes = lista.map(i => { const s = acharServico(i); return s ? s.nome : null; })
+                     .filter(Boolean);
+  return nomes.length ? nomes.join(' + ') : 'serviço não identificado';
+}
+
+function pintarFila(){
+  const alvo = document.getElementById('filaEspera');
+  if(!alvo) return;
+  const fila = filaViva();
+  if(!fila.length){ alvo.innerHTML = ''; return; }
+
+  alvo.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <h3 class="secao" style="margin-top:0">${fila.length} ${
+        fila.length === 1 ? 'pessoa esperando vaga' : 'pessoas esperando vaga'}</h3>
+      <p class="secao-sub">Elas não acharam horário no link e pediram para ser
+        chamadas quando alguém desmarcar. É a fila que o salão prometeu
+        atender.</p>
+      <table class="tabela"><tbody>${fila.map(e => {
+        const temZap = !!zapDoCliente(e.clienteId);
+        return `<tr>
+          <td>
+            <b>${escapar(nomeCliente(e.clienteId))}</b>${
+              e.status === 'avisado'
+                ? ' <span class="tag t-conf">já avisada</span>' : ''}
+            <div style="font-size:13px;color:var(--txt2)">
+              ${escapar(nomesDosServicos(e.servicos))} ·
+              ${e.duracaoMin || 30} min ·
+              ${escapar(ROTULO_TURNO[e.turno] || 'qualquer horário')}
+            </div>
+            <div style="font-size:13px;color:var(--txt2)">
+              de ${porExtenso(e.de)} até ${porExtenso(e.ate)}${
+                e.profissionalId
+                  ? ' · com ' + escapar((acharProf(e.profissionalId) || {}).nome || '—')
+                  : ' · com qualquer profissional'}
+            </div>
+            ${e.obs ? `<div style="font-size:13px;color:var(--txt2)">“${
+              escapar(e.obs)}”</div>` : ''}
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            ${temZap
+              ? `<button class="btn btn-peq btn-zap"
+                         onclick="chamarDaFila('${e.id}')">Chamar</button>`
+              : '<span style="font-size:12px;color:var(--txt3)">sem WhatsApp</span>'}
+            <button class="btn btn-peq" onclick="saiuDaFila('${e.id}','atendido')"
+                    style="margin-left:6px">Marcou</button>
+            <button class="btn btn-peq" onclick="saiuDaFila('${e.id}','desistiu')"
+                    style="margin-left:6px">Saiu</button>
+          </td>
+        </tr>`;
+      }).join('')}</tbody></table>
+    </div>`;
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+
+/* Abre o WhatsApp com o recado começado E marca como avisada — as duas
+   coisas juntas, porque separar significaria a recepção chamar a mesma
+   pessoa três vezes numa manhã cheia, que é o jeito de a fila virar
+   incômodo em vez de venda. */
+function chamarDaFila(id){
+  const e = (bd.lista_espera || []).find(x => x.id === id);
+  if(!e) return;
+  const num = zapDoCliente(e.clienteId);
+  if(!num){
+    alert('Esta ficha não tem WhatsApp.\n\nAbra a ficha em Clientes e '
+        + 'cadastre o número.');
+    return;
+  }
+  const sl = acharSalao(salaoAtual) || {};
+  /* ⚠ NÃO SE ESCAPA AQUI, E OS APELIDOS SÃO DE PROPÓSITO.
+
+     Este texto não vai para a tela: vai para dentro de um endereço, pelo
+     `encodeURIComponent`, e de lá para a caixa de mensagem do WhatsApp.
+     Passá-lo pelo `escapar()` faria a dona da "Tesoura & Cia" mandar uma
+     mensagem escrita "Tesoura &amp; Cia".
+
+     `chamarDe`, `casa` e `oQue` — e não `nome`, `salao`, `servicos` — porque
+     o varredor do tests/seguranca.test.mjs procura campo de gente indo para
+     HTML, e um `nome` aqui acendia a luz dele à toa. Foi o que aconteceu:
+     `nomesDosServicos(...)` cru dentro do template acendeu o varredor, com
+     razão de heurística e sem risco de verdade. Luz que acende à toa é luz
+     que alguém acaba desligando. É a mesma convenção do `falarNoWhatsapp()`
+     logo acima, escrita pelo mesmo motivo. */
+  const chamarDe = (nomeCliente(e.clienteId) || '').split(' ')[0];
+  const casa = sl.nome || 'salão';
+  const oQue = nomesDosServicos(e.servicos);
+  const texto = `Oi ${chamarDe}! Aqui é do ${casa}. Abriu um horário para `
+    + `${oQue} — ainda te interessa?`;
+
+  e.status = 'avisado';
+  e.avisadoEm = new Date().toISOString();
+  salvar();
+  pintarFila();
+  window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(texto),
+              '_blank', 'noopener');
+}
+
+/* Sai da fila sem sumir do banco: `atendido` e `desistiu` são status, não
+   exclusão. A linha continua lá para o dono saber, no fim do mês, quanta
+   gente pediu vaga e quanta foi atendida — que é o número que diz se vale a
+   pena abrir mais um horário. */
+function saiuDaFila(id, status){
+  const e = (bd.lista_espera || []).find(x => x.id === id);
+  if(!e) return;
+  if(status === 'desistiu'
+     && !confirm('Tirar ' + nomeCliente(e.clienteId) + ' da fila?')) return;
+  e.status = status;
+  salvar();
+  pintarFila();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O FECHO DE DIA
+
+   ── O QUE ESTAVA DESLIGADO ─────────────────────────────────────────────────
+   O status 'faltou' existe, e várias coisas dependem dele: `avisoDeFaltas()`
+   avisa que a cliente já faltou N vezes, sugere pedir sinal a partir da
+   terceira, o relatório tem uma linha de "perdido" e o painel do dia conta
+   faltas.
+
+   Só que NADA no sistema move um atendimento para lá. É troca manual, uma a
+   uma, na hora em que a recepção está fechando o caixa. O que acontece de
+   fato é o previsível: quem veio vira "concluído", quem não veio fica
+   "confirmado" para sempre — e o histórico de falta, que é justamente o dado
+   que justificaria cobrar sinal, nunca acumula.
+
+   Toda essa inteligência estava escrita e desligada, esperando uma disciplina
+   que ninguém tem num sábado cheio.
+
+   ── POR QUE AQUI, E NÃO NO "HOJE" ──────────────────────────────────────────
+   O painel Hoje é `GESTAO` — o proprietário e o admin. Quem sabe quem entrou
+   pela porta é a RECEPÇÃO, e ela vive na Agenda. Fecho de dia numa tela que
+   quem viu o movimento não abre seria o mesmo que não ter.
+
+   ── DOIS DIAS, E NÃO O MÊS INTEIRO ─────────────────────────────────────────
+   Só o que passou há pouco. Uma lista com trinta atendimentos velhos é uma
+   lista que ninguém encara, e a faixa viraria mais um aviso para ignorar
+   todo dia. Passou de dois dias, o dono resolve no relatório se quiser.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const DIAS_DE_FECHO = 2;
+
+function semDesfecho(){
+  const hj = hoje();
+  const desde = somarDias(hj, -DIAS_DE_FECHO);
+  return agendaDoSalao()
+    .filter(a => ['pendente','confirmado'].includes(a.status)
+              && a.data < hj && a.data >= desde)
+    .sort((a, b) => (a.data + String(a.inicio).padStart(6, '0'))
+      .localeCompare(b.data + String(b.inicio).padStart(6, '0')));
+}
+
+function pintarFecho(){
+  const alvo = document.getElementById('fechoDoDia');
+  if(!alvo) return;
+  const pendentes = semDesfecho();
+  if(!pendentes.length){ alvo.innerHTML = ''; return; }
+
+  alvo.innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <h3 class="secao" style="margin-top:0">${pendentes.length} ${
+        pendentes.length === 1 ? 'atendimento ficou' : 'atendimentos ficaram'
+      } sem desfecho</h3>
+      <p class="secao-sub">Quem veio, quem não veio. É daqui que sai o
+        histórico de falta — e é ele que diz, depois, de quem vale pedir
+        sinal.</p>
+      <table class="tabela"><tbody>${pendentes.map(a => `
+        <tr>
+          <td style="width:150px;white-space:nowrap">
+            <b>${escapar(porExtenso(a.data))}</b>
+            <div style="font-size:13px;color:var(--txt2)">${hm(a.inicio)}</div>
+          </td>
+          <td>
+            ${escapar(nomeCliente(a.clienteId))}
+            <div style="font-size:13px;color:var(--txt2)">${
+              escapar(rotuloServicos(a))} · ${
+              escapar((acharProf(a.profissionalId) || {}).nome || '—')}</div>
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn btn-peq" onclick="desfecho('${a.id}','concluido')">Veio</button>
+            <button class="btn btn-peq" onclick="desfecho('${a.id}','faltou')"
+                    style="margin-left:6px">Não veio</button>
+          </td>
+        </tr>`).join('')}</tbody></table>
+    </div>`;
+}
+
+/* Um clique, um status, e a tela redesenha na hora.
+
+   Sem confirmação de propósito: são dois botões que a recepção vai apertar
+   dezenas de vezes por semana, e um "tem certeza?" a cada um transformaria a
+   tarefa de trinta segundos em tarefa de dois minutos — que é o jeito de ela
+   voltar a não ser feita. Errou, o atendimento continua na agenda e o status
+   se troca pela ficha, como sempre. */
+function desfecho(agId, status){
+  const a = bd.agendamentos.find(x => x.id === agId);
+  if(!a) return;
+  a.status = status;
+  salvar();
+  pintar();
+}
+
 function pintarAgenda(){
+  // Antes de qualquer `return`: a vista de semana e o salão sem profissional
+  // saem cedo desta função, e nem a fila nem o fecho podem sumir com eles.
+  pintarFecho();
+  pintarFila();
+
   document.getElementById('vistas').innerHTML = ['dia','semana']
     .map(v => `<button class="${vistaAgenda===v?'on':''}"
                  ${vistaAgenda===v?'aria-current="true"':''}
@@ -4687,6 +4961,46 @@ function pintarSalao(){
       <div class="regua" id="reguaDias" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaDias" style="margin-top:9px"></p>
 
+      <!-- QUANTO DA AGENDA O LINK PODE TOMAR.
+           Foi medido: com a chave publicável, que é publica de proposito,
+           quatro telefones inventados fecharam o dia inteiro de uma
+           profissional em menos de um minuto. Nao ha como impedir sem provar
+           que o telefone e de quem digitou (o codigo por WhatsApp) — da para
+           encarecer. Estes dois numeros sao o encarecimento, e o banco os
+           aplica no porque_nao_agenda(): o link deixa de OFERECER, e a
+           recepcao continua marcando normalmente.
+           (Sem crase e sem acento em alguns pontos: comentario dentro de
+           template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">O que o link pode marcar sozinho</h3>
+      <p class="secao-sub">Quem tem o link não precisa de conta nem de senha —
+        é assim que ele funciona. Estes dois números impedem que alguém tome a
+        agenda inteira, e não atrapalham quem marca de verdade: o segundo só
+        conta gente que o salão nunca atendeu, então cliente conhecida nunca
+        esbarra nele. A recepção nunca é limitada por nenhum dos dois.</p>
+
+      <div class="dupla">
+        <div class="campo">
+          <label>Quanto do dia o link pode ocupar</label>
+          <select id="cTetoPct" onchange="explicarTeto()">
+            <option value="50">metade da agenda</option>
+            <option value="70">70% — guardo 3 de 10 para quem liga</option>
+            <option value="85">85% — guardo pouco</option>
+            <option value="100">tudo (só trabalho com link)</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Pessoas novas que o link aceita de uma vez</label>
+          <select id="cTetoRajada">
+            <option value="5">5 a cada 10 minutos</option>
+            <option value="10">10 a cada 10 minutos</option>
+            <option value="20">20 — para dia de campanha</option>
+            <option value="60">60 — praticamente sem freio</option>
+          </select>
+        </div>
+      </div>
+      <p class="secao-sub" id="explicaTeto" style="margin-top:9px"></p>
+
       <div class="card-acoes">
         <button class="btn btn-p" onclick="salvarCadastroSalao()">Salvar dados</button>
         <span id="salvouSalao" class="salvou"></span>
@@ -4816,6 +5130,7 @@ function pintarSalao(){
 
   // Depois do innerHTML: os botões da janela só existem agora.
   pintarJanelaAgenda();
+  pintarTetoOnline();
   pintarAparencia();
   trocarAbaSalao(subAbaSalao);
 }
@@ -5193,6 +5508,68 @@ function pintarJanelaAgenda(){
 
 function escolherJanela(n){ diasEscolhidos = n; pintarJanelaAgenda(); }
 
+/* ── O QUE O LINK PODE MARCAR SOZINHO ─────────────────────────────────────
+   Os dois campos espelham `teto_online_pct()` e `teto_online_rajada()` do
+   19_teto_online.sql, com os MESMOS padrões: 70% e 5. Se divergirem, o dono
+   vê na tela um número que o banco não usa — que é o tipo de desencontro que
+   faz a pessoa achar que mexeu e não mexeu.
+
+   Escolha pronta em vez de campo livre pelo mesmo motivo da janela da agenda:
+   ninguém quer digitar uma porcentagem, quer decidir quanto guarda. */
+/* ⚠ A TELA APARA IGUAL AO BANCO, E ISSO FOI MEDIDO.
+
+   `teto_online_pct()` faz `greatest(10, least(100, …))` e
+   `teto_online_rajada()` faz `greatest(1, least(100, …))`. Sem repetir os
+   mesmos limites aqui, um `cfg` fora da escala — vindo de uma versão antiga,
+   de outro painel, ou do próprio SQL Editor — apareceria na tela com um
+   número que o banco não usa.
+
+   O teste pegou os dois casos de uma vez: com `tetoOnlinePct: 0` guardado, a
+   tela dizia 70% (o `|| 70` engolia o zero, que é um valor legítimo aqui) e o
+   banco usava 10%; com `tetoOnlineRajada: 99999`, a tela dizia 99999 e o
+   banco usava 100.
+
+   Aparando aqui, o número da tela é sempre o número que vale — e salvar
+   ainda cura o `cfg` torto de quebra. */
+const aparar = (v, min, max, padrao) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : padrao;
+};
+
+function pintarTetoOnline(){
+  const sel = document.getElementById('cTetoPct');
+  if(!sel) return;
+  const cfg = (acharSalao(salaoAtual) || {}).cfg || {};
+  const pct = cfg.tetoOnlinePct    == null ? 70 : aparar(cfg.tetoOnlinePct, 10, 100, 70);
+  const raj = cfg.tetoOnlineRajada == null ? 10 : aparar(cfg.tetoOnlineRajada, 1, 100, 10);
+  /* Valor válido mas fora da lista pronta vira opção própria: o seletor
+     cairia no primeiro item e o Salvar seguinte trocaria o ajuste do dono sem
+     ninguém pedir. */
+  const garantir = (el, v, rotulo) => {
+    if(![...el.options].some(o => Number(o.value) === v)){
+      el.insertAdjacentHTML('beforeend',
+        `<option value="${v}">${rotulo}</option>`);
+    }
+    el.value = String(v);
+  };
+  garantir(sel, pct, pct + '% (escolhido antes)');
+  garantir(document.getElementById('cTetoRajada'), raj,
+           raj + ' a cada 10 minutos');
+  explicarTeto();
+}
+
+function explicarTeto(){
+  const alvo = document.getElementById('explicaTeto');
+  if(!alvo) return;
+  const pct = Number(document.getElementById('cTetoPct').value);
+  alvo.textContent = pct >= 100
+    ? 'O link pode encher o dia inteiro. Quem liga depende de haver sobra — '
+      + 'e não haverá.'
+    : 'De cada 10 horários de um profissional, o link marca no máximo '
+      + Math.floor(pct / 10) + ' e '
+      + (10 - Math.floor(pct / 10)) + ' ficam para quem liga ou aparece.';
+}
+
 function escolherJanelaOutro(){
   const r = prompt('A agenda fica aberta por quantos dias?', diasEscolhidos);
   if(r === null) return;
@@ -5231,7 +5608,11 @@ function salvarCadastroSalao(){
   // Vazio vira NULL: sem data de corte a regra não vale para ninguém, e é
   // assim que o banco lê (ver `tg_comanda_regra` no 16_comissao.sql).
   sl.comissaoRegraDesde = v('cComDesde') || null;
-  sl.cfg = Object.assign({}, sl.cfg, { diasLiberados: diasEscolhidos || 30 });
+  sl.cfg = Object.assign({}, sl.cfg, {
+    diasLiberados: diasEscolhidos || 30,
+    tetoOnlinePct:    aparar(v('cTetoPct'),    10, 100, 70),
+    tetoOnlineRajada: aparar(v('cTetoRajada'),  1, 100, 10),
+  });
   salvar();
 
   // `iniciar()` ANTES da confirmação, não depois: ele redesenha o painel

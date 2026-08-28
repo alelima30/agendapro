@@ -84,8 +84,26 @@ const FUSO = salao.fuso;
    auditoria precisa de datas espalhadas, mas isso é necessidade do TESTE, não
    defeito do produto. Deixar o padrão faria a suíte reprovar o comportamento
    certo, que é justamente o erro que uma auditoria não pode cometer. */
+/* ⚠ E os dois limites do link público saem do caminho, pela MESMA razão.
+
+   Esta suíte marca dezenas de horários com telefone novo a cada um, em
+   segundos, porque é assim que se mede a geometria da agenda: sobreposição,
+   duração, almoço, fechamento. Um salão de verdade não faz isso — vinte
+   desconhecidas marcando em um minuto é justamente o padrão que o
+   19_teto_online.sql existe para frear.
+
+   Foi medido: com o freio no padrão, esta suíte reprovava inteira com "A
+   marcação pela internet está congestionada agora", e a reprova acusava a
+   geometria por um defeito que não era dela.
+
+   Os dois limites têm suíte própria — tests/teto-online.test.mjs, que os
+   prova um a um. Aqui eles são ruído, e desligá-los é o que deixa esta
+   auditoria medir o que se propôs a medir. */
 await bd.query(`update public.saloes
-                   set cfg = coalesce(cfg,'{}'::jsonb) || '{"diasLiberados":300}'::jsonb
+                   set cfg = coalesce(cfg,'{}'::jsonb)
+                             || '{"diasLiberados":300,
+                                  "tetoOnlinePct":100,
+                                  "tetoOnlineRajada":100}'::jsonb
                  where id = $1`, [SALAO]);
 
 await bd.query(`delete from public.assinaturas where salao_id = $1`, [SALAO]);
