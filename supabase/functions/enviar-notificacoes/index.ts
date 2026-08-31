@@ -1,0 +1,172 @@
+/* ===========================================================================
+   AgendaPro — o worker das mensagens da agenda
+   Supabase Edge Function (Deno). Roda NO SERVIDOR, nunca no navegador.
+
+   ── O QUE ELE MANDA, E O QUE NÃO ──────────────────────────────────────────
+   Confirmação, lembrete, resumo do dia e o aviso para quem vai atender. Só
+   isso. Campanha tem worker próprio (`enviar-campanha`), e a separação não é
+   arrumação: são cadências, cotas e regras de consentimento diferentes.
+
+   ── POR QUE ESTE ARQUIVO NÃO PODE VIRAR JAVASCRIPT DO PAINEL ──────────────
+   Ele é um dos dois lugares do projeto que enxergam duas credenciais:
+
+     WHATSAPP_TOKEN            manda mensagem em nome do salão
+     SUPABASE_SERVICE_ROLE_KEY passa por cima de TODO o RLS
+
+   Qualquer uma delas no painel é o fim do isolamento entre salões — o painel
+   é HTML servido do GitHub Pages, e tudo o que chega nele é público por
+   construção. As duas vivem em variáveis de ambiente da função.
+
+   ── A REGRA QUE MANDA ─────────────────────────────────────────────────────
+   NADA É MARCADO COMO ENVIADO SEM TER SIDO ENVIADO.
+
+   Este arquivo é o único caminho do sistema que escreve 'enviado', e ele só
+   escreve depois de a Graph API responder OK. Sem credencial configurada ele
+   não roda: devolve 503 e a fila fica intacta, com tudo pendente — que é a
+   verdade e é o que o painel mostra.
+
+   ── QUEM CHAMA ────────────────────────────────────────────────────────────
+   O `pg_cron`, de minuto em minuto, pela SQL do README ao lado. Não há laço
+   infinito aqui: função de borda que roda para sempre é função que morre no
+   meio e leva a fila junto.
+
+   Cada chamada faz duas coisas: põe os resumos do dia na fila (para os
+   salões cuja hora chegou) e despacha o que está vencendo.
+   =========================================================================== */
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const WA_TOKEN     = Deno.env.get('WHATSAPP_TOKEN');
+const WA_PHONE_ID  = Deno.env.get('WHATSAPP_PHONE_ID');
+const WA_VERSAO    = Deno.env.get('WHATSAPP_API_VERSAO') ?? 'v21.0';
+const SEGREDO      = Deno.env.get('CRON_SEGREDO');
+
+// Teto de tempo por chamada, abaixo do limite da plataforma: parar sozinho
+// antes de ser derrubado deixa a fila num estado que a próxima volta entende.
+const TETO_MS = 40_000;
+const ENTRE_MS = 900;
+
+type Alvo = { id: string; salao_id: string; destino: string;
+              corpo: string; tipo: string };
+
+async function rpc(nome: string, corpo: Record<string, unknown>) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${nome}`, {
+    method: 'POST',
+    headers: {
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(corpo),
+  });
+  if (!r.ok) throw new Error(`${nome}: ${r.status} ${await r.text()}`);
+  const t = await r.text();
+  return t ? JSON.parse(t) : null;
+}
+
+/* O número em formato internacional. O banco guarda só dígitos; a Meta quer
+   com código de país. Número brasileiro sem o 55 é o erro mais comum aqui, e
+   ele falha calado do outro lado — a mensagem some sem devolver erro. */
+function paraMeta(digitos: string): string {
+  const so = digitos.replace(/\D/g, '');
+  if (so.length >= 12 && so.startsWith('55')) return so;
+  if (so.length === 10 || so.length === 11) return '55' + so;
+  return so;
+}
+
+async function mandar(destino: string, texto: string) {
+  const r = await fetch(
+    `https://graph.facebook.com/${WA_VERSAO}/${WA_PHONE_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${WA_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: paraMeta(destino),
+        type: 'text',
+        text: { preview_url: false, body: texto },
+      }),
+    });
+
+  const corpo = await r.json().catch(() => ({}));
+  if (r.ok) {
+    return { ok: true as const, wamId: corpo?.messages?.[0]?.id ?? null };
+  }
+  const erro = corpo?.error ?? {};
+  return {
+    ok: false as const,
+    codigo: String(erro.code ?? r.status),
+    msg: String(erro.message ?? 'falha ao enviar').slice(0, 300),
+  };
+}
+
+Deno.serve(async (req) => {
+  // Um segredo compartilhado com o `pg_cron`. Sem isto, a URL da função é
+  // um botão de disparo aberto na internet.
+  if (SEGREDO) {
+    const veio = req.headers.get('x-cron-segredo');
+    if (veio !== SEGREDO) {
+      return new Response(JSON.stringify({ erro: 'não autorizado' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' } });
+    }
+  }
+
+  /* ⚠ SEM CREDENCIAL, NÃO SE INVENTA ENVIO.
+
+     A tentação aqui seria "marcar como enviado para o painel ficar bonito".
+     O resultado disso é o salão parar de ligar para a cliente confiando num
+     aviso que ninguém recebeu. Devolve 503, a fila fica intacta, e o painel
+     continua dizendo pendente — que é a verdade. */
+  if (!WA_TOKEN || !WA_PHONE_ID) {
+    return new Response(JSON.stringify({
+      erro: 'WhatsApp não configurado',
+      detalhe: 'Faltam WHATSAPP_TOKEN e/ou WHATSAPP_PHONE_ID. '
+             + 'A fila continua intacta, com tudo pendente.',
+    }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+  }
+
+  const ate = Date.now() + TETO_MS;
+  let enviadas = 0, falhas = 0, resumos = 0;
+
+  try {
+    // Primeiro os resumos do dia entram na fila. Idempotente por dia: chamar
+    // isto de minuto em minuto cria uma linha só.
+    resumos = (await rpc('gerar_resumos', {})) ?? 0;
+
+    while (Date.now() < ate) {
+      const lote = await rpc('notificacao_proxima', { p_lote: 1 }) as Alvo[];
+      if (!lote || lote.length === 0) break;
+      const alvo = lote[0];
+
+      let r;
+      try {
+        r = await mandar(alvo.destino, alvo.corpo);
+      } catch (e) {
+        r = { ok: false as const, codigo: 'rede',
+              msg: String((e as Error).message).slice(0, 300) };
+      }
+
+      await rpc('notificacao_resultado', {
+        p_id: alvo.id,
+        p_ok: r.ok,
+        p_wam_id: r.ok ? r.wamId : null,
+        p_codigo: r.ok ? null : r.codigo,
+        p_msg: r.ok ? null : r.msg,
+      });
+
+      if (r.ok) enviadas++; else falhas++;
+
+      // Cadência. Sem ela, um lote grande de lembretes sai como rajada — e
+      // rajada é o padrão que a Meta lê como robô.
+      await new Promise((s) => setTimeout(s, ENTRE_MS));
+    }
+
+    return new Response(JSON.stringify({ resumos, enviadas, falhas }), {
+      headers: { 'Content-Type': 'application/json' } });
+  } catch (e) {
+    return new Response(JSON.stringify({ erro: String((e as Error).message) }), {
+      status: 500, headers: { 'Content-Type': 'application/json' } });
+  }
+});

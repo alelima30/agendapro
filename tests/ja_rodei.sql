@@ -18,9 +18,9 @@
 -- o 98_modulos.sql cola inteiro, então o marco basta, e um arquivo curto é
 -- um arquivo que a pessoa realmente usa.
 --
--- O veredito olha os DOIS marcos mais novos — `travar_agenda` e a coluna
+-- O veredito olha os DOIS marcos mais novos — `uso_do_plano` e a coluna
 -- `id` do par serviço+profissional. É o par que importa: dá para ter rodado
--- uma versão de ontem, com a trava já lá, e não ter a coluna do par. Nesse
+-- uma versão de ontem, com as cotas já lá, e não ter a coluna do par. Nesse
 -- estado a tela de preço por profissional grava e PERDE linha em silêncio,
 -- que é o pior defeito que este projeto já teve.
 --
@@ -49,7 +49,11 @@ select
        then '✗ FALTA'  else '✓ ok' end                          as "19 teto do link",
   case when to_regprocedure('public.travar_agenda(uuid)') is null
        then '✗ FALTA'  else '✓ ok' end                          as "20 corrida",
-  case when to_regprocedure('public.travar_agenda(uuid)') is not null
+  case when to_regclass('public.notificacoes') is null
+       then '✗ FALTA'  else '✓ ok' end                          as "21 notificações",
+  case when to_regprocedure('public.uso_do_plano(uuid)') is null
+       then '✗ FALTA'  else '✓ ok' end                          as "22 cotas",
+  case when to_regprocedure('public.uso_do_plano(uuid)') is not null
         and exists (select 1 from information_schema.columns
                      where table_name = 'servicos_profissionais'
                        and column_name = 'id')

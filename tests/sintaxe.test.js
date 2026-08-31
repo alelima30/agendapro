@@ -134,14 +134,27 @@ console.log('\nA aparência atravessa do painel até a página da cliente');
     path.join(RAIZ, 'supabase', '06_vitrine.sql'), 'utf8');
   const cliente = fs.readFileSync(path.join(RAIZ, 'agendar.html'), 'utf8');
 
-  // 1) As chaves que o painel grava no `cfg`.
-  const grava = app.match(
+  /* 1) As chaves de APARÊNCIA — as que `salvarAparencia()` grava, e só elas.
+
+     ⚠ A primeira versão procurava `sl.cfg = Object.assign(...)` no arquivo
+     inteiro e pegava a PRIMEIRA que achasse. Funcionou enquanto só a
+     aparência escrevia no `cfg`. Quando o cadastro do salão e as notificações
+     passaram a escrever também, o guarda começou a exigir que
+     `notifLembreteMin` atravessasse até a página da cliente — que é
+     exatamente o contrário do certo: configuração interna do salão não tem o
+     que fazer no navegador de quem marca horário.
+
+     Recortar a função pelo nome é o que faz esta verificação continuar
+     falando da aparência quando o arquivo cresce. */
+  const corpoAparencia = (app.match(
+    /function salvarAparencia\(\)\{([\s\S]*?)\n\}/) || [])[1] || '';
+  const grava = corpoAparencia.match(
     /sl\.cfg = Object\.assign\(\{\}, sl\.cfg, \{([\s\S]*?)\}\);/);
   const chaves = grava
     ? [...grava[1].matchAll(/^\s*([A-Za-z][A-Za-z0-9_]*)\s*:/gm)].map(m => m[1])
     : [];
   dizer(chaves.length > 0,
-    'achei as chaves que o painel grava (' + chaves.length + ')',
+    'achei as chaves de aparência que o painel grava (' + chaves.length + ')',
     'o salvarAparencia() mudou de forma — conserte esta busca, não apague a '
     + 'verificação');
 

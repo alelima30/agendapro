@@ -54,7 +54,27 @@ const COLUNAS = {
   profissionais: { salaoId:'salao_id', perfilId:'perfil_id',
                    comissaoPct:'comissao_pct', comissaoFixa:'comissao_fixa',
                    aceitaOnline:'aceita_online',
+                   notifNovo:'notif_novo', notifResumo:'notif_resumo',
                    criadoEm:'criado_em' },
+  /* ⚠ `notificacoes` NÃO entra em TABELAS_SINCRONIZADAS nem em
+     TABELAS_SO_LEITURA, e as duas ausências são decisão.
+
+     Sincronizada: o painel passaria a mandar de volta o estado das mensagens,
+     e uma tela que pode escrever "enviado" é uma tela que mente — quem move
+     esse estado é o worker, com a chave do servidor.
+
+     Só-leitura baixada sempre: a fila cresce sem teto, uma linha por
+     mensagem, para sempre. Baixá-la inteira a cada abertura do painel seria
+     repetir com mensagem o mesmo erro que a clientela já tem hoje. A tela do
+     histórico pede as dela, quando alguém abre a aba.
+
+     O mapa fica aqui porque `Dados.lista('notificacoes', {salaoId})` precisa
+     traduzir o filtro e a resposta como qualquer outra tabela. */
+  notificacoes:  { salaoId:'salao_id', clienteId:'cliente_id',
+                   profissionalId:'profissional_id',
+                   agendamentoId:'agendamento_id', proximaEm:'proxima_em',
+                   enviadoEm:'enviado_em', erroCodigo:'erro_codigo',
+                   erroMsg:'erro_msg', wamId:'wam_id', criadoEm:'criado_em' },
   servicos:      { salaoId:'salao_id', duracaoMin:'duracao_min',
                    intervaloMin:'intervalo_min', comissaoPct:'comissao_pct',
                    comissaoFixa:'comissao_fixa',

@@ -71,6 +71,8 @@ preparar() {
   carregar "$RAIZ/supabase/18_painel.sql"
   carregar "$RAIZ/supabase/19_teto_online.sql"
   carregar "$RAIZ/supabase/20_corrida.sql"
+  carregar "$RAIZ/supabase/21_notificacoes.sql"
+  carregar "$RAIZ/supabase/22_cotas.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

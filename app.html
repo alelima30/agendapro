@@ -1422,7 +1422,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.9b476e';
+const VERSAO_APP = 'v9.be022d';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -4608,6 +4608,23 @@ function abrirProf(pid){
     <input type="hidden" id="qFoto" value="${p && p.foto ? p.foto : ''}">
     <div class="campo"><label>Nome</label>
       <input id="qNome" value="${escapar(p ? p.nome : '')}" placeholder="Nome de quem atende"></div>
+    <!-- O WhatsApp de quem atende. Vazio e resposta legitima: quem nao quer
+         receber nada simplesmente nao poe numero, e as duas caixas abaixo
+         ficam sem efeito. Nao e cadastro pela metade.
+         (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <div class="campo"><label>WhatsApp de quem atende (opcional)</label>
+      <input id="qTel" value="${escapar(p && p.telefone ? p.telefone : '')}"
+             placeholder="(11) 99999-0000"></div>
+    <div class="campo">
+      <label class="check"><input type="checkbox" id="qNotifNovo"
+             ${!p || p.notifNovo !== false ? 'checked' : ''}>
+        <span>Avisar quando marcarem um horário na agenda dela</span></label>
+    </div>
+    <div class="campo" style="margin-bottom:12px">
+      <label class="check"><input type="checkbox" id="qNotifResumo"
+             ${!p || p.notifResumo !== false ? 'checked' : ''}>
+        <span>Mandar o resumo da agenda dela de manhã</span></label>
+    </div>
     <div class="dupla">
       <div class="campo"><label>Comissão padrão (%)</label>
         <input type="number" id="qCom" value="${p ? p.comissaoPct : 40}" min="0" max="100"></div>
@@ -4701,6 +4718,11 @@ async function salvarProf(pid){
       ? null : parseFloat(document.getElementById('qComFixa').value),
     cor: document.getElementById('qCor').value,
     ativo: document.getElementById('qAtivo').checked,
+    // Vazio vira null, não string vazia: o Postgres recusaria a gravação
+    // inteira do profissional por causa de um campo em branco.
+    telefone: (document.getElementById('qTel').value || '').trim() || null,
+    notifNovo: document.getElementById('qNotifNovo').checked,
+    notifResumo: document.getElementById('qNotifResumo').checked,
     foto,
     jornada,
   };
@@ -4784,7 +4806,12 @@ function pintar(){
   if(telaAtual === 'relatorios') prepararRelatorios();
   if(telaAtual === 'salao')    pintarSalao();
   if(telaAtual === 'publico')  prepararPublico();
-  if(telaAtual === 'plano')    pintarPlano();
+  if(telaAtual === 'plano'){
+    // Desenha com o que já tem e completa quando a resposta chega: melhor a
+    // tela aparecer e o medidor preencher do que a tela esperar o servidor.
+    pintarPlano();
+    carregarUsoDoPlano();
+  }
   // Conteúdo desenhado agora pode trazer <span data-ico>; troca por SVG.
   if(window.aplicarIcones) aplicarIcones();
   rotularTabelas();
@@ -4856,6 +4883,7 @@ function pintarSalao(){
     <div class="sub-abas" id="subAbasSalao">
       <button type="button" data-sub="dados"     onclick="trocarAbaSalao('dados')">Dados</button>
       <button type="button" data-sub="aparencia" onclick="trocarAbaSalao('aparencia')">Aparência do link</button>
+      <button type="button" data-sub="notificacoes" onclick="trocarAbaSalao('notificacoes')">Notificações</button>
     </div>
 
     <div class="sub-tela" data-sub="dados">
@@ -5120,6 +5148,100 @@ function pintarSalao(){
       </div><!-- /ap-grade -->
     </div><!-- /card -->
     </div><!-- /sub-tela aparencia -->
+
+    <!-- AS TRES MENSAGENS QUE NASCEM DA AGENDA. Nao ha campanha aqui, nem
+         promocao: confirmacao, lembrete e resumo sao consequencia de um
+         agendamento existir, e por isso quem as cria e um gatilho no banco,
+         nao um botao. Esta tela so liga e desliga.
+         (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <div class="sub-tela" data-sub="notificacoes">
+    <div class="card">
+      <h3 class="secao" style="margin-top:0">Mensagens da agenda</h3>
+      <p class="secao-sub">Tres mensagens, e so estas tres: quando a cliente
+        marca, um lembrete antes do horario, e o resumo do dia para quem
+        trabalha. Nada de promocao.</p>
+
+      <div id="avisoWhats"></div>
+
+      <div class="campo" style="margin-top:16px">
+        <label class="check"><input type="checkbox" id="nConfirma">
+          <span><b>Confirmação</b> — assim que o horário é marcado, a cliente
+          recebe data, horário, serviço e com quem.</span></label>
+      </div>
+
+      <div class="campo" style="margin-top:12px">
+        <label class="check"><input type="checkbox" id="nProfNovo">
+          <span><b>Aviso para quem vai atender</b> — a profissional recebe o
+          novo agendamento da agenda dela. Cada uma pode desligar o dela em
+          Equipe.</span></label>
+      </div>
+
+      <div class="linha-fina" style="margin:18px 0"></div>
+
+      <div class="campo">
+        <label class="check"><input type="checkbox" id="nLembrete"
+                 onchange="pintarNotificacoes(true)">
+          <span><b>Lembrete</b> — uma vez, antes do horário.</span></label>
+      </div>
+      <div class="campo" id="caixaLembrete" style="margin-top:10px">
+        <label>Enviar</label>
+        <select id="nLembreteMin">
+          <option value="30">30 minutos antes</option>
+          <option value="60">1 hora antes</option>
+          <option value="120">2 horas antes</option>
+          <option value="180">3 horas antes</option>
+          <option value="360">6 horas antes</option>
+          <option value="720">12 horas antes</option>
+          <option value="1440">24 horas antes</option>
+        </select>
+      </div>
+
+      <div class="linha-fina" style="margin:18px 0"></div>
+
+      <div class="campo">
+        <label class="check"><input type="checkbox" id="nResumo"
+                 onchange="pintarNotificacoes(true)">
+          <span><b>Resumo do dia</b> — a agenda de hoje, numa mensagem só, de
+          manhã.</span></label>
+      </div>
+      <div id="caixaResumo">
+        <div class="dupla" style="margin-top:10px">
+          <div class="campo"><label>Horário do resumo</label>
+            <select id="nResumoHora"></select></div>
+          <div class="campo"><label>O que entra no resumo</label>
+            <select id="nResumoPeriodo" onchange="pintarNotificacoes(true)">
+              <option value="dia">O dia inteiro</option>
+              <option value="manha">Só a manhã</option>
+              <option value="tarde">Só a tarde</option>
+            </select></div>
+        </div>
+        <div class="dupla" id="caixaPeriodo">
+          <div class="campo"><label>A manhã começa e termina</label>
+            <div style="display:flex;gap:8px">
+              <select id="nManhaIni"></select><select id="nManhaFim"></select>
+            </div></div>
+          <div class="campo"><label>A tarde começa e termina</label>
+            <div style="display:flex;gap:8px">
+              <select id="nTardeIni"></select><select id="nTardeFim"></select>
+            </div></div>
+        </div>
+      </div>
+
+      <div class="card-acoes">
+        <button class="btn btn-p" onclick="salvarNotificacoes()">Salvar notificações</button>
+        <span id="salvouNotif" class="salvou"></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3 class="secao" style="margin-top:0">O que já foi preparado</h3>
+      <p class="secao-sub">As ultimas mensagens desta agenda, com o estado de
+        cada uma. Enquanto o WhatsApp nao estiver conectado elas ficam em
+        "pendente" — e pendente quer dizer pendente, nao enviada.</p>
+      <div id="historicoNotif"></div>
+    </div>
+    </div><!-- /sub-tela notificacoes -->
+
     ${Dados.ligado ? '' : `
     <div class="aviso info" style="margin-top:14px">
       <b>Nesta demonstração as fotos ficam no seu navegador.</b><br>
@@ -5131,8 +5253,183 @@ function pintarSalao(){
   // Depois do innerHTML: os botões da janela só existem agora.
   pintarJanelaAgenda();
   pintarTetoOnline();
+  pintarNotificacoes();
   pintarAparencia();
   trocarAbaSalao(subAbaSalao);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AS NOTIFICAÇÕES DA AGENDA
+
+   Espelha o 21_notificacoes.sql chave por chave, com os MESMOS padrões. Se
+   divergirem, o dono vê na tela um ajuste que o banco não usa — e mexer sem
+   mexer é o pior tipo de configuração.
+
+     notifConfirma      true    a cliente recebe quando marca
+     notifProfNovo      true    quem atende recebe o horário novo
+     notifLembrete      true    existe lembrete
+     notifLembreteMin   120     quantos minutos antes
+     notifResumo        false   o resumo do dia começa DESLIGADO
+     notifResumoHora    8
+     notifResumoPeriodo 'dia'
+
+   ⚠ O resumo nasce desligado de propósito, e é o único. Confirmação e
+   lembrete a cliente espera receber; o resumo é uma mensagem por dia para o
+   dono, todo dia, e ligar isso por conta de uma publicação seria mandar
+   mensagem que ninguém pediu — e cobrar a cota dele por ela.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const NOTIF_PADRAO = { notifConfirma:true, notifProfNovo:true,
+  notifLembrete:true, notifLembreteMin:120, notifResumo:false,
+  notifResumoHora:8, notifResumoPeriodo:'dia',
+  notifManhaIni:0, notifManhaFim:12, notifTardeIni:12, notifTardeFim:24 };
+
+const horasDoDia = (sel, val) => {
+  const el = document.getElementById(sel);
+  if(!el) return;
+  el.innerHTML = Array.from({length:25}, (_, h) =>
+    `<option value="${h}"${h === val ? ' selected' : ''}>${
+      String(h).padStart(2,'0')}:00</option>`).join('');
+};
+
+function pintarNotificacoes(soVisibilidade){
+  const marcar = (id, v) => { const e = document.getElementById(id); if(e) e.checked = !!v; };
+  const escolher = (id, v) => { const e = document.getElementById(id); if(e) e.value = String(v); };
+
+  if(!soVisibilidade){
+    const cfg = Object.assign({}, NOTIF_PADRAO, (acharSalao(salaoAtual) || {}).cfg || {});
+    marcar('nConfirma', cfg.notifConfirma !== false);
+    marcar('nProfNovo', cfg.notifProfNovo !== false);
+    marcar('nLembrete', cfg.notifLembrete !== false);
+    escolher('nLembreteMin', Number(cfg.notifLembreteMin) || 120);
+    marcar('nResumo', cfg.notifResumo === true);
+    escolher('nResumoPeriodo', cfg.notifResumoPeriodo || 'dia');
+    horasDoDia('nResumoHora', Number(cfg.notifResumoHora ?? 8));
+    horasDoDia('nManhaIni',  Number(cfg.notifManhaIni  ?? 0));
+    horasDoDia('nManhaFim',  Number(cfg.notifManhaFim  ?? 12));
+    horasDoDia('nTardeIni',  Number(cfg.notifTardeIni  ?? 12));
+    horasDoDia('nTardeFim',  Number(cfg.notifTardeFim  ?? 24));
+  }
+
+  // Some o que não vale: escolher "24 horas antes" com o lembrete desligado é
+  // um ajuste que não faz nada, e ajuste que não faz nada confunde.
+  const ver = (id, sim) => {
+    const e = document.getElementById(id);
+    if(e) e.style.display = sim ? '' : 'none';
+  };
+  const temLembrete = (document.getElementById('nLembrete') || {}).checked;
+  const temResumo   = (document.getElementById('nResumo')   || {}).checked;
+  const periodo     = (document.getElementById('nResumoPeriodo') || {}).value;
+  ver('caixaLembrete', temLembrete);
+  ver('caixaResumo',   temResumo);
+  ver('caixaPeriodo',  temResumo && periodo !== 'dia');
+
+  pintarAvisoWhats();
+}
+
+/* ⚠ A TELA NÃO PODE PROMETER O QUE O CANAL NÃO ENTREGA.
+
+   Enquanto a conta na Meta não estiver aprovada, nada sai — e o dono precisa
+   ler isso AQUI, na hora de ligar a confirmação, e não descobrir três dias
+   depois que a cliente nunca recebeu nada. */
+function pintarAvisoWhats(){
+  const alvo = document.getElementById('avisoWhats');
+  if(!alvo) return;
+  alvo.innerHTML = `<div class="aviso info" style="margin-bottom:0">
+    <b>O WhatsApp ainda não está conectado.</b><br>
+    As mensagens já são preparadas e ficam guardadas com o horário certo —
+    aparecem aqui embaixo como <b>pendentes</b>. No dia em que a conta for
+    aprovada na Meta, elas passam a sair sozinhas, sem mexer em nada.</div>`;
+}
+
+function salvarNotificacoes(){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  const liga = id => !!(document.getElementById(id) || {}).checked;
+  const num  = id => Number((document.getElementById(id) || {}).value);
+
+  sl.cfg = Object.assign({}, sl.cfg, {
+    notifConfirma: liga('nConfirma'),
+    notifProfNovo: liga('nProfNovo'),
+    notifLembrete: liga('nLembrete'),
+    notifLembreteMin: num('nLembreteMin') || 120,
+    notifResumo: liga('nResumo'),
+    notifResumoHora: num('nResumoHora') || 0,
+    notifResumoPeriodo: (document.getElementById('nResumoPeriodo') || {}).value || 'dia',
+    notifManhaIni: num('nManhaIni') || 0,
+    notifManhaFim: num('nManhaFim') || 12,
+    notifTardeIni: num('nTardeIni') || 12,
+    notifTardeFim: num('nTardeFim') || 24,
+  });
+  salvar();
+  const aviso = document.getElementById('salvouNotif');
+  if(aviso){
+    aviso.textContent = 'Salvo';
+    setTimeout(() => {
+      const ainda = document.getElementById('salvouNotif');
+      if(ainda) ainda.textContent = '';
+    }, 2600);
+  }
+}
+
+/* ── O HISTÓRICO ──────────────────────────────────────────────────────────
+   Lido direto do banco, e não do `bd`: a fila de notificação não passa pelo
+   sincronizador e não deve — ela cresce sem teto, e baixá-la inteira a cada
+   abertura do painel seria repetir com mensagem o erro que a clientela já
+   tem. Vinte linhas bastam para responder "a cliente recebeu?". */
+const ROTULO_NOTIF = { confirmacao:'Confirmação', lembrete:'Lembrete',
+                       resumo:'Resumo do dia', novo:'Novo agendamento' };
+const ROTULO_ESTADO = { pendente:['pendente','t-pend'], enviando:['enviando','t-pend'],
+  enviado:['enviado','t-conf'], entregue:['entregue','t-conf'],
+  lido:['lido','t-conc'], falhou:['falhou','t-falt'],
+  cancelado:['cancelado','t-canc'] };
+
+async function pintarHistoricoNotif(){
+  const alvo = document.getElementById('historicoNotif');
+  if(!alvo) return;
+  if(!NA_NUVEM){
+    alvo.innerHTML = '<div class="vazio">O histórico precisa do banco.</div>';
+    return;
+  }
+  let linhas = [];
+  try{
+    linhas = await Dados.lista('notificacoes', { salaoId: salaoAtual });
+  }catch(e){
+    alvo.innerHTML = '<div class="vazio">Não consegui ler o histórico agora.</div>';
+    return;
+  }
+  linhas = linhas.sort((a, b) =>
+    String(b.criadoEm || '').localeCompare(String(a.criadoEm || ''))).slice(0, 20);
+
+  if(!linhas.length){
+    alvo.innerHTML = '<div class="vazio"><b>Nada preparado ainda</b>'
+      + 'A primeira mensagem nasce no próximo horário marcado.</div>';
+    return;
+  }
+  alvo.innerHTML = `<table class="tabela"><thead><tr>
+      <th>Quem</th><th>Tipo</th><th>Quando sai</th><th>Estado</th>
+    </tr></thead><tbody>${linhas.map(n => {
+      const e = ROTULO_ESTADO[n.status] || [n.status, 't-pend'];
+      return `<tr>
+        <td>${escapar(n.clienteId ? nomeCliente(n.clienteId)
+              : (acharProf(n.profissionalId) || {}).nome || 'o salão')}</td>
+        <td>${escapar(ROTULO_NOTIF[n.tipo] || n.tipo)}</td>
+        <td style="white-space:nowrap">${escapar(quandoSai(n.quando))}</td>
+        <td><span class="tag ${e[1]}">${e[0]}</span>${
+          n.motivo ? `<div style="font-size:12px;color:var(--txt2)">${
+            escapar(n.motivo)}</div>` : ''}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+// No fuso do SALÃO, como todo o resto — e é o mesmo cuidado que decide a hora
+// que vai escrita dentro da mensagem.
+function quandoSai(iso){
+  if(!iso) return '—';
+  try{
+    return new Date(iso).toLocaleString('pt-BR',
+      { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit',
+        timeZone: fusoDoSalaoAtual() });
+  }catch(e){ return String(iso).slice(0, 16).replace('T', ' '); }
 }
 
 /* Qual das duas metades de "Meu salão" está aberta.
@@ -5155,6 +5452,10 @@ function trocarAbaSalao(qual){
   for(const t of document.querySelectorAll('#painelSalao .sub-tela')){
     t.classList.toggle('on', t.dataset.sub === qual);
   }
+  /* O histórico só é buscado quando alguém abre a aba. Buscar sempre seria
+     uma ida ao servidor por abertura de "Meu salão", para uma tabela que a
+     maioria das visitas nem olha. */
+  if(qual === 'notificacoes') pintarHistoricoNotif();
   if(window.aplicarIcones) aplicarIcones(document.getElementById('painelSalao'));
 }
 
@@ -5881,6 +6182,66 @@ function medidor(rotulo, usados, teto){
     </div>`;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   O USO DO PLANO, PELO BANCO
+
+   Cliente, serviço e mensagem do mês vêm do `uso_do_plano()` — uma chamada,
+   quatro respostas, pelo mesmo motivo do `painel_hoje()`.
+
+   ⚠ E vêm do banco, e não de uma contagem em `bd`, por duas razões que valem
+   mais que a ida ao servidor:
+
+     · o número tem que ser o MESMO que o gatilho usa para recusar. Dois
+       contadores para a mesma cota é o jeito de a tela dizer "483 de 500" e
+       o cadastro ser recusado;
+     · mensagem enviada não está no `bd` e nunca vai estar: o painel não
+       baixa a fila de notificação inteira, e não deve.
+
+   Falha em silêncio de propósito: o resto da tela do plano — que é o que o
+   dono foi ver — não pode sumir porque um medidor não carregou. */
+let usoDoPlano = null;
+
+async function carregarUsoDoPlano(){
+  if(!NA_NUVEM || !salaoAtual) return;
+  try{ usoDoPlano = await Dados.chamar('uso_do_plano', { p_salao: salaoAtual }); }
+  catch(e){ usoDoPlano = null; console.info('[AgendaPro] uso do plano:', e.message); }
+  pintarMedidoresDoPlano();
+}
+
+function pintarMedidoresDoPlano(){
+  const alvo = document.getElementById('medidoresDoPlano');
+  if(!alvo) return;
+  const u = usoDoPlano;
+  if(!u){ alvo.innerHTML = ''; return; }
+  // Teto nulo é "sem limite": barra que nunca enche não informa nada, então
+  // a linha simplesmente não aparece.
+  const linha = (rot, x) => (x && x.teto != null)
+    ? medidor(rot, Number(x.usado || 0), Number(x.teto)) : '';
+  alvo.innerHTML = linha('Clientes na ficha', u.clientes)
+                 + linha('Serviços no cardápio', u.servicos)
+                 + linha('Mensagens no mês', u.mensagens)
+                 + avisoDeMensagens(u.mensagens);
+}
+
+/* Os três degraus do item 28. O aviso muda de tom com o quanto falta, porque
+   "está perto" e "acabou" pedem reações diferentes do dono. */
+function avisoDeMensagens(m){
+  if(!m || m.teto == null || Number(m.teto) === 0) return '';
+  const usado = Number(m.usado || 0), teto = Number(m.teto);
+  const pct = teto ? usado / teto : 0;
+  if(pct >= 1) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
+    <b>O limite de mensagens do seu plano foi atingido.</b><br>
+    Confirmação, lembrete e resumo param até virar o mês. A agenda continua
+    funcionando normalmente.</div>`;
+  if(pct >= 0.9) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
+    <b>Atenção: você está usando quase todo o limite de mensagens.</b><br>
+    Faltam ${teto - usado} de ${teto} neste mês.</div>`;
+  if(pct >= 0.8) return `<div class="aviso info" style="margin-top:13px;margin-bottom:0">
+    Você está próximo do limite de mensagens do seu plano —
+    ${usado} de ${teto} neste mês.</div>`;
+  return '';
+}
+
 function pintarPlano(){
   const a = assinaturaAtual();
   const p = planoEfetivo();                    // o que vale hoje, não o contratado
@@ -5919,6 +6280,12 @@ function pintarPlano(){
       </div>
       ${medidor('Profissionais na agenda', usados, limite)}
       ${tetoMes != null ? medidor('Horários em ' + mesPorExtenso(diaAtual), noMes, tetoMes) : ''}
+      <!-- Os tres medidores novos vem do BANCO, pelo uso_do_plano(). Contar
+           cliente no navegador daria o numero errado no dia em que o painel
+           parar de baixar a clientela inteira — e daria um numero DIFERENTE
+           do que o gatilho usa para recusar, que e a pior forma de errar.
+           (Sem crase e sem acento: comentario dentro de template literal.) -->
+      <div id="medidoresDoPlano"></div>
       ${mesCheio ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>Você usou os ${tetoMes} horários deste mês.</b><br>
         A agenda continua aberta para consultar e atender; para marcar mais,

@@ -66,8 +66,20 @@ secao('Meu salão abre em Dados');
 
 igual('a aba inicial é a de dados',
   await pg.evaluate(() => subAbaSalao), 'dados');
-igual('há duas abas',
-  await pg.evaluate(() => document.querySelectorAll('#subAbasSalao button').length), 2);
+/* ⚠ QUAIS abas, e não QUANTAS.
+
+   Estava `length === 2`, e a aba de Notificações entrou: o teste reprovou
+   dizendo que havia três quando devia haver duas — culpando a mudança certa.
+   Número escrito à mão num teste envelhece igual ao de qualquer outro lugar,
+   com o agravante de que aqui ele parece uma asserção.
+
+   O que importa não é quantas são: é que as duas que este arquivo mede
+   existam, e que abrir uma feche a outra. */
+const abasDoSalao = await pg.evaluate(() =>
+  [...document.querySelectorAll('#subAbasSalao button')].map(b => b.dataset.sub));
+verdade('as abas de dados e de aparência existem',
+  abasDoSalao.includes('dados') && abasDoSalao.includes('aparencia'),
+  JSON.stringify(abasDoSalao));
 verdade('os dados do estabelecimento estão à vista',
   await visivel('#cNome'));
 verdade('e a prévia do celular NÃO ocupa espaço nesta aba',
