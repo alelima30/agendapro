@@ -113,28 +113,85 @@ console.log('\nA varredura sabe achar o que procura');
 }
 
 console.log('\nAs funções de borda leem os segredos do ambiente, nunca de arquivo');
-for(const [rel, exigidas] of [
-  ['supabase/functions/enviar-campanha/index.ts',
-   ['WHATSAPP_TOKEN','WHATSAPP_PHONE_ID','SUPABASE_SERVICE_ROLE_KEY']],
-  ['supabase/functions/criar-cobranca/index.ts',
-   ['MP_ACCESS_TOKEN','SUPABASE_SERVICE_ROLE_KEY']],
-  ['supabase/functions/webhook-mp/index.ts',
-   ['MP_ACCESS_TOKEN','MP_WEBHOOK_SECRET','SUPABASE_SERVICE_ROLE_KEY']],
-]){
-  const f = path.join(RAIZ, rel);
-  verdade(`${path.basename(path.dirname(rel))} existe`, fs.existsSync(f));
-  if(!fs.existsSync(f)) continue;
-  const txt = fs.readFileSync(f, 'utf8');
-  for(const v of exigidas){
-    verdade(`${path.basename(path.dirname(rel))}: ${v} vem de Deno.env`,
+
+/* ⚠ QUEM É CONFERIDO SAI DO DISCO, NÃO DE UMA LISTA AQUI.
+
+   Estava uma lista escrita à mão com três funções. Nasceram mais duas — o
+   `enviar-notificacoes` e o `status-whatsapp` — e nenhuma das duas foi
+   conferida por uma linha sequer: nem o segredo escrito no arquivo, nem o log
+   com o corpo da requisição dentro. O teste continuou verde o tempo todo,
+   porque ele estava passando naquilo que sabia existir.
+
+   É o mesmo defeito de lista envelhecida que já apareceu três vezes neste
+   projeto (nas abas do salão, no conferidor de aparência, aqui). A diferença é
+   que estas conferências são as que separam um token de pagamento de uma
+   requisição HTTP de qualquer pessoa.
+
+   Agora a varredura é do disco: função de borda nova nasce coberta, sem
+   ninguém precisar lembrar de escrever teste para ela. */
+/* Só o CÓDIGO. Comentário que descreve o erro não é o erro — e o `//` só é
+   comentário quando não vem depois de `:`, senão o `https://` de toda URL
+   apagaria o resto da linha. */
+const semComentarios = t => t
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+const DIR_FUNCOES = path.join(RAIZ, 'supabase', 'functions');
+const FUNCOES = fs.existsSync(DIR_FUNCOES)
+  ? fs.readdirSync(DIR_FUNCOES)
+      .filter(d => fs.existsSync(path.join(DIR_FUNCOES, d, 'index.ts')))
+      .sort()
+  : [];
+
+/* O que cada uma PRECISA ler do ambiente. Serve para pegar o contrário do
+   caso acima: uma função que parou de ler um segredo do ambiente porque
+   alguém o escreveu em outro lugar. Função que não está aqui ainda leva todas
+   as conferências gerais abaixo. */
+const EXIGIDAS = {
+  'enviar-campanha':      ['WHATSAPP_TOKEN','WHATSAPP_PHONE_ID','SUPABASE_SERVICE_ROLE_KEY'],
+  'enviar-notificacoes':  ['WHATSAPP_TOKEN','WHATSAPP_PHONE_ID','SUPABASE_SERVICE_ROLE_KEY'],
+  'criar-cobranca':       ['MP_ACCESS_TOKEN','SUPABASE_SERVICE_ROLE_KEY'],
+  'webhook-mp':           ['MP_ACCESS_TOKEN','MP_WEBHOOK_SECRET','SUPABASE_SERVICE_ROLE_KEY'],
+  'status-whatsapp':      ['META_APP_SECRET','WHATSAPP_VERIFY_TOKEN','SUPABASE_SERVICE_ROLE_KEY'],
+};
+
+verdade(`achei as funções de borda no disco (${FUNCOES.length})`,
+  FUNCOES.length > 0, 'a pasta supabase/functions/ mudou de forma');
+
+// E a lista acima não pode apodrecer no outro sentido: nome que não existe
+// mais é conferência que ninguém está fazendo, parecendo que está.
+const fantasmas = Object.keys(EXIGIDAS).filter(n => !FUNCOES.includes(n));
+verdade('nenhuma função da lista sumiu do disco', fantasmas.length === 0,
+  fantasmas.join(', ') + ' — apague a entrada ou traga o arquivo de volta');
+
+for(const nome of FUNCOES){
+  const rel = path.join('supabase', 'functions', nome, 'index.ts');
+  const txt = fs.readFileSync(path.join(RAIZ, rel), 'utf8');
+
+  for(const v of (EXIGIDAS[nome] || [])){
+    verdade(`${nome}: ${v} vem de Deno.env`,
       new RegExp(`Deno\\.env\\.get\\(['"]${v}['"]\\)`).test(txt));
   }
   for(const p of PROIBIDOS){
     if(p.re.test(txt)) nao(`${rel}: valor de ${p.nome} escrito no arquivo`);
   }
-  // Log com o token dentro vaza o segredo para quem lê o painel de logs.
-  verdade(`${path.basename(path.dirname(rel))}: não loga requisição nem corpo`,
-    !/console\.(log|info)\s*\(\s*(req|corpo|headers)\b/.test(txt));
+
+  /* Log com o token, o destino ou o corpo dentro vaza para quem lê o painel
+     de logs — que é gente de suporte, não só quem publica.
+
+     `corpo\w*` e não `corpo\b`: o `status-whatsapp` chama de `corpoBruto` o
+     corpo cru que ele assina, e um `\b` depois de "corpo" não casa com ele.
+     `alvo` e `lote` são como a fila chega no worker de envio: dentro deles vão
+     o telefone da cliente e o texto da mensagem.
+
+     ⚠ E a busca é no código SEM COMENTÁRIO. A primeira versão reprovou o
+     `criar-cobranca` por causa da linha que diz, em comentário, "Nunca
+     console.error(req) nem o corpo" — o guarda leu o aviso como se fosse a
+     infração. Um teste que acusa quem documentou o cuidado ensina a apagar o
+     comentário, que é o contrário do que ele existe para fazer. */
+  verdade(`${nome}: não loga requisição, corpo nem destino`,
+    !/console\.(log|info|error|warn)\s*\(\s*(req|corpo\w*|headers|alvo|lote)\b/
+      .test(semComentarios(txt)));
 }
 
 /* ⚠ E as funções de borda NÃO podem estar entre os arquivos que o navegador

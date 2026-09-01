@@ -120,6 +120,12 @@ Deno.serve(async (req) => {
      aviso que ninguém recebeu. Devolve 503, a fila fica intacta, e o painel
      continua dizendo pendente — que é a verdade. */
   if (!WA_TOKEN || !WA_PHONE_ID) {
+    /* No LOG, e não só na resposta. Quem vai olhar aqui é alguém tentando
+       entender por que a fila não anda — e a resposta HTTP some: o `pg_cron`
+       chama, recebe e descarta o corpo. Sem esta linha, o log da função mostra
+       uma parede de 503 sem dizer o que falta. */
+    console.error('enviar-notificacoes: faltam WHATSAPP_TOKEN e/ou '
+                + 'WHATSAPP_PHONE_ID. A fila fica intacta, com tudo pendente.');
     return new Response(JSON.stringify({
       erro: 'WhatsApp não configurado',
       detalhe: 'Faltam WHATSAPP_TOKEN e/ou WHATSAPP_PHONE_ID. '
@@ -156,16 +162,32 @@ Deno.serve(async (req) => {
         p_msg: r.ok ? null : r.msg,
       });
 
-      if (r.ok) enviadas++; else falhas++;
+      if (r.ok) { enviadas++; }
+      else {
+        falhas++;
+        /* O código do erro, nunca o destino nem o corpo: o log de função é
+           lido por gente de suporte, e o corpo tem nome e horário de cliente.
+           O motivo por extenso fica na linha da fila, que o painel mostra. */
+        console.error('enviar-notificacoes: falhou', alvo.tipo, r.codigo);
+      }
 
       // Cadência. Sem ela, um lote grande de lembretes sai como rajada — e
       // rajada é o padrão que a Meta lê como robô.
       await new Promise((s) => setTimeout(s, ENTRE_MS));
     }
 
+    /* A volta que não fez nada não vira linha: são 1.440 chamadas por dia, e
+       a esmagadora maioria não tem o que despachar. Log que enche sozinho é
+       log que ninguém abre. */
+    if (resumos || enviadas || falhas) {
+      console.log('enviar-notificacoes',
+        JSON.stringify({ resumos, enviadas, falhas }));
+    }
     return new Response(JSON.stringify({ resumos, enviadas, falhas }), {
       headers: { 'Content-Type': 'application/json' } });
   } catch (e) {
+    console.error('enviar-notificacoes falhou:',
+      String((e as Error).message).slice(0, 300));
     return new Response(JSON.stringify({ erro: String((e as Error).message) }), {
       status: 500, headers: { 'Content-Type': 'application/json' } });
   }
