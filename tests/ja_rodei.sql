@@ -18,11 +18,18 @@
 -- o 98_modulos.sql cola inteiro, então o marco basta, e um arquivo curto é
 -- um arquivo que a pessoa realmente usa.
 --
--- O veredito olha os DOIS marcos mais novos — `uso_do_plano` e a coluna
--- `id` do par serviço+profissional. É o par que importa: dá para ter rodado
--- uma versão de ontem, com as cotas já lá, e não ter a coluna do par. Nesse
--- estado a tela de preço por profissional grava e PERDE linha em silêncio,
--- que é o pior defeito que este projeto já teve.
+-- O veredito olha os DOIS marcos mais novos — a assinatura de quatro
+-- argumentos do `notificacao_status` e a coluna `id` do par
+-- serviço+profissional. É o par que importa: dá para ter rodado uma versão de
+-- ontem, com as cotas já lá, e não ter a coluna do par. Nesse estado a tela de
+-- preço por profissional grava e PERDE linha em silêncio, que é o pior defeito
+-- que este projeto já teve.
+--
+-- ⚠ O marco mais novo é sempre uma ASSINATURA, não só o nome. O
+-- `notificacao_status` existia com dois argumentos e passou a ter quatro; se o
+-- conferidor procurasse só pelo nome, um banco com a versão velha — que não
+-- sabe tratar `failed`, e por isso deixa mensagem não entregue dizendo
+-- "enviado" para sempre — responderia "tudo instalado".
 --
 -- Conferido nos dois sentidos antes de existir: num banco completo diz
 -- "TUDO INSTALADO", e num banco com só a base antiga diz "FALTA COLAR".
@@ -53,7 +60,9 @@ select
        then '✗ FALTA'  else '✓ ok' end                          as "21 notificações",
   case when to_regprocedure('public.uso_do_plano(uuid)') is null
        then '✗ FALTA'  else '✓ ok' end                          as "22 cotas",
-  case when to_regprocedure('public.uso_do_plano(uuid)') is not null
+  case when to_regprocedure('public.notificacao_status(text,text,text,text)') is null
+       then '✗ FALTA'  else '✓ ok' end                          as "webhook de status",
+  case when to_regprocedure('public.notificacao_status(text,text,text,text)') is not null
         and exists (select 1 from information_schema.columns
                      where table_name = 'servicos_profissionais'
                        and column_name = 'id')

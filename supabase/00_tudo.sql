@@ -8031,6 +8031,14 @@ create index if not exists ix_notif_salao
   on public.notificacoes(salao_id, criado_em desc);
 create index if not exists ix_notif_cliente
   on public.notificacoes(cliente_id, criado_em desc);
+/* O índice do webhook de status. A Meta avisa de duas a três vezes por
+   mensagem (delivered, read, e às vezes failed), e cada aviso é um `update
+   ... where wam_id = ?`. Sem índice isso é uma varredura da fila inteira por
+   aviso — barato hoje, com a fila vazia, e caro exatamente quando o volume
+   chegar. Parcial porque só a linha já enviada tem wam_id. */
+create index if not exists ix_notif_wam
+  on public.notificacoes(wam_id)
+  where wam_id is not null;
 
 alter table public.notificacoes enable row level security;
 alter table public.notificacoes force row level security;
@@ -8836,12 +8844,42 @@ begin
   end if;
 end $$;
 
-/* O webhook de status da Meta, quando existir, casa pelo `wam_id` e move
-   para entregue ou lido. Enquanto o webhook não existir, estes dois estados
-   simplesmente não aparecem — em vez de aparecerem estimados. */
-create or replace function public.notificacao_status(p_wam_id text, p_status text)
+/* O webhook de status da Meta casa pelo `wam_id`. Três avisos entram por aqui:
+
+     delivered → entregue
+     read      → lido
+     failed    → falhou
+
+   ── POR QUE O `failed` VALE MAIS DO QUE PARECE ─────────────────────────────
+   Os dois primeiros são informação. O terceiro é correção.
+
+   `failed` é a Meta dizendo que ACEITOU a mensagem — devolveu `wam_id`, e por
+   isso a linha já está 'enviado' e já custou cota — e depois não conseguiu
+   entregar: número que não tem WhatsApp, bloqueio, aparelho que nunca voltou.
+   Sem tratá-lo, a linha diz "enviado" para sempre, e o salão continua achando
+   que avisou.
+
+   E a cota volta sozinha: `mensagens_no_mes()` conta só enviado/entregue/
+   lido, então sair para 'falhou' devolve o crédito sem nenhuma conta a mais.
+   Mensagem que não chegou não pode custar.
+
+   `sent` chega junto e é ignorado de propósito: o worker já escreveu
+   'enviado' quando a API respondeu OK, e é ele quem sabe a hora certa. */
+drop function if exists public.notificacao_status(text, text);
+create or replace function public.notificacao_status(
+  p_wam_id text, p_status text,
+  p_codigo text default null, p_msg text default null)
 returns void language plpgsql security definer set search_path = public as $$
 begin
+  /* Só cai para 'falhou' quem ainda está em 'enviado'. Depois de entregue ou
+     lido, um `failed` atrasado é ruído: a mensagem chegou, e alguém leu. */
+  if p_status = 'falhou' then
+    update public.notificacoes
+       set status = 'falhou', erro_codigo = p_codigo, erro_msg = p_msg
+     where wam_id = p_wam_id and status = 'enviado';
+    return;
+  end if;
+
   if p_status not in ('entregue','lido') then return; end if;
   update public.notificacoes
      set status = p_status
@@ -8856,10 +8894,12 @@ revoke all on function public.notificacao_proxima(int)
   from public, anon, authenticated;
 revoke all on function public.notificacao_resultado(uuid, boolean, text, text, text)
   from public, anon, authenticated;
-revoke all on function public.notificacao_status(text, text)
+revoke all on function public.notificacao_status(text, text, text, text)
   from public, anon, authenticated;
 
 comment on function public.uso_do_plano(uuid) is
   'Uso e teto de profissionais, clientes, serviços e mensagens do mês, num jsonb só.';
 comment on function public.notificacao_proxima(int) is
   'Fila do worker. Só service_role: contorna o RLS para atender todos os salões.';
+comment on function public.notificacao_status(text, text, text, text) is
+  'Webhook de status da Meta: entregue, lido e falhou, casados pelo wam_id. Nunca anda para trás.';

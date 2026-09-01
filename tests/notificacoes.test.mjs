@@ -490,6 +490,101 @@ igual('a dona não consegue subir o próprio plano pelo painel',
   (await banco.query(`select plano from public.assinaturas where salao_id=$1`,
     [W.salao])).rows[0].plano, 'salao');
 
+/* ══════════════════════════════════════════════════════════════════════════
+   O WEBHOOK DE STATUS DA META
+
+   Até aqui a fila só sabia de 'enviado'. `entregue` e `lido` são informação;
+   `falhou` é CORREÇÃO — a Meta aceitou a mensagem, devolveu wam_id, a linha
+   virou 'enviado' e já custou cota, e só depois ela descobre que não dá para
+   entregar. Sem este caminho, a linha mente para sempre.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('14) O que a Meta conta depois do envio');
+
+// Uma linha como o worker a deixa depois de a Graph API responder OK.
+async function jaEnviada(salao, wam){
+  return (await banco.query(
+    `insert into public.notificacoes
+       (salao_id, tipo, destino, quando, corpo, chave,
+        status, enviado_em, wam_id)
+     values ($1, 'confirmacao', '5511988887777', now(), 'corpo qualquer', $2,
+             'enviado', now(), $3)
+     returning id`, [salao, 'teste:' + wam, wam])).rows[0].id;
+}
+const estado = async id => (await banco.query(
+  `select status, erro_codigo, erro_msg from public.notificacoes where id=$1`,
+  [id])).rows[0];
+const avisar = (wam, st, cod, msg) => banco.query(
+  `select public.notificacao_status($1,$2,$3,$4)`, [wam, st, cod ?? null, msg ?? null]);
+
+const n1 = await jaEnviada(W.salao, 'wamid.E1');
+await avisar('wamid.E1', 'entregue');
+igual('delivered move de enviado para entregue', (await estado(n1)).status, 'entregue');
+await avisar('wamid.E1', 'lido');
+igual('e read move para lido', (await estado(n1)).status, 'lido');
+
+/* ⚠ A Meta NÃO garante ordem. Um `delivered` atrasado chegando depois do
+   `read` não pode desfazer o que já se sabe. */
+await avisar('wamid.E1', 'entregue');
+igual('um delivered atrasado não desfaz o lido', (await estado(n1)).status, 'lido');
+
+// E o caminho contrário: `read` chegando primeiro, sem o `delivered`.
+const n2 = await jaEnviada(W.salao, 'wamid.E2');
+await avisar('wamid.E2', 'lido');
+igual('read chegando antes de delivered também vale',
+  (await estado(n2)).status, 'lido');
+
+// A falha, com o motivo que a cliente vai ouvir da recepção.
+const n3 = await jaEnviada(W.salao, 'wamid.E3');
+await avisar('wamid.E3', 'falhou', '131026', 'Message undeliverable');
+const naoEntregue = await estado(n3);
+igual('failed move para falhou', naoEntregue.status, 'falhou');
+igual('guardando o código do erro', naoEntregue.erro_codigo, '131026');
+verdade('e o motivo por extenso',
+  /undeliverable/i.test(naoEntregue.erro_msg || ''), naoEntregue.erro_msg);
+
+/* Um `failed` depois de lido é contradição: a mensagem chegou e alguém abriu.
+   Ruído da Meta não pode apagar o que já foi visto. */
+await avisar('wamid.E1', 'falhou', '131026', 'atrasado');
+igual('um failed atrasado não derruba uma mensagem já lida',
+  (await estado(n1)).status, 'lido');
+
+igual('status que não existe não mexe em nada',
+  (await (async () => { await avisar('wamid.E2', 'sei-la'); return estado(n2); })()).status,
+  'lido');
+
+/* Cancelada não ressuscita. A linha de um horário desmarcado não pode voltar
+   à vida porque um aviso da Meta chegou atrasado. */
+const n4 = await jaEnviada(W.salao, 'wamid.E4');
+await banco.query(
+  `update public.notificacoes set status='cancelado' where id=$1`, [n4]);
+await avisar('wamid.E4', 'entregue');
+igual('cancelada continua cancelada', (await estado(n4)).status, 'cancelado');
+
+/* ── A CONTA QUE FECHA SOZINHA ──────────────────────────────────────────────
+   `mensagens_no_mes()` conta enviado/entregue/lido. Sair para 'falhou' devolve
+   o crédito sem nenhuma linha de código a mais — e é o certo: mensagem que não
+   chegou não pode custar. */
+const cotaAntes = (await banco.query(
+  `select public.mensagens_no_mes($1) as n`, [W.salao])).rows[0].n;
+const n5 = await jaEnviada(W.salao, 'wamid.E5');
+const cotaComElaNoAr = (await banco.query(
+  `select public.mensagens_no_mes($1) as n`, [W.salao])).rows[0].n;
+igual('uma mensagem enviada consome uma do mês', cotaComElaNoAr, cotaAntes + 1);
+
+await avisar('wamid.E5', 'falhou', '131026', 'número não tem WhatsApp');
+const cotaDepois = (await banco.query(
+  `select public.mensagens_no_mes($1) as n`, [W.salao])).rows[0].n;
+igual('e a que a Meta não entregou devolve a cota', cotaDepois, cotaAntes);
+verdade('sem apagar a linha: o histórico continua contando o que houve',
+  (await estado(n5)).status === 'falhou');
+
+/* O índice que o webhook usa. Sem ele, cada um dos dois ou três avisos por
+   mensagem varre a fila inteira — barato hoje, caro quando o volume chegar. */
+igual('a busca pelo wam_id tem índice',
+  (await banco.query(
+    `select count(*)::int as n from pg_indexes
+      where tablename='notificacoes' and indexname='ix_notif_wam'`)).rows[0].n, 1);
+
 await banco.query(`delete from public.agendamentos where salao_id = any($1)`,
   [[A.salao, S.salao, E.salao, P.salao, C.salao, B.salao, W.salao]]);
 await banco.query(`delete from public.saloes where id = any($1)`,

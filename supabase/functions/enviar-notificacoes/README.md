@@ -102,12 +102,15 @@ tentativas. Depois disso a mensagem é dada por perdida — retentar para sempre
 
 ---
 
-## O que ainda não existe
+## A outra metade
 
-**`entregue` e `lido`.** Os dois estados só chegam pelo webhook de status da
-Meta. O `wam_id` que ela devolve já está sendo guardado em cada linha, e a
-função `notificacao_status()` já sabe casar — falta só o webhook, que entra
-junto com a conta aprovada.
+**`entregue`, `lido` e `falhou`** não saem daqui: chegam pelo webhook de status
+da Meta, que é a função ao lado — `../status-whatsapp/`, com README próprio.
 
-Enquanto ele não existir, esses dois estados **não aparecem no painel**. Não
-são estimados.
+Vale publicar as duas juntas, e o terceiro estado é o motivo. `falhou` é a Meta
+avisando que aceitou a mensagem — devolveu `wam_id`, e por isso esta função já
+escreveu `enviado` e já gastou cota — e depois não conseguiu entregar. Sem o
+webhook, essa linha diz "enviado" para sempre e o salão acha que avisou.
+
+Enquanto o webhook não estiver cadastrado, esses três estados **não aparecem no
+painel**. Não são estimados.

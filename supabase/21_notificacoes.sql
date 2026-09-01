@@ -168,6 +168,14 @@ create index if not exists ix_notif_salao
   on public.notificacoes(salao_id, criado_em desc);
 create index if not exists ix_notif_cliente
   on public.notificacoes(cliente_id, criado_em desc);
+/* O índice do webhook de status. A Meta avisa de duas a três vezes por
+   mensagem (delivered, read, e às vezes failed), e cada aviso é um `update
+   ... where wam_id = ?`. Sem índice isso é uma varredura da fila inteira por
+   aviso — barato hoje, com a fila vazia, e caro exatamente quando o volume
+   chegar. Parcial porque só a linha já enviada tem wam_id. */
+create index if not exists ix_notif_wam
+  on public.notificacoes(wam_id)
+  where wam_id is not null;
 
 alter table public.notificacoes enable row level security;
 alter table public.notificacoes force row level security;
