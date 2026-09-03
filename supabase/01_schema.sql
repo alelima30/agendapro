@@ -866,6 +866,17 @@ begin
   return v;
 end $$;
 
+/* ⚠ Ninguém chama esta função direto: quem chama é o gatilho que numera a
+   comanda, e gatilho roda como dono.
+
+   Sem este `revoke` ela ficava aberta ao `anon` — e ela ESCREVE. Medido: três
+   chamadas anônimas com o id de um salão (que a vitrine pública entrega)
+   levaram o contador dele de 1 para 3. Num laço, a comanda seguinte do salão
+   sairia numerada #847.302 em vez de #48, e esse número é o que a cliente vê
+   no papel. */
+revoke all on function public.proximo_numero(uuid, text)
+  from public, anon, authenticated;
+
 create table if not exists public.comandas (
   id             uuid primary key default gen_random_uuid(),
   salao_id       uuid not null references public.saloes(id) on delete cascade,
@@ -884,8 +895,25 @@ create table if not exists public.comandas (
 
 create index if not exists ix_comanda_salao on public.comandas(salao_id, aberta_em desc);
 
+/* ⚠ `security definer` aqui não é enfeite, e a falta dele já custou caro.
+
+   Este era o ÚNICO gatilho do projeto sem definer. Rodando como quem fez a
+   operação, ele exige que a própria dona do salão tenha permissão de executar
+   `proximo_numero` — e foi o que aconteceu quando revoguei essa função de
+   `authenticated` achando que "gatilho roda como dono": abrir comanda passou a
+   dar `permission denied`, em produção, e eu só descobri porque cinco suítes
+   reprovaram.
+
+   Com o definer, o gatilho roda como dono de verdade, e aí a `proximo_numero`
+   pode ficar fechada para todo mundo — que é o certo, porque ela ESCREVE e não
+   confere nada.
+
+   Não abre brecha: o `salao_id` que chega aqui ainda passa pelo `with check`
+   da policy de `comandas` logo depois. Uma tentativa de numerar comanda de
+   outro salão incrementa o contador e em seguida é recusada — e o incremento
+   volta atrás junto, na mesma transação. */
 create or replace function public.comanda_numera()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.numero is null then
     new.numero := public.proximo_numero(new.salao_id, 'comanda');

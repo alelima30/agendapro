@@ -184,6 +184,109 @@ console.log('\nA aparência atravessa do painel até a página da cliente');
     + 'fora (agendar.html)');
 }
 
+/* ── O AVISO DE DIREITOS AUTORAIS, EM TODA PÁGINA ─────────────────────────
+   Sem página nenhuma de fora: a tela que faltar é justamente a que alguém vai
+   abrir, copiar e dizer que não sabia. E a próxima página do projeto nasce
+   sem o aviso a menos que algo cobre — que é a função desta verificação.
+
+   O texto é conferido por inteiro, não por pedaço: aviso legal com metade da
+   frase não é aviso legal. */
+console.log('\nO aviso de direitos autorais está em todas as telas');
+{
+  const AVISO = 'AgendaPro · Todos os direitos reservados. Software protegido '
+    + 'por direitos autorais (Lei 9.610/98 e Lei 9.609/98). Reprodução, '
+    + 'distribuição ou uso não autorizado são proibidos.';
+
+  const COM_AVISO = TELAS.concat(['convite.html']);
+  for(const tela of COM_AVISO){
+    const caminho = path.join(RAIZ, tela);
+    if(!fs.existsSync(caminho)){ dizer(false, tela + ' não existe'); continue; }
+    const texto = fs.readFileSync(caminho, 'utf8');
+    dizer(texto.includes(AVISO), tela + ' traz o aviso, por inteiro',
+      texto.includes('rodape-legal')
+        ? 'o bloco existe mas o TEXTO mudou — se foi de propósito, atualize '
+          + 'esta verificação junto'
+        : 'falta o <p class="rodape-legal"> nesta tela');
+  }
+}
+
+/* ── O CONTRATO DOS MODELOS DO WHATSAPP ───────────────────────────────────
+   O texto de cada modelo é cadastrado NA META, à mão, a partir do MODELOS.md.
+   As variáveis que o preenchem são montadas no banco, em
+   `variaveis_agendamento()`. Os dois lados só combinam por acordo.
+
+   E o desacordo é invisível: se `{{2}}` e `{{3}}` trocarem de lugar no texto
+   cadastrado, toda cliente passa a receber a data onde deveria estar o
+   horário — e o histórico do painel continua mostrando certo, porque ele
+   mostra o `corpo`, montado por outro caminho. Não haveria erro, log, nem
+   reclamação que apontasse para a causa.
+
+   Modelo aprovado praticamente não se edita: para mudar uma vírgula você cria
+   outro e espera nova aprovação. Errar aqui é caro.
+
+   A conferência é de TEXTO porque o outro lado do contrato é um documento que
+   uma pessoa copia com o mouse. Não há banco que pegue isso. */
+console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
+{
+  const md = fs.readFileSync(path.join(RAIZ, 'supabase', 'functions',
+    'enviar-notificacoes', 'MODELOS.md'), 'utf8');
+  const sql = fs.readFileSync(path.join(RAIZ, 'supabase',
+    '21_notificacoes.sql'), 'utf8');
+
+  const nomes = [...sql.matchAll(/when '(\w+)'\s+then '(agendapro_\w+)'/g)]
+    .map(m => ({ tipo: m[1], modelo: m[2] }));
+  dizer(nomes.length === 4,
+    `achei os quatro modelos no modelo_de() (${nomes.length})`,
+    'o modelo_de() mudou de forma — conserte esta busca, não apague a verificação');
+
+  const blocoDe = nome => {
+    const i = md.indexOf('`' + nome + '`');
+    if(i < 0) return null;
+    const m = md.slice(i).match(/```\n([\s\S]*?)```/);
+    return m ? m[1] : null;
+  };
+
+  const corpoVA = (sql.match(
+    /function public\.variaveis_agendamento\(([\s\S]*?)\nend \$\$;/) || [])[1] || '';
+  const conta = t => (t.match(/variavel_limpa\(/g) || []).length;
+  const ramo  = re => (corpoVA.match(re) || [])[1] || '';
+  const noSql = {
+    confirmacao: conta(ramo(/'confirmacao','lembrete'\) then([\s\S]*?)elsif/)),
+    novo:        conta(ramo(/p_tipo = 'novo' then([\s\S]*?)end if;/)),
+  };
+  noSql.lembrete = noSql.confirmacao;            // o mesmo ramo atende os dois
+  // O resumo é montado no gerar_resumos: nome do salão + a lista do dia.
+  noSql.resumo = /modelo_de\('resumo'\)[\s\S]{0,400}?variavel_lista\(/.test(sql)
+    ? 2 : 0;
+
+  for(const { tipo, modelo } of nomes){
+    const corpo = blocoDe(modelo);
+    if(!corpo){ dizer(false, `${modelo}: tem seção no MODELOS.md`); continue; }
+
+    const numeros = [...corpo.matchAll(/\{\{(\d+)\}\}/g)].map(m => +m[1]);
+    const distintos = [...new Set(numeros)].sort((a, b) => a - b);
+
+    dizer(distintos.length === noSql[tipo],
+      `${modelo}: ${distintos.length} variáveis no texto e ${noSql[tipo]} no banco`,
+      'o texto cadastrado na Meta e o variaveis_agendamento() têm que casar em '
+      + 'QUANTIDADE e em ORDEM — a ordem só o olho confere, esta linha guarda '
+      + 'o número');
+
+    // {{1}},{{3}} faz a Meta recusar o cadastro, e um {{2}} esquecido desloca
+    // todas as seguintes.
+    dizer(distintos.every((n, i) => n === i + 1),
+      `${modelo}: variáveis numeradas de 1 a ${distintos.length}, sem pular`,
+      JSON.stringify(distintos));
+
+    /* A Meta recusa modelo cujo corpo começa ou termina em variável. Descobrir
+       no cadastro custa uma ida e volta; descobrir aqui não custa nada. */
+    const limpo = corpo.trim();
+    dizer(!limpo.startsWith('{{') && !limpo.endsWith('}}'),
+      `${modelo}: o texto não começa nem termina com variável`,
+      'a Meta recusa o cadastro assim');
+  }
+}
+
 console.log('\n' + (falhas
   ? `✗ ${falhas} problema(s) de sintaxe.`
   : `✓ ${ok} verificações de sintaxe.`));

@@ -228,8 +228,13 @@ grant execute on function public.uso_do_plano(uuid) to authenticated;
        silêncio;
      · o salão pode enviar — cota do plano, conferida AQUI, no servidor. A
        tela também mostra, mas quem recusa é esta linha. */
+/* ⚠ O tipo de retorno mudou: entrou `modelo` e `variaveis`. Postgres não troca
+   assinatura de função que devolve tabela com `create or replace` — tem que
+   derrubar antes. */
+drop function if exists public.notificacao_proxima(int);
 create or replace function public.notificacao_proxima(p_lote int default 1)
-returns table (id uuid, salao_id uuid, destino text, corpo text, tipo text)
+returns table (id uuid, salao_id uuid, destino text, corpo text, tipo text,
+               modelo text, variaveis jsonb)
 language plpgsql security definer set search_path = public as $$
 begin
   -- Primeiro, aposenta o que venceu: sai da fila sem sair para ninguém.
@@ -252,7 +257,8 @@ begin
      set status = 'enviando', tentativas = n.tentativas + 1, proxima_em = null
     from alvo
    where n.id = alvo.id
-  returning n.id, n.salao_id, n.destino, n.corpo, n.tipo;
+  returning n.id, n.salao_id, n.destino, n.corpo, n.tipo,
+            n.modelo, n.variaveis;
 end $$;
 
 /* O worker devolve o que aconteceu. `enviado_em` só é carimbado no sucesso —

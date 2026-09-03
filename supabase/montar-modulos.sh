@@ -54,6 +54,29 @@ auxiliares = [
 
 partes = [limpar(a) for a in auxiliares]
 
+# ⚠ O GATILHO QUE NUMERA A COMANDA, E O REVOKE QUE SÓ É SEGURO COM ELE.
+#
+# `comanda_numera` era o ÚNICO gatilho do projeto sem `security definer`, e por
+# isso rodava como QUEM FEZ a operação — exigindo que a própria dona do salão
+# tivesse permissão de executar `proximo_numero`.
+#
+# Isso importa porque `proximo_numero` ESCREVE e não confere nada: aberta ao
+# `anon`, deixava qualquer um inflar a numeração de comanda de qualquer salão.
+# Medido: três chamadas anônimas levaram o contador de 1 para 3.
+#
+# Os dois têm que viajar JUNTOS e NESTA ORDEM. Revogar sem o definer quebra
+# abrir comanda na hora — foi o que aconteceu, em produção, quando mandei o
+# revoke sozinho.
+#
+# E entram aqui, e não só no 01_schema.sql, porque o `atualizar.test.sh`
+# mostrou que o conserto chegava apenas a quem instala do zero: quem atualiza
+# cola o 98_modulos.sql, e ficaria com o gatilho velho e a função aberta.
+schema = open('supabase/01_schema.sql', encoding='utf-8').read()
+partes.append(limpar(recortar(
+    schema, 'create or replace function public.comanda_numera()')))
+partes.append('revoke all on function public.proximo_numero(uuid, text)\n'
+              '  from public, anon, authenticated;')
+
 # ⚠ O 06_vitrine.sql pega carona aqui, e ele NÃO é um módulo.
 #
 # É a função que a página da cliente chama para saber tudo sobre o salão, e

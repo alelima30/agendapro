@@ -39,6 +39,9 @@ const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const WA_TOKEN     = Deno.env.get('WHATSAPP_TOKEN');
 const WA_PHONE_ID  = Deno.env.get('WHATSAPP_PHONE_ID');
 const WA_VERSAO    = Deno.env.get('WHATSAPP_API_VERSAO') ?? 'v21.0';
+// O idioma dos modelos cadastrados na Meta. Errar aqui devolve 132001
+// ("template does not exist"), que não diz que o problema é o idioma.
+const WA_IDIOMA    = Deno.env.get('WHATSAPP_IDIOMA') ?? 'pt_BR';
 const SEGREDO      = Deno.env.get('CRON_SEGREDO');
 
 // Teto de tempo por chamada, abaixo do limite da plataforma: parar sozinho
@@ -47,7 +50,8 @@ const TETO_MS = 40_000;
 const ENTRE_MS = 900;
 
 type Alvo = { id: string; salao_id: string; destino: string;
-              corpo: string; tipo: string };
+              corpo: string; tipo: string;
+              modelo: string | null; variaveis: string[] | null };
 
 async function rpc(nome: string, corpo: Record<string, unknown>) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${nome}`, {
@@ -74,7 +78,49 @@ function paraMeta(digitos: string): string {
   return so;
 }
 
-async function mandar(destino: string, texto: string) {
+/* ⚠ POR QUE MODELO, E NÃO TEXTO LIVRE.
+
+   O WhatsApp só aceita texto livre dentro de 24 horas contadas da última
+   mensagem que a PESSOA mandou para o número. Nossas quatro mensagens são
+   todas fora dessa janela — a cliente marcou pelo link do site e nunca
+   escreveu para o salão. Texto livre aqui volta com o erro 131047, sempre.
+
+   Então o que viaja é o nome do modelo aprovado na Meta e as variáveis na
+   ordem. O `corpo`, com emoji e quebra de linha, continua sendo gravado no
+   banco: é o que o histórico do painel mostra, e é o registro do que foi dito.
+
+   O texto de cada modelo está em MODELOS.md, ao lado. A ordem das variáveis
+   ali e a de `variaveis_agendamento()` no banco são um contrato — modelo
+   aprovado praticamente não se edita. */
+async function mandar(alvo: Alvo) {
+  const destino = alvo.destino;
+
+  /* Sem modelo é linha antiga, criada antes desta mudança. Vai como texto
+     livre: se estiver fora da janela a Meta recusa com 131047, o erro fica
+     gravado na linha, e isso é melhor do que inventar um modelo que não
+     existe — que falha igual, sem dizer por quê. */
+  const pedido = alvo.modelo
+    ? {
+        messaging_product: 'whatsapp',
+        to: paraMeta(destino),
+        type: 'template',
+        template: {
+          name: alvo.modelo,
+          language: { code: WA_IDIOMA },
+          components: (alvo.variaveis ?? []).length
+            ? [{ type: 'body',
+                 parameters: (alvo.variaveis ?? []).map((v) => ({
+                   type: 'text', text: String(v) })) }]
+            : [],
+        },
+      }
+    : {
+        messaging_product: 'whatsapp',
+        to: paraMeta(destino),
+        type: 'text',
+        text: { preview_url: false, body: alvo.corpo },
+      };
+
   const r = await fetch(
     `https://graph.facebook.com/${WA_VERSAO}/${WA_PHONE_ID}/messages`, {
       method: 'POST',
@@ -82,19 +128,14 @@ async function mandar(destino: string, texto: string) {
         Authorization: `Bearer ${WA_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: paraMeta(destino),
-        type: 'text',
-        text: { preview_url: false, body: texto },
-      }),
+      body: JSON.stringify(pedido),
     });
 
-  const corpo = await r.json().catch(() => ({}));
+  const resposta = await r.json().catch(() => ({}));
   if (r.ok) {
-    return { ok: true as const, wamId: corpo?.messages?.[0]?.id ?? null };
+    return { ok: true as const, wamId: resposta?.messages?.[0]?.id ?? null };
   }
-  const erro = corpo?.error ?? {};
+  const erro = resposta?.error ?? {};
   return {
     ok: false as const,
     codigo: String(erro.code ?? r.status),
@@ -148,7 +189,7 @@ Deno.serve(async (req) => {
 
       let r;
       try {
-        r = await mandar(alvo.destino, alvo.corpo);
+        r = await mandar(alvo);
       } catch (e) {
         r = { ok: false as const, codigo: 'rede',
               msg: String((e as Error).message).slice(0, 300) };

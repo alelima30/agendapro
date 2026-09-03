@@ -191,6 +191,21 @@ end $$;
 comment on function public.comissao_de(text, uuid, uuid, uuid) is
   'A escada: par, catálogo, pessoa, zero. Não aceita taxa por parâmetro.';
 
+/* ⚠ Fechada para todo mundo. Quem chama é o gatilho que congela a taxa na
+   comanda, logo abaixo — e ele É `security definer`. Conferido, não suposto:
+   supor isso sobre um gatilho já quebrou a comanda em produção uma vez.
+
+   Sem este revoke ela ficava aberta ao `anon`, e o caminho era curto: a
+   vitrine pública entrega o id do serviço e o do profissional, e com os dois
+   a `comissao_de` devolvia o percentual. Medido — `{"pct":"60.00"}` de um
+   salão alheio, sem login.
+
+   Não é dado pessoal: é o acordo interno do salão com quem trabalha nele.
+   Serve para um concorrente montar proposta para o profissional, ou para o
+   profissional descobrir quanto o colega ganha. */
+revoke all on function public.comissao_de(text, uuid, uuid, uuid)
+  from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- 3) O GATILHO QUE CONGELA A TAXA
 -- ---------------------------------------------------------------------------

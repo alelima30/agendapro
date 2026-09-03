@@ -206,18 +206,23 @@ grant select on public.notificacoes to authenticated;
 -- Tudo no FUSO DO SALÃO. Uma cliente lendo "14:00" precisa que sejam 14:00 no
 -- salão, não no servidor.
 -- ---------------------------------------------------------------------------
-create or replace function public.texto_agendamento(
-  p_agendamento uuid, p_tipo text)
-returns text language plpgsql stable security definer set search_path = public as $$
+/* ── AS PEÇAS, NUM LUGAR SÓ ─────────────────────────────────────────────────
+   Nome, profissional, serviço, data e hora saem daqui — e daqui saem DUAS
+   coisas: o texto que o histórico mostra e as variáveis que vão para o modelo
+   aprovado na Meta.
+
+   ⚠ E é por isso que existe esta função. A tentação seria escrever uma segunda
+   rotina para as variáveis, com as mesmas cinco buscas dentro. Duas cópias das
+   mesmas regras divergem — alguém conserta o nome do profissional num lado e o
+   outro continua velho, e o defeito aparece como "o WhatsApp da cliente diz
+   uma coisa e o histórico diz outra", que é impossível de investigar.
+
+   Uma fonte, dois formatos. */
+create or replace function public.pecas_agendamento(p_agendamento uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
   a public.agendamentos%rowtype;
-  v_fuso  text;
-  v_casa  text;
-  v_cli   text;
-  v_prof  text;
-  v_serv  text;
-  v_data  text;
-  v_hora  text;
+  v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
   if a.id is null then return null; end if;
@@ -235,10 +240,33 @@ begin
     from public.agendamento_servicos asv
     join public.servicos sv on sv.id = asv.servico_id
    where asv.agendamento_id = a.id;
-  v_serv := coalesce(v_serv, 'atendimento');
 
-  v_data := to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY');
-  v_hora := to_char(a.inicio at time zone v_fuso, 'HH24:MI');
+  return jsonb_build_object(
+    'cliente',  coalesce(v_cli, 'cliente'),
+    'primeiro', split_part(coalesce(v_cli, 'cliente'), ' ', 1),
+    'prof',     coalesce(v_prof, '—'),
+    'servico',  coalesce(v_serv, 'atendimento'),
+    'casa',     coalesce(v_casa, '—'),
+    'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
+    'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'));
+end $$;
+
+create or replace function public.texto_agendamento(
+  p_agendamento uuid, p_tipo text)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  j jsonb;
+  v_casa text; v_cli text; v_prof text; v_serv text;
+  v_data text; v_hora text;
+begin
+  j := public.pecas_agendamento(p_agendamento);
+  if j is null then return null; end if;
+  -- ⚠ Nome INTEIRO: a confirmação e o lembrete cortam no primeiro logo abaixo,
+  -- mas o aviso ao profissional diz o nome completo — é ele que a pessoa vai
+  -- procurar na agenda.
+  v_cli  := j->>'cliente';  v_prof := j->>'prof';
+  v_serv := j->>'servico';  v_casa := j->>'casa';
+  v_data := j->>'data';     v_hora := j->>'hora';
 
   if p_tipo = 'confirmacao' then
     return format(
@@ -269,6 +297,109 @@ begin
       || E'\nData: %s'
       || E'\nHorário: %s',
       v_cli, v_serv, v_data, v_hora);
+  end if;
+  return null;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 4b) O MODELO APROVADO, E AS VARIÁVEIS DELE
+--
+-- ── POR QUE ISTO EXISTE ────────────────────────────────────────────────────
+-- O WhatsApp só aceita texto livre dentro de 24 horas contadas da última
+-- mensagem que a PESSOA mandou para o número. Fora dessa janela sai modelo
+-- aprovado, e só.
+--
+-- Nossas quatro mensagens são todas fora da janela: a cliente marcou pelo link
+-- do site e nunca escreveu para o WhatsApp do salão. Mandar texto livre volta
+-- com o erro 131047 — não é configuração errada, é o desenho da plataforma.
+--
+-- Então o `corpo` continua sendo o texto bonito, com quebra de linha e emoji,
+-- que o histórico do painel mostra e que é o registro do que foi dito. E, ao
+-- lado dele, ficam gravados o NOME DO MODELO e as VARIÁVEIS na ordem — que é
+-- o que de fato viaja para a Meta.
+-- ---------------------------------------------------------------------------
+alter table public.notificacoes
+  add column if not exists modelo text;
+alter table public.notificacoes
+  add column if not exists variaveis jsonb;
+
+/* Uma variável de modelo tem regras que a Meta recusa em silêncio no cadastro
+   e com erro no envio: não pode ter quebra de linha, nem tabulação, nem quatro
+   espaços seguidos, e não pode ser vazia.
+
+   O travessão no lugar do vazio não é enfeite: parâmetro vazio derruba a
+   mensagem inteira, e uma agenda sem profissional definido é um caso que
+   acontece. */
+create or replace function public.variavel_limpa(p_texto text, p_teto int default 900)
+returns text language sql immutable set search_path = public as $$
+  select case
+    when t = '' then '—'
+    when length(t) > p_teto then left(t, p_teto - 1) || '…'
+    else t
+  end
+  from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
+$$;
+
+/* O resumo do dia é uma LISTA, e variável de modelo não aceita quebra de
+   linha. Então as linhas viram uma só, separadas por " · ".
+
+   Sai do mesmo `corpo` que o histórico mostra, de propósito: é a única forma
+   de garantir que o que o dono lê no painel e o que ele recebe no telefone
+   sejam a mesma coisa. Um segundo montador de lista, com a mesma consulta
+   dentro, divergiria na primeira vez que alguém mexesse num dos dois. */
+create or replace function public.variavel_lista(p_texto text, p_teto int default 900)
+returns text language sql immutable set search_path = public as $$
+  select public.variavel_limpa(
+    regexp_replace(
+      regexp_replace(coalesce(p_texto, ''), '[\r\n]+', ' · ', 'g'),
+      '( · )+', ' · ', 'g'),
+    p_teto)
+$$;
+
+/* O nome do modelo cadastrado na Meta, por tipo. Fixo de propósito: o número
+   do WhatsApp é da plataforma, um só para todos os salões, e portanto os
+   modelos também são. Salão nenhum cadastra modelo próprio. */
+create or replace function public.modelo_de(p_tipo text)
+returns text language sql immutable set search_path = public as $$
+  select case p_tipo
+    when 'confirmacao' then 'agendapro_confirmacao'
+    when 'lembrete'    then 'agendapro_lembrete'
+    when 'novo'        then 'agendapro_novo'
+    when 'resumo'      then 'agendapro_resumo'
+  end
+$$;
+
+/* As variáveis, NA ORDEM em que o modelo cadastrado as espera.
+
+   ⚠ A ordem aqui e o texto cadastrado na Meta são um contrato. Modelo aprovado
+   praticamente não se edita — para mudar uma vírgula você cria outro e espera
+   nova aprovação. Trocar duas variáveis de lugar aqui, depois do cadastro, faz
+   toda cliente receber a data no lugar do nome, e ninguém percebe pelo
+   histórico, que mostra o `corpo` certo.
+
+   O texto exato de cada modelo está em
+   supabase/functions/enviar-notificacoes/MODELOS.md, e a suíte confere que os
+   dois lados continuam combinando. */
+create or replace function public.variaveis_agendamento(
+  p_agendamento uuid, p_tipo text)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare j jsonb;
+begin
+  j := public.pecas_agendamento(p_agendamento);
+  if j is null then return null; end if;
+
+  if p_tipo in ('confirmacao','lembrete') then
+    -- {{1}} primeiro nome  {{2}} data  {{3}} hora  {{4}} serviço  {{5}} profissional
+    return jsonb_build_array(
+      public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
+      public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
+      public.variavel_limpa(j->>'prof'));
+
+  elsif p_tipo = 'novo' then
+    -- {{1}} cliente  {{2}} serviço  {{3}} data  {{4}} hora
+    return jsonb_build_array(
+      public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
+      public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'));
   end if;
   return null;
 end $$;
@@ -448,9 +579,12 @@ begin
     v_corpo := public.texto_agendamento(new.id, 'confirmacao');
     if v_corpo is not null then
       insert into public.notificacoes
-        (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo, chave)
+        (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo,
+         chave, modelo, variaveis)
       values (new.salao_id, 'confirmacao', v_tel_cli, new.cliente_id, new.id,
-              now(), v_corpo, 'confirmacao:' || new.id)
+              now(), v_corpo, 'confirmacao:' || new.id,
+              public.modelo_de('confirmacao'),
+              public.variaveis_agendamento(new.id, 'confirmacao'))
       on conflict (salao_id, chave) do nothing;
     end if;
   end if;
@@ -465,9 +599,12 @@ begin
       v_corpo := public.texto_agendamento(new.id, 'lembrete');
       if v_corpo is not null then
         insert into public.notificacoes
-          (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo, chave)
+          (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo,
+           chave, modelo, variaveis)
         values (new.salao_id, 'lembrete', v_tel_cli, new.cliente_id, new.id,
-                v_quando, v_corpo, 'lembrete:' || new.id)
+                v_quando, v_corpo, 'lembrete:' || new.id,
+                public.modelo_de('lembrete'),
+                public.variaveis_agendamento(new.id, 'lembrete'))
         on conflict (salao_id, chave) do nothing;
       end if;
     end if;
@@ -483,9 +620,12 @@ begin
     v_corpo := public.texto_agendamento(new.id, 'novo');
     if v_corpo is not null then
       insert into public.notificacoes
-        (salao_id, tipo, destino, profissional_id, agendamento_id, quando, corpo, chave)
+        (salao_id, tipo, destino, profissional_id, agendamento_id, quando, corpo,
+         chave, modelo, variaveis)
       values (new.salao_id, 'novo', v_tel_prof, new.profissional_id, new.id,
-              now(), v_corpo, 'novo:' || new.id)
+              now(), v_corpo, 'novo:' || new.id,
+              public.modelo_de('novo'),
+              public.variaveis_agendamento(new.id, 'novo'))
       on conflict (salao_id, chave) do nothing;
     end if;
   end if;
@@ -534,7 +674,11 @@ begin
     if v_min > 0 and v_quando > now() then
       update public.notificacoes
          set quando = v_quando,
-             corpo  = coalesce(public.texto_agendamento(new.id, 'lembrete'), corpo)
+             corpo  = coalesce(public.texto_agendamento(new.id, 'lembrete'), corpo),
+             -- Junto com o corpo, sempre. Atualizar um e esquecer o outro faz
+             -- o histórico mostrar a hora nova e a cliente receber a velha.
+             variaveis = coalesce(
+               public.variaveis_agendamento(new.id, 'lembrete'), variaveis)
        where agendamento_id = new.id and tipo = 'lembrete' and status = 'pendente';
     else
       -- Remarcado para daqui a pouco: não há mais lembrete que caiba.
@@ -580,7 +724,9 @@ declare v_ag uuid;
 begin
   v_ag := coalesce(new.agendamento_id, old.agendamento_id);
   update public.notificacoes n
-     set corpo = coalesce(public.texto_agendamento(v_ag, n.tipo), n.corpo)
+     set corpo = coalesce(public.texto_agendamento(v_ag, n.tipo), n.corpo),
+         variaveis = coalesce(
+           public.variaveis_agendamento(v_ag, n.tipo), n.variaveis)
    where n.agendamento_id = v_ag
      and n.status = 'pendente'
      and n.tipo in ('confirmacao','lembrete','novo');
@@ -647,9 +793,14 @@ begin
        limit 1;
       if v_tel is not null then
         insert into public.notificacoes
-          (salao_id, tipo, destino, quando, corpo, chave)
+          (salao_id, tipo, destino, quando, corpo, chave, modelo, variaveis)
         values (s.id, 'resumo', v_tel, p_agora, v_corpo,
-                'resumo:casa:' || v_hoje)
+                'resumo:casa:' || v_hoje, public.modelo_de('resumo'),
+                -- {{1}} o salão  {{2}} a lista do dia, numa linha só
+                jsonb_build_array(
+                  public.variavel_limpa(
+                    (select nome from public.saloes where id = s.id)),
+                  public.variavel_lista(v_corpo)))
         on conflict (salao_id, chave) do nothing;
         n := n + 1;
       end if;
@@ -669,9 +820,15 @@ begin
         v_tel   := public.so_digitos(pr.telefone);
         if v_corpo is not null and v_tel is not null then
           insert into public.notificacoes
-            (salao_id, tipo, destino, profissional_id, quando, corpo, chave)
+            (salao_id, tipo, destino, profissional_id, quando, corpo, chave,
+             modelo, variaveis)
           values (s.id, 'resumo', v_tel, pr.id, p_agora, v_corpo,
-                  'resumo:' || pr.id || ':' || v_hoje)
+                  'resumo:' || pr.id || ':' || v_hoje,
+                  public.modelo_de('resumo'),
+                  jsonb_build_array(
+                    public.variavel_limpa(
+                      (select nome from public.saloes where id = s.id)),
+                    public.variavel_lista(v_corpo)))
           on conflict (salao_id, chave) do nothing;
           n := n + 1;
         end if;
@@ -682,6 +839,36 @@ begin
 end $$;
 
 revoke all on function public.gerar_resumos(timestamptz) from public, anon, authenticated;
+
+/* ── ⚠ AS QUATRO QUE ESTAVAM ABERTAS ────────────────────────────────────────
+   Estas funções são `security definer` de propósito: os gatilhos precisam
+   passar por cima do RLS para montar a mensagem de um agendamento que ainda
+   está nascendo. E nenhuma delas confere permissão, porque quem as chama já
+   está no contexto certo.
+
+   O que faltou foi isto aqui. No Postgres, função nova nasce EXECUTÁVEL POR
+   TODO MUNDO — e uma `security definer` sem `revoke` é um buraco pronto.
+
+   Ficaram abertas ao `anon` por uma fase inteira. O caminho era:
+
+     página pública → vitrine(slug) devolve o id do salão
+                    → texto_resumo(id, null, data)
+                    → a agenda do dia inteira, com nome de cliente
+
+   Sem login, com a chave publicável que está no config.js por desenho. Dava
+   para varrer a agenda de qualquer salão do sistema, dia por dia.
+
+   Nenhuma tela chama estas funções — só gatilhos e o `gerar_resumos`, que
+   rodam como dono e continuam passando. O `tests/portas.test.sql` passou a
+   cobrar isto sozinho, para não depender de eu lembrar da próxima vez. */
+revoke all on function public.pecas_agendamento(uuid)
+  from public, anon, authenticated;
+revoke all on function public.texto_agendamento(uuid, text)
+  from public, anon, authenticated;
+revoke all on function public.variaveis_agendamento(uuid, text)
+  from public, anon, authenticated;
+revoke all on function public.texto_resumo(uuid, uuid, date, text)
+  from public, anon, authenticated;
 
 comment on table public.notificacoes is
   'Fila das mensagens que nascem da agenda: confirmação, lembrete, resumo e aviso ao profissional.';

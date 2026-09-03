@@ -491,6 +491,89 @@ igual('a dona não consegue subir o próprio plano pelo painel',
     [W.salao])).rows[0].plano, 'salao');
 
 /* ══════════════════════════════════════════════════════════════════════════
+   OS MODELOS APROVADOS
+
+   Texto livre só sai dentro de 24h da última mensagem da PESSOA. As nossas
+   quatro são todas fora dessa janela — a cliente marcou pelo site e nunca
+   escreveu. Sem modelo, tudo volta com 131047.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('15) O modelo e as variáveis que viajam para a Meta');
+
+const M = await montar('Modelo', 1);
+await marcar(M, M.equipe[0], `${dia3}T15:00:00${deslocamento(dia3)}`, 'Rita Souza');
+
+const linhaM = (await banco.query(
+  `select tipo, modelo, variaveis, corpo from public.notificacoes
+    where salao_id=$1 and tipo='confirmacao'`, [M.salao])).rows[0];
+
+igual('a confirmação nasce com o modelo aprovado',
+  linhaM.modelo, 'agendapro_confirmacao');
+igual('e com cinco variáveis, na ordem do texto cadastrado',
+  (linhaM.variaveis || []).length, 5);
+igual('a primeira é o PRIMEIRO nome', linhaM.variaveis[0], 'Rita');
+verdade('a segunda é a data', /^\d{2}\/\d{2}\/\d{4}$/.test(linhaM.variaveis[1]),
+  JSON.stringify(linhaM.variaveis));
+igual('a terceira é a hora, no fuso do salão', linhaM.variaveis[2], '15:00');
+
+/* O aviso ao profissional usa o nome INTEIRO — é ele que a pessoa procura na
+   agenda. Confundir os dois foi um erro que eu cometi ao refatorar. */
+const novoM = (await banco.query(
+  `select variaveis from public.notificacoes
+    where salao_id=$1 and tipo='novo'`, [M.salao])).rows[0];
+if(novoM){
+  igual('o aviso ao profissional leva quatro variáveis',
+    (novoM.variaveis || []).length, 4);
+  igual('e o nome COMPLETO da cliente, não só o primeiro',
+    novoM.variaveis[0], 'Rita Souza');
+}
+
+/* ⚠ NENHUMA VARIÁVEL PODE TER QUEBRA DE LINHA NEM VIR VAZIA — a Meta recusa a
+   mensagem inteira, e o erro não diz qual das cinco era. */
+const todasVars = (await banco.query(
+  `select variaveis from public.notificacoes
+    where salao_id=$1 and variaveis is not null`, [M.salao])).rows;
+verdade('nenhuma variável tem quebra de linha',
+  todasVars.every(r => r.variaveis.every(v => !/[\r\n\t]/.test(v))),
+  JSON.stringify(todasVars.map(r => r.variaveis)));
+verdade('e nenhuma vem vazia',
+  todasVars.every(r => r.variaveis.every(v => String(v).trim() !== '')),
+  JSON.stringify(todasVars.map(r => r.variaveis)));
+
+/* ⚠ E AS VARIÁVEIS ANDAM JUNTO COM O CORPO.
+
+   Foi assim que o defeito "Serviço: atendimento" apareceu na fase passada: o
+   serviço entra depois da ficha, e o texto era montado antes. Agora existem
+   DOIS textos por linha — o corpo, que o painel mostra, e as variáveis, que a
+   cliente recebe. Atualizar um e esquecer o outro faz o painel mostrar o
+   certo e a cliente receber o errado, que é pior do que os dois errados. */
+const outraHora = `${dia3}T17:30:00${deslocamento(dia3)}`;
+await banco.query(
+  `update public.agendamentos set inicio=$2,
+          fim = $2::timestamptz + (fim - inicio)
+    where salao_id=$1`, [M.salao, outraHora]);
+const depoisDeRemarcar = (await banco.query(
+  `select corpo, variaveis from public.notificacoes
+    where salao_id=$1 and tipo='lembrete'`, [M.salao])).rows[0];
+if(depoisDeRemarcar){
+  verdade('remarcar reescreve o corpo', /17:30/.test(depoisDeRemarcar.corpo),
+    depoisDeRemarcar.corpo);
+  igual('e a variável da hora junto com ele',
+    depoisDeRemarcar.variaveis[2], '17:30');
+}
+
+// A fila entrega o modelo ao worker — sem isso ele cairia em texto livre.
+await banco.query(
+  `update public.notificacoes set quando = now() - interval '1 minute'
+    where salao_id=$1 and tipo='confirmacao'`, [M.salao]);
+const daFila = (await banco.query(
+  `select * from public.notificacao_proxima(1)`)).rows[0];
+verdade('a fila entrega o modelo ao worker',
+  !!daFila && daFila.modelo === 'agendapro_confirmacao', JSON.stringify(daFila));
+verdade('e as variáveis junto',
+  !!daFila && Array.isArray(daFila.variaveis) && daFila.variaveis.length === 5,
+  JSON.stringify(daFila && daFila.variaveis));
+
+/* ══════════════════════════════════════════════════════════════════════════
    O WEBHOOK DE STATUS DA META
 
    Até aqui a fila só sabia de 'enviado'. `entregue` e `lido` são informação;
@@ -586,9 +669,9 @@ igual('a busca pelo wam_id tem índice',
       where tablename='notificacoes' and indexname='ix_notif_wam'`)).rows[0].n, 1);
 
 await banco.query(`delete from public.agendamentos where salao_id = any($1)`,
-  [[A.salao, S.salao, E.salao, P.salao, C.salao, B.salao, W.salao]]);
+  [[A.salao, S.salao, E.salao, P.salao, C.salao, B.salao, W.salao, M.salao]]);
 await banco.query(`delete from public.saloes where id = any($1)`,
-  [[A.salao, S.salao, E.salao, P.salao, C.salao, B.salao, W.salao]]);
+  [[A.salao, S.salao, E.salao, P.salao, C.salao, B.salao, W.salao, M.salao]]);
 await banco.end();
 
 console.log('');
