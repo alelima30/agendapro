@@ -206,15 +206,15 @@ insert into public.planos
      '{"agendamentos_mes":40,"lembrete_whatsapp":false,"agenda_online":true}'),
   ('trial',     'Teste grátis', 1,  0.00, 1,
      '{"lembrete_whatsapp":true,"agenda_online":true}'),
-  ('individual','Individual',   1, 57.00, 2,
+  ('individual','Essencial',    1, 97.00, 2,
      '{"lembrete_whatsapp":true,"agenda_online":true}'),
-  ('duo',       'Duo',          2, 87.00, 3,
+  ('duo',       'Dupla',        2,157.00, 3,
      '{"lembrete_whatsapp":true,"agenda_online":true}'),
-  ('time',      'Time',         3,127.00, 4,
+  ('time',      'Time',         3,197.00, 4,
      '{"lembrete_whatsapp":true,"agenda_online":true}'),
-  ('equipe',    'Equipe',       5,187.00, 5,
+  ('equipe',    'Equipe',       6,297.00, 5,
      '{"lembrete_whatsapp":true,"agenda_online":true}'),
-  ('salao',     'Salão',       20,297.00, 6,
+  ('salao',     'Salão',       12,497.00, 6,
      '{"lembrete_whatsapp":true,"agenda_online":true}')
 on conflict (codigo) do update
    set nome = excluded.nome,
@@ -5154,7 +5154,25 @@ begin
     raise exception 'Sem permissão neste salão.'
       using errcode = 'insufficient_privilege';
   end if;
-  if p_metodo not in ('pix','boleto') then
+  /* ⚠ BOLETO SAIU DA VENDA — mas a coluna e o histórico ficam.
+
+     A tarifa do boleto é FIXA por emissão. Num plano de entrada de R$ 57 ela
+     pesava mais de 6% da mensalidade: cinco vezes o que pesa num plano de
+     R$ 297. Somado à compensação de até três dias úteis, com o salão sem plano
+     enquanto espera, ele não se pagava.
+
+     A recusa mora AQUI, e não só no botão da tela: esconder botão não é
+     validação, e quem chamar a função na mão tem que levar o mesmo não.
+
+     `'boleto'` continua valendo no `check` da tabela e no histórico. Cobrança
+     de boleto já emitida precisa continuar sendo lida, paga e conciliada — o
+     que acabou foi emitir nova. Apagar o valor do domínio quebraria a
+     renovação de quem está com um boleto em aberto agora. */
+  if p_metodo = 'boleto' then
+    raise exception 'O boleto foi descontinuado. Use o Pix.'
+      using errcode = 'check_violation';
+  end if;
+  if p_metodo <> 'pix' then
     raise exception 'Forma de pagamento desconhecida.' using errcode = 'check_violation';
   end if;
 
@@ -8836,20 +8854,93 @@ update public.planos set recursos = recursos || jsonb_build_object(
   where codigo in ('trial','individual');
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 1000, 'max_servicos', 100, 'mensagens_mes', 600)
+    'max_clientes', 1000, 'max_servicos', 100, 'mensagens_mes', 500)
   where codigo = 'duo';
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 2000, 'max_servicos', 200, 'mensagens_mes',1000)
+    'max_clientes', 2000, 'max_servicos', 200, 'mensagens_mes', 700)
   where codigo = 'time';
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 3500, 'max_servicos', 350, 'mensagens_mes',1500)
+    'max_clientes', 3500, 'max_servicos', 350, 'mensagens_mes',1200)
   where codigo = 'equipe';
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 5000, 'max_servicos', 500, 'mensagens_mes',2000)
+    'max_clientes', 5000, 'max_servicos', 500, 'mensagens_mes',2200)
   where codigo = 'salao';
+
+-- ---------------------------------------------------------------------------
+-- 1b) A ESCADA DE PREÇO, RECALCULADA PELO CUSTO REAL
+--
+-- ── O DEFEITO QUE ESTAVA NA TABELA ────────────────────────────────────────
+-- A franquia de mensagem subia mais rápido que o preço, então a margem PIORAVA
+-- conforme o cliente crescia — o contrário do que uma escada de planos deve
+-- fazer. Com a mensagem de utilidade a R$ 0,045 no Brasil:
+--
+--                    antes                        depois
+--   Individual  R$  57 / 300 msgs = 31,6% de custo    R$  97 / 300 = 13,9%
+--   Duo         R$  87 / 600      = 41,4%             R$ 157 / 500 = 14,3%
+--   Time        R$ 127 /1000      = 47,2%             R$ 197 / 700 = 16,0%
+--   Equipe      R$ 187 /1500      = 48,1%  ←pior      R$ 297 /1200 = 18,2%
+--   Salão       R$ 297 /2000      = 40,4%             R$ 497 /2200 = 19,9%
+--
+-- O Equipe entregava quase METADE da mensalidade em WhatsApp. E o Salão dava
+-- 20 vagas por R$ 297 — R$ 14,85 por profissional, o cliente maior sendo o
+-- pior negócio.
+--
+-- ── POR QUE COM `where preco_mes = <o valor antigo>` ──────────────────────
+-- O `insert ... on conflict` do 01_schema NÃO atualiza `preco_mes`, e isso é
+-- deliberado: preço é decisão comercial e não pode ser resetado por recolagem.
+-- Esta migração respeita a mesma regra. Ela casa pelo preço ANTIGO, então roda
+-- uma vez; se amanhã você mudar um preço à mão, recolar isto não desfaz.
+-- ---------------------------------------------------------------------------
+
+/* ⚠ Reduzir vaga de plano em uso deixaria salão acima do teto. O Salão vai de
+   20 para 12 vagas, e o Equipe de 5 para 6 (esse só cresce, é seguro).
+
+   Nenhum gatilho deste projeto desativa profissional — quem está acima do teto
+   continua trabalhando, só não cadastra mais. Ainda assim, cortar vaga de
+   alguém que está usando é decisão comercial, não migração: esta trava recusa
+   a mudança inteira em vez de fazer isso em silêncio. */
+do $$
+declare v_estourando int;
+begin
+  select count(*) into v_estourando from (
+    select a.salao_id
+      from public.assinaturas a
+      join public.profissionais pr on pr.salao_id = a.salao_id and pr.ativo
+     where a.plano = 'salao'
+     group by a.salao_id
+    having count(*) > 12) x;
+
+  if v_estourando > 0 then
+    /* ⚠ `||` e não literais colados. Concatenação implícita ('a' 'b') só vale
+       com quebra de linha entre eles — e este arquivo tem que sobreviver a ser
+       colado NUMA LINHA SÓ, que é como ele chega quando alguém copia no
+       celular. O teste de colagem pegou isto na primeira execução. */
+    raise exception '%',
+      'Há ' || v_estourando || ' salão(ões) no plano Salão com mais de 12 '
+      || 'profissionais ativos. Reduzir a vaga agora os deixaria acima do '
+      || 'teto. Resolva com eles antes, ou mantenha 20 vagas e ajuste só o '
+      || 'preço.'
+      using errcode = 'check_violation';
+  end if;
+end $$;
+
+update public.planos set nome = 'Essencial', preco_mes = 97.00
+ where codigo = 'individual' and preco_mes = 57.00;
+
+update public.planos set nome = 'Dupla', preco_mes = 157.00
+ where codigo = 'duo' and preco_mes = 87.00;
+
+update public.planos set preco_mes = 197.00
+ where codigo = 'time' and preco_mes = 127.00;
+
+update public.planos set preco_mes = 297.00, max_profissionais = 6
+ where codigo = 'equipe' and preco_mes = 187.00;
+
+update public.planos set preco_mes = 497.00, max_profissionais = 12
+ where codigo = 'salao' and preco_mes = 297.00;
 
 -- ---------------------------------------------------------------------------
 -- 2) O CONSUMO DO MÊS

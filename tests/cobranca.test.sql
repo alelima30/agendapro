@@ -194,9 +194,24 @@ update public.assinaturas set vence_em = current_date - 40
 update public.assinaturas set status = 'ativa'
  where salao_id = 'c0000000-1111-0000-0000-00000000000b';
 select (public.abrir_cobranca('c0000000-1111-0000-0000-00000000000b',
-        'individual', 'boleto', 'c0000000-0000-0000-0000-00000000000b')).id as cob5 \gset
+        'individual', 'pix', 'c0000000-0000-0000-0000-00000000000b')).id as cob5 \gset
 select public.anotar_cobranca(:'cob5', 'MP-444', 'pending', null, null,
   'https://boleto', '34191');
+
+-- ── O BOLETO SAIU DA VENDA, MAS NÃO DO HISTÓRICO ──────────────────────────
+-- A recusa está no banco, e não só no botão: esconder botão não é validação.
+-- Já a linha acima grava `boleto_url` numa cobrança existente de propósito —
+-- boleto emitido antes da mudança precisa continuar sendo lido e pago.
+select t_verdade('abrir_cobranca RECUSA boleto',
+  recusado($$select public.abrir_cobranca(
+    'c0000000-1111-0000-0000-00000000000b', 'individual', 'boleto',
+    'c0000000-0000-0000-0000-00000000000b')$$));
+select t_verdade('e o Pix continua passando',
+  not recusado($$select public.abrir_cobranca(
+    'c0000000-1111-0000-0000-00000000000b', 'individual', 'pix',
+    'c0000000-0000-0000-0000-00000000000b')$$));
+select t_verdade('o valor boleto continua válido no domínio, para o histórico',
+  exists (select 1 from public.cobrancas where boleto_url is not null));
 select public.registrar_pagamento('MP-444',
   (select valor from public.cobrancas where id = :'cob5'), 'approved');
 select t_texto('quem estava vencido recomeça de hoje, não retroativo',

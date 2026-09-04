@@ -771,7 +771,11 @@ begin
     raise exception 'Sem permissão neste salão.'
       using errcode = 'insufficient_privilege';
   end if;
-  if p_metodo not in ('pix','boleto') then
+  if p_metodo = 'boleto' then
+    raise exception 'O boleto foi descontinuado. Use o Pix.'
+      using errcode = 'check_violation';
+  end if;
+  if p_metodo <> 'pix' then
     raise exception 'Forma de pagamento desconhecida.' using errcode = 'check_violation';
   end if;
   select preco_mes into v_preco from public.planos where codigo = p_plano;
@@ -2689,17 +2693,46 @@ update public.planos set recursos = recursos || jsonb_build_object(
     'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 300)
   where codigo in ('trial','individual');
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 1000, 'max_servicos', 100, 'mensagens_mes', 600)
+    'max_clientes', 1000, 'max_servicos', 100, 'mensagens_mes', 500)
   where codigo = 'duo';
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 2000, 'max_servicos', 200, 'mensagens_mes',1000)
+    'max_clientes', 2000, 'max_servicos', 200, 'mensagens_mes', 700)
   where codigo = 'time';
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 3500, 'max_servicos', 350, 'mensagens_mes',1500)
+    'max_clientes', 3500, 'max_servicos', 350, 'mensagens_mes',1200)
   where codigo = 'equipe';
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 5000, 'max_servicos', 500, 'mensagens_mes',2000)
+    'max_clientes', 5000, 'max_servicos', 500, 'mensagens_mes',2200)
   where codigo = 'salao';
+do $$
+declare v_estourando int;
+begin
+  select count(*) into v_estourando from (
+    select a.salao_id
+      from public.assinaturas a
+      join public.profissionais pr on pr.salao_id = a.salao_id and pr.ativo
+     where a.plano = 'salao'
+     group by a.salao_id
+    having count(*) > 12) x;
+  if v_estourando > 0 then
+    raise exception '%',
+      'Há ' || v_estourando || ' salão(ões) no plano Salão com mais de 12 '
+      || 'profissionais ativos. Reduzir a vaga agora os deixaria acima do '
+      || 'teto. Resolva com eles antes, ou mantenha 20 vagas e ajuste só o '
+      || 'preço.'
+      using errcode = 'check_violation';
+  end if;
+end $$;
+update public.planos set nome = 'Essencial', preco_mes = 97.00
+ where codigo = 'individual' and preco_mes = 57.00;
+update public.planos set nome = 'Dupla', preco_mes = 157.00
+ where codigo = 'duo' and preco_mes = 87.00;
+update public.planos set preco_mes = 197.00
+ where codigo = 'time' and preco_mes = 127.00;
+update public.planos set preco_mes = 297.00, max_profissionais = 6
+ where codigo = 'equipe' and preco_mes = 187.00;
+update public.planos set preco_mes = 497.00, max_profissionais = 12
+ where codigo = 'salao' and preco_mes = 297.00;
 create or replace function public.mensagens_no_mes(p_salao uuid)
 returns int language sql stable security definer set search_path = public as $$
   select count(*)::int

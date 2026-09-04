@@ -1427,7 +1427,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.761b28';
+const VERSAO_APP = 'v9.52c941';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6346,14 +6346,11 @@ function pintarPlano(){
       <div class="card-acoes" style="gap:8px;flex-wrap:wrap">
         <button class="btn btn-p" onclick="assinar('${recomendado.codigo}','pix')">
           ${NA_NUVEM ? 'Pagar com Pix' : 'Assinar ' + escapar(recomendado.nome)}</button>
-        ${NA_NUVEM ? `<button class="btn" onclick="assinar('${recomendado.codigo}','boleto')">
-          Boleto</button>` : ''}
       </div>
       <p style="font-size:12px;color:var(--txt3);margin-top:10px">
         ${NA_NUVEM
-          ? 'O Pix cai em segundos e a assinatura já vale. Boleto compensa em '
-            + 'até 3 dias úteis. Quem confirma o pagamento é o banco — esta '
-            + 'tela não troca o plano sozinha.'
+          ? 'O Pix cai em segundos e a assinatura já vale. Quem confirma o '
+            + 'pagamento é o banco — esta tela não troca o plano sozinha.'
           : 'Nesta demonstração o botão troca o plano na hora. No sistema de '
             + 'verdade ele abre o Pix, e quem ativa a assinatura é a '
             + 'confirmação do pagamento — o dono não edita o próprio plano, '
@@ -6413,8 +6410,17 @@ function reabrirCobranca(){
    cadastrava o segundo profissional e levava um erro que contradizia o que
    estava escrito na frente dele. */
 /* ═══════════════════════════════════════════════════════════════════════════
-   ASSINAR — Pix e boleto, pelo Mercado Pago
+   ASSINAR — Pix, pelo Mercado Pago
    ---------------------------------------------------------------------------
+   O boleto saiu da venda: tarifa fixa por emissão pesava mais de 6% num plano
+   de entrada, e compensava em até 3 dias úteis com o salão sem plano
+   esperando. O `abrir_cobranca()` recusa `boleto` NO BANCO — tirar o botão
+   daqui é arrumação de tela, não a trava.
+
+   O que ficou é a LEITURA: cobrança de boleto já emitida continua aparecendo,
+   com linha digitável e link, até ser paga ou vencer. Quem tem um boleto em
+   aberto agora precisa conseguir pagá-lo.
+
    Esta tela NÃO troca o plano. Ela pede uma cobrança e mostra o código para
    pagar; quem move a assinatura é o webhook, no servidor, depois que o
    Mercado Pago confirma. É a mesma regra de sempre, e é a que impede o dono

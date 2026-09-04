@@ -157,7 +157,25 @@ begin
     raise exception 'Sem permissão neste salão.'
       using errcode = 'insufficient_privilege';
   end if;
-  if p_metodo not in ('pix','boleto') then
+  /* ⚠ BOLETO SAIU DA VENDA — mas a coluna e o histórico ficam.
+
+     A tarifa do boleto é FIXA por emissão. Num plano de entrada de R$ 57 ela
+     pesava mais de 6% da mensalidade: cinco vezes o que pesa num plano de
+     R$ 297. Somado à compensação de até três dias úteis, com o salão sem plano
+     enquanto espera, ele não se pagava.
+
+     A recusa mora AQUI, e não só no botão da tela: esconder botão não é
+     validação, e quem chamar a função na mão tem que levar o mesmo não.
+
+     `'boleto'` continua valendo no `check` da tabela e no histórico. Cobrança
+     de boleto já emitida precisa continuar sendo lida, paga e conciliada — o
+     que acabou foi emitir nova. Apagar o valor do domínio quebraria a
+     renovação de quem está com um boleto em aberto agora. */
+  if p_metodo = 'boleto' then
+    raise exception 'O boleto foi descontinuado. Use o Pix.'
+      using errcode = 'check_violation';
+  end if;
+  if p_metodo <> 'pix' then
     raise exception 'Forma de pagamento desconhecida.' using errcode = 'check_violation';
   end if;
 

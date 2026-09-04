@@ -43,7 +43,24 @@ await cliente.query(
 
 console.log('\nA tela e o banco concordam sobre quem está na cota');
 
-for(const [plano, limiteEsperado] of [['salao',20],['time',3],['duo',2],['individual',1]]){
+/* ⚠ AS VAGAS VÊM DA TABELA, NÃO ESCRITAS AQUI.
+
+   Estava `[['salao',20],['time',3],...]` na mão. No dia em que a escada de
+   planos foi recalculada e o Salão passou de 20 para 12 vagas, este teste
+   reprovou com "esperava 20, devolveu 12" — culpando a mudança certa, pela
+   terceira vez na mesma tarde.
+
+   O que ele existe para guardar não é o número: é que a TELA e o BANCO
+   concordem sobre quem está dentro da cota. Lendo `max_profissionais` do
+   banco, ele continua guardando isso quando o comercial mexer no preço. */
+const { rows: vagasPorPlano } = await cliente.query(
+  `select codigo, max_profissionais from public.planos
+    where codigo in ('salao','time','duo','individual')`);
+const vagasDe = Object.fromEntries(
+  vagasPorPlano.map(r => [r.codigo, +r.max_profissionais]));
+
+for(const plano of ['salao','time','duo','individual']){
+  const limiteEsperado = vagasDe[plano];
   await cliente.query(`delete from public.profissionais where salao_id = $1`, [salao]);
   await cliente.query(`delete from public.assinaturas where salao_id = $1`, [salao]);
   // Assina o maior primeiro para conseguir cadastrar os 4, depois rebaixa.

@@ -126,8 +126,15 @@ begin;
     -- testando. Somar os dois é como um salão somar orçamento com caixa.
     perform t_igual('1 pagante', (v->'resumo'->>'pagantes')::bigint, 1);
     perform t_igual('1 em teste', (v->'resumo'->>'em_teste')::bigint, 1);
-    perform t_igual('o MRR é só do que paga: R$ 57',
-                    (v->'resumo'->>'mrr')::numeric::bigint, 57);
+    /* ⚠ O preço vem da TABELA, não escrito aqui.
+       Estava `57` na mão, e envelheceu no dia em que a escada de planos foi
+       recalculada: o teste reprovou dizendo "esperava 57, veio 97" — culpando
+       a mudança certa. O que ele existe para guardar não é o número: é que o
+       MRR conte só quem paga, e ignore quem está em teste. */
+    perform t_igual('o MRR é só do que paga: o preço do plano do pagante',
+                    (v->'resumo'->>'mrr')::numeric::bigint,
+                    (select preco_mes::bigint from public.planos
+                      where codigo = 'individual'));
 
     -- Quem vence esta semana é para quem se liga. Depois de vencido, já virou
     -- "aquele sistema que eu testei uma vez".
