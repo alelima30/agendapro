@@ -834,6 +834,7 @@ language sql stable security definer set search_path = public as $$
    where s.id = p_salao;
 $$;
 revoke all on function public.dados_do_pagador(uuid) from public, anon, authenticated;
+grant execute on function public.dados_do_pagador(uuid) to service_role;
 create or replace function public.registrar_pagamento(
   p_mp_id text, p_valor numeric, p_status text)
 returns jsonb
@@ -879,6 +880,9 @@ end $$;
 revoke all on function public.abrir_cobranca(uuid, text, text, uuid) from public, anon, authenticated;
 revoke all on function public.anotar_cobranca(uuid, text, text, text, text, text, text) from public, anon, authenticated;
 revoke all on function public.registrar_pagamento(text, numeric, text) from public, anon, authenticated;
+grant execute on function public.abrir_cobranca(uuid, text, text, uuid) to service_role;
+grant execute on function public.anotar_cobranca(uuid, text, text, text, text, text, text) to service_role;
+grant execute on function public.registrar_pagamento(text, numeric, text) to service_role;
 create or replace function public.minha_cobranca(p_salao uuid)
 returns jsonb
 language plpgsql stable security definer set search_path = public as $$
@@ -2673,6 +2677,7 @@ begin
   return n;
 end $$;
 revoke all on function public.gerar_resumos(timestamptz) from public, anon, authenticated;
+grant execute on function public.gerar_resumos(timestamptz) to service_role;
 revoke all on function public.pecas_agendamento(uuid)
   from public, anon, authenticated;
 revoke all on function public.texto_agendamento(uuid, text)
@@ -2901,6 +2906,11 @@ revoke all on function public.notificacao_resultado(uuid, boolean, text, text, t
   from public, anon, authenticated;
 revoke all on function public.notificacao_status(text, text, text, text)
   from public, anon, authenticated;
+grant execute on function public.notificacao_proxima(int) to service_role;
+grant execute on function public.notificacao_resultado(uuid, boolean, text, text, text)
+  to service_role;
+grant execute on function public.notificacao_status(text, text, text, text)
+  to service_role;
 comment on function public.uso_do_plano(uuid) is
   'Uso e teto de profissionais, clientes, serviços e mensagens do mês, num jsonb só.';
 comment on function public.notificacao_proxima(int) is

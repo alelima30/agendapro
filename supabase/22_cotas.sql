@@ -419,6 +419,16 @@ revoke all on function public.notificacao_resultado(uuid, boolean, text, text, t
 revoke all on function public.notificacao_status(text, text, text, text)
   from public, anon, authenticated;
 
+/* ⚠ E de volta para quem precisa. O worker e o webhook falam como
+   `service_role`, e o `revoke ... from public` acima tira o acesso dele
+   junto — ser função de borda não dá privilégio nenhum: `service_role`
+   contorna o RLS, não a permissão de EXECUTE. */
+grant execute on function public.notificacao_proxima(int) to service_role;
+grant execute on function public.notificacao_resultado(uuid, boolean, text, text, text)
+  to service_role;
+grant execute on function public.notificacao_status(text, text, text, text)
+  to service_role;
+
 comment on function public.uso_do_plano(uuid) is
   'Uso e teto de profissionais, clientes, serviços e mensagens do mês, num jsonb só.';
 comment on function public.notificacao_proxima(int) is

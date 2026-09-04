@@ -839,6 +839,10 @@ begin
 end $$;
 
 revoke all on function public.gerar_resumos(timestamptz) from public, anon, authenticated;
+-- ⚠ O worker fala com o banco como `service_role`, e o `revoke ... from
+-- public` acima tira o acesso dele junto. Sem este grant, o worker acorda
+-- de minuto em minuto e leva 42501 em todas as chamadas — com a fila cheia.
+grant execute on function public.gerar_resumos(timestamptz) to service_role;
 
 /* ── ⚠ AS QUATRO QUE ESTAVAM ABERTAS ────────────────────────────────────────
    Estas funções são `security definer` de propósito: os gatilhos precisam

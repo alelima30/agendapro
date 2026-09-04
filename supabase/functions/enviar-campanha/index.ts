@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
   const auth = req.headers.get('Authorization') ?? '';
   if(auth !== `Bearer ${SERVICE_KEY}`){
     return new Response(JSON.stringify({ erro: 'não autorizado' }), {
-      status: 401, headers: { 'Content-Type': 'application/json' } });
+      status: 401, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
   }
 
   const comecou = Date.now();
@@ -224,13 +224,13 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ enviadas, falhas }), {
-      headers: { 'Content-Type': 'application/json' } });
+      headers: { 'Content-Type': 'application/json; charset=utf-8' } });
   }catch(e){
     /* Nunca `console.log` do corpo da requisição nem dos cabeçalhos: os dois
        carregam o token. Só a mensagem. */
     console.error('[campanhas] ' + String(e).slice(0, 300));
     return new Response(JSON.stringify({ erro: 'falha no processamento',
                                          enviadas, falhas }), {
-      status: 500, headers: { 'Content-Type': 'application/json' } });
+      status: 500, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
   }
 });

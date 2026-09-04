@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
     const veio = req.headers.get('x-cron-segredo');
     if (veio !== SEGREDO) {
       return new Response(JSON.stringify({ erro: 'não autorizado' }), {
-        status: 401, headers: { 'Content-Type': 'application/json' } });
+        status: 401, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
     }
   }
 
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       erro: 'WhatsApp não configurado',
       detalhe: 'Faltam WHATSAPP_TOKEN e/ou WHATSAPP_PHONE_ID. '
              + 'A fila continua intacta, com tudo pendente.',
-    }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+    }), { status: 503, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
   }
 
   const ate = Date.now() + TETO_MS;
@@ -225,11 +225,11 @@ Deno.serve(async (req) => {
         JSON.stringify({ resumos, enviadas, falhas }));
     }
     return new Response(JSON.stringify({ resumos, enviadas, falhas }), {
-      headers: { 'Content-Type': 'application/json' } });
+      headers: { 'Content-Type': 'application/json; charset=utf-8' } });
   } catch (e) {
     console.error('enviar-notificacoes falhou:',
       String((e as Error).message).slice(0, 300));
     return new Response(JSON.stringify({ erro: String((e as Error).message) }), {
-      status: 500, headers: { 'Content-Type': 'application/json' } });
+      status: 500, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
   }
 });

@@ -45,7 +45,7 @@ const CORS = {
 
 const responder = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), {
-    status, headers: { ...CORS, 'Content-Type': 'application/json' },
+    status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' },
   });
 
 const rpc = async (nome: string, args: unknown) => {

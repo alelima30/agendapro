@@ -5269,6 +5269,9 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 revoke all on function public.dados_do_pagador(uuid) from public, anon, authenticated;
+-- E o service_role, que é quem a borda usa, precisa do grant de volta:
+-- `revoke ... from public` tira dele junto. Ver a nota na seção 4.
+grant execute on function public.dados_do_pagador(uuid) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 4) O PAGAMENTO CONFIRMADO
@@ -5352,6 +5355,25 @@ end $$;
 revoke all on function public.abrir_cobranca(uuid, text, text, uuid) from public, anon, authenticated;
 revoke all on function public.anotar_cobranca(uuid, text, text, text, text, text, text) from public, anon, authenticated;
 revoke all on function public.registrar_pagamento(text, numeric, text) from public, anon, authenticated;
+
+/* ⚠ E O CARTEIRO PRECISA DA CHAVE.
+
+   `revoke ... from public` tira o acesso de TODO MUNDO — inclusive do
+   `service_role`, que é o papel com que as funções de borda falam com o
+   banco. Elas não ganham privilégio por serem de borda: `service_role`
+   contorna o RLS, não a permissão de EXECUTE.
+
+   Sem os grants abaixo eu tranquei a porta com o carteiro do lado de fora: o
+   checkout devolvia 42501 (insufficient_privilege) e o painel mostrava "Não
+   consegui abrir a cobrança", sem que nada no banco estivesse errado.
+
+   Descoberto em produção, na primeira vez que o checkout rodou de verdade. A
+   suíte não pegava porque os testes chamam como `postgres`, que é
+   superusuário e nunca leva 42501 — o teste estava certo sobre o que fazia, e
+   cego para o papel que importa lá fora. O `bordas.test.sql` passou a cobrar. */
+grant execute on function public.abrir_cobranca(uuid, text, text, uuid) to service_role;
+grant execute on function public.anotar_cobranca(uuid, text, text, text, text, text, text) to service_role;
+grant execute on function public.registrar_pagamento(text, numeric, text) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 5) O QUE A TELA DO DONO PRECISA SABER
@@ -8763,6 +8785,10 @@ begin
 end $$;
 
 revoke all on function public.gerar_resumos(timestamptz) from public, anon, authenticated;
+-- ⚠ O worker fala com o banco como `service_role`, e o `revoke ... from
+-- public` acima tira o acesso dele junto. Sem este grant, o worker acorda
+-- de minuto em minuto e leva 42501 em todas as chamadas — com a fila cheia.
+grant execute on function public.gerar_resumos(timestamptz) to service_role;
 
 /* ── ⚠ AS QUATRO QUE ESTAVAM ABERTAS ────────────────────────────────────────
    Estas funções são `security definer` de propósito: os gatilhos precisam
@@ -9223,6 +9249,16 @@ revoke all on function public.notificacao_resultado(uuid, boolean, text, text, t
   from public, anon, authenticated;
 revoke all on function public.notificacao_status(text, text, text, text)
   from public, anon, authenticated;
+
+/* ⚠ E de volta para quem precisa. O worker e o webhook falam como
+   `service_role`, e o `revoke ... from public` acima tira o acesso dele
+   junto — ser função de borda não dá privilégio nenhum: `service_role`
+   contorna o RLS, não a permissão de EXECUTE. */
+grant execute on function public.notificacao_proxima(int) to service_role;
+grant execute on function public.notificacao_resultado(uuid, boolean, text, text, text)
+  to service_role;
+grant execute on function public.notificacao_status(text, text, text, text)
+  to service_role;
 
 comment on function public.uso_do_plano(uuid) is
   'Uso e teto de profissionais, clientes, serviços e mensagens do mês, num jsonb só.';
