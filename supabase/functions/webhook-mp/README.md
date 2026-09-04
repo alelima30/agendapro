@@ -49,18 +49,23 @@ com erro, e o painel mostra "o Mercado Pago não aceitou a cobrança agora" —
 que é a mensagem certa para o dono, mas não diz o motivo. **O motivo aparece
 no log da função**, no painel do Supabase.
 
-### Boleto exige CPF/CNPJ e e-mail
+### O boleto saiu da venda
 
-O AgendaPro já pede o documento no cadastro do salão (fica em
-`documentos_cobranca`, com RLS próprio) e a borda lê de lá — o navegador
-nunca vê. Se o cadastro estiver sem documento ou sem e-mail, o boleto é
-recusado com uma mensagem explicando, e o Pix continua funcionando.
+Hoje o AgendaPro cobra **só por Pix**. O `abrir_cobranca()` recusa `boleto`
+**no banco**, e não só no botão da tela.
 
-**Sobre boleto, uma conta que vale fazer antes:** a tarifa é fixa por boleto
-emitido. Numa mensalidade de R$ 47 ela pesa bem mais, em porcentagem, do que
-numa de R$ 297 — e o boleto ainda compensa em até 3 dias úteis, então o salão
-fica sem o plano enquanto espera. Confira a tarifa vigente na sua conta e
-decida se vale manter o botão para os planos de entrada.
+A conta que decidiu isso: a tarifa do boleto é fixa por emissão, então num
+plano de entrada ela pesava mais de 6% da mensalidade — cinco vezes o que
+pesa num plano de R$ 297. Somado à compensação de até 3 dias úteis, com o
+salão sem plano enquanto espera, ele não se pagava.
+
+**O que continua funcionando:** cobrança de boleto emitida antes da mudança
+segue sendo lida, paga e conciliada normalmente. O valor `'boleto'` continua
+válido no domínio de propósito — quem tem um em aberto precisa fechá-lo.
+
+Cartão recorrente é a próxima fase, e vai por Assinaturas do Mercado Pago:
+o dono autoriza uma vez na página deles, e nenhum dado de cartão encosta no
+AgendaPro.
 
 ---
 
