@@ -238,7 +238,155 @@ verdade('e o código volta sem chamar a borda de novo',
   await pg.evaluate(() => !!document.getElementById('pixCodigo')));
 
 /* ══════════════════════════════════════════════════════════════════════════
-   6. QUEM NÃO É GESTÃO NÃO ASSINA
+   6. O CARTÃO — RENOVAÇÃO AUTOMÁTICA
+
+   ⚠ Aqui a asserção do preço pesa mais do que no Pix. No Pix avulso, um valor
+   vindo da tela seria uma cobrança errada; na pré-aprovação, o
+   `transaction_amount` é o que vai ser debitado TODO MÊS, para sempre.
+
+   E a segunda coisa que este bloco existe para provar: a tela NÃO liga o
+   cartão. Ela abre um link. Quem liga é o webhook, com o dado relido da API do
+   Mercado Pago — se bastasse clicar e fechar a aba, o salão constaria como
+   pagante sem ter autorizado nada.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('O painel não escolhe a mensalidade do cartão');
+
+await pg.evaluate(() => fecharModal());
+await pg.waitForTimeout(300);
+
+const LINK_MP = 'https://www.mercadopago.com.br/subscriptions/checkout?preapproval_id=TESTE';
+let pedidosCartao = [];
+await pg.route('**/functions/v1/assinar-cartao', async rota => {
+  const req = rota.request();
+  pedidosCartao.push({
+    corpo: JSON.parse(req.postData() || '{}'),
+    auth: req.headers()['authorization'] || '',
+  });
+  await rota.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, url: LINK_MP }) });
+});
+
+await pg.evaluate(() => assinarCartao('salao'));
+await pg.waitForTimeout(1500);
+
+igual('a borda do cartão foi chamada uma vez', pedidosCartao.length, 1);
+const noCartao = pedidosCartao[0] || { corpo:{}, auth:'' };
+
+igual('mandou o salão', noCartao.corpo.salaoId, SALAO);
+igual('e o código do plano', noCartao.corpo.plano, 'salao');
+
+const vazouCartao = camposProibidos.filter(k => k in noCartao.corpo);
+verdade('e NÃO manda valor nenhum — este seria o débito de todo mês',
+  vazouCartao.length === 0,
+  'o navegador mandou ' + JSON.stringify(vazouCartao));
+
+/* Nem número, nem CVV, nem validade. Não é esquecimento de teste: é a razão
+   de o desenho ser por pré-aprovação. Se um dia alguém puser um formulário de
+   cartão no painel, esta linha reprova antes de ir para produção. */
+const camposDeCartao = ['numero','cartao','card','cardNumber','cvv',
+                        'securityCode','validade','expiration','token'];
+const cartaoVazou = camposDeCartao.filter(k => k in noCartao.corpo);
+verdade('e nenhum dado de cartão passa pelo AgendaPro', cartaoVazou.length === 0,
+  'o navegador mandou ' + JSON.stringify(cartaoVazou));
+
+verdade('e vai com o token da sessão', /^Bearer .+/.test(noCartao.auth));
+
+secao('A tela manda o dono autorizar no Mercado Pago');
+
+const hrefMp = await pg.evaluate(() => {
+  const a = [...document.querySelectorAll('#fundo a')]
+    .find(x => /Autorizar/i.test(x.textContent || ''));
+  return a ? a.getAttribute('href') : null;
+});
+igual('o link da autorização está na tela', hrefMp, LINK_MP);
+
+/* ⚠ E O PLANO NÃO MUDOU. Clicar abriu um link, e mais nada. */
+const depoisDoClique = await banco.query(
+  `select mp_preapproval from public.assinaturas where salao_id = $1`, [SALAO]);
+verdade('e o cartão NÃO ficou ligado só por ter clicado',
+  depoisDoClique.rows[0].mp_preapproval === null,
+  JSON.stringify(depoisDoClique.rows[0]));
+
+secao('Ligado, a tela para de oferecer e passa a oferecer o desligar');
+
+// O que o webhook faria depois de o Mercado Pago confirmar a autorização.
+await banco.query(`select public.ligar_cartao($1, $2)`,
+  [SALAO, 'PREAPP-NAVEGADOR-' + marca]);
+await pg.evaluate(() => fecharModal());
+await pg.reload();
+await pg.waitForTimeout(3500);
+await pg.evaluate(() => irPara('plano'));
+await pg.waitForTimeout(1500);
+
+const blocoCartao = await pg.evaluate(() =>
+  (document.getElementById('cartaoAssinatura') || {}).textContent || '');
+verdade('o painel diz que a renovação está ligada',
+  /Renovação automática ligada/i.test(blocoCartao), blocoCartao.slice(0, 200));
+verdade('e diz onde o cartão está guardado',
+  /Mercado Pago/i.test(blocoCartao), blocoCartao.slice(0, 200));
+
+/* Deixar o botão de assinar ali seria convidar para uma segunda
+   pré-aprovação — e duas ativas no mesmo salão é cobrança dobrada todo mês,
+   descoberta só na fatura. */
+const aindaOferece = await pg.evaluate(() =>
+  /Assinar no cartão/i.test(
+    (document.getElementById('botoesAssinar') || {}).textContent || ''));
+falso('e o botão de assinar no cartão saiu da tela', aindaOferece);
+
+secao('Desligar bate na borda, não no banco direto');
+
+let pedidosCancelar = [];
+await pg.route('**/functions/v1/cancelar-cartao', async rota => {
+  const req = rota.request();
+  pedidosCancelar.push(JSON.parse(req.postData() || '{}'));
+  /* A borda cancela no Mercado Pago ANTES de limpar aqui. O teste faz só a
+     segunda metade, que é a que o painel enxerga. */
+  const b = JSON.parse(req.postData() || '{}');
+  await banco.query(`select public.cancelar_cartao($1, $2)`,
+    [b.salaoId, d.sessao().usuarioId]);
+  await rota.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true }) });
+});
+
+/* Guardado ANTES: o cancelamento não pode derrubar o plano, e comparar o
+   depois com ele mesmo não prova nada — foi o que a primeira versão desta
+   verificação fazia. */
+const statusAntes = (await banco.query(
+  `select status from public.assinaturas where salao_id = $1`,
+  [SALAO])).rows[0].status;
+
+recados.length = 0;
+await pg.evaluate(() => cancelarCartao());
+await pg.waitForTimeout(2500);
+
+igual('a borda do cancelamento foi chamada uma vez', pedidosCancelar.length, 1);
+igual('com o salão', (pedidosCancelar[0] || {}).salaoId, SALAO);
+
+/* ⚠ O aviso precisa dizer que o plano CONTINUA valendo. Sem isso o dono adia
+   o cancelamento por medo de perder a agenda no meio do mês que ele pagou —
+   e quando cancela, cancela irritado.
+
+   São DOIS diálogos: a pergunta antes e a confirmação depois. E a verificação
+   precisa olhar o SEGUNDO — a primeira versão dela procurava "continua" em
+   qualquer um dos dois, e a pergunta também tem essa palavra. Ela passaria
+   com o cancelamento estourando antes de chegar ao aviso, que é justamente o
+   caso em que o dono fica sem saber o que aconteceu. */
+igual('houve a pergunta e a confirmação', recados.length, 2,
+  JSON.stringify(recados));
+verdade('a pergunta já diz que o plano não cai na hora',
+  /continua valendo/i.test(recados[0] || ''), JSON.stringify(recados[0]));
+verdade('e a confirmação diz que desligou, e até quando vale',
+  /desligada/i.test(recados[1] || '') && /vencimento/i.test(recados[1] || ''),
+  JSON.stringify(recados[1]));
+
+const semCartao = await banco.query(
+  `select mp_preapproval, status from public.assinaturas where salao_id = $1`,
+  [SALAO]);
+verdade('o cartão saiu', semCartao.rows[0].mp_preapproval === null);
+igual('e o plano NÃO caiu junto', semCartao.rows[0].status, statusAntes);
+
+/* ══════════════════════════════════════════════════════════════════════════
+   7. QUEM NÃO É GESTÃO NÃO ASSINA
    ══════════════════════════════════════════════════════════════════════════ */
 secao('A recepção não assina pelo salão');
 

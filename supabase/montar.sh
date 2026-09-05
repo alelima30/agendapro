@@ -36,6 +36,7 @@ cat > "$SAIDA" <<'CAB'
 --                      quando as duas transações abrem ao mesmo tempo
 --   21_notificacoes.sql confirmação, lembrete e resumo do dia
 --   22_cotas.sql       as cotas do plano e o consumo de mensagem
+--   23_assinatura_cartao.sql  a assinatura no cartão, que renova sozinha
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -52,7 +53,7 @@ cat > "$SAIDA" <<'CAB'
 
 CAB
 
-for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql; do
+for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql; do
   {
     echo ''
     echo '-- ###########################################################################'

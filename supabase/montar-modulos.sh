@@ -104,6 +104,7 @@ partes.append(limpar(open('supabase/19_teto_online.sql', encoding='utf-8').read(
 partes.append(limpar(open('supabase/20_corrida.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/21_notificacoes.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/22_cotas.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/23_assinatura_cartao.sql', encoding='utf-8').read()))
 
 saida = '\n\n'.join(partes) + '\n'
 assert '--' not in saida, 'sobrou comentário: o arquivo perde a imunidade'

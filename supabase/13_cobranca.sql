@@ -192,9 +192,20 @@ begin
   /* Já existe uma pendente? Devolve ELA, em vez de abrir outra.
      E só se for do mesmo plano e da mesma forma — quem estava no Pix e
      resolveu ir de boleto, ou subiu de plano, precisa de uma cobrança nova.
-     A antiga é cancelada aqui mesmo, para o índice parcial não brigar. */
+     A antiga é cancelada aqui mesmo, para o índice parcial não brigar.
+
+     ⚠ E "pendente" aqui significa pendente QUE O DONO PODE PAGAR NA MÃO.
+     A tentativa recusada do cartão também fica `pendente`, e sem o filtro ela
+     entrava nesta consulta: o dono que saiu do cartão e clicava em Pix via a
+     linha do cartão ser cancelada no lugar — apagando o registro da tentativa
+     automática, que é o rastro de por que a renovação falhou.
+     Sem contar que várias podem coexistir (o índice parcial passou a ignorá-
+     las), e `select into` com muitas linhas pega uma qualquer.
+     Mesma regra do `ux_cobranca_aberta`, do `minha_cobranca` e do
+     `assinaturas_a_vencer` — são os quatro lugares que precisam dela. */
   select * into v_ja from public.cobrancas
    where salao_id = p_salao and status = 'pendente'
+     and metodo <> 'cartao'
    for update;
 
   if found then

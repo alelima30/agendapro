@@ -1,11 +1,17 @@
 # A cobrança pelo Mercado Pago — como colocar no ar
 
-Duas funções, e as duas rodam **no servidor**:
+Quatro funções, e todas rodam **no servidor**:
 
 | Pasta | O que faz |
 |---|---|
-| `criar-cobranca` | o dono clica em assinar → abre o Pix (ou o boleto) |
+| `criar-cobranca` | o dono clica em assinar → abre o Pix |
 | `webhook-mp` | o Mercado Pago avisa que pagou → a assinatura passa a valer |
+| `assinar-cartao` | o dono escolhe renovação automática → cria a pré-aprovação |
+| `cancelar-cartao` | o dono desliga a renovação → cancela no Mercado Pago |
+
+> As duas do cartão têm documentação própria, com os eventos de webhook que
+> precisam ser marcados e o passo a passo do teste de ponta a ponta:
+> **[`assinar-cartao/README.md`](../assinar-cartao/README.md)**.
 
 Elas existem porque um segredo não pode chegar ao navegador de jeito nenhum:
 
@@ -63,9 +69,17 @@ salão sem plano enquanto espera, ele não se pagava.
 segue sendo lida, paga e conciliada normalmente. O valor `'boleto'` continua
 válido no domínio de propósito — quem tem um em aberto precisa fechá-lo.
 
-Cartão recorrente é a próxima fase, e vai por Assinaturas do Mercado Pago:
-o dono autoriza uma vez na página deles, e nenhum dado de cartão encosta no
-AgendaPro.
+### E o cartão, que já entrou
+
+Renovação automática por **Assinaturas do Mercado Pago**: o dono autoriza uma
+vez na página deles, e nenhum dado de cartão encosta no AgendaPro. Ela convive
+com o Pix — o dono escolhe qual quer, e quem está no cartão fica fora da lista
+de cobrança por Pix para não pagar duas vezes.
+
+O passo a passo está em
+**[`assinar-cartao/README.md`](../assinar-cartao/README.md)**. O que muda
+neste webhook: ele passa a atender mais dois eventos, que **precisam ser
+marcados na mesma URL** — *Planos e Assinaturas* e *Pagamentos de assinaturas*.
 
 ---
 

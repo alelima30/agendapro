@@ -1427,7 +1427,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.52c941';
+const VERSAO_APP = 'v9.29854d';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6343,22 +6343,27 @@ function pintarPlano(){
         ${real(recomendado.precoMes)}<span style="font-size:14px;font-weight:600;
         color:var(--txt2)"> /mês</span></div>
       <p>Até ${recomendado.maxProfissionais} profissional(is) na agenda.</p>
-      <div class="card-acoes" style="gap:8px;flex-wrap:wrap">
+      <div class="card-acoes" id="botoesAssinar" style="gap:8px;flex-wrap:wrap">
         <button class="btn btn-p" onclick="assinar('${recomendado.codigo}','pix')">
           ${NA_NUVEM ? 'Pagar com Pix' : 'Assinar ' + escapar(recomendado.nome)}</button>
+        ${NA_NUVEM ? `<button class="btn" onclick="assinarCartao('${recomendado.codigo}')">
+          Assinar no cartão</button>` : ''}
       </div>
       <p style="font-size:12px;color:var(--txt3);margin-top:10px">
         ${NA_NUVEM
-          ? 'O Pix cai em segundos e a assinatura já vale. Quem confirma o '
-            + 'pagamento é o banco — esta tela não troca o plano sozinha.'
+          ? 'O Pix cai em segundos, e volta todo mês: você precisa lembrar. '
+            + 'No cartão a renovação é automática, e dá para desligar quando '
+            + 'quiser. Quem confirma o pagamento é o banco — esta tela não '
+            + 'troca o plano sozinha.'
           : 'Nesta demonstração o botão troca o plano na hora. No sistema de '
             + 'verdade ele abre o Pix, e quem ativa a assinatura é a '
             + 'confirmação do pagamento — o dono não edita o próprio plano, '
             + 'senão assinaria o maior de graça.'}</p>
     </div>
-    ${NA_NUVEM ? '<div id="cobrancaPendente"></div>' : ''}` : '';
+    ${NA_NUVEM
+      ? '<div id="cartaoAssinatura"></div><div id="cobrancaPendente"></div>' : ''}` : '';
 
-  if(NA_NUVEM) mostrarCobrancaPendente();
+  if(NA_NUVEM){ mostrarCartao(); mostrarCobrancaPendente(); }
 }
 
 /* Se ficou um Pix por pagar, ele aparece na tela do Plano — e não só dentro
@@ -6398,6 +6403,124 @@ function reabrirCobranca(){
     '<div class="vazio" id="pgtoCorpo">…</div>',
     [['Fechar','fecharModal();pintar()','btn-p']]);
   desenharPagamento(cobrancaAberta);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O CARTÃO — renovação automática
+   ---------------------------------------------------------------------------
+   ⚠ NENHUM DADO DE CARTÃO PASSA POR ESTA TELA. Não há campo de número, de CVV
+   nem de validade em lugar nenhum deste arquivo, e não é economia de trabalho:
+   é o que faz o AgendaPro não ser responsável por guardar cartão de ninguém.
+
+   O botão pede à borda uma pré-aprovação e abre a página do PRÓPRIO Mercado
+   Pago, onde o dono digita o cartão. O que volta para cá é a informação de que
+   existe uma assinatura — nunca o identificador dela, que é o que move dinheiro
+   lá.
+
+   E, como no Pix, esta tela não liga nada: quem liga é o webhook, quando o
+   Mercado Pago confirma a autorização. Por isso, ao voltar da página deles, o
+   painel pode ainda dizer "aguardando" por alguns segundos. Dizer "pronto"
+   antes da confirmação seria o mesmo erro do "Enviado" sem envio.
+   ═══════════════════════════════════════════════════════════════════════════ */
+async function mostrarCartao(){
+  const alvo = document.getElementById('cartaoAssinatura');
+  if(!alvo || !souGestor()) return;
+  try{
+    const r = await Dados.chamar('meu_cartao', { p_salao: salaoAtual });
+    const c = (Array.isArray(r) ? r[0] : r) || {};
+    if(!c.ligado) return;
+
+    /* Está no cartão: o botão de assinar sai da tela. Deixá-lo ali é convidar
+       para uma segunda pré-aprovação — e duas ativas no mesmo salão é
+       cobrança dobrada todo mês, descoberta só na fatura. A borda também
+       recusa, mas botão que só serve para levar recusa não deve existir. */
+    const botoes = document.getElementById('botoesAssinar');
+    if(botoes) botoes.innerHTML = '<span style="font-size:13px;color:var(--txt2)">'
+      + 'Para trocar de plano, desligue a renovação automática abaixo e assine '
+      + 'de novo.</span>';
+
+    const p = planoDe(c.plano);
+    alvo.innerHTML = `<div class="aviso ok" style="margin-top:14px">
+      <b>Renovação automática ligada.</b>
+      ${p ? escapar(p.nome) + ' · ' + real(p.precoMes) + ' por mês.' : ''}
+      ${/^\d{4}-\d{2}-\d{2}/.test(String(c.proxima || ''))
+          ? 'A próxima cobrança é em '
+            + escapar(porExtenso(String(c.proxima).slice(0, 10))) + '.' : ''}
+      <br>O cartão fica guardado no Mercado Pago, nunca aqui.
+      <div style="margin-top:9px">
+        <button class="btn btn-peq" onclick="cancelarCartao()">
+          Desligar a renovação</button>
+      </div></div>`;
+  }catch(e){
+    // Sem cartão, sem servidor, sem permissão: nada disso é erro de tela.
+    console.info('meu_cartao:', e.message);
+  }
+}
+
+async function assinarCartao(codigo){
+  if(!souGestor()){
+    alert('Só o proprietário ou um administrador pode assinar o plano.\n\n'
+        + 'Peça para quem responde pelo salão entrar e fazer a assinatura.');
+    return;
+  }
+  const p = planoDe(codigo);
+  abrirModal('Assinar ' + (p ? p.nome : codigo), `
+    <div class="vazio" id="cartaoCorpo">Falando com o Mercado Pago…</div>
+  `, [['Fechar','fecharModal();pintar()','btn-p']]);
+
+  try{
+    // Só o salão e o plano. O preço é lido de `planos` dentro do banco: o
+    // valor daqui viraria a mensalidade debitada todo mês, para sempre.
+    const r = await Dados.borda('assinar-cartao', {
+      salaoId: salaoAtual, plano: codigo });
+    const alvo = document.getElementById('cartaoCorpo');
+    if(!alvo) return;
+
+    /* ⚠ O link abre numa aba nova, e o texto explica o que ainda falta.
+       Sem esta explicação o dono autoriza, volta, vê "assinatura inativa" e
+       acha que perdeu o pagamento — quando o que faltou foram três segundos
+       do aviso do Mercado Pago chegar. */
+    alvo.outerHTML = `<div id="cartaoCorpo">
+      <div class="aviso info" style="margin-top:0">
+        <b>${escapar(p ? p.nome : codigo)} · ${p ? real(p.precoMes) : ''} por mês,
+        com renovação automática.</b><br>
+        O cartão é digitado na página do Mercado Pago — ele não passa pelo
+        AgendaPro e não fica guardado aqui.
+      </div>
+      <a class="btn btn-p" target="_blank" rel="noopener"
+         href="${escapar(r.url)}">Autorizar no Mercado Pago</a>
+      <p style="font-size:12.5px;color:var(--txt2);margin-top:11px">
+        Depois de autorizar, volte a esta tela. A assinatura passa a valer
+        quando o Mercado Pago confirmar — costuma levar alguns segundos.</p>
+    </div>`;
+  }catch(e){
+    const alvo = document.getElementById('cartaoCorpo');
+    if(alvo) alvo.innerHTML = '<b>Não consegui abrir a assinatura</b><br>'
+      + escapar(e.message || 'Tente de novo em alguns minutos.');
+  }
+}
+
+async function cancelarCartao(){
+  /* ⚠ O QUE ESTE TEXTO PRECISA DEIXAR CLARO: desligar não derruba o plano.
+     Sem isso o dono adia o cancelamento por medo de perder a agenda no meio
+     do mês que ele já pagou — e quando cancela, cancela irritado. */
+  if(!confirm('Desligar a renovação automática?\n\n'
+            + 'O plano continua valendo até o fim do período que você já '
+            + 'pagou. Depois disso, você volta a renovar por Pix.')) return;
+
+  try{
+    await Dados.borda('cancelar-cartao', { salaoId: salaoAtual });
+    alert('Renovação automática desligada. O seu plano continua valendo até o '
+        + 'vencimento.');
+  }catch(e){
+    /* A borda só limpa o nosso lado DEPOIS de o Mercado Pago cancelar. Se
+       falhou, o cartão continua ligado de verdade — e é isso que a mensagem
+       precisa dizer, porque o contrário faria o dono parar de acompanhar uma
+       cobrança que vai continuar chegando. */
+    alert('Não consegui desligar agora. A renovação CONTINUA ligada — '
+        + 'tente de novo em alguns minutos.\n\n' + (e.message || ''));
+  }
+  pintar();
 }
 
 /* Trocar de plano é operação da plataforma, não da tela do dono — a policy

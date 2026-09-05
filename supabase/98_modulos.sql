@@ -787,6 +787,7 @@ begin
   end if;
   select * into v_ja from public.cobrancas
    where salao_id = p_salao and status = 'pendente'
+     and metodo <> 'cartao'
    for update;
   if found then
     if v_ja.plano = p_plano and v_ja.metodo = p_metodo and v_ja.vence_em > now() then
@@ -2917,3 +2918,264 @@ comment on function public.notificacao_proxima(int) is
   'Fila do worker. Só service_role: contorna o RLS para atender todos os salões.';
 comment on function public.notificacao_status(text, text, text, text) is
   'Webhook de status da Meta: entregue, lido e falhou, casados pelo wam_id. Nunca anda para trás.';
+
+alter table public.cobrancas drop constraint if exists cobrancas_metodo_check;
+alter table public.cobrancas
+  add constraint cobrancas_metodo_check
+  check (metodo in ('pix','boleto','cartao'));
+drop index if exists public.ux_cobranca_aberta;
+create unique index if not exists ux_cobranca_aberta
+  on public.cobrancas(salao_id)
+  where (status = 'pendente' and metodo <> 'cartao');
+create or replace function public.minha_cobranca(p_salao uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.e_gestor(p_salao) then
+    raise exception 'Sem permissão neste salão.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return jsonb_build_object(
+    'aberta', (
+      select to_jsonb(x) from (
+        select c.id, c.plano, c.valor, c.metodo, c.vence_em,
+               c.pix_copia_cola, c.pix_qr_base64, c.boleto_url, c.linha_digitavel
+          from public.cobrancas c
+         where c.salao_id = p_salao and c.status = 'pendente'
+           and c.metodo <> 'cartao'
+           and c.vence_em > now()
+         order by c.criada_em desc limit 1) x),
+    'historico', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'id', h.id, 'plano', h.plano, 'valor', h.valor,
+               'metodo', h.metodo, 'status', h.status,
+               'pagaEm', h.paga_em, 'criadaEm', h.criada_em)
+             order by h.criada_em desc)
+        from (select * from public.cobrancas
+               where salao_id = p_salao and status in ('paga','devolvida')
+               order by criada_em desc limit 12) h), '[]'::jsonb));
+end $$;
+alter table public.assinaturas
+  add column if not exists mp_preapproval text;
+alter table public.assinaturas
+  add column if not exists cartao_desde timestamptz;
+create unique index if not exists ux_assinatura_preapproval
+  on public.assinaturas(mp_preapproval)
+  where mp_preapproval is not null;
+create or replace function public.preparar_cartao(
+  p_salao uuid, p_plano text, p_quem uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_preco numeric(10,2);
+  v_nome  text;
+  v_pre   text;
+  v_pag   jsonb;
+begin
+  if p_quem is null then
+    raise exception 'Assinatura sem responsável.' using errcode = 'check_violation';
+  end if;
+  if not exists (
+        select 1 from public.vinculos v
+         where v.perfil_id = p_quem and v.salao_id = p_salao
+           and v.status = 'ativo' and v.papel in ('dono','admin'))
+     and not public.is_super() then
+    raise exception 'Sem permissão neste salão.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  select preco_mes, nome into v_preco, v_nome
+    from public.planos where codigo = p_plano;
+  if v_preco is null then
+    raise exception 'Plano não encontrado.' using errcode = 'check_violation';
+  end if;
+  if v_preco <= 0 then
+    raise exception 'Este plano não é pago.' using errcode = 'check_violation';
+  end if;
+  select mp_preapproval into v_pre
+    from public.assinaturas where salao_id = p_salao;
+  v_pag := public.dados_do_pagador(p_salao);
+  return jsonb_build_object(
+    'plano',     p_plano,
+    'nomePlano', v_nome,
+    'valor',     v_preco,
+    'email',     v_pag->>'email',
+    'nome',      v_pag->>'nome',
+    'jaLigado',  v_pre is not null);
+end $$;
+create or replace function public.ligar_cartao(
+  p_salao uuid, p_preapproval text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_dono  uuid;
+  v_atual text;
+begin
+  if p_salao is null or coalesce(p_preapproval,'') = '' then
+    raise exception 'Faltou o salão ou a pré-aprovação.'
+      using errcode = 'check_violation';
+  end if;
+  select salao_id into v_dono from public.assinaturas
+   where mp_preapproval = p_preapproval;
+  if v_dono is not null and v_dono <> p_salao then
+    return jsonb_build_object('ok', false, 'motivo', 'preapproval_de_outro');
+  end if;
+  select mp_preapproval into v_atual from public.assinaturas
+   where salao_id = p_salao;
+  if v_atual is not null and v_atual <> p_preapproval then
+    return jsonb_build_object('ok', false, 'motivo', 'ja_tem_outro');
+  end if;
+  update public.assinaturas
+     set mp_preapproval = p_preapproval,
+         cartao_desde   = coalesce(cartao_desde, now()),
+         atualizado_em  = now()
+   where salao_id = p_salao;
+  return jsonb_build_object('ok', true, 'salao', p_salao);
+end $$;
+create or replace function public.cartao_do_salao(p_salao uuid, p_quem uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare v_pre text;
+begin
+  if p_quem is null then
+    raise exception 'Consulta sem responsável.' using errcode = 'check_violation';
+  end if;
+  if not exists (
+        select 1 from public.vinculos v
+         where v.perfil_id = p_quem and v.salao_id = p_salao
+           and v.status = 'ativo' and v.papel in ('dono','admin'))
+     and not public.is_super() then
+    raise exception 'Sem permissão neste salão.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  select mp_preapproval into v_pre
+    from public.assinaturas where salao_id = p_salao;
+  return jsonb_build_object(
+    'ligado', v_pre is not null, 'preapproval', v_pre);
+end $$;
+create or replace function public.cancelar_cartao(p_salao uuid, p_quem uuid)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_quem is null then
+    raise exception 'Cancelamento sem responsável.' using errcode = 'check_violation';
+  end if;
+  if not exists (
+        select 1 from public.vinculos v
+         where v.perfil_id = p_quem and v.salao_id = p_salao
+           and v.status = 'ativo' and v.papel in ('dono','admin'))
+     and not public.is_super() then
+    raise exception 'Sem permissão neste salão.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  update public.assinaturas
+     set mp_preapproval = null,
+         cartao_desde   = null,
+         atualizado_em  = now()
+   where salao_id = p_salao;
+  return jsonb_build_object('ok', true);
+end $$;
+create or replace function public.desligar_cartao(p_preapproval text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_salao uuid;
+begin
+  if coalesce(p_preapproval,'') = '' then
+    return jsonb_build_object('ok', false, 'motivo', 'sem_preapproval');
+  end if;
+  update public.assinaturas
+     set mp_preapproval = null,
+         cartao_desde   = null,
+         atualizado_em  = now()
+   where mp_preapproval = p_preapproval
+  returning salao_id into v_salao;
+  if v_salao is null then
+    return jsonb_build_object('ok', true, 'motivo', 'nada_a_desligar');
+  end if;
+  return jsonb_build_object('ok', true, 'salao', v_salao);
+end $$;
+create or replace function public.registrar_recorrencia(
+  p_preapproval text, p_mp_id text, p_valor numeric, p_status text)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  a public.assinaturas;
+  v_preco numeric(10,2);
+begin
+  select * into a from public.assinaturas
+   where mp_preapproval = p_preapproval
+   for update;
+  if not found then
+    return jsonb_build_object('ok', false, 'motivo', 'preapproval_desconhecida');
+  end if;
+  if exists (select 1 from public.cobrancas where mp_id = p_mp_id) then
+    return jsonb_build_object('ok', true, 'motivo', 'ja_registrada');
+  end if;
+  select preco_mes into v_preco from public.planos where codigo = a.plano;
+  if coalesce(v_preco, 0) <= 0 then
+    return jsonb_build_object('ok', false, 'motivo', 'plano_sem_preco');
+  end if;
+  insert into public.cobrancas
+    (salao_id, plano, valor, metodo, status, vence_em, mp_id, mp_status)
+  values (a.salao_id, a.plano, v_preco, 'cartao', 'pendente',
+          now() + interval '7 days', p_mp_id, p_status);
+  return public.registrar_pagamento(p_mp_id, p_valor, p_status);
+end $$;
+create or replace function public.assinaturas_a_vencer(p_dias int default 5)
+returns table (salao_id uuid, salao text, whatsapp text, plano text,
+               valor numeric, vence_em date)
+language sql security definer set search_path = public as $$
+  select a.salao_id, s.nome, s.whatsapp, a.plano, pl.preco_mes, a.vence_em
+    from public.assinaturas a
+    join public.saloes s  on s.id = a.salao_id
+    join public.planos pl on pl.codigo = a.plano
+   where a.status = 'ativa'
+     and a.vence_em is not null
+     and a.vence_em <= current_date + p_dias
+     and pl.preco_mes > 0
+     and a.mp_preapproval is null
+     and not exists (
+       select 1 from public.cobrancas c
+        where c.salao_id = a.salao_id and c.status = 'pendente'
+          and c.metodo <> 'cartao'
+          and c.vence_em > now())
+   order by a.vence_em;
+$$;
+create or replace function public.meu_cartao(p_salao uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare a public.assinaturas;
+begin
+  if not public.e_gestor(p_salao) then
+    raise exception 'Sem permissão neste salão.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  select * into a from public.assinaturas where salao_id = p_salao;
+  if a.salao_id is null then return jsonb_build_object('ligado', false); end if;
+  return jsonb_build_object(
+    'ligado',   a.mp_preapproval is not null,
+    'desde',    a.cartao_desde,
+    'proxima',  a.vence_em,
+    'plano',    a.plano);
+end $$;
+revoke all on function public.preparar_cartao(uuid, text, uuid)
+  from public, anon, authenticated;
+revoke all on function public.cartao_do_salao(uuid, uuid)
+  from public, anon, authenticated;
+revoke all on function public.ligar_cartao(uuid, text) from public, anon, authenticated;
+revoke all on function public.cancelar_cartao(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.desligar_cartao(text) from public, anon, authenticated;
+revoke all on function public.registrar_recorrencia(text, text, numeric, text)
+  from public, anon, authenticated;
+grant execute on function public.preparar_cartao(uuid, text, uuid) to service_role;
+grant execute on function public.cartao_do_salao(uuid, uuid) to service_role;
+grant execute on function public.ligar_cartao(uuid, text) to service_role;
+grant execute on function public.cancelar_cartao(uuid, uuid) to service_role;
+grant execute on function public.desligar_cartao(text) to service_role;
+grant execute on function public.registrar_recorrencia(text, text, numeric, text)
+  to service_role;
+revoke all on function public.meu_cartao(uuid) from public, anon;
+grant execute on function public.meu_cartao(uuid) to authenticated, service_role;
+comment on function public.registrar_recorrencia(text, text, numeric, text) is
+  'A cobrança mensal do cartão: cria a linha do mês e entrega ao registrar_pagamento.';
+comment on function public.meu_cartao(uuid) is
+  'Se o salão está no cartão e quando é a próxima. Não devolve o id da pré-aprovação.';

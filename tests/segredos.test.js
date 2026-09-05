@@ -151,6 +151,8 @@ const EXIGIDAS = {
   'enviar-campanha':      ['WHATSAPP_TOKEN','WHATSAPP_PHONE_ID','SUPABASE_SERVICE_ROLE_KEY'],
   'enviar-notificacoes':  ['WHATSAPP_TOKEN','WHATSAPP_PHONE_ID','SUPABASE_SERVICE_ROLE_KEY'],
   'criar-cobranca':       ['MP_ACCESS_TOKEN','SUPABASE_SERVICE_ROLE_KEY'],
+  'assinar-cartao':       ['MP_ACCESS_TOKEN','SUPABASE_SERVICE_ROLE_KEY'],
+  'cancelar-cartao':      ['MP_ACCESS_TOKEN','SUPABASE_SERVICE_ROLE_KEY'],
   'webhook-mp':           ['MP_ACCESS_TOKEN','MP_WEBHOOK_SECRET','SUPABASE_SERVICE_ROLE_KEY'],
   'status-whatsapp':      ['META_APP_SECRET','WHATSAPP_VERIFY_TOKEN','SUPABASE_SERVICE_ROLE_KEY'],
 };

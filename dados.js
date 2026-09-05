@@ -209,6 +209,16 @@ const VAZIO_E_NULO = new Set([
      caixa — não só o campo de quem fez. */
   'aberto_por', 'fechado_por', 'fechado_em', 'valor_contado',
   'caixa_id', 'quem',
+  /* A do cartão recorrente. `mp_preapproval` é texto e fica de fora com
+     razão; `cartao_desde` é timestamptz, e `''` numa coluna dessas derruba a
+     gravação inteira da assinatura com `invalid input syntax for type
+     timestamp with time zone: ""`.
+
+     Nenhuma tela escreve nesta coluna hoje — quem escreve é o webhook, no
+     servidor. A lista entra assim mesmo porque ela é sobre o TIPO da coluna,
+     não sobre quem a preenche agora: no dia em que alguém puser um campo de
+     data no painel de assinatura, o defeito já vem consertado. */
+  'cartao_desde',
 ]);
 
 function paraBanco(tabela, obj){

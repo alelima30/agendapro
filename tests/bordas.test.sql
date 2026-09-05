@@ -59,7 +59,13 @@ insert into borda_precisa values
   ('public.notificacao_resultado(uuid,boolean,text,text,text)',     'enviar-notificacoes'),
   ('public.notificacao_status(text,text,text,text)',                'status-whatsapp'),
   ('public.fila_proxima(int)',                                      'enviar-campanha'),
-  ('public.fila_resultado(uuid,boolean,text,text,text,boolean)',    'enviar-campanha');
+  ('public.fila_resultado(uuid,boolean,text,text,text,boolean)',    'enviar-campanha'),
+  ('public.preparar_cartao(uuid,text,uuid)',                        'assinar-cartao'),
+  ('public.cartao_do_salao(uuid,uuid)',                             'cancelar-cartao'),
+  ('public.cancelar_cartao(uuid,uuid)',                             'cancelar-cartao'),
+  ('public.ligar_cartao(uuid,text)',                                'webhook-mp'),
+  ('public.desligar_cartao(text)',                                  'webhook-mp'),
+  ('public.registrar_recorrencia(text,text,numeric,text)',          'webhook-mp');
 
 do $$
 declare r record; faltando text := '';
@@ -83,7 +89,8 @@ begin
       || ' do revoke. Sem isso o produto responde 42501 em produção e nenhum'
       || ' teste reprova.');
   else
-    perform t_ok('a borda alcança as 10 funções de que precisa');
+    perform t_ok('a borda alcança as ' || (select count(*) from borda_precisa)
+                 || ' funções de que precisa');
   end if;
 end $$;
 

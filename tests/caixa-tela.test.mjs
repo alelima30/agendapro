@@ -589,8 +589,20 @@ verdade('e o Caixa mostra o MESMO faturamento que o banco calculou',
    ═══════════════════════════════════════════════════════════════════════════ */
 secao('8c) O dia é o do salão, não o do aparelho');
 
+/* ⚠ A FRONTEIRA É 11, NÃO 12 — E ERRAR ISSO ABRIA UMA HORA DE FALHA POR DIA.
+
+   Niue é UTC−11: ele só cai no dia ANTERIOR enquanto a hora UTC for menor que
+   11. Às 11h UTC em ponto, lá é 00h do MESMO dia — e a própria verificação
+   logo abaixo, que existe para garantir que os dois dias diferem, reprovava.
+
+   Uma hora por dia, todo dia, com uma mensagem que fala de fuso horário e não
+   de caixa. A suíte inteira parava por causa do relógio da máquina, e quem
+   rodasse às 08h de Brasília ia procurar o defeito no lugar errado.
+
+   Com 11, as duas metades cobrem o dia inteiro sem buraco: de 0h a 10h Niue
+   está ontem; de 11h a 23h, Kiritimati (UTC+14) já está amanhã. */
 const agora = new Date();
-const FUSO_LONGE = agora.getUTCHours() >= 12
+const FUSO_LONGE = agora.getUTCHours() >= 11
   ? 'Pacific/Kiritimati'   // UTC+14: já é amanhã lá
   : 'Pacific/Niue';        // UTC−11: ainda é ontem lá
 const emFuso = f => new Intl.DateTimeFormat('en-CA',
