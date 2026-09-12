@@ -155,8 +155,17 @@ Deno.serve(async (req) => {
          Desligar do nosso lado é o que devolve o salão para a lista de
          renovação por Pix. Sem isto ele continuaria marcado como "renova
          sozinho" e venceria em silêncio, sem cobrança e sem lembrete. */
+      /* ⚠ `pre.id`, e não `dataId` — a mesma fonte que o `ligarDaPreapproval`
+         usa para GRAVAR. O valor guardado veio da API; procurar por ele com o
+         id que veio no aviso é comparar duas fontes com `=`, e basta uma
+         diferença de caixa ou de formato para não casar. O resultado seria o
+         pior silêncio possível: o Mercado Pago parou de cobrar, nós
+         continuaríamos marcando o salão como "renova sozinho", e ele venceria
+         sem cobrança e sem lembrete — que é exatamente o que esta chamada
+         existe para impedir. */
       if(situacao === 'cancelled' || situacao === 'paused'){
-        const feito = await rpc('desligar_cartao', { p_preapproval: dataId });
+        const feito = await rpc('desligar_cartao',
+          { p_preapproval: String(pre.id ?? dataId) });
         console.log('webhook-mp preapproval', situacao, JSON.stringify(feito));
       }
       return new Response('ok', { status: 200 });

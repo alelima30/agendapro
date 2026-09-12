@@ -331,6 +331,56 @@ select t_igual('e o Pix novo nasceu do lado delas',
       and metodo = 'pix' and status = 'pendente'), 1::bigint);
 
 \echo ''
+\echo 'UM SALÃO SEM ASSINATURA NÃO É "DEU CERTO"'
+
+/* ⚠ O DEFEITO QUE ESTA SEÇÃO EXISTE PARA PEGAR, MEDIDO ANTES DE CONSERTAR:
+
+   `ligar_cartao` respondia {"ok": true} depois de atualizar ZERO linhas. Num
+   salão sem linha em `assinaturas`, o UPDATE não achava nada e a função jurava
+   ter ligado. O webhook gravava sucesso no log, o Mercado Pago passava a
+   debitar o cartão todo mês, e o `registrar_recorrencia` nunca achava esse
+   salão — respondia `preapproval_desconhecida` para sempre.
+
+   O dono pagava e o plano vencia assim mesmo. Nada no log dizia o contrário:
+   estava escrito ok:true.
+
+   "Não deveria acontecer" não é mecanismo. Estes três casos são os três
+   lugares por onde esse estado passava. */
+insert into auth.users (id) values
+  ('e0000000-0000-0000-0000-00000000000e') on conflict do nothing;
+insert into public.perfis (id, nome, email) values
+  ('e0000000-0000-0000-0000-00000000000e', 'Dona Sem Plano', 'sem@teste.com')
+  on conflict (id) do update
+    set nome = excluded.nome, email = excluded.email;
+insert into public.saloes (id, slug, nome) values
+  ('e0000000-3333-0000-0000-00000000000f', 'sem-assinatura', 'Salão Sem Assinatura');
+insert into public.vinculos (perfil_id, salao_id, papel, status) values
+  ('e0000000-0000-0000-0000-00000000000e',
+   'e0000000-3333-0000-0000-00000000000f', 'dono', 'ativo');
+
+select t_igual('o cenário é um salão realmente sem assinatura',
+  (select count(*) from public.assinaturas
+    where salao_id = 'e0000000-3333-0000-0000-00000000000f'), 0::bigint);
+
+-- A metade que DENUNCIA.
+select t_texto('ligar_cartao não mente sobre ter ligado',
+  public.ligar_cartao('e0000000-3333-0000-0000-00000000000f', 'PREAPP-ORFA')
+    ->>'motivo', 'salao_sem_assinatura');
+select t_falso('e o ok é falso, não verdadeiro',
+  (public.ligar_cartao('e0000000-3333-0000-0000-00000000000f', 'PREAPP-ORFA')
+    ->>'ok')::boolean);
+
+select t_texto('cancelar_cartao também não',
+  public.cancelar_cartao('e0000000-3333-0000-0000-00000000000f',
+    'e0000000-0000-0000-0000-00000000000e')->>'motivo', 'salao_sem_assinatura');
+
+/* E a metade que PREVINE — a que importa mais, porque impede a pré-aprovação
+   de nascer no Mercado Pago e o cartão do dono de ser debitado por nada. */
+select t_verdade('e preparar_cartao recusa antes de criar a pré-aprovação',
+  preparou('e0000000-3333-0000-0000-00000000000f', 'duo',
+           'e0000000-0000-0000-0000-00000000000e') like '%não tem assinatura%');
+
+\echo ''
 \echo 'E NINGUÉM DE NAVEGADOR CHAMA ESTAS FUNÇÕES'
 
 select t_falso('authenticated não liga cartão',

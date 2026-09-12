@@ -180,8 +180,22 @@ begin
     raise exception 'Este plano não é pago.' using errcode = 'check_violation';
   end if;
 
+  /* ⚠ E SEM LINHA EM `assinaturas` NÃO SE CRIA PRÉ-APROVAÇÃO NENHUMA.
+
+     Esta é a metade que PREVINE; o `returning` do `ligar_cartao` é a metade
+     que denuncia. Sem ela, um salão sem assinatura passava por aqui, a borda
+     criava a pré-aprovação no Mercado Pago, e o cartão do dono começava a ser
+     debitado todo mês — sem linha nenhuma para o `registrar_recorrencia`
+     encontrar depois. Cobrança de verdade, renovação nenhuma.
+
+     A conferência é pela LINHA, não pela coluna: `mp_preapproval` nulo é o
+     estado legítimo de quem ainda não pôs cartão. */
   select mp_preapproval into v_pre
     from public.assinaturas where salao_id = p_salao;
+  if not found then
+    raise exception 'Este salão não tem assinatura para renovar.'
+      using errcode = 'check_violation';
+  end if;
 
   v_pag := public.dados_do_pagador(p_salao);
 
@@ -203,8 +217,9 @@ create or replace function public.ligar_cartao(
 returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  v_dono  uuid;
-  v_atual text;
+  v_dono   uuid;
+  v_atual  text;
+  v_tocado uuid;
 begin
   if p_salao is null or coalesce(p_preapproval,'') = '' then
     raise exception 'Faltou o salão ou a pré-aprovação.'
@@ -238,11 +253,27 @@ begin
     return jsonb_build_object('ok', false, 'motivo', 'ja_tem_outro');
   end if;
 
+  /* ⚠ E O `returning` NÃO É ENFEITE: sem ele, esta função respondia
+     `{"ok": true}` depois de atualizar ZERO linhas.
+
+     Um salão sem linha em `assinaturas` fazia o UPDATE não achar nada, e a
+     função jurava ter ligado. O webhook gravava sucesso no log, o Mercado Pago
+     passava a debitar o cartão todo mês, e o `registrar_recorrencia` nunca
+     achava esse salão — respondia `preapproval_desconhecida` para sempre. O
+     dono pagava e o plano vencia assim mesmo, sem nada no sistema explicando.
+
+     "Não deveria acontecer" não é mecanismo. Quando acontecer, a função tem
+     que dizer, e é este `returning` que faz ela dizer. */
   update public.assinaturas
      set mp_preapproval = p_preapproval,
          cartao_desde   = coalesce(cartao_desde, now()),
          atualizado_em  = now()
-   where salao_id = p_salao;
+   where salao_id = p_salao
+  returning salao_id into v_tocado;
+
+  if v_tocado is null then
+    return jsonb_build_object('ok', false, 'motivo', 'salao_sem_assinatura');
+  end if;
 
   return jsonb_build_object('ok', true, 'salao', p_salao);
 end $$;
@@ -293,6 +324,7 @@ end $$;
 create or replace function public.cancelar_cartao(p_salao uuid, p_quem uuid)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
+declare v_tocado uuid;
 begin
   if p_quem is null then
     raise exception 'Cancelamento sem responsável.' using errcode = 'check_violation';
@@ -306,11 +338,21 @@ begin
       using errcode = 'insufficient_privilege';
   end if;
 
+  /* Mesmo `returning` do `ligar_cartao`, pelo mesmo motivo — e aqui o estrago
+     é ainda mais direto: a borda só limpa o nosso lado DEPOIS de o Mercado
+     Pago confirmar o cancelamento, e confia neste retorno para dizer ao dono
+     que desligou. Um `ok` sem linha tocada seria a tela afirmando o oposto do
+     que o banco sabe. */
   update public.assinaturas
      set mp_preapproval = null,
          cartao_desde   = null,
          atualizado_em  = now()
-   where salao_id = p_salao;
+   where salao_id = p_salao
+  returning salao_id into v_tocado;
+
+  if v_tocado is null then
+    return jsonb_build_object('ok', false, 'motivo', 'salao_sem_assinatura');
+  end if;
 
   return jsonb_build_object('ok', true);
 end $$;

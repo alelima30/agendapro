@@ -2993,6 +2993,10 @@ begin
   end if;
   select mp_preapproval into v_pre
     from public.assinaturas where salao_id = p_salao;
+  if not found then
+    raise exception 'Este salão não tem assinatura para renovar.'
+      using errcode = 'check_violation';
+  end if;
   v_pag := public.dados_do_pagador(p_salao);
   return jsonb_build_object(
     'plano',     p_plano,
@@ -3007,8 +3011,9 @@ create or replace function public.ligar_cartao(
 returns jsonb
 language plpgsql security definer set search_path = public as $$
 declare
-  v_dono  uuid;
-  v_atual text;
+  v_dono   uuid;
+  v_atual  text;
+  v_tocado uuid;
 begin
   if p_salao is null or coalesce(p_preapproval,'') = '' then
     raise exception 'Faltou o salão ou a pré-aprovação.'
@@ -3028,7 +3033,11 @@ begin
      set mp_preapproval = p_preapproval,
          cartao_desde   = coalesce(cartao_desde, now()),
          atualizado_em  = now()
-   where salao_id = p_salao;
+   where salao_id = p_salao
+  returning salao_id into v_tocado;
+  if v_tocado is null then
+    return jsonb_build_object('ok', false, 'motivo', 'salao_sem_assinatura');
+  end if;
   return jsonb_build_object('ok', true, 'salao', p_salao);
 end $$;
 create or replace function public.cartao_do_salao(p_salao uuid, p_quem uuid)
@@ -3055,6 +3064,7 @@ end $$;
 create or replace function public.cancelar_cartao(p_salao uuid, p_quem uuid)
 returns jsonb
 language plpgsql security definer set search_path = public as $$
+declare v_tocado uuid;
 begin
   if p_quem is null then
     raise exception 'Cancelamento sem responsável.' using errcode = 'check_violation';
@@ -3071,7 +3081,11 @@ begin
      set mp_preapproval = null,
          cartao_desde   = null,
          atualizado_em  = now()
-   where salao_id = p_salao;
+   where salao_id = p_salao
+  returning salao_id into v_tocado;
+  if v_tocado is null then
+    return jsonb_build_object('ok', false, 'motivo', 'salao_sem_assinatura');
+  end if;
   return jsonb_build_object('ok', true);
 end $$;
 create or replace function public.desligar_cartao(p_preapproval text)
