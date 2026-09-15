@@ -1427,7 +1427,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.29854d';
+const VERSAO_APP = 'v9.eb9e6f';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6343,21 +6343,38 @@ function pintarPlano(){
         ${real(recomendado.precoMes)}<span style="font-size:14px;font-weight:600;
         color:var(--txt2)"> /mês</span></div>
       <p>Até ${recomendado.maxProfissionais} profissional(is) na agenda.</p>
+      <!-- ⚠ O BOTAO DO PIX ESTA ESCONDIDO, E SO O BOTAO.
+
+           A cobranca por Pix continua INTEIRA no banco e na borda: o
+           abrir_cobranca() aceita 'pix', o criar-cobranca funciona, o
+           webhook registra, e a cobranca em aberto continua aparecendo logo
+           abaixo com o copia-e-cola. Quem ja tem um Pix por pagar precisa
+           conseguir pagar.
+
+           O que saiu foi a OFERTA. Enquanto isso, a venda por Pix e tratada
+           direto com o comprador, fora da tela.
+
+           Isto e arrumacao de tela, nao trava: quem chamar assinar(x,'pix')
+           no console ainda abre uma cobranca, e esta certo que abra — o
+           caminho nao foi descontinuado, so nao esta sendo oferecido. No dia
+           em que a decisao for definitiva, a recusa vai no banco, como foi
+           feito com o boleto.
+           (Sem crase e sem acento: comentario dentro de template literal.) -->
       <div class="card-acoes" id="botoesAssinar" style="gap:8px;flex-wrap:wrap">
-        <button class="btn btn-p" onclick="assinar('${recomendado.codigo}','pix')">
-          ${NA_NUVEM ? 'Pagar com Pix' : 'Assinar ' + escapar(recomendado.nome)}</button>
-        ${NA_NUVEM ? `<button class="btn" onclick="assinarCartao('${recomendado.codigo}')">
-          Assinar no cartão</button>` : ''}
+        ${NA_NUVEM
+          ? `<button class="btn btn-p" onclick="assinarCartao('${recomendado.codigo}')">
+               Assinar no cartão</button>`
+          : `<button class="btn btn-p" onclick="assinar('${recomendado.codigo}','pix')">
+               Assinar ${escapar(recomendado.nome)}</button>`}
       </div>
       <p style="font-size:12px;color:var(--txt3);margin-top:10px">
         ${NA_NUVEM
-          ? 'O Pix cai em segundos, e volta todo mês: você precisa lembrar. '
-            + 'No cartão a renovação é automática, e dá para desligar quando '
-            + 'quiser. Quem confirma o pagamento é o banco — esta tela não '
-            + 'troca o plano sozinha.'
+          ? 'No cartão a renovação é automática — você não precisa lembrar de '
+            + 'nada todo mês, e dá para desligar quando quiser. Quem confirma '
+            + 'o pagamento é o banco: esta tela não troca o plano sozinha.'
           : 'Nesta demonstração o botão troca o plano na hora. No sistema de '
-            + 'verdade ele abre o Pix, e quem ativa a assinatura é a '
-            + 'confirmação do pagamento — o dono não edita o próprio plano, '
+            + 'verdade ele abre o pagamento, e quem ativa a assinatura é a '
+            + 'confirmação do banco — o dono não edita o próprio plano, '
             + 'senão assinaria o maior de graça.'}</p>
     </div>
     ${NA_NUVEM

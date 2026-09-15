@@ -121,6 +121,26 @@ secao('O painel não escolhe o preço');
 
 await pg.evaluate(() => irPara('plano'));
 await pg.waitForTimeout(900);
+
+/* ⚠ O PIX SAIU DA OFERTA, MAS NÃO DO PRODUTO — E AS DUAS METADES PRECISAM DE
+   GUARDA.
+
+   A venda por Pix passou a ser tratada direto com o comprador, fora da tela.
+   Só o BOTÃO foi escondido: o `abrir_cobranca()` continua aceitando 'pix', a
+   borda continua criando, o webhook continua registrando, e quem já tem um
+   Pix por pagar continua vendo o copia-e-cola (é o que a seção 5 exercita).
+
+   Sem esta primeira verificação, o botão volta na próxima vez que alguém
+   mexer na tela do Plano, e ninguém nota — tela é o lugar onde a regressão é
+   mais silenciosa. Sem a segunda metade, alguém "limpa" o Pix do código e
+   deixa sem forma de pagar quem tem cobrança em aberto. */
+const ofereceuPix = await pg.evaluate(() =>
+  [...document.querySelectorAll('#cartaoPlano button, #cartaoPlano a')]
+    .some(b => /pix/i.test(b.textContent || '')));
+falso('a tela do Plano não oferece Pix', ofereceuPix);
+
+/* E a chamada continua funcionando por baixo: esconder botão é arrumação de
+   tela, não trava. O caminho não foi descontinuado — só não está à venda. */
 await pg.evaluate(() => assinar('salao', 'pix'));
 await pg.waitForTimeout(2500);
 
