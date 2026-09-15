@@ -99,7 +99,7 @@ const COLUNAS = {
                    profissionalId:'profissional_id', duracaoMin:'duracao_min',
                    avisadoEm:'avisado_em', criadoEm:'criado_em' },
   produtos:      { salaoId:'salao_id', comissaoPct:'comissao_pct',
-                   comissaoFixa:'comissao_fixa' },
+                   comissaoFixa:'comissao_fixa', vendaOnline:'venda_online' },
   comandas:      { salaoId:'salao_id', agendamentoId:'agendamento_id',
                    clienteId:'cliente_id', descontoMotivo:'desconto_motivo',
                    abertaEm:'aberta_em', fechadaEm:'fechada_em',

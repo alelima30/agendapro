@@ -562,6 +562,16 @@ body.carregando-tudo .tela{ display:none }
     <div id="listaServicos"></div>
   </section>
 
+  <!-- ══════════ PRODUTOS ══════════ -->
+  <section class="tela" id="tela-produtos">
+    <div class="barra">
+      <span class="espaco"></span>
+      <button class="btn btn-p" id="btNovoProduto"
+              onclick="abrirProduto()">+ Produto</button>
+    </div>
+    <div id="listaProdutos"></div>
+  </section>
+
   <!-- ══════════ EQUIPE ══════════ -->
   <section class="tela" id="tela-equipe">
     <div class="barra">
@@ -1294,6 +1304,13 @@ const TELAS = [
   ['relatorios','Relatórios',      'grafico',    'Dia a dia', GESTAO],
   ['clientes', 'Clientes',         'usuario',    'Cadastros', EQUIPE],
   ['servicos', 'Serviços',         'tesoura',    'Cadastros', EQUIPE],
+  /* ⚠ EQUIPE, e não GESTAO — igual a Serviços, e pelo mesmo motivo: quem
+     atende precisa ENXERGAR o catálogo para lançar um produto na comanda. A
+     policy `prod_ler` do 02_rls diz exatamente isso (`e_equipe`), e quem
+     ESCREVE é `e_gestor`. O botão de editar segue o papel, como em Serviços —
+     tela que oferece o que o banco nega é o defeito que este quadro existe
+     para acabar. */
+  ['produtos', 'Produtos',         'presente',   'Cadastros', EQUIPE],
   ['equipe',   'Equipe',           'equipe',     'Cadastros', GESTAO],
   ['salao',    'Meu salão',        'predio',     'Cadastros', GESTAO],
   ['publico',  'Ver como cliente', 'olho',       'A conta',   EQUIPE],
@@ -1427,7 +1444,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.eb9e6f';
+const VERSAO_APP = 'v9.fd9249';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2192,6 +2209,54 @@ function pintarServicos(){
 }
 
 /* ── Desenho: equipe ─────────────────────────────────────────────────── */
+/* ── Desenho: produtos ───────────────────────────────────────────────────
+   A coluna "Na loja" é a que conta a história deste módulo: produto nasce
+   FECHADO, e quem publica é o dono, na mão. Ver o 24_produtos.sql.
+
+   ⚠ `custo` NÃO aparece aqui, e não é esquecimento de tela — é que ele nem
+   devia sair do banco para a internet. Na página da cliente isso vira regra
+   dura (a `vitrine()` nomeia campo por campo); aqui, no painel do dono, ele
+   até poderia aparecer, mas mostrar margem numa tabela que a recepção também
+   abre é conversa que o dono não pediu para ter. Quem precisa de custo é o
+   relatório, que já é GESTAO. */
+function pintarProdutos(){
+  const lista = doSalao(bd.produtos);
+  const alvo = document.getElementById('listaProdutos');
+  if(!alvo) return;
+
+  const bt = document.getElementById('btNovoProduto');
+  if(bt) bt.style.display = souGestor() ? '' : 'none';
+
+  if(!lista.length){
+    alvo.innerHTML = `<div class="vazio"><b>Nenhum produto cadastrado</b>
+      ${souGestor()
+        ? 'Cadastre o que o salão vende — shampoo, pomada, esmalte. '
+          + 'Eles aparecem na comanda na hora de fechar a conta.'
+        : 'Peça a quem responde pelo salão para cadastrar.'}</div>`;
+    return;
+  }
+
+  alvo.innerHTML = `<table class="tab"><thead><tr>
+      <th>Produto</th><th>Marca</th><th>Preço</th><th>Estoque</th>
+      <th>Na loja</th><th></th>
+    </tr></thead><tbody>` + lista.map(p => `<tr>
+      <td><span class="sv-mini">${p.foto
+          ? `<img src="${escapar(p.foto)}" alt="" loading="lazy">`
+          : `<span data-ico="presente"></span>`}</span
+        ><b>${escapar(p.nome)}</b>${p.ativo ? '' : ' <span class="tag t-canc">inativo</span>'}</td>
+      <td>${escapar(p.marca || '—')}</td>
+      <td>${real(p.preco)}</td>
+      <td>${p.estoque != null ? p.estoque : '—'}</td>
+      <td>${p.vendaOnline
+          ? '<span class="tag t-ok">à venda</span>'
+          : '<span style="color:var(--txt3)">só no balcão</span>'}</td>
+      <td style="text-align:right">${souGestor()
+        ? `<button class="btn btn-peq" onclick="abrirProduto('${p.id}')">Editar</button>`
+        : ''}</td>
+    </tr>`).join('') + '</tbody></table>';
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+
 function pintarEquipe(){
   const lista = doSalao(bd.profissionais);
   const alvo = document.getElementById('listaEquipe');
@@ -4570,6 +4635,146 @@ function limparFotoServico(){
   if(window.aplicarIcones) aplicarIcones(p);
 }
 
+/* ── A FOTO DO PRODUTO ────────────────────────────────────────────────────
+   Mesma mecânica da foto do serviço, e de propósito: `Imagens.reduzir()` no
+   navegador, `data:` no campo escondido, e só vira arquivo no Storage quando
+   o produto é salvo e já tem id.
+
+   A chave do arquivo é `produto-<id>`, dentro da pasta do salão. Não precisa
+   de policy nova: a do 04_imagens confere só a PRIMEIRA pasta do caminho. */
+let fotoProdutoPendente = null;
+
+async function escolherFotoProduto(campo){
+  const arquivo = campo.files && campo.files[0];
+  if(!arquivo) return;
+  campo.value = '';
+  try{
+    const r = await Imagens.reduzir(arquivo, 'servico');
+    fotoProdutoPendente = r.dataUrl;
+    document.getElementById('pFoto').value = r.dataUrl;
+    document.getElementById('previaProduto').innerHTML =
+      '<img src="' + r.dataUrl + '" alt="">';
+  }catch(e){ alert(e.message); }
+}
+
+function limparFotoProduto(){
+  fotoProdutoPendente = null;
+  document.getElementById('pFoto').value = '';
+  const p = document.getElementById('previaProduto');
+  p.innerHTML = '<span data-ico="presente"></span>';
+  if(window.aplicarIcones) aplicarIcones(p);
+}
+
+const acharProduto = i => (bd.produtos || []).find(p => p.id === i);
+
+function abrirProduto(pid){
+  const p = pid ? acharProduto(pid) : null;
+  abrirModal(p ? 'Editar produto' : 'Novo produto', `
+    <div class="foto-linha" style="margin-bottom:16px">
+      <div class="foto-previa servico" id="previaProduto">
+        ${p && p.foto ? `<img src="${escapar(p.foto)}" alt="">`
+                      : `<span data-ico="presente"></span>`}
+      </div>
+      <div class="foto-txt">
+        <b>Foto do produto</b>
+        <p>É o que faz a cliente escolher. "Shampoo" não diz nada; o vidro na
+           foto diz.</p>
+        <div class="foto-acoes">
+          <label class="btn btn-peq">Escolher
+            <input type="file" accept="image/*" hidden
+                   onchange="escolherFotoProduto(this)"></label>
+          <button class="btn btn-peq" onclick="limparFotoProduto()">Remover</button>
+        </div>
+      </div>
+    </div>
+    <input type="hidden" id="pFoto" value="${p && p.foto ? p.foto : ''}">
+    <div class="campo"><label>Nome</label>
+      <input id="pNome" value="${escapar(p ? p.nome : '')}" placeholder="Shampoo sem sal 300ml"></div>
+    <div class="campo"><label>Marca</label>
+      <input id="pMarca" value="${escapar(p ? (p.marca||'') : '')}" placeholder="opcional"></div>
+    <div class="campo"><label>Descrição</label>
+      <textarea id="pDesc" rows="2"
+        placeholder="Para cabelo com química. Não resseca.">${escapar(p ? (p.descricao||'') : '')}</textarea>
+      <span style="font-size:12px;color:var(--txt2)">Aparece na loja, embaixo
+        do nome.</span></div>
+    <div class="dupla">
+      <div class="campo"><label>Preço de venda</label>
+        <input type="number" id="pPreco" value="${p ? p.preco : 0}" min="0" step="0.01"></div>
+      <div class="campo"><label>Custo</label>
+        <input type="number" id="pCusto" value="${p ? p.custo : 0}" min="0" step="0.01">
+        <span style="font-size:12px;color:var(--txt2)">Só seu. Nunca aparece
+          para a cliente.</span></div>
+    </div>
+    <div class="dupla">
+      <div class="campo"><label>Estoque</label>
+        <input type="number" id="pEstoque" value="${p ? p.estoque : 0}" step="1">
+        <span style="font-size:12px;color:var(--txt2)">Hoje é só para você se
+          organizar: nada no sistema dá baixa sozinho ainda.</span></div>
+      <div class="campo"><label>Comissão (%)</label>
+        <input type="number" id="pCom" value="${p && p.comissaoPct != null ? p.comissaoPct : ''}"
+               min="0" max="100" placeholder="usa a do profissional"></div>
+    </div>
+    <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px">
+      <input type="checkbox" id="pAtivo" ${!p || p.ativo ? 'checked' : ''}>
+      <span class="i"><span class="n">Ativo</span>
+        <span class="d">Aparece na comanda, na hora de fechar a conta</span></span></label>
+    <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px;margin-top:8px">
+      <input type="checkbox" id="pOnline" ${p && p.vendaOnline ? 'checked' : ''}>
+      <span class="i"><span class="n">Vender na página do salão</span>
+        <span class="d">A cliente vê e põe no carrinho. Nasce desligado — quem
+          publica é você.</span></span></label>
+  `, [
+    ['Cancelar','fecharModal()',''],
+    ['Salvar', `salvarProduto(${p ? `'${p.id}'` : 'null'})`, 'btn-p'],
+  ]);
+}
+
+async function salvarProduto(pid){
+  const nome = (document.getElementById('pNome').value || '').trim();
+  if(nome.length < 2){ alert('Informe o nome do produto.'); return; }
+
+  const alvoId = pid || id();
+  let foto = document.getElementById('pFoto').value || null;
+
+  /* A foto sobe ANTES, para haver uma gravação só — o mesmo motivo escrito
+     por extenso no `salvarServico()`: duas gravações partindo do mesmo
+     retrato do banco esbarravam em chave duplicada, e uma das fotos sumia. */
+  if(foto && foto.startsWith('data:')){
+    const bt = document.querySelector('.modal .btn-p');
+    const rotulo = bt && bt.textContent;
+    if(bt){ bt.disabled = true; bt.textContent = 'Enviando a foto…'; }
+    try{
+      foto = await Imagens.publicar(foto, salaoAtual, 'produto-' + alvoId);
+    }catch(e){
+      alert('Não consegui enviar a foto:\n\n' + e.message
+          + '\n\nO produto NÃO foi salvo. Tente de novo, ou salve sem foto.');
+      if(bt){ bt.disabled = false; bt.textContent = rotulo; }
+      return;
+    }
+    if(bt){ bt.disabled = false; bt.textContent = rotulo; }
+  }
+
+  const comTxt = document.getElementById('pCom').value;
+  const dados = {
+    nome,
+    marca: document.getElementById('pMarca').value || '',
+    descricao: document.getElementById('pDesc').value || '',
+    preco: parseFloat(document.getElementById('pPreco').value) || 0,
+    custo: parseFloat(document.getElementById('pCusto').value) || 0,
+    estoque: parseFloat(document.getElementById('pEstoque').value) || 0,
+    /* Vazio vira NULL, e não zero — a mesma escada do 16_comissao: null quer
+       dizer "herda de baixo", zero quer dizer "fala, e é zero". */
+    comissaoPct: comTxt === '' ? null : parseFloat(comTxt),
+    ativo: document.getElementById('pAtivo').checked,
+    vendaOnline: document.getElementById('pOnline').checked,
+    foto,
+  };
+  if(pid) Object.assign(acharProduto(pid), dados);
+  else (bd.produtos = bd.produtos || []).push({id:alvoId, salaoId:salaoAtual, ...dados});
+
+  salvar(); fecharModal(); pintar();
+}
+
 function abrirProf(pid){
   const p = pid ? acharProf(pid) : null;
   const j = p ? p.jornada : {1:[[540,1140]],2:[[540,1140]],3:[[540,1140]],4:[[540,1140]],5:[[540,1140]],6:[[540,840]]};
@@ -4791,6 +4996,7 @@ function pintar(){
   if(telaAtual === 'agenda')   pintarAgenda();
   if(telaAtual === 'clientes') pintarClientes();
   if(telaAtual === 'servicos') pintarServicos();
+  if(telaAtual === 'produtos') pintarProdutos();
   if(telaAtual === 'equipe')   pintarEquipe();
   if(telaAtual === 'hoje')     carregarHoje();
   /* `carregarGaveta()` ANTES do `pintarCaixa()`, e não só depois de mexer

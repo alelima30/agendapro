@@ -3193,3 +3193,76 @@ comment on function public.registrar_recorrencia(text, text, numeric, text) is
   'A cobrança mensal do cartão: cria a linha do mês e entrega ao registrar_pagamento.';
 comment on function public.meu_cartao(uuid) is
   'Se o salão está no cartão e quando é a próxima. Não devolve o id da pré-aprovação.';
+
+alter table public.produtos add column if not exists foto text;
+alter table public.produtos add column if not exists descricao text;
+alter table public.produtos
+  add column if not exists venda_online boolean not null default false;
+create index if not exists ix_produto_salao
+  on public.produtos(salao_id) where ativo;
+comment on column public.produtos.venda_online is
+  'Se aparece na loja da página pública. Nasce falso de propósito.';
+update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 10)
+  where codigo = 'gratuito';
+update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 50)
+  where codigo in ('trial','individual');
+update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 100)
+  where codigo = 'duo';
+update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 200)
+  where codigo = 'time';
+update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 350)
+  where codigo = 'equipe';
+update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 500)
+  where codigo = 'salao';
+create or replace function public.checar_limite_produtos()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare teto int; usados int;
+begin
+  teto := public.recurso_num(new.salao_id, 'max_produtos');
+  if teto is null then return new; end if;
+  select count(*) into usados from public.produtos where salao_id = new.salao_id;
+  if usados >= teto then
+    raise exception 'O seu plano cobre % produtos, e o salão já tem %. Mude de plano para cadastrar mais.',
+      teto, usados using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
+drop trigger if exists tg_limite_produtos on public.produtos;
+create trigger tg_limite_produtos before insert on public.produtos
+  for each row execute function public.checar_limite_produtos();
+create or replace function public.uso_do_plano(p_salao uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  v_plano text;
+  v_nome  text;
+  v_preco numeric;
+begin
+  if not public.e_gestor(p_salao) then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+  select a.plano, pl.nome, pl.preco_mes into v_plano, v_nome, v_preco
+    from public.assinaturas a
+    join public.planos pl on pl.codigo = a.plano
+   where a.salao_id = p_salao;
+  return jsonb_build_object(
+    'plano', v_plano, 'nome', v_nome, 'precoMes', v_preco,
+    'profissionais', jsonb_build_object(
+      'usado', (select count(*) from public.profissionais
+                 where salao_id = p_salao and ativo),
+      'teto',  (select max_profissionais from public.planos where codigo = v_plano)),
+    'clientes', jsonb_build_object(
+      'usado', (select count(*) from public.clientes where salao_id = p_salao),
+      'teto',  public.recurso_num(p_salao, 'max_clientes')),
+    'servicos', jsonb_build_object(
+      'usado', (select count(*) from public.servicos where salao_id = p_salao),
+      'teto',  public.recurso_num(p_salao, 'max_servicos')),
+    'produtos', jsonb_build_object(
+      'usado', (select count(*) from public.produtos where salao_id = p_salao),
+      'teto',  public.recurso_num(p_salao, 'max_produtos')),
+    'mensagens', jsonb_build_object(
+      'usado', public.mensagens_no_mes(p_salao),
+      'teto',  public.teto_mensagens(p_salao)));
+end $$;
+revoke all on function public.uso_do_plano(uuid) from public, anon;
+grant execute on function public.uso_do_plano(uuid) to authenticated;
+revoke all on function public.checar_limite_produtos() from public, anon, authenticated;
