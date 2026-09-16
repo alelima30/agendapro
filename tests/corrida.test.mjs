@@ -73,8 +73,27 @@ async function montarSalao(nome){
   return { salao: s, prof: p, cliente: c };
 }
 
-const INI = "date_trunc('hour', now() + interval '3 days')";
-const FIM = "date_trunc('hour', now() + interval '3 days') + interval '1 hour'";
+/* ⚠ HORA FIXA NO FUSO DO SALÃO, E NÃO `date_trunc('hour', now())`.
+
+   Isto era `date_trunc('hour', now() + interval '3 days')`, e reprovava numa
+   janela de UMA HORA POR DIA — sempre, em qualquer máquina.
+
+   A jornada do fixture vai das 00:00 às 23:59. Quando a hora corrente cai em
+   23:00 no fuso do salão (02:00–03:00 UTC, para UTC−3), o atendimento de uma
+   hora TERMINA à meia-noite do dia seguinte, e o `checar_cabe_agendamento()`
+   recusa com "Fora da jornada de trabalho deste profissional" — corretamente.
+
+   A mensagem fala de jornada, e o arquivo fala de corrida entre transações:
+   quem topasse com isso procuraria o defeito no lugar errado, num teste que
+   passa nas outras vinte e três horas. Foi o que aconteceu.
+
+   Fixando as 10:00 do fuso do salão, o teste deixa de depender do relógio da
+   máquina — e continua medindo o que veio medir, que é a corrida. */
+const LOCAL = "(now() at time zone 'America/Sao_Paulo')";
+const INI = `((date_trunc('day', ${LOCAL} + interval '3 days')`
+          + ` + interval '10 hours') at time zone 'America/Sao_Paulo')`;
+const FIM = `((date_trunc('day', ${LOCAL} + interval '3 days')`
+          + ` + interval '11 hours') at time zone 'America/Sao_Paulo')`;
 
 const marcar = (cx, e) => cx.query(
   `insert into public.agendamentos (salao_id, cliente_id, profissional_id,

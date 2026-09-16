@@ -1444,7 +1444,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.52e960';
+const VERSAO_APP = 'v9.df6ea6';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -4708,12 +4708,20 @@ function abrirProduto(pid){
     <div class="dupla">
       <div class="campo"><label>Estoque</label>
         <input type="number" id="pEstoque" value="${p ? p.estoque : 0}" step="1">
-        <span style="font-size:12px;color:var(--txt2)">Hoje é só para você se
-          organizar: nada no sistema dá baixa sozinho ainda.</span></div>
+        <span style="font-size:12px;color:var(--txt2)">Sai sozinho quando a
+          comanda é fechada, e volta se ela for reaberta.</span></div>
       <div class="campo"><label>Comissão (%)</label>
-        <input type="number" id="pCom" value="${p && p.comissaoPct != null ? p.comissaoPct : ''}"
-               min="0" max="100" placeholder="usa a do profissional"></div>
+        <input type="number" id="pCom" value="${p && p.comissaoPct != null ? p.comissaoPct : 0}"
+               min="0" max="100">
+        <span style="font-size:12px;color:var(--txt2)">Em branco vale zero.
+          Produto não herda a comissão do profissional — ela é do produto.</span></div>
     </div>
+    <div class="campo"><label>Comissão fixa (R$)</label>
+      <input type="number" id="pComFixa" step="0.01" min="0"
+             value="${p && p.comissaoFixa != null ? p.comissaoFixa : ''}"
+             placeholder="em branco = não usa valor fixo">
+      <span style="font-size:12px;color:var(--txt2)">Por unidade vendida, e
+        soma com a porcentagem — R$ 5 por vidro mais 10% é arranjo comum.</span></div>
     <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px">
       <input type="checkbox" id="pAtivo" ${!p || p.ativo ? 'checked' : ''}>
       <span class="i"><span class="n">Ativo</span>
@@ -4755,6 +4763,7 @@ async function salvarProduto(pid){
   }
 
   const comTxt = document.getElementById('pCom').value;
+  const fixaTxt = document.getElementById('pComFixa').value;
   const dados = {
     nome,
     marca: document.getElementById('pMarca').value || '',
@@ -4762,9 +4771,21 @@ async function salvarProduto(pid){
     preco: parseFloat(document.getElementById('pPreco').value) || 0,
     custo: parseFloat(document.getElementById('pCusto').value) || 0,
     estoque: parseFloat(document.getElementById('pEstoque').value) || 0,
-    /* Vazio vira NULL, e não zero — a mesma escada do 16_comissao: null quer
-       dizer "herda de baixo", zero quer dizer "fala, e é zero". */
-    comissaoPct: comTxt === '' ? null : parseFloat(comTxt),
+    /* ⚠ ZERO, e não null — ao contrário de `servicos`.
+
+       `produtos.comissao_pct` é `not null default 0`, e `servicos.comissao_pct`
+       é anulável. A diferença está escrita no 16_comissao.sql e é deliberada:
+       produto NUNCA herda do profissional, porque tornar a coluna anulável
+       transformaria "0%" em "herda" em todo salão que já usa.
+
+       Eu copiei o padrão de serviço sem conferir a coluna, e o resultado foi
+       o pior possível: deixar a comissão em branco — que é o estado normal —
+       fazia a gravação INTEIRA da tela ser recusada pelo banco, com a linha do
+       produto perdida. O `produto-grava.test.mjs` passa por este caminho com
+       o dados.js de verdade, que é o único jeito de pegar isto. */
+    comissaoPct: comTxt === '' ? 0 : parseFloat(comTxt),
+    // Esta SIM é anulável: null quer dizer "não usa valor fixo".
+    comissaoFixa: fixaTxt === '' ? null : parseFloat(fixaTxt),
     ativo: document.getElementById('pAtivo').checked,
     vendaOnline: document.getElementById('pOnline').checked,
     foto,

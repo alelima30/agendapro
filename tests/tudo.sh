@@ -108,6 +108,10 @@ rodar "atualizar o banco"  bash "$AQUI/atualizar.test.sh"
 rodar "colunas"            node "$AQUI/colunas.test.js"
 rodar "nuvem"              node "$AQUI/nuvem.test.mjs"
 rodar "cota"               node "$AQUI/cota.test.mjs"
+# A tela do produto passando pelo dados.js de verdade. O produtos.test.sql
+# cobre o módulo, mas insere como superusuário, com os valores à mão — e
+# foi na TRADUÇÃO da tela para colunas que o cadastro quebrou.
+rodar "produto grava"      node "$AQUI/produto-grava.test.mjs"
 rodar "funil na nuvem"     node "$AQUI/funil-nuvem.test.mjs"
 rodar "link da cliente"    node "$AQUI/cliente-nuvem.test.mjs"
 rodar "senha"              node "$AQUI/senha.test.mjs"

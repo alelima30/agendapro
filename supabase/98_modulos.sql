@@ -3321,3 +3321,33 @@ language sql stable security definer set search_path = public as $$
   from public.saloes s
   where s.slug = p_slug and s.status = 'ativo'
 $$;
+
+create or replace function public.tg_comanda_estoque()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_sinal int;
+begin
+  if old.status <> 'fechada' and new.status = 'fechada' then
+    v_sinal := -1;
+  elsif old.status = 'fechada' and new.status <> 'fechada' then
+    v_sinal := 1;
+  else
+    return null;
+  end if;
+  update public.produtos p
+     set estoque = p.estoque + v_sinal * i.total_qtd
+    from (select ci.produto_id, sum(ci.qtd) as total_qtd
+            from public.comanda_itens ci
+           where ci.comanda_id = new.id
+             and ci.tipo = 'produto'
+             and ci.produto_id is not null
+           group by ci.produto_id) i
+   where p.id = i.produto_id;
+  return null;
+end $$;
+drop trigger if exists tg_comanda_estoque on public.comandas;
+create trigger tg_comanda_estoque
+  after update of status on public.comandas
+  for each row execute function public.tg_comanda_estoque();
+revoke all on function public.tg_comanda_estoque() from public, anon, authenticated;
+comment on function public.tg_comanda_estoque() is
+  'Baixa o estoque ao fechar a comanda e devolve ao reabrir. Nunca recusa o fechamento.';

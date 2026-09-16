@@ -107,6 +107,7 @@ partes.append(limpar(open('supabase/22_cotas.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/23_assinatura_cartao.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/24_produtos.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/25_loja.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/26_estoque.sql', encoding='utf-8').read()))
 
 saida = '\n\n'.join(partes) + '\n'
 assert '--' not in saida, 'sobrou comentário: o arquivo perde a imunidade'
