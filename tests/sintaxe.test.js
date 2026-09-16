@@ -203,23 +203,25 @@ console.log('\nA aparência atravessa do painel até a página da cliente');
    Por isso a conferência é entre o 06 e o ÚLTIMO módulo que reescreve a
    função — descoberto por varredura, e não por nome, para que o módulo 31 que
    um dia reescrever a vitrine de novo entre nesta conta sozinho. */
+/* ⚠ SEM OS COMENTÁRIOS, E ISSO NÃO É DETALHE.
+   O 25_loja.sql explica o `cartoes` escrevendo "'auto', 'vidro' ou 'fechado'"
+   num comentário. Contando o texto cru, `auto` virava uma "chave" — e como os
+   arquivos montados são gerados SEM comentário, ela aparecia lá como chave
+   PERDIDA. O guarda reprovava um arquivo correto, apontando para uma palavra
+   que nunca foi chave de nada.
+
+   É a mesma limpeza do `montar-modulos.sh`, pelo mesmo motivo: o que conta é o
+   que o Postgres lê. Fica no escopo de cima porque DOIS blocos precisam dela —
+   o da vitrine e o das funções redefinidas — e uma cópia em cada seria duas
+   regras que um dia divergem. */
+const semComentarios = sql => sql
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .split('\n').map(l => { const c = l.indexOf('--'); return c >= 0 ? l.slice(0, c) : l; })
+  .join('\n');
+
 console.log('\nO último módulo a reescrever a vitrine() não perdeu chave nenhuma');
 {
   const dir = path.join(RAIZ, 'supabase');
-
-  /* ⚠ SEM OS COMENTÁRIOS, E ISSO NÃO É DETALHE.
-     O 25_loja.sql explica o `cartoes` escrevendo "'auto', 'vidro' ou
-     'fechado'" num comentário. Contando o texto cru, `auto` virava uma
-     "chave" — e como os arquivos montados são gerados SEM comentário, ela
-     aparecia lá como chave PERDIDA. O guarda reprovava um arquivo correto,
-     apontando para uma palavra que nunca foi chave de nada.
-
-     É a mesma limpeza do `montar-modulos.sh`, pelo mesmo motivo: o que conta
-     é o que o Postgres lê. */
-  const semComentarios = sql => sql
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n').map(l => { const c = l.indexOf('--'); return c >= 0 ? l.slice(0, c) : l; })
-    .join('\n');
 
   const chavesDe = txt => {
     /* Só o corpo da função: `create or replace ... vitrine` até o `$$;` que a
@@ -402,6 +404,80 @@ console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
     dizer(!limpo.startsWith('{{') && !limpo.endsWith('}}'),
       `${modelo}: o texto não começa nem termina com variável`,
       'a Meta recusa o cadastro assim');
+  }
+}
+
+/* ── TODA FUNÇÃO DEFINIDA DUAS VEZES, E NÃO SÓ A VITRINE ──────────────────
+   O bloco acima vigia a `vitrine()`. Escrevi aquele guarda depois de a
+   `vitrine()` me enganar — e ele é específico demais, porque o problema não é
+   da vitrine: é de QUALQUER função redefinida em mais de um módulo.
+
+   Aconteceu de novo, com a `horarios_livres()`. Ela existe no 05_agenda.sql e
+   é reescrita pelo 14_motor.sql. Escrevi a antecedência mínima no 05,
+   instalei, e a agenda ignorou: a régua do painel gravava no `cfg` e o motor
+   seguia com os 30 minutos de sempre. As duas funções compilam, as duas
+   existem, e a de número maior é a que vale. Nada avisa.
+
+   Custou uma corrida inteira de testes para descobrir — e o guarda da vitrine,
+   que tinha exatamente esse formato, não olhava para ela.
+
+   ── O QUE ESTE BLOCO FAZ ──────────────────────────────────────────────────
+   Não tenta adivinhar qual versão é a certa: ele LISTA. Função definida em
+   dois módulos é um fato que quem for mexer precisa saber antes de editar, e
+   a lista é a diferença entre "eu sabia" e "descobri depois de instalar".
+
+   Só REPROVA quando a definição que os arquivos de colar levam não é a
+   ÚLTIMA — que é o defeito de verdade, o mesmo que fez o remendo desfazer a
+   loja e quase fez o 98 desfazer o motor. */
+console.log('\nFunção definida em mais de um módulo: qual versão viaja');
+{
+  const dir = path.join(RAIZ, 'supabase');
+  const mods = fs.readdirSync(dir)
+    .filter(f => /^(?!00_)\d\d_.*\.sql$/.test(f) && !/^9\d_/.test(f)).sort();
+
+  // nome da função -> módulos que a definem, em ordem de instalação
+  const onde = new Map();
+  for(const f of mods){
+    const txt = fs.readFileSync(path.join(dir, f), 'utf8');
+    for(const m of txt.matchAll(
+        /create or replace function\s+public\.([a-z0-9_]+)\s*\(/gi)){
+      const n = m[1].toLowerCase();
+      if(!onde.has(n)) onde.set(n, []);
+      if(!onde.get(n).includes(f)) onde.get(n).push(f);
+    }
+  }
+  const repetidas = [...onde].filter(([, fs2]) => fs2.length > 1);
+  dizer(true, 'funções reescritas por outro módulo: ' + repetidas.length
+    + (repetidas.length
+        ? ' (' + repetidas.map(([n, fs2]) =>
+            n + ': ' + fs2.join('→')).join('; ') + ')' : ''));
+
+  /* E agora o que importa: nos arquivos que alguém COLA, a última definição
+     de cada uma dessas funções tem que ser a do último módulo. Se for a de um
+     módulo anterior, colar aquele arquivo DESFAZ o mais novo. */
+  const corpoFinal = (txt, nome) => {
+    const todas = [...txt.matchAll(new RegExp(
+      'create or replace function\\s+public\\.' + nome + '\\s*\\([\\s\\S]*?\\$\\$;', 'gi'))];
+    return todas.length ? todas[todas.length - 1][0] : null;
+  };
+  const marcaDe = corpo => corpo
+    ? semComentarios(corpo).replace(/\s+/g, ' ').trim() : null;
+
+  for(const [nome, arquivos] of repetidas){
+    const esperado = marcaDe(corpoFinal(
+      fs.readFileSync(path.join(dir, arquivos[arquivos.length - 1]), 'utf8'), nome));
+    for(const alvo of ['00_tudo.sql', '98_modulos.sql', '99_remendo.sql']){
+      const caminho = path.join(dir, alvo);
+      if(!fs.existsSync(caminho)) continue;
+      const txt = fs.readFileSync(caminho, 'utf8');
+      const achado = marcaDe(corpoFinal(txt, nome));
+      if(achado === null) continue;   // este arquivo não leva esta função
+      dizer(achado === esperado,
+        alvo + ' leva a versão boa de ' + nome + '()',
+        'a última ' + nome + '() deste arquivo NÃO é a do '
+        + arquivos[arquivos.length - 1] + ' — quem colar isto por cima de uma '
+        + 'instalação boa volta para uma versão antiga, sem erro nenhum');
+    }
   }
 }
 

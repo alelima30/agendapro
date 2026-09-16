@@ -91,6 +91,22 @@ partes.append('revoke all on function public.proximo_numero(uuid, text)\n'
 # `create or replace function` — colar por cima é seguro, e colar duas vezes
 # dá no mesmo.
 partes.append(limpar(open('supabase/06_vitrine.sql', encoding='utf-8').read()))
+
+# ⚠ E A `horarios_livres` NÃO PRECISA DE LINHA PRÓPRIA AQUI.
+#
+# Cheguei a escrever uma, recortando-a do 05_agenda.sql, e era errado duas
+# vezes: o 14_motor.sql reescreve essa função por cima — a do 05 é MORTA numa
+# instalação completa — e o 14 inteiro já viaja neste arquivo, algumas linhas
+# abaixo. O recorte era redundante e levava a versão velha.
+#
+# Fica registrado porque o engano custou caro: escrevi a antecedência mínima
+# no 05, instalei, e a agenda ignorou. As duas funções compilavam, as duas
+# existiam, e a de número maior era a que valia. Nada avisa.
+#
+# Regra que ficou: antes de mexer numa função, confira em QUANTOS módulos ela
+# é definida. `grep -c "create or replace function public.NOME"` no 00_tudo.sql
+# responde em um segundo.
+
 partes.append(limpar(open('supabase/10_campanhas.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/11_equipe.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/12_relatorios.sql', encoding='utf-8').read()))

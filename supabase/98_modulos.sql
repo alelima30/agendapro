@@ -1143,11 +1143,19 @@ language plpgsql stable security definer set search_path = public as $$
 declare
   v_duracao int;
   v_passo   constant interval := '15 minutes';
-  v_cedo_demais constant interval := '30 minutes';
+  v_cedo_demais interval;
+  v_cfg     jsonb;
   j         record;
   v_ini     timestamptz;
   v_fim     timestamptz;
 begin
+  select sa.cfg into v_cfg
+    from public.profissionais p
+    join public.saloes sa on sa.id = p.salao_id
+   where p.id = p_profissional;
+  v_cedo_demais := make_interval(mins => least(greatest(
+    case when coalesce(v_cfg->>'antecedenciaMin', '') ~ '^[0-9]+$'
+         then (v_cfg->>'antecedenciaMin')::int else 30 end, 0), 10080));
   if public.porque_nao_agenda(p_profissional, p_data, p_servicos) is not null then
     return;
   end if;

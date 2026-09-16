@@ -21,7 +21,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 python3 - <<'PY'
-import re
+import os, re
 
 def limpar(sql):
     sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.S)
@@ -70,7 +70,27 @@ arquivar = recortar_ate(fonte01,
 # de jornada. Sem ela aqui, quem só cola o remendo continua com a lista de
 # horários duplicada e fora de ordem — o remendo tem que levar a correção
 # inteira, senão ele conserta metade e ninguém percebe qual metade.
-livres = recortar(fonte05, 'create or replace function public.horarios_livres(')
+#
+# ⚠ E ELA VEM DO ÚLTIMO MÓDULO QUE A REESCREVE, NÃO DO 05.
+#
+# Aqui estava `recortar(fonte05, ...)` escrito à mão, e era um DOWNGRADE: o
+# 14_motor.sql reescreve a `horarios_livres()` por cima, e a do 05 é morta
+# numa instalação completa. Quem colasse o remendo trocava o motor de verdade
+# pela versão anterior — sem erro nenhum, porque as duas compilam.
+#
+# Foi assim que a antecedência mínima sumiu na primeira tentativa: escrevi o
+# ajuste no 05, instalei, e a agenda ignorou. As duas funções existiam, e a
+# de número maior era a que valia.
+#
+# Por VARREDURA, como a vitrine logo abaixo: o módulo que um dia reescrever o
+# motor de novo entra nesta conta sozinho.
+motores = [f for f in sorted(os.listdir('supabase'))
+           if re.match(r'(?!00_)\d\d_.*\.sql$', f) and not re.match(r'9\d_', f)
+           and 'create or replace function public.horarios_livres('
+               in open('supabase/' + f, encoding='utf-8').read()]
+assert motores, 'ninguém define horarios_livres() — o remendo sairia sem o motor'
+livres = recortar(open('supabase/' + motores[-1], encoding='utf-8').read(),
+                  'create or replace function public.horarios_livres(')
 
 # ⚠ A VITRINE VEM DO ÚLTIMO MÓDULO QUE A REESCREVE, E NÃO DO 06.
 #
@@ -103,7 +123,6 @@ livres = recortar(fonte05, 'create or replace function public.horarios_livres(')
 # Então saem os dois, na ordem em que o 00_tudo.sql os instala — e a última
 # definição, que é a que o banco guarda, é a completa. `create or replace`
 # duas vezes dá no mesmo.
-import os
 modulos = sorted(f for f in os.listdir('supabase')
                  if re.match(r'(?!00_)\d\d_.*\.sql$', f) and not re.match(r'9\d_', f))
 reescrevem = [f for f in modulos

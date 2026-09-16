@@ -1451,7 +1451,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.3cd1f7';
+const VERSAO_APP = 'v9.7535d4';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -5233,6 +5233,26 @@ function pintarSalao(){
       <div class="regua" id="reguaDias" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaDias" style="margin-top:9px"></p>
 
+      <!-- O OUTRO EXTREMO DO MESMO EIXO. A janela acima diz ate onde a agenda
+           abre para a frente; esta diz quanto ela fecha perto de agora. Ficam
+           juntas de proposito: sao a mesma pergunta, "de quando ate quando a
+           cliente pode marcar", feita dos dois lados.
+           (Sem crase e sem acento: comentario dentro de template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Antecedência mínima</h3>
+      <p class="secao-sub">Horário que começa antes disso some da agenda online.
+        Serve para você não receber marcação em cima da hora, quando já está
+        atendendo alguém.</p>
+      <div class="regua" id="reguaAntecedencia" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaAntecedencia" style="margin-top:9px"></p>
+      <div class="aviso" style="margin-top:12px">
+        <b>Isto não cobre o atendimento que você combina no balcão.</b><br>
+        Se alguém chega às 10h e fica de voltar às 11h, o app segue oferecendo
+        as 11h até a hora que esta régua marcar — e outra cliente pode pegar.
+        Para fechar o horário na hora, lance o atendimento na sua agenda: ele
+        some do app na mesma hora, para todo mundo.
+      </div>
+
       <!-- QUANTO DA AGENDA O LINK PODE TOMAR.
            Foi medido: com a chave publicável, que é publica de proposito,
            quatro telefones inventados fecharam o dia inteiro de uma
@@ -5506,6 +5526,7 @@ function pintarSalao(){
 
   // Depois do innerHTML: os botões da janela só existem agora.
   pintarJanelaAgenda();
+  pintarAntecedencia();
   pintarTetoOnline();
   pintarNotificacoes();
   pintarAparencia();
@@ -6132,6 +6153,65 @@ function pintarJanelaAgenda(){
 
 function escolherJanela(n){ diasEscolhidos = n; pintarJanelaAgenda(); }
 
+/* ── A ANTECEDÊNCIA MÍNIMA ────────────────────────────────────────────────
+   O outro extremo da janela acima: aquela diz até onde a agenda abre para a
+   frente, esta diz quanto ela fecha perto de agora. Horário que começa antes
+   do prazo some da lista.
+
+   Espelha `horarios_livres()` no 05_agenda.sql, com o MESMO padrão de 30 e o
+   MESMO teto. Se divergirem, o dono escolhe um número na tela e a agenda usa
+   outro — e ele não tem como descobrir qual.
+
+   ⚠ E NÃO É AJUSTE DE APARÊNCIA, apesar de ser uma régua igual às de lá.
+   Aparência é o que a página da cliente DESENHA, e o `sintaxe.test.js` cobra
+   que toda chave daquele grupo atravesse até a vitrine. Esta não atravessa, e
+   está certo: quem aplica a regra é o motor no banco, antes de a tela receber
+   qualquer horário. Por isso ela mora aqui, ao lado da janela da agenda, e
+   não na aba Aparência — onde, além de errada, reprovaria o guarda. */
+const ANTECEDENCIAS = [
+  [0,   'Sem limite', 'A cliente marca até para daqui a pouco. Bom para quem '
+                    + 'tem movimento de rua e cadeira vaga com frequência.'],
+  [15,  '15 minutos', 'Folga curta, só para você ver a mensagem chegar.'],
+  [30,  '30 minutos', 'O padrão. Dá tempo de a cliente sair de casa e de você '
+                    + 'ficar sabendo antes que ela chegue.'],
+  [60,  '1 hora',     'Para quem precisa separar material ou confirmar antes.'],
+  [120, '2 horas',    'Agenda mais controlada: nada entra em cima da hora.'],
+  [240, '4 horas',    'Quase sempre significa "só marca de um turno para o '
+                    + 'outro". Confira se não está fechando demais.'],
+];
+let antecEscolhida = null;
+// De qual salão é o valor em cache — a mesma trava da janela acima. Sem ela,
+// trocar de estabelecimento no seletor deixaria na tela o número do salão
+// anterior, e salvar gravaria no errado.
+let antecDoSalao = null;
+
+function pintarAntecedencia(){
+  const alvo = document.getElementById('reguaAntecedencia');
+  if(!alvo) return;
+  const sl = acharSalao(salaoAtual) || {};
+  if(antecEscolhida === null || antecDoSalao !== salaoAtual){
+    const n = sl.cfg && Number(sl.cfg.antecedenciaMin);
+    /* `>= 0` e não `> 0`: zero é uma escolha legítima — "aceito marcação para
+       daqui a pouco" — e com `> 0` ela voltaria a virar 30 toda vez que a
+       tela relesse o salão. O dono desligaria e veria religar sozinho. */
+    antecEscolhida = Number.isFinite(n) && n >= 0 ? n : 30;
+    antecDoSalao = salaoAtual;
+  }
+  const conhecida = ANTECEDENCIAS.some(a => a[0] === antecEscolhida);
+  alvo.innerHTML = ANTECEDENCIAS.map(([n, rot]) =>
+    `<button type="button" class="${n === antecEscolhida ? 'on' : ''}"
+             onclick="escolherAntecedencia(${n})">${escapar(rot)}</button>`).join('')
+    + (conhecida ? '' : `<button type="button" class="on"
+               onclick="escolherAntecedencia(30)">Outro: ${antecEscolhida} min</button>`);
+  const achada = ANTECEDENCIAS.find(a => a[0] === antecEscolhida);
+  document.getElementById('explicaAntecedencia').textContent = achada
+    ? achada[1] + ' — ' + achada[2]
+    : 'Horários que começam em menos de ' + antecEscolhida
+      + ' minutos não aparecem.';
+}
+
+function escolherAntecedencia(n){ antecEscolhida = n; pintarAntecedencia(); }
+
 /* ── O QUE O LINK PODE MARCAR SOZINHO ─────────────────────────────────────
    Os dois campos espelham `teto_online_pct()` e `teto_online_rajada()` do
    19_teto_online.sql, com os MESMOS padrões: 70% e 5. Se divergirem, o dono
@@ -6234,6 +6314,14 @@ function salvarCadastroSalao(){
   sl.comissaoRegraDesde = v('cComDesde') || null;
   sl.cfg = Object.assign({}, sl.cfg, {
     diasLiberados: diasEscolhidos || 30,
+    /* ⚠ `?? 30` e não `|| 30`: a antecedência pode ser ZERO de propósito, e
+       `0 || 30` é 30. Com o `||`, desligar o limite gravaria meia hora — o
+       dono escolheria "Sem limite", salvaria, e a agenda continuaria fechada
+       para o resto do dia sem nada na tela explicando.
+
+       O `diasLiberados` acima pode usar `||` porque zero dia não é escolha:
+       agenda aberta por zero dias não existe. */
+    antecedenciaMin: antecEscolhida ?? 30,
     tetoOnlinePct:    aparar(v('cTetoPct'),    10, 100, 70),
     tetoOnlineRajada: aparar(v('cTetoRajada'),  1, 100, 10),
   });

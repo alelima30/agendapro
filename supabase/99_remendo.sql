@@ -76,64 +76,33 @@ create or replace function public.horarios_livres(
 returns setof timestamptz
 language plpgsql stable security definer set search_path = public as $$
 declare
-  v_salao   uuid;
-  v_fuso    text;
   v_duracao int;
   v_passo   constant interval := '15 minutes';
-  v_cedo_demais constant interval := '30 minutes';
+  v_cedo_demais interval;
+  v_cfg     jsonb;
   j         record;
   v_ini     timestamptz;
   v_fim     timestamptz;
-  v_ate     timestamptz;
 begin
-  if public.porque_nao_agenda(p_profissional, p_data, p_servicos) is not null then
-    return;
-  end if;
-  select p.salao_id, sa.fuso into v_salao, v_fuso
+  select sa.cfg into v_cfg
     from public.profissionais p
     join public.saloes sa on sa.id = p.salao_id
    where p.id = p_profissional;
+  v_cedo_demais := make_interval(mins => least(greatest(
+    case when coalesce(v_cfg->>'antecedenciaMin', '') ~ '^[0-9]+$'
+         then (v_cfg->>'antecedenciaMin')::int else 30 end, 0), 10080));
+  if public.porque_nao_agenda(p_profissional, p_data, p_servicos) is not null then
+    return;
+  end if;
   v_duracao := public.duracao_dos_servicos(p_profissional, p_servicos);
   if v_duracao <= 0 then return; end if;
-  for j in
-    with cruas as (
-      select inicio, fim from public.jornadas
-       where profissional_id = p_profissional
-         and dia_semana = extract(dow from p_data)::smallint
-    ),
-    marcadas as (
-      select inicio, fim,
-             case when inicio <= max(fim) over (
-                    order by inicio, fim
-                    rows between unbounded preceding and 1 preceding)
-                  then 0 else 1 end as nova
-        from cruas
-    ),
-    grupos as (
-      select inicio, fim,
-             sum(nova) over (order by inicio, fim
-                             rows between unbounded preceding and current row) as g
-        from marcadas
-    )
-    select min(inicio) as inicio, max(fim) as fim
-      from grupos group by g order by 1
-  loop
-    v_ini := ((p_data + j.inicio) at time zone v_fuso);
-    v_ate := ((p_data + j.fim)    at time zone v_fuso);
-    while v_ini + make_interval(mins => v_duracao) <= v_ate loop
+  for j in select * from public.jornada_costurada(p_profissional, p_data) loop
+    v_ini := j.inicio;
+    while v_ini + make_interval(mins => v_duracao) <= j.fim loop
       v_fim := v_ini + make_interval(mins => v_duracao);
       if v_ini >= now() + v_cedo_demais
-         and not exists (
-           select 1 from public.agendamentos a
-            where a.profissional_id = p_profissional
-              and a.status in ('pendente','confirmado','em_atendimento','concluido')
-              and a.arquivado_em is null
-              and tstzrange(a.inicio, a.fim, '[)') && tstzrange(v_ini, v_fim, '[)'))
-         and not exists (
-           select 1 from public.bloqueios b
-            where b.salao_id = v_salao
-              and (b.profissional_id = p_profissional or b.profissional_id is null)
-              and tstzrange(b.inicio, b.fim, '[)') && tstzrange(v_ini, v_fim, '[)'))
+         and public.ha_choque(p_profissional, v_ini, v_fim) is null
+         and public.ha_bloqueio(p_profissional, v_ini, v_fim) is null
       then
         return next v_ini;
       end if;

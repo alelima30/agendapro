@@ -409,13 +409,57 @@ language plpgsql stable security definer set search_path = public as $$
 declare
   v_duracao int;
   v_passo   constant interval := '15 minutes';
-  -- Ninguém quer receber "disponível: daqui a 4 minutos". Meia hora é o
-  -- mínimo para a pessoa conseguir sair de casa.
-  v_cedo_demais constant interval := '30 minutes';
+  /* ── A ANTECEDÊNCIA MÍNIMA, ESCOLHIDA PELO SALÃO ────────────────────────
+     Ninguém quer receber "disponível: daqui a 4 minutos". Era meia hora fixa
+     para todo mundo; virou ajuste porque os salões não se parecem: uma
+     barbearia de corte rápido atende quem aparece em 15 minutos, e uma
+     clínica precisa de horas para separar ficha e sala.
+
+     ⚠ E REPARE NO QUE ELA NÃO RESOLVE. Ela impede marcar um horário PRESTES a
+     começar. Não impede o choque com o atendimento presencial que ninguém
+     lançou: se a cliente combina de manhã o horário das 11h e isso não é
+     registrado, o app continua oferecendo as 11h. Nenhuma antecedência
+     conserta um atendimento que o sistema não conhece — o que fecha aquele
+     buraco é a dona lançar o encaixe na agenda.
+
+     ⚠⚠ E ESTA FUNÇÃO MORA AQUI, NÃO NO 05_agenda.sql.
+
+     Existe uma `horarios_livres()` lá também, e numa instalação completa ela é
+     MORTA: este arquivo a reescreve por cima. Escrevi este ajuste no 05
+     primeiro, instalei, e a agenda ignorou — a régua do painel gravava no
+     `cfg` e o motor seguia com os 30 minutos de sempre. Nada avisa: as duas
+     funções compilam, as duas existem, e a de número maior é a que vale.
+
+     Ausente vale 30: é o que valia antes, então nenhum salão muda de
+     comportamento por causa desta linha e não há migração.
+
+     ── O CAST PRECISA SER À PROVA DE TEXTO ────────────────────────────────
+     `cfg` é jsonb e guarda o que puserem nele. E `'abc'::int` no Postgres NÃO
+     devolve NULL: ele LEVANTA. Cast direto derrubaria esta função inteira — a
+     agenda da cliente ficaria com ERRO, não com o padrão. Daí a peneira do
+     `~ '^[0-9]+$'`, a mesma que o `dias_liberados()` já usa.
+
+     ── O PISO E O TETO ────────────────────────────────────────────────────
+     Número absurdo passa pela peneira e ainda assim faz estrago:
+     `antecedenciaMin: 999999` deixaria a agenda VAZIA para sempre. O teto é 7
+     dias; acima disso não é antecedência, é fechar a agenda — e para isso
+     existe desligar o link. O piso é zero: quem quiser aceitar marcação para
+     daqui a cinco minutos que aceite, é o negócio dele. */
+  v_cedo_demais interval;
+  v_cfg     jsonb;
   j         record;
   v_ini     timestamptz;
   v_fim     timestamptz;
 begin
+  select sa.cfg into v_cfg
+    from public.profissionais p
+    join public.saloes sa on sa.id = p.salao_id
+   where p.id = p_profissional;
+
+  v_cedo_demais := make_interval(mins => least(greatest(
+    case when coalesce(v_cfg->>'antecedenciaMin', '') ~ '^[0-9]+$'
+         then (v_cfg->>'antecedenciaMin')::int else 30 end, 0), 10080));
+
   -- As regras de POLÍTICA da agenda online (aceita online, cota do plano,
   -- dias liberados, serviço deste salão) continuam onde estavam. Elas são
   -- diferentes das regras FÍSICAS de disponibilidade, e misturar as duas faria
