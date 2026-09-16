@@ -2939,7 +2939,17 @@ language sql stable security definer set search_path = public as $$
          devolvido, cada chave é nomeada uma a uma, e ajuste que não aparece
          nesta lista fica preso no painel: o dono escolhe, o painel grava, a
          prévia obedece, e a página da cliente nunca fica sabendo. */
-      'cartoes', s.cfg->>'cartoes'
+      'cartoes', s.cfg->>'cartoes',
+
+      /* A FORMA do cartão de serviço: `reta` (o de sempre) ou
+         `elegante`. Ausente vale `reta`, então salão criado antes
+         disto existir não muda de aparência e não há migração.
+
+         ⚠ É outro eixo, e não um valor de `cartoes`. Aquele decide o
+         quanto o cartão FECHA sobre a foto de capa; este decide a
+         forma. Juntar os dois tornaria impossível pedir moldura
+         elegante com fundo de vidro. */
+      'moldura', coalesce(s.cfg->>'moldura', 'reta')
     ),
 
     'servicos', coalesce((
@@ -10103,6 +10113,16 @@ language sql stable security definer set search_path = public as $$
          nesta lista fica preso no painel: o dono escolhe, o painel grava, a
          prévia obedece, e a página da cliente nunca fica sabendo. */
       'cartoes', s.cfg->>'cartoes',
+
+      /* A FORMA do cartão de serviço: `reta` (o de sempre) ou
+         `elegante`. Ausente vale `reta`, então salão criado antes
+         disto existir não muda de aparência e não há migração.
+
+         ⚠ É outro eixo, e não um valor de `cartoes`. Aquele decide o
+         quanto o cartão FECHA sobre a foto de capa; este decide a
+         forma. Juntar os dois tornaria impossível pedir moldura
+         elegante com fundo de vidro. */
+      'moldura', coalesce(s.cfg->>'moldura', 'reta'),
 
       /* O interruptor da loja inteira. Ausente = ligada: os PRODUTOS já
          nascem fechados um a um, e exigir dois "sim" faria o dono marcar o

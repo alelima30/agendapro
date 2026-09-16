@@ -924,6 +924,8 @@ function bdDaVitrine(v){
          caiu exatamente aqui, e quem pegou foi o `cartoes.test.mjs` —
          'auto' funcionava (é o padrão), 'vidro' e 'fechado' não. */
       cartoes: s.cartoes || null,
+      // A forma do cartão de serviço. Ausente = `reta`, o de sempre.
+      moldura: s.moldura || 'reta',
       cfg: { diasLiberados: s.diasLiberados },
     }],
     servicos: (v.servicos || []).map(x => ({
@@ -1358,6 +1360,23 @@ function desenharCapa(){
      nenhuma continua com uma capa apresentável. */
   const svs = servicosDoSalao();
   const comPreco = salao.precoNaCapa === true;
+  /* ⚠ OS TRÊS ELEMENTOS A MAIS SÓ EXISTEM NA MOLDURA ELEGANTE.
+
+     Descrição, relógio e botão de seta. Escondê-los por CSS na moldura
+     clássica seria mais curto, mas deixaria o cartão de hoje com um HTML que
+     ele não tem — e o pedido foi não mexer nele.
+
+     (A imagem de referência trazia também um SELO REDONDO sobre a foto, e ele
+     não entrou. O selo é decorativo — não diz nada que a foto já não diga — e
+     o único desenho que o projeto tem para "um serviço" é a TESOURA. Sobre a
+     foto de um banho de cachorro ou de uma sessão de tatuagem, ela fica
+     errada, e o AgendaPro atende os oito tipos. Um enfeite que mente em cinco
+     deles vale menos que um cartão sem enfeite.)
+
+     O resto do cartão (foto, nome, preço, duração) é O MESMO NAS DUAS: uma
+     função de desenho só, sem lógica duplicada. O que muda é a forma, e quem
+     decide a forma é o CSS pelo `data-moldura` na raiz. */
+  const elegante = (salao.moldura || (salao.cfg||{}).moldura) === 'elegante';
   const porCat = {};
   for(const s of svs){ (porCat[s.categoria || ''] ||= []).push(s); }
   const categorias = Object.keys(porCat);
@@ -1373,12 +1392,41 @@ function desenharCapa(){
                         style="background-image:url('${escapar(s.foto)}')"></span>` : ''}
           <span class="sv-cartao-txt">
             <b>${escapar(s.nome)}</b>
+            ${elegante && s.descricao
+              ? `<span class="sv-cartao-desc">${escapar(s.descricao)}</span>` : ''}
             <span class="sv-cartao-linha">
               ${comPreco ? `<span class="sv-cartao-preco">${real(s.preco)}</span>` : ''}
-              <span class="sv-cartao-dur">${s.duracaoMin} min</span>
+              <!-- ⚠ O RELÓGIO FICA DENTRO DA DURAÇÃO, e não solto antes do
+                   preço. Solto, ele encostava no valor — "🕐 R$ 180,00" — e
+                   passava a dizer que o número ao lado é tempo. Aqui ele não
+                   tem como se separar do que explica, nem quando a linha
+                   quebra em duas num nome comprido. -->
+              <span class="sv-cartao-dur">${elegante
+                ? `<span class="sv-cartao-relogio" data-ico="relogio"></span>` : ''
+                }${s.duracaoMin} min</span>
             </span>
           </span>
+          ${elegante ? `<span class="sv-cartao-ir" data-ico="direita"></span>` : ''}
         </button>`).join('')}</div>`).join('')}`;
+
+  /* O `data-ico` não vira desenho sozinho: quem troca o span pelo SVG é o
+     `aplicarIcones()`. E quem o chama é o `irPara()`, DEPOIS do `desenhar()` —
+     não esta função.
+
+     Na abertura isso basta, porque o `entrarNoSalao()` termina em
+     `irPara('capa')`. O que não está coberto é o contrário: um `desenhar()`
+     com a capa JÁ na tela. Ele reescreve o `#capaServicos` inteiro, com
+     `data-ico` novo em folha, e ninguém pinta depois — o relógio e a seta
+     viram dois espaços em branco, e sobra um botão redondo vazio no canto.
+
+     Hoje nenhuma tela faz isso: todo `desenhar()` solto pertence a outro
+     passo. Então esta linha é PREVENÇÃO, e é honesto dizer o nome dela. O que
+     ela evita é silencioso e o custo dela é varrer um elemento — o pintor
+     apaga o `data-ico` ao trocar, então rodar de novo não acha nada.
+
+     O `moldura.test.mjs` força esse redesenho de propósito, para que isto não
+     vire uma linha que ninguém sabe se ainda funciona. */
+  if(window.aplicarIcones) aplicarIcones(document.getElementById('capaServicos'));
 
   montarSlides(svs);
 
@@ -3130,6 +3178,16 @@ function aplicarAparencia(s){
 
   if(tema === 'escuro') raiz.setAttribute('data-tema', 'escuro');
   else raiz.removeAttribute('data-tema');
+
+  /* A moldura do cartão de serviço. Só um atributo: o HTML do cartão é o
+     mesmo nas duas, e quem muda a forma é o CSS. Desligar é remover isto.
+
+     Lê dos DOIS lugares pelo mesmo motivo das chaves acima: na nuvem a
+     `vitrine()` entrega solto no salão, e na demonstração o salão é a linha
+     crua, com tudo dentro de `cfg`. */
+  const moldura = s.moldura || c.moldura || 'reta';
+  if(moldura === 'elegante') raiz.setAttribute('data-moldura', 'elegante');
+  else raiz.removeAttribute('data-moldura');
 
   /* O véu: quanto da foto de fundo aparece. Vem do salão, com o mesmo piso e
      teto da tela de Aparência — a página da cliente não confia num número que

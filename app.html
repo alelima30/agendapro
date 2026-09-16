@@ -1444,7 +1444,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.df6ea6';
+const VERSAO_APP = 'v9.ce1b00';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -5325,6 +5325,16 @@ function pintarSalao(){
       <div class="regua" id="reguaCartoes" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaCartoes" style="margin-top:9px"></p>
 
+      <!-- ⚠ EIXO SEPARADO DO "Cartões sobre a foto", DE PROPÓSITO.
+
+           Aquele ali decide o quanto o cartão FECHA sobre a foto de capa
+           (vidro × opaco). Este decide a FORMA do cartão de serviço. São
+           perguntas diferentes, e juntá-las num controle só tornaria
+           impossível pedir "moldura elegante com fundo de vidro". -->
+      <div class="rot" style="margin:18px 0 8px">Moldura dos serviços</div>
+      <div class="regua" id="reguaMoldura" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaMoldura" style="margin-top:9px"></p>
+
       <div class="rot" style="margin:18px 0 8px">Letra do nome</div>
       <div class="regua" id="reguaLetra" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaLetra" style="margin-top:9px"></p>
@@ -5737,6 +5747,32 @@ const CARTOES = [
                           + 'escolha segura para foto escura ou movimentada.'],
 ];
 
+/* ⚠ A MOLDURA É UM EIXO À PARTE DO `cartoes`, E NÃO UM VALOR NOVO NELE.
+
+   `cartoes` decide o quanto o cartão fecha sobre a foto de capa; `moldura`
+   decide a FORMA do cartão de serviço. Como valor de `cartoes`, "elegante"
+   tornaria impossível pedir moldura elegante COM fundo de vidro — e mexeria
+   num ajuste que já está em uso nos salões.
+
+   Ausente vale `reta`, que é o cartão de sempre: salão criado antes disto
+   existir não muda de aparência e não precisa de migração nenhuma.
+
+   ⚠ E REPARE QUE O RÓTULO NÃO É O VALOR: guarda-se `elegante`, e na tela lê-se
+   "Curvada". Logo abaixo, o `LETRAS` já tem um `elegante` que se chama
+   "Elegante" — é a letra serifada, e está em uso nos salões há tempo. Dois
+   controles com o mesmo nome na MESMA aba fariam o dono escolher um e ver o
+   outro mudar de lugar. O valor guardado não pode ser renomeado sem mexer na
+   `vitrine()`, no CSS e nos salões; o rótulo pode, e é ele que resolve. */
+const MOLDURAS = [
+  ['reta',     'Clássica', 'O cartão de sempre: foto em cima, nome e preço '
+                         + 'embaixo, com o recorte reto. É o mais discreto e '
+                         + 'o que funciona com qualquer foto.'],
+  ['elegante', 'Curvada',  'A foto fica quadrada e termina numa curva suave, '
+                         + 'com botão redondo no canto. Mostra também a '
+                         + 'descrição do serviço — vale preencher esse campo '
+                         + 'antes de escolher esta.'],
+];
+
 const LETRAS = [
   ['moderno',  'Moderno',  'Limpa e neutra, a mesma do resto do sistema. '
                          + 'Combina com quase tudo e nunca briga com a foto.'],
@@ -5791,6 +5827,9 @@ function lerAparencia(){
        antes disto existir. Não há o que migrar: o automático faz o que o
        limiar fixo fazia. */
     cartoes: ['vidro','fechado'].includes(c.cartoes) ? c.cartoes : 'auto',
+    /* Ausente vale `reta`, o cartão de sempre: salão criado antes disto
+       existir não muda de aparência nem precisa de migração. */
+    moldura: c.moldura === 'elegante' ? 'elegante' : 'reta',
   };
 }
 
@@ -5839,6 +5878,7 @@ function pintarAparencia(){
   if(fv) fv.value = 135 - aparencia.veu;
 
   regua('reguaCartoes', CARTOES, 'cartoes', 'explicaCartoes');
+  regua('reguaMoldura', MOLDURAS, 'moldura', 'explicaMoldura');
   regua('reguaLetra', LETRAS, 'letra', 'explicaLetra');
   regua('reguaSlide', SLIDES, 'slideDe', 'explicaSlide');
 
@@ -5896,6 +5936,52 @@ function previaDoSlide(sl){
   </div>`;
 }
 
+/* ── OS SERVIÇOS, DENTRO DA PRÉVIA ───────────────────────────────────────
+   Duas formas, porque são dois modelos de cartão. Sem isto, escolher a
+   moldura no painel não mudava NADA na prévia: o dono clicava em "Curvada",
+   olhava para o telefone desenhado ao lado, via o mesmo de antes, e concluía
+   — com razão — que o botão não funcionava. Ajuste que não aparece na prévia
+   é ajuste que ninguém acredita ter feito.
+
+   ⚠ A CLÁSSICA CONTINUA EXATAMENTE COMO ERA: a mesma fileira de sempre, foto
+   de 44px à esquerda e nome à direita. Ela é uma abstração do cartão de
+   verdade — na página, a clássica também é foto em cima e nome embaixo — e
+   isso já era assim antes desta funcionalidade. Deixar como está mantém a
+   promessa de não mexer no modelo atual; endireitar a prévia dele é outro
+   assunto, e vale ser tratado como tal.
+
+   A elegante é desenhada de perto: grade de dois em dois, foto quadrada com a
+   curva, descrição, duração e o botão redondo. Ela é a que está sendo
+   escolhida, e é dela que o dono precisa de uma ideia fiel. */
+function previaDosServicos(svs){
+  if(aparencia.moldura !== 'elegante'){
+    return svs.map(s => `
+      <div class="fone-sv">
+        <div class="fone-sv-foto"${s.foto ? ` style="background-image:url('${escapar(s.foto)}')"` : ''}></div>
+        <div class="fone-sv-txt">
+          <b>${escapar(s.nome)}</b>
+          ${aparencia.precoNaCapa
+            ? `<span class="fone-preco">${real(s.preco || 0)}</span>` : ''}
+        </div>
+      </div>`).join('');
+  }
+  return `<div class="fone-grade">${svs.map(s => `
+    <div class="fone-cartao">
+      <div class="fone-cartao-foto"${s.foto
+        ? ` style="background-image:url('${escapar(s.foto)}')"` : ''}></div>
+      <div class="fone-cartao-txt">
+        <b>${escapar(s.nome)}</b>
+        ${s.descricao ? `<span class="fone-cartao-desc">${escapar(s.descricao)}</span>` : ''}
+        <span class="fone-cartao-linha">
+          ${aparencia.precoNaCapa
+            ? `<span class="fone-preco">${real(s.preco || 0)}</span>` : ''}
+          <span class="fone-cartao-dur">${s.duracaoMin || 30} min</span>
+        </span>
+      </div>
+      <span class="fone-cartao-ir"></span>
+    </div>`).join('')}</div>`;
+}
+
 /* A prévia. Não é decoração: escolher cor sem ver onde ela cai é escolher no
    escuro, e o dono só descobriria o resultado abrindo o próprio link no
    celular. Aqui ele vê antes de salvar. */
@@ -5940,15 +6026,7 @@ function pintarPreviaFone(){
        ${previaDoSlide(sl)}
        <div class="fone-svs">
          <div class="fone-rot">Nossos serviços</div>
-         ${svs.length ? svs.map(s => `
-           <div class="fone-sv">
-             <div class="fone-sv-foto"${s.foto ? ` style="background-image:url('${escapar(s.foto)}')"` : ''}></div>
-             <div class="fone-sv-txt">
-               <b>${escapar(s.nome)}</b>
-               ${aparencia.precoNaCapa
-                 ? `<span class="fone-preco">${real(s.preco || 0)}</span>` : ''}
-             </div>
-           </div>`).join('')
+         ${svs.length ? previaDosServicos(svs)
          : '<p class="fone-nada">Cadastre serviços para vê-los aqui.</p>'}
        </div>
        ${eq.length ? `<div class="fone-svs">
@@ -5978,6 +6056,7 @@ function salvarAparencia(){
     capaFoco: aparencia.capaFoco,
     veu: aparencia.veu,
     cartoes: aparencia.cartoes,
+    moldura: aparencia.moldura,
   });
   salvar();
   const aviso = document.getElementById('salvouAparencia');

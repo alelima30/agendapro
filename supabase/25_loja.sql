@@ -86,6 +86,16 @@ language sql stable security definer set search_path = public as $$
          prévia obedece, e a página da cliente nunca fica sabendo. */
       'cartoes', s.cfg->>'cartoes',
 
+      /* A FORMA do cartão de serviço: `reta` (o de sempre) ou
+         `elegante`. Ausente vale `reta`, então salão criado antes
+         disto existir não muda de aparência e não há migração.
+
+         ⚠ É outro eixo, e não um valor de `cartoes`. Aquele decide o
+         quanto o cartão FECHA sobre a foto de capa; este decide a
+         forma. Juntar os dois tornaria impossível pedir moldura
+         elegante com fundo de vidro. */
+      'moldura', coalesce(s.cfg->>'moldura', 'reta'),
+
       /* O interruptor da loja inteira. Ausente = ligada: os PRODUTOS já
          nascem fechados um a um, e exigir dois "sim" faria o dono marcar o
          produto e não entender por que nada apareceu. Serve para pausar a

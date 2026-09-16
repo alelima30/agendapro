@@ -51,7 +51,8 @@ language sql stable security definer set search_path = public as $$
       'galeria', coalesce(s.cfg->'galeria', '[]'::jsonb),
       'capaFoco', (s.cfg->>'capaFoco')::int,
       'veu', (s.cfg->>'veu')::int,
-      'cartoes', s.cfg->>'cartoes'
+      'cartoes', s.cfg->>'cartoes',
+      'moldura', coalesce(s.cfg->>'moldura', 'reta')
     ),
     'servicos', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -3288,6 +3289,7 @@ language sql stable security definer set search_path = public as $$
       'capaFoco', (s.cfg->>'capaFoco')::int,
       'veu', (s.cfg->>'veu')::int,
       'cartoes', s.cfg->>'cartoes',
+      'moldura', coalesce(s.cfg->>'moldura', 'reta'),
       'loja', coalesce((s.cfg->>'loja')::boolean, true)
     ),
     'produtos', coalesce((

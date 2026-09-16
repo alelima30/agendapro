@@ -72,6 +72,47 @@ arquivar = recortar_ate(fonte01,
 # inteira, senão ele conserta metade e ninguém percebe qual metade.
 livres = recortar(fonte05, 'create or replace function public.horarios_livres(')
 
+# ⚠ A VITRINE VEM DO ÚLTIMO MÓDULO QUE A REESCREVE, E NÃO DO 06.
+#
+# `vitrine()` é uma função SQL monolítica: não há como acrescentar uma chave
+# sem reapresentá-la inteira. Então todo módulo que precise devolver mais
+# alguma coisa faz `create or replace` por cima, e o banco fica com a do
+# módulo de número MAIOR. Hoje é o 25_loja.sql, que acrescentou os produtos.
+#
+# Aqui estava `06_vitrine.sql` escrito à mão, e isso fazia o REMENDO DESFAZER
+# O MÓDULO: colado depois do 98_modulos.sql, ele reinstalava a versão antiga
+# da função e a loja sumia da página da cliente. Sem erro nenhum — o painel
+# continuava listando os produtos, e só a página de quem compra ficava vazia.
+#
+# Medido antes de consertar: instalada a base, a vitrine tinha `produtos`;
+# colado o 99_remendo.sql por cima, não tinha mais.
+#
+# E o remendo é justamente o arquivo de resgate, o que se cola quando o
+# 00_tudo.sql chegou picotado. Quem mais precisa dele era quem levava o
+# estrago.
+#
+# Por VARREDURA e não por nome: o módulo que um dia reescrever a vitrine de
+# novo entra nesta conta sozinho, sem ninguém precisar lembrar deste arquivo.
+#
+# ── E OS DOIS VÃO JUNTOS, NESTA ORDEM ─────────────────────────────────────
+# O 06 não é só a função: é ele que traz os `revoke` das três views e o
+# `grant execute ... to anon, authenticated` sem o qual a página da cliente
+# recebe "permission denied". O 25 traz só a função, mais completa.
+#
+# Mandar apenas o 25 deixaria de fora as permissões; apenas o 06, a loja.
+# Então saem os dois, na ordem em que o 00_tudo.sql os instala — e a última
+# definição, que é a que o banco guarda, é a completa. `create or replace`
+# duas vezes dá no mesmo.
+import os
+modulos = sorted(f for f in os.listdir('supabase')
+                 if re.match(r'(?!00_)\d\d_.*\.sql$', f) and not re.match(r'9\d_', f))
+reescrevem = [f for f in modulos
+              if 'create or replace function public.vitrine'
+                 in open('supabase/' + f, encoding='utf-8').read()]
+assert reescrevem and reescrevem[0] == '06_vitrine.sql', \
+    'a vitrine() deixou de nascer no 06 — este recorte precisa ser revisto'
+vitrines = [open('supabase/' + f, encoding='utf-8').read() for f in reescrevem]
+
 partes = [
     limpar(arquivar),
     limpar(digitos),
@@ -83,8 +124,7 @@ partes = [
     limpar(ficha),
     "revoke all on function public.ficha_do_cliente(uuid, text, text) from public;",
     limpar(open('supabase/09_cliente.sql', encoding='utf-8').read()),
-    limpar(open('supabase/06_vitrine.sql', encoding='utf-8').read()),
-]
+] + [limpar(v) for v in vitrines]
 saida = '\n\n'.join(partes) + '\n'
 assert '--' not in saida, 'sobrou comentário: o remendo perde a imunidade'
 open('supabase/99_remendo.sql', 'w', encoding='utf-8').write(saida)

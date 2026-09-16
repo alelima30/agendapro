@@ -184,6 +184,124 @@ console.log('\nA aparência atravessa do painel até a página da cliente');
     + 'fora (agendar.html)');
 }
 
+/* ── E O QUARTO LUGAR, QUE NINGUÉM VÊ ─────────────────────────────────────
+   A verificação de cima lê o `06_vitrine.sql` como fonte da verdade, e está
+   certa: é lá que a `vitrine()` nasce. Só que ela não é a última palavra.
+
+   A `vitrine()` é uma função SQL monolítica — não há como acrescentar uma
+   chave sem reapresentá-la INTEIRA. Então todo módulo que precise devolver
+   mais alguma coisa faz `create or replace` por cima, e o banco fica com a
+   definição do módulo de número MAIOR. Hoje é o `25_loja.sql`.
+
+   O efeito: chave escrita no 06 e esquecida no 25 passa neste teste, passa em
+   todo o resto, e não existe no banco. É o mesmo silêncio do bloco acima —
+   agora com o teste que o vigiava olhando para o arquivo errado.
+
+   Já quase aconteceu com a `moldura`, na primeira vez em que este arquivo
+   cobrou o 06 e eu acrescentei a chave só lá.
+
+   Por isso a conferência é entre o 06 e o ÚLTIMO módulo que reescreve a
+   função — descoberto por varredura, e não por nome, para que o módulo 31 que
+   um dia reescrever a vitrine de novo entre nesta conta sozinho. */
+console.log('\nO último módulo a reescrever a vitrine() não perdeu chave nenhuma');
+{
+  const dir = path.join(RAIZ, 'supabase');
+
+  /* ⚠ SEM OS COMENTÁRIOS, E ISSO NÃO É DETALHE.
+     O 25_loja.sql explica o `cartoes` escrevendo "'auto', 'vidro' ou
+     'fechado'" num comentário. Contando o texto cru, `auto` virava uma
+     "chave" — e como os arquivos montados são gerados SEM comentário, ela
+     aparecia lá como chave PERDIDA. O guarda reprovava um arquivo correto,
+     apontando para uma palavra que nunca foi chave de nada.
+
+     É a mesma limpeza do `montar-modulos.sh`, pelo mesmo motivo: o que conta
+     é o que o Postgres lê. */
+  const semComentarios = sql => sql
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').map(l => { const c = l.indexOf('--'); return c >= 0 ? l.slice(0, c) : l; })
+    .join('\n');
+
+  const chavesDe = txt => {
+    /* Só o corpo da função: `create or replace ... vitrine` até o `$$;` que a
+       fecha. Sem isto, comentário de cabeçalho com aspas entraria na conta. */
+    const corpo = semComentarios(txt).match(
+      /create or replace function public\.vitrine\b[\s\S]*?\$\$;/);
+    return corpo
+      ? new Set([...corpo[0].matchAll(/'([A-Za-z][A-Za-z0-9_]*)'\s*,/g)]
+          .map(m => m[1]))
+      : null;
+  };
+
+  /* Os módulos numerados, e só eles: o `00_tudo`, o `98_modulos` e o
+     `99_remendo` são montados por script a partir destes, e conferir a cópia
+     em vez do original esconderia justamente um script desatualizado. */
+  const modulos = fs.readdirSync(dir)
+    .filter(f => /^(?!00_)\d\d_.*\.sql$/.test(f) && !/^9\d_/.test(f))
+    .sort();
+  const reescrevem = modulos.filter(
+    f => /create or replace function public\.vitrine\b/.test(
+      fs.readFileSync(path.join(dir, f), 'utf8')));
+
+  dizer(reescrevem.length > 0 && reescrevem[0] === '06_vitrine.sql',
+    'a vitrine() nasce no 06_vitrine.sql',
+    'quem define primeiro agora é ' + (reescrevem[0] || 'ninguém')
+    + ' — o bloco acima lê o 06 e passou a olhar para o arquivo errado');
+
+  const ultimo = reescrevem[reescrevem.length - 1];
+  const nasce = chavesDe(fs.readFileSync(path.join(dir, '06_vitrine.sql'), 'utf8'));
+  const vale  = chavesDe(fs.readFileSync(path.join(dir, ultimo), 'utf8'));
+
+  dizer(nasce && nasce.size > 0 && vale && vale.size > 0,
+    'consegui ler as duas definições (' + ultimo + ' é a que o banco guarda)',
+    'o recorte da função falhou — conserte esta busca, não apague a verificação');
+
+  const perdidas = [...(nasce || [])].filter(k => !(vale || new Set()).has(k));
+  dizer(perdidas.length === 0,
+    'e ' + ultimo + ' devolve tudo o que o 06_vitrine.sql devolve',
+    perdidas.join(', ') + ' — está no 06 e o ' + ultimo + ' reescreve a função '
+    + 'por cima sem ela, então no banco essa chave não existe');
+
+  /* ── E OS ARQUIVOS MONTADOS, QUE SÃO ONDE ISSO CHEGA AO BANCO ───────────
+     A verificação acima compara dois MÓDULOS. Não é onde o estrago acontece:
+     ninguém cola módulo no Supabase. Cola-se o `00_tudo.sql`, ou o
+     `98_modulos.sql` para atualizar, ou o `99_remendo.sql` quando o grande
+     chegou picotado. Cada um é montado por um script diferente, e cada script
+     decide por conta própria qual vitrine leva.
+
+     O `99_remendo.sql` levava a do 06, escrita à mão no `montar-remendo.sh`.
+     Colado depois do `98_modulos.sql`, ele REINSTALAVA a versão antiga e a
+     loja sumia da página da cliente — sem erro, com o painel continuando a
+     listar os produtos. Medido: a vitrine tinha `produtos` antes do remendo e
+     não tinha depois.
+
+     A primeira versão deste bloco não teria pego isso, porque eu a escrevi
+     olhando só para o par 06 × 25 que tinha na frente. Estes três casos são a
+     correção: a conta é sobre o que o banco RECEBE. */
+  const montados = ['00_tudo.sql', '98_modulos.sql', '99_remendo.sql'];
+  for(const arq of montados){
+    const caminho = path.join(dir, arq);
+    if(!fs.existsSync(caminho)){ dizer(false, arq + ' existe'); continue; }
+    const texto = semComentarios(fs.readFileSync(caminho, 'utf8'));
+    /* A ÚLTIMA definição do arquivo, que é a que fica de pé: os três levam a
+       função mais de uma vez, de propósito — o 06 traz os `grant` e o módulo
+       traz as chaves novas. Quem vale é quem chega por último. */
+    const todas = texto.match(
+      /create or replace function public\.vitrine\b[\s\S]*?\$\$;/g) || [];
+    const final = todas.length
+      ? new Set([...todas[todas.length - 1]
+          .matchAll(/'([A-Za-z][A-Za-z0-9_]*)'\s*,/g)].map(m => m[1]))
+      : new Set();
+    const faltam = [...(vale || [])].filter(k => !final.has(k));
+    dizer(todas.length > 0 && faltam.length === 0,
+      arq + ' entrega a vitrine completa (' + todas.length + 'x, ' + final.size + ' chaves)',
+      !todas.length
+        ? 'este arquivo não leva vitrine() nenhuma — rode o montar correspondente'
+        : faltam.join(', ') + ' — a última vitrine deste arquivo é mais VELHA '
+          + 'que a do ' + ultimo + '. Quem colar isto por cima de uma '
+          + 'instalação boa desfaz o módulo, sem erro nenhum.');
+  }
+}
+
 /* ── O AVISO DE DIREITOS AUTORAIS, EM TODA PÁGINA ─────────────────────────
    Sem página nenhuma de fora: a tela que faltar é justamente a que alguém vai
    abrir, copiar e dizer que não sabia. E a próxima página do projeto nasce

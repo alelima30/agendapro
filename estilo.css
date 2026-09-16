@@ -946,6 +946,68 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 .fone-escuro .fone-sv-foto{background-color:#26262A}
 .fone-sv-txt b{display:block;font-size:12px;line-height:1.3}
 .fone-preco{font-size:12.5px;font-weight:700;color:var(--fone-marca)}
+
+/* ── A MOLDURA CURVADA, DENTRO DA PRÉVIA ──────────────────────────────────
+   O mesmo desenho do `.sv-cartao` da página da cliente, em 106px de largura.
+   Não é a mesma folha: a prévia vive dentro do painel, onde `--acao` é a cor
+   do SISTEMA e não a do salão. Quem carrega a cor escolhida aqui é o
+   `--fone-marca`, que o `pintarPreviaFone()` põe no elemento — por isso o
+   botão redondo usa ele, e não `--acao`.
+
+   A onda é o MESMO SVG, palavra por palavra — e duas cópias divergem, que é o
+   que cópias fazem. Quando divergirem, a prévia promete uma curva e a página
+   entrega outra, sem que nada quebre: as duas continuam bonitas, cada uma
+   sozinha. Por isso o `moldura.test.mjs` cobra que as duas sejam idênticas
+   caractere por caractere. */
+.fone-grade{ display:grid; grid-template-columns:1fr 1fr; gap:7px }
+.fone-cartao{
+  position:relative; border-radius:11px; overflow:hidden;
+  background:var(--painel); box-shadow:var(--sombra-xs); padding-bottom:2px;
+}
+.fone-escuro .fone-cartao{ background:#1D1D20 }
+.fone-cartao-foto{
+  aspect-ratio:1 / 1; background:var(--borda) center/cover no-repeat;
+  display:block;
+}
+.fone-escuro .fone-cartao-foto{ background-color:#26262A }
+@supports (mask-image: linear-gradient(#000, #000)) or
+          (-webkit-mask-image: linear-gradient(#000, #000)) {
+  .fone-cartao-foto{
+    --onda:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 H100 V80 C78 100 22 62 0 84 Z' fill='%23fff'/%3E%3C/svg%3E");
+    -webkit-mask-image:var(--onda); mask-image:var(--onda);
+    -webkit-mask-size:100% 100%;    mask-size:100% 100%;
+    -webkit-mask-repeat:no-repeat;  mask-repeat:no-repeat;
+    margin-bottom:-12%;
+  }
+}
+.fone-cartao-txt{ position:relative; padding:1px 8px 8px }
+.fone-cartao-txt b{ display:block; font-size:11.5px; line-height:1.25 }
+.fone-cartao-desc{
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; font-size:10.5px; line-height:1.35; opacity:.62;
+  margin:2px 0 6px;
+}
+.fone-cartao-linha{
+  display:flex; align-items:center; gap:5px; flex-wrap:wrap;
+  border-top:1px solid var(--borda); padding:6px 20px 0 0;
+}
+.fone-escuro .fone-cartao-linha{ border-top-color:#2A2A2E }
+.fone-cartao-linha .fone-preco{ font-size:11.5px }
+.fone-cartao-dur{ font-size:10.5px; opacity:.6 }
+/* A seta é desenhada com borda girada, e não com o SVG dos ícones: a prévia é
+   reescrita a cada clique da régua, e um `data-ico` aqui dependeria de alguém
+   lembrar de repintar os ícones depois de cada toque. */
+.fone-cartao-ir{
+  position:absolute; right:7px; bottom:7px; width:17px; height:17px;
+  border-radius:50%; background:var(--fone-marca);
+  display:grid; place-items:center;
+}
+.fone-cartao-ir::after{
+  content:''; width:4px; height:4px; margin-left:-1px;
+  border-top:1.5px solid var(--fone-marca-txt);
+  border-right:1.5px solid var(--fone-marca-txt);
+  transform:rotate(45deg);
+}
 .fone-nada{font-size:11.5px;opacity:.55;text-align:center;padding:8px 0}
 
 /* O plano em destaque é uma recomendação da casa, não uma escolha já feita:
@@ -1656,6 +1718,138 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
    uma capa apresentável, em vez de uma grade de retângulos vazios. */
 .sv-cartao.sem-foto{ grid-column:1 / -1 }
 .sv-cartao.sem-foto .sv-cartao-txt{ padding:13px 14px }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOLDURA ELEGANTE — o segundo modelo do cartão de serviço
+
+   O de cima continua sendo o de sempre e não foi tocado. Tudo aqui está preso
+   ao `[data-moldura="elegante"]` que o `aplicarAparencia()` põe no <html>
+   quando o dono escolhe essa forma em Aparência. Sem o atributo, nenhuma
+   destas regras casa, e o cartão clássico é o que aparece — inclusive nos
+   salões que já existem, porque a `vitrine()` devolve `reta` quando o dono
+   nunca escolheu nada.
+
+   ── A CURVA, E POR QUE ELA É UMA MÁSCARA ─────────────────────────────────
+   O recorte em S entre a foto e o texto não é uma imagem nem um elemento a
+   mais: é um `mask-image` com um SVG escrito na própria folha de estilo. A
+   foto é que fica com a borda de baixo ondulada, e o fundo do cartão aparece
+   por trás dela.
+
+   A alternativa seria empilhar um <span> com a onda desenhada por cima da
+   foto. Funciona — e obriga esse span a ter a COR DE FUNDO do cartão, que
+   muda com o tema, com a cor de marca e com o modo escuro. Toda vez que
+   alguma delas mudasse, a onda ficaria com a cor errada, e ninguém
+   descobriria até um cliente reclamar. Máscara não tem cor: ela recorta.
+
+   ── E O QUE ACONTECE SE O NAVEGADOR NÃO SOUBER ───────────────────────────
+   O `@supports` é a diferença entre "sem onda" e "sem foto". Sem ele, um
+   navegador que ignora `mask-image` mostra a foto inteira e reta — o que é
+   apenas menos bonito. Mas se a regra fosse escrita ao contrário, com a foto
+   dependendo da máscara para aparecer, o mesmo navegador mostraria um buraco.
+   Por isso o padrão vem PRIMEIRO, e a onda é um acréscimo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-moldura="elegante"] .sv-grade{ gap:14px }
+
+[data-moldura="elegante"] .sv-cartao{
+  position:relative;                 /* o botão de seta se pendura aqui */
+  border:1px solid transparent;
+  border-radius:var(--r-lg);
+  box-shadow:var(--sombra-md);
+  padding-bottom:2px;
+}
+/* A borda nasce transparente, e não ausente, de propósito: se ela só
+   aparecesse no hover, o cartão CRESCERIA 2px ao passar o dedo, empurrando a
+   grade inteira. Transparente ocupa o mesmo lugar e só troca de cor. */
+[data-moldura="elegante"] .sv-cartao:hover{
+  border-color:transparent; box-shadow:var(--sombra-lg);
+  transform:translateY(-2px);
+}
+[data-moldura="elegante"] .sv-cartao:active{ transform:translateY(0) }
+
+[data-moldura="elegante"] .sv-cartao-foto{ aspect-ratio:1 / 1 }
+@supports (mask-image: linear-gradient(#000, #000)) or
+          (-webkit-mask-image: linear-gradient(#000, #000)) {
+  /* `preserveAspectRatio='none'` faz a onda ESTICAR com o cartão, em vez de
+     manter proporção e sobrar espaço nas pontas. A altura do recorte passa a
+     ser sempre a mesma fatia da foto, seja qual for a largura da tela. */
+  [data-moldura="elegante"] .sv-cartao-foto{
+    /* BRANCO, e não preto. Máscara de imagem é lida pelo canal ALFA, e nesse
+       caso as duas cores dariam no mesmo — as duas são opacas. Só que
+       `mask-mode` pode ser trocado para luminância, e aí preto quer dizer
+       "esconda tudo": a foto sumiria inteira. Branco é a única das duas que
+       dá certo nas duas leituras. */
+    --onda:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 H100 V80 C78 100 22 62 0 84 Z' fill='%23fff'/%3E%3C/svg%3E");
+    -webkit-mask-image:var(--onda); mask-image:var(--onda);
+    -webkit-mask-size:100% 100%;    mask-size:100% 100%;
+    -webkit-mask-repeat:no-repeat;  mask-repeat:no-repeat;
+    /* A onda corta a foto entre 77% e 86% da altura dela. Sem subir o texto,
+       sobrariam os 14% recortados como faixa vazia embaixo. Sobe 12%: o texto
+       começa logo abaixo do ponto mais fundo (86%) e a curva fica à vista.
+
+       Os 12% são da LARGURA — porcentagem de margem sempre é. Dá na mesma
+       aqui porque a foto é quadrada nesta moldura; se o `aspect-ratio` acima
+       mudar, este número muda junto. */
+    margin-bottom:-12%;
+  }
+}
+
+[data-moldura="elegante"] .sv-cartao-txt{
+  position:relative;                 /* sobre a foto, não por baixo dela */
+  padding:2px 14px 12px;
+}
+[data-moldura="elegante"] .sv-cartao-txt b{
+  font-size:15px; font-weight:700; line-height:1.25; margin-bottom:3px;
+}
+
+/* A descrição tem TETO de duas linhas. Sem ele, um serviço com um parágrafo
+   inteiro esticaria o cartão dele e deixaria o vizinho com um buraco branco
+   embaixo — e a grade de dois em dois viraria uma escada. */
+[data-moldura="elegante"] .sv-cartao-desc{
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden;
+  font-size:12px; line-height:1.4; color:var(--txt3); margin-bottom:9px;
+}
+
+[data-moldura="elegante"] .sv-cartao-linha{
+  align-items:center;                /* o relógio pede centro, não base */
+  gap:6px;
+  border-top:1px solid var(--borda);
+  padding-top:9px;
+  /* Espaço para o botão redondo, que flutua no canto. Sem isto, a duração
+     passaria por baixo dele em serviço de nome comprido. */
+  padding-right:34px;
+}
+[data-moldura="elegante"] .sv-cartao-relogio{
+  display:inline-flex; align-items:center; color:var(--txt3); flex:none;
+}
+[data-moldura="elegante"] .sv-cartao-relogio .ic-svg{ width:13px; height:13px }
+[data-moldura="elegante"] .sv-cartao-preco{ font-size:15px }
+/* O relógio mora DENTRO deste span, encostado no número que ele explica — daí
+   o `inline-flex` aqui em vez de no elemento do ícone sozinho. */
+[data-moldura="elegante"] .sv-cartao-dur{
+  display:inline-flex; align-items:center; gap:4px; font-size:12px;
+}
+
+/* O botão de acessar. `var(--acao)` e não uma cor escrita à mão: é assim que
+   ele acompanha a cor de marca que o dono escolheu e o modo escuro, em vez de
+   ser um roxo que só combina com a imagem de referência. */
+[data-moldura="elegante"] .sv-cartao-ir{
+  position:absolute; right:11px; bottom:11px;
+  width:26px; height:26px; border-radius:var(--r-pill);
+  display:inline-flex; align-items:center; justify-content:center;
+  background:var(--acao); color:var(--acao-txt); flex:none;
+  transition:.15s;
+}
+[data-moldura="elegante"] .sv-cartao-ir .ic-svg{ width:14px; height:14px }
+[data-moldura="elegante"] .sv-cartao:hover .sv-cartao-ir{
+  background:var(--acao-hover);
+}
+
+/* Serviço SEM foto não tem `.sv-cartao-foto` nenhum — o desenho não escreve o
+   elemento. Então não há onda, e não há margem negativa; o que sobra é o
+   `padding-top:2px` do texto, que só faz sentido quando existe uma foto acima
+   para encostar. Sem esta regra, o nome do serviço ficaria colado no topo. */
+[data-moldura="elegante"] .sv-cartao.sem-foto .sv-cartao-txt{ padding:14px 15px 13px }
 
 .grade-servicos{
   display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:11px;
