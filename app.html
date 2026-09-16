@@ -632,11 +632,18 @@ body.carregando-tudo .tela{ display:none }
   <!-- ══════════ PLANO E ASSINATURA ══════════ -->
   <section class="tela" id="tela-plano">
     <div id="painelPlano"></div>
-    <h2 style="margin:24px 0 6px;font-size:16px">Trocar de plano</h2>
-    <p style="color:var(--txt2);font-size:14px;margin-bottom:14px">
-      Quantos profissionais você precisa ter na agenda ao mesmo tempo?</p>
-    <div id="reguaPlanos"></div>
-    <div id="cartaoPlano"></div>
+    <!-- A OFERTA fica num bloco só, e é ele que o `OFERTA_DE_PLANO` liga e
+         desliga. Separado do `painelPlano` de propósito: o que está ACIMA — o
+         plano de hoje, os limites, os medidores de uso — continua valendo e
+         continua na tela mesmo com a venda desligada. O dono precisa saber
+         quantos profissionais e horários ainda cabem; isso não é oferta. -->
+    <div id="ofertaPlano">
+      <h2 style="margin:24px 0 6px;font-size:16px">Trocar de plano</h2>
+      <p style="color:var(--txt2);font-size:14px;margin-bottom:14px">
+        Quantos profissionais você precisa ter na agenda ao mesmo tempo?</p>
+      <div id="reguaPlanos"></div>
+      <div id="cartaoPlano"></div>
+    </div>
   </section>
 
   <!-- ══════════ MEU SALÃO ══════════ -->
@@ -1444,7 +1451,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.ce1b00';
+const VERSAO_APP = 'v9.43337d';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3472,9 +3479,14 @@ function abrirNovo(profId, min){
       ${limiteDoSalao()} profissional(is) na agenda.</b><br>
       A ficha e o histórico de ${escapar(fora.nome)} continuam guardados, mas a agenda
       dele(a) não recebe horário novo enquanto o plano não crescer.</div>
-      <p>Você pode assinar um plano maior, ou desativar outra pessoa em
-      <b>Equipe</b> para abrir a vaga.</p>`,
-      [['Fechar','fecharModal()'],['Ver planos',"fecharModal();irPara('plano')",'btn-p']]);
+      <p>Você pode desativar outra pessoa em <b>Equipe</b> para abrir a vaga,
+      ou ${COMO_CRESCER}.</p>`,
+      /* O botão "Ver planos" só aparece quando há planos a ver. Com a venda
+         desligada ele levaria a uma tela que não oferece nada — e botão que
+         promete saída e entrega parede é pior que botão nenhum. */
+      OFERTA_DE_PLANO
+        ? [['Fechar','fecharModal()'],['Ver planos',"fecharModal();irPara('plano')",'btn-p']]
+        : [['Fechar','fecharModal()'],['Ir para Equipe',"fecharModal();irPara('equipe')",'btn-p']]);
     return;
   }
 
@@ -6422,6 +6434,43 @@ let planoEscolhido = null;
 function assinaturaAtual(){
   return (bd.assinaturas || []).find(a => a.salaoId === salaoAtual) || null;
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⚠ A VENDA DE PLANO ESTÁ DESLIGADA NA TELA, E SÓ NA TELA
+
+   Enquanto a comercialização é tratada direto com o comprador do sistema, o
+   painel não mostra preço, não recomenda plano e não oferece Assinar. Uma
+   chave só, aqui, porque a oferta aparecia em quatro lugares diferentes —
+   cabeçalho do plano, régua, cartão recomendado e a janela da cota — e quatro
+   remoções à mão é onde sobra uma.
+
+   ── O QUE CONTINUA INTEIRO ────────────────────────────────────────────────
+   · o PLANO DE HOJE, os limites e os medidores de uso. Não é oferta: é o dono
+     precisando saber quantos profissionais e horários ainda cabem. Sem isso
+     ele bate no teto sem nenhuma tela que explique por quê;
+   · a COBRANÇA EM ABERTO, com o copia-e-cola. Quem já tem um Pix por pagar
+     precisa conseguir pagar;
+   · a ASSINATURA NO CARTÃO já ativa, e o botão de desligar a renovação.
+     Esconder isso prenderia alguém numa cobrança mensal sem saída visível —
+     que é o oposto de "não estamos vendendo agora";
+   · as funções `assinar()` e `assinarCartao()`, e tudo no banco e na borda.
+
+   ── E O QUE ISTO NÃO É ────────────────────────────────────────────────────
+   Isto é ARRUMAÇÃO DE TELA, não trava. Quem chamar `assinarCartao('equipe')`
+   no console ainda abre a pré-aprovação, e está certo que abra: o caminho não
+   foi descontinuado, só não está sendo oferecido. É a mesma decisão que foi
+   tomada para o botão do Pix. No dia em que for definitivo, a recusa vai no
+   BANCO, como foi feito com o boleto — tela não é lugar de trava.
+
+   Para religar a venda: `true` nesta linha. Nada mais. */
+const OFERTA_DE_PLANO = false;
+
+/* A saída para quem bateu no limite. Com a venda ligada, é assinar; com ela
+   desligada, apontar para a tela que não oferece nada seria um beco. Sai
+   daqui para as três mensagens não poderem discordar entre si. */
+const COMO_CRESCER = OFERTA_DE_PLANO
+  ? 'assine um plano maior'
+  : 'fale com quem cuida do seu sistema';
+
 function planoDe(codigo){
   return (bd.planos || []).find(p => p.codigo === codigo) || null;
 }
@@ -6583,11 +6632,15 @@ function pintarPlano(){
               : a && a.status === 'ativa' ? 'Assinatura ativa'
               : 'Plano sem custo, sem prazo'}</p>
         </div>
+        <!-- O preco mensal sai junto com a oferta. Deixa-lo aqui, sem nenhum
+             lugar onde assinar, seria informar um valor que a tela nao explica
+             e nao cobra. (Sem crase e sem acento: comentario em template.) -->
+        ${OFERTA_DE_PLANO ? `
         <div style="text-align:right">
           <div style="font-size:22px;font-weight:800">${
             p && p.precoMes ? real(p.precoMes) : 'Grátis'}</div>
           <div style="font-size:12px;color:var(--txt2)">${p && p.precoMes ? 'por mês' : ''}</div>
-        </div>
+        </div>` : ''}
       </div>
       ${medidor('Profissionais na agenda', usados, limite)}
       ${tetoMes != null ? medidor('Horários em ' + mesPorExtenso(diaAtual), noMes, tetoMes) : ''}
@@ -6600,7 +6653,7 @@ function pintarPlano(){
       ${mesCheio ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>Você usou os ${tetoMes} horários deste mês.</b><br>
         A agenda continua aberta para consultar e atender; para marcar mais,
-        assine um plano. Em ${mesPorExtenso(somarDias(fimDoMes(diaAtual), 1))} o
+        ${COMO_CRESCER}. Em ${mesPorExtenso(somarDias(fimDoMes(diaAtual), 1))} o
         contador zera.</div>` : ''}
       ${fora.length ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>${escapar(fora.map(x => x.nome).join(', '))} ${fora.length > 1 ? 'estão' : 'está'}
@@ -6608,11 +6661,11 @@ function pintarPlano(){
         ${fora.length > 1 ? 'Elas continuam' : 'A agenda dele(a) continua'} no
         sistema e o histórico está guardado, mas
         ${fora.length > 1 ? 'não recebem' : 'não recebe'} agendamento novo
-        enquanto o plano cobrir ${limite}. Assine um plano maior, ou desative
-        outra pessoa para abrir a vaga.</div>` : ''}
+        enquanto o plano cobrir ${limite}. Desative outra pessoa para abrir a
+        vaga, ou ${COMO_CRESCER}.</div>` : ''}
       ${cheio && !fora.length && !mesCheio ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>Você chegou ao limite do plano.</b><br>
-        Para cadastrar mais alguém, troque de plano ou desative um profissional.
+        Para cadastrar mais alguém, desative um profissional ou ${COMO_CRESCER}.
         Desativar não apaga o histórico dele.</div>` : ''}
       ${dias !== null && dias <= 2 && !caiu ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>O teste acaba ${dias === 0 ? 'hoje' : 'em ' + dias + ' dia(s)'}.</b><br>
@@ -6620,6 +6673,31 @@ function pintarPlano(){
         e ${(planoDe('gratuito')||{recursos:{}}).recursos.agendamentos_mes} horários
         por mês.</div>` : ''}
     </div>`;
+
+  /* ⚠ DAQUI PARA BAIXO É A OFERTA, E ELA SAI INTEIRA QUANDO A VENDA ESTÁ
+     DESLIGADA — inclusive a chamada a `mostrarCobrancaPendente()` lá no fim,
+     que mora dentro do `cartaoPlano`.
+
+     A saída é ANTES de desenhar, e não um `display:none` depois: régua e
+     cartão continuariam no HTML, alcançáveis por leitor de tela e pela busca
+     da página, oferecendo um plano que ninguém está vendendo. */
+  const oferta = document.getElementById('ofertaPlano');
+  if(oferta) oferta.style.display = OFERTA_DE_PLANO ? '' : 'none';
+  if(!OFERTA_DE_PLANO){
+    /* A cobrança em aberto e a assinatura no cartão NÃO são oferta, e não
+       podem sair junto: quem tem um Pix por pagar precisa do copia-e-cola, e
+       quem está no cartão precisa do botão de desligar a renovação. Como as
+       duas moravam dentro do cartão de oferta, ganham casa própria aqui. */
+    const painel = document.getElementById('painelPlano');
+    if(NA_NUVEM && painel && !document.getElementById('cartaoAssinatura')){
+      painel.insertAdjacentHTML('beforeend',
+        '<div id="cartaoAssinatura"></div><div id="cobrancaPendente"></div>');
+    }
+    document.getElementById('reguaPlanos').innerHTML = '';
+    document.getElementById('cartaoPlano').innerHTML = '';
+    if(NA_NUVEM){ mostrarCartao(); mostrarCobrancaPendente(); }
+    return;
+  }
 
   // A régua de profissionais, que é a ideia boa da concorrência: em vez de
   // uma tabela comparativa, o dono responde "quantos somos?" e o plano
@@ -6763,9 +6841,13 @@ async function mostrarCartao(){
       + 'de novo.</span>';
 
     const p = planoDe(c.plano);
+    /* O NOME do plano fica; o PREÇO acompanha a oferta. Quem está no cartão
+       tem o valor na fatura do banco, que é onde ele vale — e é de lá que sai
+       o número certo, inclusive se o combinado com o comprador for outro. */
     alvo.innerHTML = `<div class="aviso ok" style="margin-top:14px">
       <b>Renovação automática ligada.</b>
-      ${p ? escapar(p.nome) + ' · ' + real(p.precoMes) + ' por mês.' : ''}
+      ${p ? escapar(p.nome) + (OFERTA_DE_PLANO
+              ? ' · ' + real(p.precoMes) + ' por mês.' : '.') : ''}
       ${/^\d{4}-\d{2}-\d{2}/.test(String(c.proxima || ''))
           ? 'A próxima cobrança é em '
             + escapar(porExtenso(String(c.proxima).slice(0, 10))) + '.' : ''}

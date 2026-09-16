@@ -134,8 +134,19 @@ await pg.waitForTimeout(900);
    mexer na tela do Plano, e ninguém nota — tela é o lugar onde a regressão é
    mais silenciosa. Sem a segunda metade, alguém "limpa" o Pix do código e
    deixa sem forma de pagar quem tem cobrança em aberto. */
+/* ⚠ A ABA INTEIRA, e não só o `#cartaoPlano`.
+
+   Quando a oferta de plano foi desligada, o `#cartaoPlano` passou a nascer
+   VAZIO — e esta verificação virou uma que não consegue mais reprovar:
+   procurar "pix" dentro de um elemento vazio dá falso para sempre, inclusive
+   no dia em que o botão voltar noutro canto da tela.
+
+   Medir a aba toda é o que mantém o guarda com dentes, e continua valendo se
+   a oferta for religada. O botão "Ver o código" da cobrança em aberto não
+   entra: ele não diz "pix" no rótulo, e existe justamente para PAGAR o que já
+   foi cobrado — que é a metade que a segunda verificação protege. */
 const ofereceuPix = await pg.evaluate(() =>
-  [...document.querySelectorAll('#cartaoPlano button, #cartaoPlano a')]
+  [...document.querySelectorAll('#tela-plano button, #tela-plano a')]
     .some(b => /pix/i.test(b.textContent || '')));
 falso('a tela do Plano não oferece Pix', ofereceuPix);
 
@@ -347,11 +358,25 @@ verdade('e diz onde o cartão está guardado',
 
 /* Deixar o botão de assinar ali seria convidar para uma segunda
    pré-aprovação — e duas ativas no mesmo salão é cobrança dobrada todo mês,
-   descoberta só na fatura. */
+   descoberta só na fatura.
+
+   ⚠ Aqui também a busca é na ABA INTEIRA. Estava presa ao `#botoesAssinar`,
+   que deixou de existir quando a oferta foi desligada — e um `getElementById`
+   que devolve `null` faz esta linha dar "não oferece" para sempre, mesmo com
+   um botão de assinar plantado dois centímetros abaixo. */
 const aindaOferece = await pg.evaluate(() =>
-  /Assinar no cartão/i.test(
-    (document.getElementById('botoesAssinar') || {}).textContent || ''));
+  [...document.querySelectorAll('#tela-plano button, #tela-plano a')]
+    .some(b => /assinar/i.test(b.textContent || '')));
 falso('e o botão de assinar no cartão saiu da tela', aindaOferece);
+
+/* E a caixa da renovação tem que ter SAÍDA. Sem a oferta na tela, esta é a
+   única forma de alguém que está no cartão parar de pagar — se ela sumir
+   junto com a venda, o dono fica preso numa cobrança mensal sem botão. */
+const temSaida = await pg.evaluate(() =>
+  !!document.querySelector('#cartaoAssinatura button'));
+verdade('mas o botão de DESLIGAR a renovação continua lá', temSaida,
+  'quem está no cartão ficou sem como sair — é o oposto de "não estamos '
+  + 'vendendo agora"');
 
 secao('Desligar bate na borda, não no banco direto');
 
