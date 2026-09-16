@@ -77,6 +77,7 @@ preparar() {
   carregar "$RAIZ/supabase/24_produtos.sql"
   carregar "$RAIZ/supabase/25_loja.sql"
   carregar "$RAIZ/supabase/26_estoque.sql"
+  carregar "$RAIZ/supabase/27_pacotes.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

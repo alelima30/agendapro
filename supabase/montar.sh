@@ -40,6 +40,7 @@ cat > "$SAIDA" <<'CAB'
 --   24_produtos.sql           os produtos que o salão vende
 --   25_loja.sql               a loja na página da cliente
 --   26_estoque.sql            a comanda dá baixa no estoque
+--   27_pacotes.sql            pacotes de serviço, vinculados à cliente
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -56,7 +57,7 @@ cat > "$SAIDA" <<'CAB'
 
 CAB
 
-for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql; do
+for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql; do
   {
     echo ''
     echo '-- ###########################################################################'

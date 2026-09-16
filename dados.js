@@ -100,6 +100,12 @@ const COLUNAS = {
                    avisadoEm:'avisado_em', criadoEm:'criado_em' },
   produtos:      { salaoId:'salao_id', comissaoPct:'comissao_pct',
                    comissaoFixa:'comissao_fixa', vendaOnline:'venda_online' },
+  pacotes:       { salaoId:'salao_id', validadeDias:'validade_dias',
+                   criadoEm:'criado_em' },
+  pacote_servicos: { pacoteId:'pacote_id', servicoId:'servico_id' },
+  pacote_clientes: { pacoteId:'pacote_id', clienteId:'cliente_id',
+                   venceEm:'vence_em', criadoEm:'criado_em',
+                   canceladoEm:'cancelado_em' },
   comandas:      { salaoId:'salao_id', agendamentoId:'agendamento_id',
                    clienteId:'cliente_id', descontoMotivo:'desconto_motivo',
                    abertaEm:'aberta_em', fechadaEm:'fechada_em',
@@ -203,6 +209,17 @@ const VAZIO_E_NULO = new Set([
      precisa virar null — se virasse `''`, o Postgres recusaria a gravação
      inteira do serviço, não só o campo. */
   'comissao_fixa', 'comissao_regra_desde',
+  /* As duas do 27_pacotes.sql, cobradas pelo `colunas.test.js` no minuto em
+     que o módulo entrou.
+
+     `pacote_cliente_id` é o vínculo do agendamento com o pacote que o cobriu:
+     a esmagadora maioria dos agendamentos NÃO tem pacote, e um formulário que
+     mandasse `''` num campo uuid derrubaria a gravação inteira da agenda —
+     não só o vínculo.
+
+     `cancelado_em` é o "tirei esta cliente do pacote". Nulo é o estado normal,
+     e é por ele que a consulta distingue vínculo vivo de vínculo desfeito. */
+  'pacote_cliente_id', 'cancelado_em',
   /* As do caixa e do estorno. `quem`, `aberto_por` e `fechado_por` são uuid
      de perfil: um formulário que não souber quem está logado manda `''`, e
      `invalid input syntax for type uuid: ""` derruba a gravação inteira do
@@ -963,6 +980,10 @@ const TABELAS_SINCRONIZADAS = [
   // que o agendamento exista antes das linhas de serviço dele.
   'agendamento_servicos',
   'lista_espera','produtos',
+  /* Os pacotes ANTES de `pacote_servicos` e `pacote_clientes`: as duas
+     apontam para ele, e a chave estrangeira exige que o pai já esteja lá.
+     Mesma razão de `agendamento_servicos` vir logo depois do agendamento. */
+  'pacotes','pacote_servicos','pacote_clientes',
   /* `caixas` ANTES de `pagamentos`, e não é arrumação: o gatilho
      `tg_pagamento_caixa` procura o caixa aberto para carimbar o pagamento.
      Se o pagamento subisse primeiro, o caixa recém-aberto ainda não estaria

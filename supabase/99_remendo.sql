@@ -191,6 +191,7 @@ declare
   v_abertos  int;
   v_quem     text;
   v_ordem    smallint := 1;
+  v_pacote   uuid;
   s          record;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
@@ -236,6 +237,13 @@ begin
   else
     v_quem := btrim(p_atendido_nome);
   end if;
+  if v_perfil is not null and exists (
+       select 1 from public.clientes c
+        where c.id = v_cliente and c.perfil_id = v_perfil)
+  then
+    v_pacote := public.pacote_que_cobre(v_cliente, p_servicos, p_inicio);
+    if v_pacote is not null then v_valor := 0; end if;
+  end if;
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
      and a.status in ('pendente','confirmado')
@@ -248,11 +256,11 @@ begin
   begin
     insert into public.agendamentos
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
-       valor_previsto, atendido_nome, obs, criado_por)
+       valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id)
     values
       (v_salao, v_cliente, p_profissional, p_inicio, v_fim, 'confirmado', 'online',
        v_valor, v_quem,
-       nullif(btrim(coalesce(p_obs, '')), ''), v_perfil)
+       nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
   exception
     when exclusion_violation then

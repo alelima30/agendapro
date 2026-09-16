@@ -1869,6 +1869,16 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 .cs-txt b{ font-size:14px; font-weight:580; line-height:1.3 }
 .cs-rodape{ margin-top:auto; display:flex; align-items:baseline; gap:7px; flex-wrap:wrap }
 .cs-rodape .vv{ font-size:15px; font-weight:620; font-variant-numeric:tabular-nums }
+
+/* "no seu pacote" no lugar do preço, na lista de serviços da cliente.
+
+   Verde de OK e não a cor de marca: é uma boa notícia sobre o dinheiro dela,
+   e a cor de marca muda de salão para salão — o recado ficaria dourado num,
+   rosa noutro, e em algum deles sem contraste nenhum. */
+.vv-pacote{
+  display:inline-block; font-size:12px; font-weight:700; line-height:1.2;
+  color:var(--ok); text-align:right; max-width:88px;
+}
 .cs-min{ font-size:12px; color:var(--txt2); font-variant-numeric:tabular-nums }
 
 /* Sobrando um card no fim da categoria, ele ocupa a linha inteira e deita: a

@@ -124,6 +124,20 @@ partes.append(limpar(open('supabase/23_assinatura_cartao.sql', encoding='utf-8')
 partes.append(limpar(open('supabase/24_produtos.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/25_loja.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/26_estoque.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/27_pacotes.sql', encoding='utf-8').read()))
+
+# ⚠ E O 09_cliente.sql POR ÚLTIMO, porque é dele o `agendar()` que vale.
+#
+# Ele não é módulo numerado como os de cima, e estava DE FORA deste arquivo.
+# Enquanto o `agendar()` não mudava, a ausência não custava nada. Passou a
+# custar no dia em que o desconto do pacote entrou nele: quem atualizasse
+# colando o 98 ganharia as tabelas de pacote, a tela, o vínculo da cliente —
+# e o atendimento continuaria saindo pelo preço cheio.
+#
+# Por último de propósito: o 05_agenda.sql também define um `agendar()`, e
+# quem vale é o que chega depois. Aqui o 05 nem entra, mas a ordem fica certa
+# por construção em vez de por sorte.
+partes.append(limpar(open('supabase/09_cliente.sql', encoding='utf-8').read()))
 
 saida = '\n\n'.join(partes) + '\n'
 assert '--' not in saida, 'sobrou comentário: o arquivo perde a imunidade'

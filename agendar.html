@@ -999,6 +999,9 @@ async function abrirSalaoDaNuvem(slug){
   clearTimeout(acender);
   bd = bdDaVitrine(v);
   entrarNoSalao(slug);
+  // Os pacotes dela, se houver sessão guardada. Não bloqueia a abertura da
+  // página: chega quando chegar, e o `desenhar()` do próximo passo já usa.
+  carregarMeusPacotes().then(() => { if(tela === 'servico') desenhar(); });
 }
 
 /* A pergunta sobre horários é feita UMA vez por combinação de
@@ -1137,6 +1140,80 @@ function escolherPara(v){
   escolha.data = null; escolha.inicio = null;   // a duração mudou
   desenhar();
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   OS PACOTES DA CLIENTE
+
+   Se ela comprou "Unha em Dia", a manutenção sai por R$ 0,00 — ela já pagou.
+
+   ⚠ ISTO AQUI É SÓ A TELA. Quem decide o preço de verdade é o `agendar()` no
+   banco, que reconfere o pacote, a validade, o dia da semana e as sessões
+   antes de gravar. Se esta função mentisse — por bug ou por alguém mexendo no
+   console — a cliente veria R$ 0,00 e o banco gravaria o preço cheio.
+
+   É de propósito que seja assim: tela que decide preço é tela que qualquer
+   pessoa edita.
+
+   ⚠ E SÓ CHEGA AQUI QUEM ESTÁ LOGADA. O `meus_pacotes()` filtra por
+   `auth.uid()`; sem conta ele devolve vazio, e `meusPacotes` fica `[]`. Sem
+   login não há benefício — porque sem login o sistema só reconhece a pessoa
+   pelo telefone, e telefone qualquer um digita. */
+let meusPacotes = [];
+
+async function carregarMeusPacotes(){
+  meusPacotes = [];
+  /* ⚠ `sessao` NÃO QUER DIZER LOGADA.
+
+     A página cria uma `sessao` só com nome e telefone assim que a pessoa
+     marca — sem conta, sem senha, sem token. Eu usei isso como condição e a
+     chamada saiu para quem não estava autenticado: o servidor respondeu 400, e
+     o navegador registrou um erro de rede que o `cliente-nuvem.test.mjs` conta.
+
+     O meu `try/catch` pegava a exceção e não adiantava nada: o erro de REDE é
+     do navegador, não do JavaScript, e ele aparece no console de qualquer
+     jeito. Guardar a exceção não apaga o 400.
+
+     `Dados.sessaoAtual()` é a pergunta certa: ela só devolve sessão quando há
+     TOKEN — que é o mesmo que o banco vai conferir no `auth.uid()`. */
+  if(!NA_NUVEM || !salao) return;
+  if(!(window.Dados && Dados.sessaoAtual && Dados.sessaoAtual())) return;
+  try{
+    const r = await Dados.chamar('meus_pacotes', { p_salao: salao.id });
+    meusPacotes = Array.isArray(r) ? r : [];
+  }catch(e){
+    // Sem login, sem pacote, sem servidor: nada disso é erro de tela.
+    console.info('[AgendaPro] meus pacotes:', e.message);
+  }
+}
+
+/* O pacote cobre ESTA lista de serviços, no dia escolhido? Espelha o
+   `pacote_que_cobre()` do 27_pacotes.sql — e tem que espelhar mesmo: se a
+   tela disser R$ 0,00 e o banco cobrar, a cliente descobre no balcão.
+
+   Sem dia escolhido ainda, usa hoje: é o melhor palpite para a lista de
+   serviços, que aparece ANTES do calendário. Quando ela escolher o dia, o
+   resumo refaz a conta com a data de verdade. */
+function pacoteCobre(ids, data){
+  if(!meusPacotes.length || !ids || !ids.length) return false;
+  const d = data ? new Date(data + 'T12:00:00') : new Date();
+  const dow = d.getDay();
+  /* ⚠ `vence_em`, COM UNDERLINE, e não `venceEm`.
+
+     O `dados.js` traduz snake_case para camelCase nas TABELAS, e eu assumi que
+     fizesse o mesmo nas funções. Não faz: `Dados.chamar()` devolve o JSON cru
+     do Postgres, com os nomes das colunas.
+
+     `p.venceEm` era `undefined`, e `undefined >= '2026-09-16'` é FALSO — então
+     nenhum pacote cobria nada, nunca. A tela mostrava o preço cheio para quem
+     tinha pacote, em silêncio: sem erro, sem aviso, só o número errado.
+
+     Os arrays (`servicos`, `dias`) chegam como arrays de verdade, conferido. */
+  return meusPacotes.some(p =>
+    (p.restantes > 0) &&
+    ((p.vence_em || p.venceEm) >= (data || hoje())) &&
+    (p.dias || []).includes(dow) &&
+    ids.every(id => (p.servicos || []).includes(id)));
+}
+
 function precoEscolhido(){
   return escolha.servicos.reduce((s,i) => s + acharServico(i).preco, 0);
 }
@@ -1649,13 +1726,18 @@ function desenharServicos(){
           <span class="txt"><span class="tt">${escapar(s.nome)}${
             ehCombo(s) ? '<span class="selo-combo">COMBO</span>' : ''}</span>
             <span class="dd">${s.duracaoMin} min</span></span>
-          <span class="vv">${real(s.preco)}</span>
+          <span class="vv">${pacoteCobre([s.id], escolha.data)
+            ? '<span class="vv-pacote">no seu pacote</span>'
+            : real(s.preco)}</span>
         </button>`;
       }).join('')}`).join('')
     + (escolha.servicos.length
         ? `<div class="recado" style="margin-top:14px">
              ${escolha.servicos.length > 1 ? escolha.servicos.length + ' serviços · ' : ''}
-             ${duracaoEscolhida()} min · ${real(precoEscolhido())}
+             ${duracaoEscolhida()} min · ${
+               pacoteCobre(escolha.servicos, escolha.data)
+                 ? '<b>R$ 0,00 — está no seu pacote</b>'
+                 : real(precoEscolhido())}
              ${escolha.para === 'ambos'
                ? '<br>Como são dois atendimentos, a agenda precisa de '
                  + duracaoNaAgenda() + ' min seguidos.' : ''}</div>` : '');
@@ -2161,7 +2243,12 @@ function desenharConfirmar(){
     <div class="l"><span>Quando</span><b>${dataLonga(escolha.data)}<br>
       ${hm(escolha.inicio)} às ${hm(escolha.inicio + duracaoEscolhida())}</b></div>
     <div class="l"><span>Duração</span><b>${duracaoEscolhida()} min</b></div>
-    <div class="l total"><span>Total</span><b>${real(precoEscolhido())}</b></div>`;
+    <div class="l total"><span>Total</span><b>${
+      pacoteCobre(escolha.servicos, escolha.data)
+        ? 'R$ 0,00' : real(precoEscolhido())}</b></div>
+    ${pacoteCobre(escolha.servicos, escolha.data)
+      ? `<div class="recado ok" style="margin-top:10px">Este atendimento está
+           no seu pacote. Você não paga nada agora.</div>` : ''}`;
 }
 
 /* ── MEUS HORÁRIOS, NA NUVEM ──────────────────────────────────────────────
@@ -2769,6 +2856,12 @@ function conferirCodigo(){
   sessao = { perfilId: perfil.id, nome: perfil.nome,
              telefone: otp.telefone, verificado: true };
   guardarSessao();
+
+  /* ⚠ AQUI, e não só na abertura da página: é neste instante que ela deixa de
+     ser "alguém com um telefone" e passa a ser ela mesma. Sem recarregar, quem
+     entrasse na conta DEPOIS de abrir a página continuaria vendo preço cheio
+     num pacote que já é dela — e concluiria que o pacote não funciona. */
+  carregarMeusPacotes().then(() => desenhar());
 
   // Amarra as fichas soltas deste telefone ao perfil, em todos os salões.
   for(const c of bd.clientes){

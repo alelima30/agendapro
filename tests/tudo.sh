@@ -176,6 +176,8 @@ rodar "moldura do cartão" node "$AQUI/moldura.test.mjs"
 rodar "oferta de plano"   node "$AQUI/oferta-plano.test.mjs"
 rodar "carrinho da loja"  node "$AQUI/carrinho.test.mjs"
 rodar "antecedência"      node "$AQUI/antecedencia.test.mjs"
+rodar "pacotes"          node "$AQUI/pacotes.test.mjs"
+rodar "pacotes na tela"  node "$AQUI/pacotes-tela.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

@@ -88,6 +88,7 @@ declare
   v_abertos  int;
   v_quem     text;
   v_ordem    smallint := 1;
+  v_pacote   uuid;
   s          record;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
@@ -159,6 +160,33 @@ begin
     v_quem := btrim(p_atendido_nome);
   end if;
 
+  /* ══════════════════════════════════════════════════════════════════════
+     O PACOTE, E A ÚNICA LINHA QUE SEPARA DESCONTO DE ROMBO
+
+     Se a cliente tem pacote cobrindo estes serviços, neste dia, com sessão
+     sobrando, o atendimento sai por R$ 0,00 — ela já pagou.
+
+     ⚠ `c.perfil_id = v_perfil and v_perfil is not null` NÃO É REDUNDANTE.
+
+     A ficha é reencontrada PELO TELEFONE quando não há login, e o
+     `ficha_do_cliente()` diz, no 05_agenda.sql, que sem SMS não existe prova
+     de que o número seja de quem digitou. Sem esta condição, qualquer pessoa
+     que soubesse o telefone da Maria marcaria de graça no lugar dela — e o
+     salão só descobriria na hora de fechar a conta, com a cliente na cadeira.
+
+     Com login, `auth.uid()` é prova: senha é algo que só ela sabe.
+
+     E o preço sai DAQUI, nunca do navegador. Quem chamar `agendar()` por fora
+     com o mesmo horário leva o preço cheio, porque quem decide é esta linha.
+     ══════════════════════════════════════════════════════════════════════ */
+  if v_perfil is not null and exists (
+       select 1 from public.clientes c
+        where c.id = v_cliente and c.perfil_id = v_perfil)
+  then
+    v_pacote := public.pacote_que_cobre(v_cliente, p_servicos, p_inicio);
+    if v_pacote is not null then v_valor := 0; end if;
+  end if;
+
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
      and a.status in ('pendente','confirmado')
@@ -173,11 +201,11 @@ begin
   begin
     insert into public.agendamentos
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
-       valor_previsto, atendido_nome, obs, criado_por)
+       valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id)
     values
       (v_salao, v_cliente, p_profissional, p_inicio, v_fim, 'confirmado', 'online',
        v_valor, v_quem,
-       nullif(btrim(coalesce(p_obs, '')), ''), v_perfil)
+       nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
   exception
     when exclusion_violation then

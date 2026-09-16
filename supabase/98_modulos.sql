@@ -3361,3 +3361,524 @@ create trigger tg_comanda_estoque
 revoke all on function public.tg_comanda_estoque() from public, anon, authenticated;
 comment on function public.tg_comanda_estoque() is
   'Baixa o estoque ao fechar a comanda e devolve ao reabrir. Nunca recusa o fechamento.';
+
+create table if not exists public.pacotes (
+  id            uuid primary key default gen_random_uuid(),
+  salao_id      uuid not null references public.saloes(id) on delete cascade,
+  nome          text not null,
+  descricao     text,
+  preco         numeric(10,2) not null default 0,
+  sessoes       int not null,
+  validade_dias int not null default 90,
+  dias          smallint[] not null default '{0,1,2,3,4,5,6}',
+  ativo         boolean not null default true,
+  criado_em     timestamptz not null default now(),
+  constraint pacotes_sessoes_check   check (sessoes between 1 and 365),
+  constraint pacotes_validade_check  check (validade_dias between 1 and 3650),
+  constraint pacotes_preco_check     check (preco >= 0),
+  constraint pacotes_dias_check      check (
+    array_length(dias, 1) between 1 and 7
+    and dias <@ array[0,1,2,3,4,5,6]::smallint[])
+);
+create index if not exists ix_pacote_salao on public.pacotes(salao_id) where ativo;
+create table if not exists public.pacote_servicos (
+  id         uuid not null default gen_random_uuid(),
+  pacote_id  uuid not null references public.pacotes(id)  on delete cascade,
+  servico_id uuid not null references public.servicos(id) on delete cascade,
+  primary key (pacote_id, servico_id)
+);
+create unique index if not exists ux_pacserv_id on public.pacote_servicos(id);
+create table if not exists public.pacote_clientes (
+  id           uuid primary key default gen_random_uuid(),
+  pacote_id    uuid not null references public.pacotes(id)  on delete cascade,
+  cliente_id   uuid not null references public.clientes(id) on delete cascade,
+  sessoes      int  not null,
+  vence_em     date not null,
+  criado_em    timestamptz not null default now(),
+  cancelado_em timestamptz,
+  constraint pacote_clientes_sessoes_check check (sessoes between 1 and 365)
+);
+create index if not exists ix_pacote_cliente
+  on public.pacote_clientes(cliente_id) where cancelado_em is null;
+alter table public.agendamentos
+  add column if not exists pacote_cliente_id uuid
+    references public.pacote_clientes(id) on delete set null;
+create index if not exists ix_agend_pacote
+  on public.agendamentos(pacote_cliente_id)
+  where pacote_cliente_id is not null;
+create or replace function public.pacote_sessoes_restantes(p_pacote_cliente uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select greatest(0, pc.sessoes - (
+      select count(*) from public.agendamentos a
+       where a.pacote_cliente_id = pc.id
+         and a.status in ('pendente','confirmado','em_atendimento','concluido')
+         and a.arquivado_em is null))
+    from public.pacote_clientes pc
+   where pc.id = p_pacote_cliente
+$$;
+create or replace function public.pacote_que_cobre(
+  p_cliente uuid, p_servicos uuid[], p_quando timestamptz)
+returns uuid language plpgsql stable security definer set search_path = public as $$
+declare
+  v_fuso text;
+  v_data date;
+  v_dia  smallint;
+  v_id   uuid;
+begin
+  if p_cliente is null or p_servicos is null or cardinality(p_servicos) = 0 then
+    return null;
+  end if;
+  select sa.fuso into v_fuso
+    from public.clientes c
+    join public.saloes sa on sa.id = c.salao_id
+   where c.id = p_cliente;
+  if v_fuso is null then return null; end if;
+  v_data := (p_quando at time zone v_fuso)::date;
+  v_dia  := extract(dow from v_data)::smallint;
+  select pc.id into v_id
+    from public.pacote_clientes pc
+    join public.pacotes p on p.id = pc.pacote_id
+   where pc.cliente_id = p_cliente
+     and pc.cancelado_em is null
+     and pc.vence_em >= v_data
+     and p.ativo
+     and v_dia = any(p.dias)
+     and not exists (
+       select 1 from unnest(p_servicos) as pedido(id)
+        where not exists (
+          select 1 from public.pacote_servicos ps
+           where ps.pacote_id = p.id and ps.servico_id = pedido.id))
+     and public.pacote_sessoes_restantes(pc.id) > 0
+   order by pc.vence_em, pc.criado_em
+   limit 1;
+  return v_id;
+end $$;
+create or replace function public.meus_pacotes(p_salao uuid)
+returns table (id uuid, nome text, servicos uuid[], dias smallint[],
+               vence_em date, restantes int)
+language sql stable security definer set search_path = public as $$
+  select pc.id, p.nome,
+         (select coalesce(array_agg(ps.servico_id), '{}')
+            from public.pacote_servicos ps where ps.pacote_id = p.id),
+         p.dias, pc.vence_em, public.pacote_sessoes_restantes(pc.id)
+    from public.pacote_clientes pc
+    join public.pacotes  p on p.id = pc.pacote_id
+    join public.clientes c on c.id = pc.cliente_id
+   where c.salao_id = p_salao
+     and c.perfil_id = auth.uid()
+     and auth.uid() is not null
+     and pc.cancelado_em is null
+     and pc.vence_em >= public.hoje_no_salao(p_salao)
+     and p.ativo
+     and public.pacote_sessoes_restantes(pc.id) > 0
+   order by pc.vence_em
+$$;
+create or replace function public.vender_pacote(p_pacote uuid, p_cliente uuid)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare v_salao uuid; v_sess int; v_val int; v_id uuid;
+begin
+  select p.salao_id, p.sessoes, p.validade_dias into v_salao, v_sess, v_val
+    from public.pacotes p where p.id = p_pacote and p.ativo;
+  if v_salao is null then
+    raise exception 'Pacote não encontrado ou desativado.'
+      using errcode = 'check_violation';
+  end if;
+  if not public.e_gestor(v_salao) then
+    raise exception 'Só o proprietário ou um administrador pode vender pacote.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if not exists (select 1 from public.clientes c
+                  where c.id = p_cliente and c.salao_id = v_salao) then
+    raise exception 'Esta cliente não é deste salão.'
+      using errcode = 'check_violation';
+  end if;
+  insert into public.pacote_clientes (pacote_id, cliente_id, sessoes, vence_em)
+       values (p_pacote, p_cliente, v_sess,
+               public.hoje_no_salao(v_salao) + v_val)
+    returning pacote_clientes.id into v_id;
+  return v_id;
+end $$;
+create or replace function public.cancelar_pacote_cliente(p_id uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_salao uuid;
+begin
+  select c.salao_id into v_salao
+    from public.pacote_clientes pc
+    join public.clientes c on c.id = pc.cliente_id
+   where pc.id = p_id;
+  if v_salao is null then return; end if;
+  if not public.e_gestor(v_salao) then
+    raise exception 'Só o proprietário ou um administrador pode cancelar pacote.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  update public.pacote_clientes set cancelado_em = now()
+   where id = p_id and cancelado_em is null;
+end $$;
+alter table public.pacotes          enable row level security;
+alter table public.pacote_servicos  enable row level security;
+alter table public.pacote_clientes  enable row level security;
+drop policy if exists pacotes_ler on public.pacotes;
+create policy pacotes_ler on public.pacotes
+  for select using (public.e_equipe(salao_id));
+drop policy if exists pacotes_escrever on public.pacotes;
+create policy pacotes_escrever on public.pacotes
+  for all using (public.e_gestor(salao_id)) with check (public.e_gestor(salao_id));
+drop policy if exists pservicos_ler on public.pacote_servicos;
+create policy pservicos_ler on public.pacote_servicos
+  for select using (exists (select 1 from public.pacotes p
+                             where p.id = pacote_id and public.e_equipe(p.salao_id)));
+drop policy if exists pservicos_escrever on public.pacote_servicos;
+create policy pservicos_escrever on public.pacote_servicos
+  for all using (exists (select 1 from public.pacotes p
+                          where p.id = pacote_id and public.e_gestor(p.salao_id)))
+  with check (exists (select 1 from public.pacotes p
+                       where p.id = pacote_id and public.e_gestor(p.salao_id)));
+drop policy if exists pclientes_ler on public.pacote_clientes;
+create policy pclientes_ler on public.pacote_clientes
+  for select using (exists (select 1 from public.clientes c
+                             where c.id = cliente_id and public.e_equipe(c.salao_id)));
+drop policy if exists pclientes_escrever on public.pacote_clientes;
+create policy pclientes_escrever on public.pacote_clientes
+  for all using (exists (select 1 from public.clientes c
+                          where c.id = cliente_id and public.e_gestor(c.salao_id)))
+  with check (exists (select 1 from public.clientes c
+                       where c.id = cliente_id and public.e_gestor(c.salao_id)));
+grant select, insert, update, delete on public.pacotes         to authenticated;
+grant select, insert, update, delete on public.pacote_servicos to authenticated;
+grant select, insert, update, delete on public.pacote_clientes to authenticated;
+revoke all on function public.pacote_sessoes_restantes(uuid) from public, anon;
+revoke all on function public.pacote_que_cobre(uuid, uuid[], timestamptz) from public, anon;
+revoke all on function public.meus_pacotes(uuid)              from public, anon;
+revoke all on function public.vender_pacote(uuid, uuid)       from public, anon;
+revoke all on function public.cancelar_pacote_cliente(uuid)   from public, anon;
+grant execute on function public.pacote_sessoes_restantes(uuid) to authenticated;
+grant execute on function public.meus_pacotes(uuid)             to authenticated;
+grant execute on function public.vender_pacote(uuid, uuid)      to authenticated;
+grant execute on function public.cancelar_pacote_cliente(uuid)  to authenticated;
+comment on function public.pacote_que_cobre(uuid, uuid[], timestamptz) is
+  'Qual pacote da cliente cobre estes serviços neste dia. NÃO confere identidade — quem chama é que exige perfil_id = auth.uid().';
+comment on table public.pacotes is
+  'Pacotes que o salão vende. `dias` no padrão do Postgres: 0=domingo.';
+
+alter table public.agendamentos
+  add column if not exists gerenciar_token uuid not null default gen_random_uuid();
+alter table public.lista_espera
+  add column if not exists gerenciar_token uuid not null default gen_random_uuid();
+create unique index if not exists ix_agend_token on public.agendamentos (gerenciar_token);
+create unique index if not exists ix_espera_token on public.lista_espera (gerenciar_token);
+drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text);
+create or replace function public.agendar(
+  p_profissional  uuid,
+  p_inicio        timestamptz,
+  p_servicos      uuid[],
+  p_nome          text,
+  p_telefone      text,
+  p_atendido_nome text default null,
+  p_obs           text default null)
+returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
+               token uuid)
+language plpgsql security definer set search_path = public as $$
+declare
+  v_salao    uuid;
+  v_fuso     text;
+  v_data     date;
+  v_motivo   text;
+  v_duracao  int;
+  v_tel      text;
+  v_nome     text;
+  v_cliente  uuid;
+  v_perfil   uuid;
+  v_agend    uuid;
+  v_token    uuid;
+  v_fim      timestamptz;
+  v_valor    numeric(10,2);
+  v_abertos  int;
+  v_quem     text;
+  v_ordem    smallint := 1;
+  v_pacote   uuid;
+  s          record;
+begin
+  v_nome := nullif(btrim(coalesce(p_nome, '')), '');
+  v_tel  := public.so_digitos(p_telefone);
+  if v_nome is null then
+    raise exception 'Diga seu nome para a gente saber quem esperar.'
+      using errcode = 'check_violation';
+  end if;
+  if v_tel is null or length(v_tel) < 10 or length(v_tel) > 13 then
+    raise exception 'Confira o telefone: precisa do DDD.'
+      using errcode = 'check_violation';
+  end if;
+  select p.salao_id, sa.fuso into v_salao, v_fuso
+    from public.profissionais p
+    join public.saloes sa on sa.id = p.salao_id
+   where p.id = p_profissional;
+  if v_salao is null then
+    raise exception 'Este profissional não está atendendo pela agenda online.'
+      using errcode = 'check_violation';
+  end if;
+  v_data := (p_inicio at time zone v_fuso)::date;
+  v_motivo := public.porque_nao_agenda(p_profissional, v_data, p_servicos);
+  if v_motivo is not null then
+    raise exception '%', v_motivo using errcode = 'check_violation';
+  end if;
+  if not exists (
+    select 1 from public.horarios_livres(p_profissional, v_data, p_servicos) h
+     where h = p_inicio)
+  then
+    raise exception 'Esse horário não está mais livre. Escolha outro, por favor.'
+      using errcode = 'check_violation';
+  end if;
+  v_duracao := public.duracao_dos_servicos(p_profissional, p_servicos);
+  v_valor   := public.preco_dos_servicos(p_profissional, p_servicos);
+  v_fim     := p_inicio + make_interval(mins => v_duracao);
+  v_perfil := auth.uid();
+  v_cliente := public.ficha_do_cliente(v_salao, v_nome, v_tel);
+  if nullif(btrim(coalesce(p_atendido_nome, '')), '') is null then
+    select case when not public.mesmo_primeiro_nome(c.nome, v_nome)
+                  then v_nome end
+      into v_quem
+      from public.clientes c where c.id = v_cliente;
+  else
+    v_quem := btrim(p_atendido_nome);
+  end if;
+  if v_perfil is not null and exists (
+       select 1 from public.clientes c
+        where c.id = v_cliente and c.perfil_id = v_perfil)
+  then
+    v_pacote := public.pacote_que_cobre(v_cliente, p_servicos, p_inicio);
+    if v_pacote is not null then v_valor := 0; end if;
+  end if;
+  select count(*) into v_abertos from public.agendamentos a
+   where a.cliente_id = v_cliente
+     and a.status in ('pendente','confirmado')
+     and a.arquivado_em is null
+     and a.inicio > now();
+  if v_abertos >= 3 then
+    raise exception 'Você já tem 3 horários marcados aqui. Cancele um antes de marcar outro.'
+      using errcode = 'check_violation';
+  end if;
+  begin
+    insert into public.agendamentos
+      (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
+       valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id)
+    values
+      (v_salao, v_cliente, p_profissional, p_inicio, v_fim, 'confirmado', 'online',
+       v_valor, v_quem,
+       nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote)
+    returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
+  exception
+    when exclusion_violation then
+      raise exception 'Alguém acabou de marcar esse horário. Escolha outro, por favor.'
+        using errcode = 'check_violation';
+  end;
+  for s in
+    select sv.id, coalesce(sp.duracao_min, sv.duracao_min) + sv.intervalo_min as dur,
+           coalesce(sp.preco, sv.preco) as preco,
+           coalesce(sv.comissao_pct, pr.comissao_pct, 0) as com
+      from unnest(p_servicos) with ordinality as pedido(id, pos)
+      join public.servicos sv on sv.id = pedido.id
+      join public.profissionais pr on pr.id = p_profissional
+      left join public.servicos_profissionais sp
+             on sp.servico_id = sv.id and sp.profissional_id = p_profissional
+     order by pedido.pos
+  loop
+    insert into public.agendamento_servicos
+      (agendamento_id, servico_id, ordem, duracao_min, preco, comissao_pct)
+    values (v_agend, s.id, v_ordem, s.dur, s.preco, s.com);
+    v_ordem := v_ordem + 1;
+  end loop;
+  return query select v_agend, p_inicio, v_fim, v_valor, v_token;
+end $$;
+create or replace function public.meus_agendamentos(p_tokens uuid[])
+returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(x order by x->>'inicio'), '[]'::jsonb) from (
+    select jsonb_build_object(
+      'token',     a.gerenciar_token,
+      'inicio',    a.inicio,
+      'fim',       a.fim,
+      'status',    a.status,
+      'atendido',  a.atendido_nome,
+      'valor',     a.valor_previsto,
+      'salao',     sa.nome,
+      'slug',      sa.slug,
+      'fuso',      sa.fuso,
+      'profissional', coalesce(p.apelido, p.nome),
+      'servicos', coalesce((
+        select jsonb_agg(sv.nome order by asv.ordem)
+          from public.agendamento_servicos asv
+          join public.servicos sv on sv.id = asv.servico_id
+         where asv.agendamento_id = a.id), '[]'::jsonb),
+      'profissionalId', a.profissional_id,
+      'servicoIds', coalesce((
+        select jsonb_agg(asv.servico_id order by asv.ordem)
+          from public.agendamento_servicos asv
+         where asv.agendamento_id = a.id), '[]'::jsonb),
+      'podeMexer', a.status in ('pendente','confirmado')
+                   and a.inicio > now() + interval '2 hours'
+    ) as x
+      from public.agendamentos a
+      join public.saloes sa        on sa.id = a.salao_id
+      join public.profissionais p  on p.id  = a.profissional_id
+     where a.gerenciar_token = any(coalesce(p_tokens, '{}'::uuid[]))
+       and a.arquivado_em is null
+  ) t
+$$;
+create or replace function public.cancelar_agendamento(p_token uuid)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  a public.agendamentos%rowtype;
+begin
+  select * into a from public.agendamentos where gerenciar_token = p_token;
+  if a.id is null then
+    raise exception 'Não achei esse horário. Confira o link.'
+      using errcode = 'check_violation';
+  end if;
+  if a.status not in ('pendente','confirmado') then
+    raise exception 'Este horário já foi %.',
+      case a.status when 'cancelado' then 'cancelado'
+                    when 'concluido' then 'atendido'
+                    else a.status end
+      using errcode = 'check_violation';
+  end if;
+  if a.inicio <= now() + interval '2 hours' then
+    raise exception 'Faltam menos de 2 horas. Fale com o salão para desmarcar.'
+      using errcode = 'check_violation';
+  end if;
+  update public.agendamentos
+     set status = 'cancelado', cancelado_motivo = 'cancelado pelo cliente'
+   where id = a.id;
+  return jsonb_build_object('ok', true);
+end $$;
+create or replace function public.entrar_na_fila(
+  p_salao      uuid,
+  p_servicos   uuid[],
+  p_nome       text,
+  p_telefone   text,
+  p_de         date,
+  p_ate        date,
+  p_profissional uuid default null,
+  p_turno      text default 'qualquer',
+  p_obs        text default null)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_tel     text;
+  v_nome    text;
+  v_cliente uuid;
+  v_perfil  uuid := auth.uid();
+  v_dur     int;
+  v_hoje    date;
+  v_token   uuid;
+  v_abertas int;
+begin
+  v_nome := nullif(btrim(coalesce(p_nome, '')), '');
+  v_tel  := public.so_digitos(p_telefone);
+  if v_nome is null then
+    raise exception 'Diga seu nome para a gente saber quem avisar.'
+      using errcode = 'check_violation';
+  end if;
+  if v_tel is null or length(v_tel) < 10 or length(v_tel) > 13 then
+    raise exception 'Confira o telefone: precisa do DDD.'
+      using errcode = 'check_violation';
+  end if;
+  if p_servicos is null or cardinality(p_servicos) = 0 then
+    raise exception 'Escolha pelo menos um serviço.'
+      using errcode = 'check_violation';
+  end if;
+  if not exists (select 1 from public.saloes
+                  where id = p_salao and status = 'ativo') then
+    raise exception 'Este salão não está aceitando pedidos agora.'
+      using errcode = 'check_violation';
+  end if;
+  if exists (
+    select 1 from unnest(p_servicos) as pedido(id)
+     where not exists (
+       select 1 from public.servicos s
+        where s.id = pedido.id and s.salao_id = p_salao
+          and s.ativo and s.aceita_online))
+  then
+    raise exception 'Um dos serviços escolhidos não está disponível.'
+      using errcode = 'check_violation';
+  end if;
+  v_hoje := public.hoje_no_salao(p_salao);
+  if p_de < v_hoje or p_ate < p_de then
+    raise exception 'Confira as datas do período.'
+      using errcode = 'check_violation';
+  end if;
+  if p_ate > v_hoje + public.dias_liberados(p_salao) then
+    raise exception 'A agenda está liberada até %.',
+      to_char(v_hoje + public.dias_liberados(p_salao), 'DD/MM/YYYY')
+      using errcode = 'check_violation';
+  end if;
+  v_cliente := public.ficha_do_cliente(p_salao, v_nome, v_tel);
+  select count(*) into v_abertas from public.lista_espera
+   where cliente_id = v_cliente and status = 'aguardando';
+  if v_abertas >= 3 then
+    raise exception 'Você já está em 3 listas de espera aqui. Saia de uma antes de entrar noutra.'
+      using errcode = 'check_violation';
+  end if;
+  v_dur := public.duracao_dos_servicos(
+             coalesce(p_profissional,
+                      (select id from public.profissionais
+                        where salao_id = p_salao and ativo limit 1)),
+             p_servicos);
+  insert into public.lista_espera
+    (salao_id, cliente_id, profissional_id, servicos, duracao_min,
+     de, ate, turno, obs, status)
+  values
+    (p_salao, v_cliente, p_profissional, to_jsonb(p_servicos), greatest(v_dur, 1),
+     p_de, p_ate, coalesce(nullif(btrim(p_turno), ''), 'qualquer'),
+     nullif(btrim(coalesce(p_obs, '')), ''), 'aguardando')
+  returning gerenciar_token into v_token;
+  return jsonb_build_object('token', v_token);
+end $$;
+create or replace function public.minha_fila(p_tokens uuid[])
+returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(x order by x->>'de'), '[]'::jsonb) from (
+    select jsonb_build_object(
+      'token',  e.gerenciar_token,
+      'de',     e.de,
+      'ate',    e.ate,
+      'turno',  e.turno,
+      'status', e.status,
+      'salao',  sa.nome,
+      'slug',   sa.slug
+    ) as x
+      from public.lista_espera e
+      join public.saloes sa on sa.id = e.salao_id
+     where e.gerenciar_token = any(coalesce(p_tokens, '{}'::uuid[]))
+       and e.status = 'aguardando'
+  ) t
+$$;
+create or replace function public.sair_da_fila(p_token uuid)
+returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.lista_espera
+     set status = 'desistiu'
+   where gerenciar_token = p_token and status = 'aguardando';
+  if not found then
+    raise exception 'Não achei esse pedido na lista.'
+      using errcode = 'check_violation';
+  end if;
+  return jsonb_build_object('ok', true);
+end $$;
+revoke all on function public.meus_agendamentos(uuid[])   from public;
+revoke all on function public.cancelar_agendamento(uuid)  from public;
+revoke all on function public.minha_fila(uuid[])          from public;
+revoke all on function public.sair_da_fila(uuid)          from public;
+revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
+                                             uuid, text, text) from public;
+revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text, text)
+  from public;
+grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
+grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
+grant execute on function public.minha_fila(uuid[])          to anon, authenticated;
+grant execute on function public.sair_da_fila(uuid)          to anon, authenticated;
+grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
+                                                uuid, text, text) to anon, authenticated;
+grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text, text)
+  to anon, authenticated;

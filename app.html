@@ -563,6 +563,15 @@ body.carregando-tudo .tela{ display:none }
   </section>
 
   <!-- ══════════ PRODUTOS ══════════ -->
+  <section class="tela" id="tela-pacotes">
+    <div class="barra">
+      <span class="espaco"></span>
+      <button class="btn btn-p" id="btNovoPacote"
+              onclick="abrirPacote()">+ Pacote</button>
+    </div>
+    <div id="listaPacotes"></div>
+  </section>
+
   <section class="tela" id="tela-produtos">
     <div class="barra">
       <span class="espaco"></span>
@@ -1318,6 +1327,10 @@ const TELAS = [
      tela que oferece o que o banco nega é o defeito que este quadro existe
      para acabar. */
   ['produtos', 'Produtos',         'presente',   'Cadastros', EQUIPE],
+  /* Pacotes fica em Cadastros, junto de Serviços e Produtos: é catálogo do
+     que o salão vende. Só GESTÃO — um pacote é preço e política comercial, e
+     quem atende não decide isso. */
+  ['pacotes',  'Pacotes',          'etiqueta',   'Cadastros', GESTAO],
   ['equipe',   'Equipe',           'equipe',     'Cadastros', GESTAO],
   ['salao',    'Meu salão',        'predio',     'Cadastros', GESTAO],
   ['publico',  'Ver como cliente', 'olho',       'A conta',   EQUIPE],
@@ -1451,7 +1464,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.7535d4';
+const VERSAO_APP = 'v9.ee1c92';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2226,6 +2239,262 @@ function pintarServicos(){
    até poderia aparecer, mas mostrar margem numa tabela que a recepção também
    abre é conversa que o dono não pediu para ter. Quem precisa de custo é o
    relatório, que já é GESTAO. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   PACOTES
+
+   O salão cria "Unha em Dia": 4 manutenções, 90 dias, de segunda a quarta, e
+   vincula clientes. Quem está vinculada e LOGADA marca pelo link e paga zero.
+
+   ⚠ A LISTA DE CLIENTES VINCULADAS NÃO MORA AQUI DENTRO do pacote: mora em
+   `pacote_clientes`, uma venda por cliente, com as sessões e a validade
+   COPIADAS no momento da venda. Mudar o pacote amanhã não mexe em quem
+   comprou ontem — e é por isso que vender é uma função do banco
+   (`vender_pacote`) e não um insert desta tela.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const DIAS_CURTOS = ['dom','seg','ter','qua','qui','sex','sáb'];
+
+const pacotesDoSalao = () => doSalao(bd.pacotes);
+const servicosDoPacote = pid => (bd.pacote_servicos || [])
+  .filter(x => x.pacoteId === pid).map(x => x.servicoId);
+const vendasDoPacote = pid => (bd.pacote_clientes || [])
+  .filter(x => x.pacoteId === pid && !x.canceladoEm);
+
+function pintarPacotes(){
+  const alvo = document.getElementById('listaPacotes');
+  if(!alvo) return;
+  const bt = document.getElementById('btNovoPacote');
+  if(bt) bt.style.display = souGestor() ? '' : 'none';
+
+  const lista = pacotesDoSalao();
+  if(!lista.length){
+    alvo.innerHTML = `<div class="vazio"><b>Nenhum pacote ainda</b>
+      Um pacote é um combinado: a cliente paga adiantado por várias sessões e
+      depois marca pelo link sem pagar de novo. Serve para encher os dias
+      parados — dá para limitar o pacote a segunda e terça, por exemplo.</div>`;
+    return;
+  }
+
+  alvo.innerHTML = lista.map(p => {
+    const svs = servicosDoPacote(p.id);
+    const vendas = vendasDoPacote(p.id);
+    const hoje = diaAtual;
+    const vivas = vendas.filter(v => v.venceEm >= hoje);
+    return `<div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div>
+          <h3 style="font-size:17px">${escapar(p.nome)}${
+            p.ativo ? '' : ' <span class="tag t-canc">inativo</span>'}</h3>
+          <p style="color:var(--txt2);font-size:13.5px;margin-top:2px">
+            ${p.sessoes} sessão(ões) · vale ${p.validadeDias} dias ·
+            ${(p.dias || []).length === 7 ? 'todos os dias'
+              : (p.dias || []).map(d => DIAS_CURTOS[d]).join(', ')}</p>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:19px;font-weight:800">${real(p.preco)}</div>
+          <button class="btn btn-peq" style="margin-top:6px"
+                  onclick="abrirPacote('${p.id}')">Editar</button>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--txt2);margin-top:10px">
+        <b>Cobre:</b> ${svs.length
+          ? svs.map(id => escapar((acharServico(id) || {}).nome || '?')).join(', ')
+          : '<span style="color:var(--alerta)">nenhum serviço — '
+            + 'este pacote não vale para nada ainda</span>'}</p>
+      <div style="margin-top:12px">
+        <b style="font-size:13.5px">Clientes no pacote (${vivas.length})</b>
+        ${vivas.length ? `<table class="tab" style="margin-top:7px"><tbody>${
+          vivas.map(v => {
+            const c = (bd.clientes || []).find(x => x.id === v.clienteId) || {};
+            return `<tr><td>${escapar(c.nome || '—')}</td>
+              <td style="color:var(--txt2)">vence ${porExtenso(v.venceEm)}</td>
+              <td style="text-align:right">${souGestor()
+                ? `<button class="btn btn-peq"
+                     onclick="tirarDoPacote('${v.id}', '${escapar(c.nome || '')}')"
+                   >Tirar</button>` : ''}</td></tr>`;
+          }).join('')}</tbody></table>`
+          : '<p style="font-size:13px;color:var(--txt3);margin-top:5px">'
+            + 'Ninguém ainda.</p>'}
+        ${souGestor() ? `<button class="btn btn-peq" style="margin-top:9px"
+             onclick="abrirVenderPacote('${p.id}')">+ Vincular cliente</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirPacote(pid){
+  if(!souGestor()) return;
+  const p = pid ? pacotesDoSalao().find(x => x.id === pid) : null;
+  const svs = p ? servicosDoPacote(p.id) : [];
+  const dias = p ? (p.dias || []) : [0,1,2,3,4,5,6];
+  abrirModal(p ? 'Editar pacote' : 'Novo pacote', `
+    <div class="campo"><label>Nome</label>
+      <input id="pkNome" value="${escapar(p ? p.nome : '')}"
+             placeholder="Unha em Dia"></div>
+    <div class="dupla">
+      <div class="campo"><label>Preço do pacote</label>
+        <input type="number" id="pkPreco" min="0" step="0.01"
+               value="${p ? p.preco : ''}"></div>
+      <div class="campo"><label>Quantas sessões</label>
+        <input type="number" id="pkSessoes" min="1" step="1"
+               value="${p ? p.sessoes : 4}"></div>
+    </div>
+    <div class="campo"><label>Vale por quantos dias</label>
+      <input type="number" id="pkValidade" min="1" step="1"
+             value="${p ? p.validadeDias : 90}"></div>
+    <!-- Os dias em que o BENEFICIO vale. Fora deles a cliente ainda marca,
+         pagando o preco normal: bloquear seria tirar dela uma coisa que ela
+         ja tem. (Sem crase e sem acento: comentario em template literal.) -->
+    <div class="campo"><label>Vale em quais dias</label>
+      <div class="regua" id="pkDias" style="justify-content:flex-start">${
+        DIAS_CURTOS.map((d, i) => `<button type="button" data-dia="${i}"
+           class="${dias.includes(i) ? 'on' : ''}"
+           onclick="this.classList.toggle('on')">${d}</button>`).join('')}</div>
+    </div>
+    <div class="campo"><label>Quais serviços entram</label>
+      <div id="pkServicos" style="max-height:210px;overflow:auto;
+           border:1px solid var(--borda);border-radius:10px;padding:9px">${
+        servsAtivos().map(s => `<label class="check" style="display:block;margin:5px 0">
+          <input type="checkbox" value="${s.id}"${svs.includes(s.id) ? ' checked' : ''}>
+          <span>${escapar(s.nome)} · ${real(s.preco)}</span></label>`).join('')
+        || '<p style="color:var(--txt3);font-size:13px">Cadastre serviços primeiro.</p>'}
+      </div></div>
+    ${p ? `<label class="check" style="margin-top:12px">
+      <input type="checkbox" id="pkAtivo"${p.ativo ? ' checked' : ''}>
+      <span>Pacote ativo</span></label>` : ''}`,
+    [['Cancelar','fecharModal()'],
+     ['Salvar', `salvarPacote(${p ? "'" + p.id + "'" : 'null'})`, 'btn-p']]);
+}
+
+function salvarPacote(pid){
+  const v = id => (document.getElementById(id).value || '').trim();
+  const nome = v('pkNome');
+  if(!nome){ alert('Dê um nome ao pacote.'); return; }
+
+  const dias = [...document.querySelectorAll('#pkDias button.on')]
+    .map(b => Number(b.dataset.dia));
+  if(!dias.length){
+    alert('Escolha pelo menos um dia da semana.\n\nPacote sem dia nenhum '
+        + 'nunca valeria, e você não entenderia por quê.');
+    return;
+  }
+  const svs = [...document.querySelectorAll('#pkServicos input:checked')]
+    .map(c => c.value);
+  if(!svs.length){
+    alert('Escolha pelo menos um serviço.\n\nPacote que não cobre serviço '
+        + 'nenhum não faz nada.');
+    return;
+  }
+
+  const sl = acharSalao(salaoAtual);
+  const p = pid ? pacotesDoSalao().find(x => x.id === pid) : null;
+  const id = pid || crypto.randomUUID();
+  const dados = {
+    id, salaoId: salaoAtual, nome,
+    preco: Number(v('pkPreco')) || 0,
+    sessoes: Math.max(1, Number(v('pkSessoes')) || 1),
+    validadeDias: Math.max(1, Number(v('pkValidade')) || 90),
+    dias,
+    ativo: pid ? !!(document.getElementById('pkAtivo') || {}).checked : true,
+  };
+  if(p) Object.assign(p, dados);
+  else (bd.pacotes ||= []).push(dados);
+
+  /* Os serviços do pacote são a lista INTEIRA, refeita: tirar um serviço é
+     tão comum quanto pôr, e um "só acrescenta" deixaria o desmarcado valendo
+     para sempre — desconto que ninguém consegue desfazer pela tela. */
+  /* ⚠ COM `id`, e isso não é detalhe de gosto.
+
+     A chave de verdade desta tabela é o par (pacote, serviço). Mas o
+     `dados.js` sincroniza por `id`, e uma linha sem ele derruba a gravação
+     INTEIRA do painel: "1 linha(s) sem id no retrato atual".
+
+     O efeito era mudo e cruel: o pacote era criado, os serviços não, e a
+     própria tela dizia "nenhum serviço — este pacote não vale para nada
+     ainda". A dona cadastrava e via o aviso sem entender.
+
+     Não bastou pôr `default gen_random_uuid()` na coluna: o `dados.js` confere
+     o id ANTES de mandar, no navegador, e o padrão do banco nunca chega a ser
+     usado. Quem gera é esta linha. */
+  bd.pacote_servicos = (bd.pacote_servicos || []).filter(x => x.pacoteId !== id)
+    .concat(svs.map(sid => ({ id: crypto.randomUUID(),
+                              pacoteId: id, servicoId: sid })));
+
+  salvar();
+  fecharModal();
+  pintarPacotes();
+}
+
+function abrirVenderPacote(pid){
+  if(!souGestor()) return;
+  const p = pacotesDoSalao().find(x => x.id === pid);
+  if(!p) return;
+  const jaTem = new Set(vendasDoPacote(pid).map(v => v.clienteId));
+  const livres = clientesDo().filter(c => !jaTem.has(c.id));
+  abrirModal('Vincular cliente a ' + p.nome, `
+    ${livres.length ? `
+    <div class="campo"><label>Cliente</label>
+      <select id="pkCliente">${livres
+        .slice().sort((a,b) => (a.nome||'').localeCompare(b.nome||''))
+        .map(c => `<option value="${c.id}">${escapar(c.nome)}${
+          c.telefone ? ' · ' + escapar(c.telefone) : ''}</option>`).join('')}
+      </select></div>
+    <div class="aviso" style="margin-top:12px">
+      <b>Ela precisa ter conta no link para o pacote valer.</b><br>
+      Sem conta, o sistema só reconhece a cliente pelo telefone — e telefone
+      qualquer um digita. Com conta e senha, é ela mesma. Se ela ainda não tem,
+      peça para criar no link do salão antes de usar o pacote.
+    </div>
+    <p style="font-size:13px;color:var(--txt2);margin-top:10px">
+      ${p.sessoes} sessão(ões), válidas por ${p.validadeDias} dias a partir de
+      hoje. Cobre: ${servicosDoPacote(p.id)
+        .map(id => escapar((acharServico(id)||{}).nome || '?')).join(', ')}.</p>
+    ` : `<p>Todas as clientes já estão neste pacote — ou você ainda não tem
+         clientes cadastradas.</p>`}`,
+    livres.length
+      ? [['Cancelar','fecharModal()'], ['Vincular', `venderPacote('${pid}')`, 'btn-p']]
+      : [['Fechar','fecharModal()']]);
+}
+
+async function venderPacote(pid){
+  const sel = document.getElementById('pkCliente');
+  if(!sel) return;
+  try{
+    /* A venda é uma FUNÇÃO do banco, não um insert desta tela: as sessões e a
+       validade são copiadas lá dentro, do pacote, no momento da venda. Se a
+       tela mandasse esses números, quem abrisse o console daria a si mesmo um
+       pacote de mil sessões. */
+    await Dados.chamar('vender_pacote',
+      { p_pacote: pid, p_cliente: sel.value });
+    fecharModal();
+    /* ⚠ `carregarTudo()` DEVOLVE o `bd` novo; NÃO o atribui. Escrevi
+       `await carregarTudo();` sem o `bd =` — e o projeto já tinha caído nisto
+       antes, com o caixa: o banco fechava e a tela continuava dizendo aberto.
+
+       Aqui o sintoma era o mesmo tipo: o vínculo era criado no banco, a janela
+       fechava, e a lista continuava dizendo "Ninguém ainda". A dona clicaria
+       de novo, e de novo, achando que o botão não funciona. */
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+    pintarPacotes();
+  }catch(e){
+    alert('Não consegui vincular.\n\n' + (e.message || e));
+  }
+}
+
+async function tirarDoPacote(vendaId, nome){
+  if(!confirm('Tirar ' + (nome || 'esta cliente') + ' do pacote?\n\n'
+    + 'Os atendimentos que ela já fez pelo pacote continuam no histórico. '
+    + 'Ela deixa de ter as sessões que ainda sobravam.')) return;
+  try{
+    await Dados.chamar('cancelar_pacote_cliente', { p_id: vendaId });
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+    pintarPacotes();
+  }catch(e){
+    alert('Não consegui tirar.\n\n' + (e.message || e));
+  }
+}
+
 function pintarProdutos(){
   const lista = doSalao(bd.produtos);
   const alvo = document.getElementById('listaProdutos');
@@ -5030,6 +5299,7 @@ function pintar(){
   if(telaAtual === 'clientes') pintarClientes();
   if(telaAtual === 'servicos') pintarServicos();
   if(telaAtual === 'produtos') pintarProdutos();
+  if(telaAtual === 'pacotes')  pintarPacotes();
   if(telaAtual === 'equipe')   pintarEquipe();
   if(telaAtual === 'hoje')     carregarHoje();
   /* `carregarGaveta()` ANTES do `pintarCaixa()`, e não só depois de mexer
