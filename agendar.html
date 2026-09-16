@@ -375,6 +375,22 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
       <div id="capaServicos"></div>
       <div class="cat" id="rotuloEquipe">Quem atende</div>
       <div id="capaEquipe"></div>
+      <!-- A loja entra DEPOIS da equipe, e não antes: quem chegou por um link
+           no WhatsApp veio marcar horário. Produto é o segundo assunto. -->
+      <div id="capaLoja"></div>
+    </section>
+
+    <!-- ══════ LOJA ══════
+         Não é checkout. Não há pagamento aqui, e o pedido NÃO é gravado no
+         banco: o carrinho vira uma mensagem no WhatsApp DA CLIENTE, e quem
+         fecha a venda é a conversa. O porquê está no 25_loja.sql. -->
+    <section class="passo" id="p-loja">
+      <h2>Produtos</h2>
+      <p class="sub">Monte o pedido e mande pelo WhatsApp. O salão confirma o
+         que tem e combina com você o pagamento e a retirada.</p>
+      <input class="busca" id="buscaProduto" placeholder="Buscar produto…"
+             oninput="desenharLoja()">
+      <div id="listaProdutos"></div>
     </section>
 
     <!-- ══════ 1 · SERVIÇO ══════ -->
@@ -915,6 +931,17 @@ function bdDaVitrine(v){
       descricao: x.descricao, duracaoMin: x.duracaoMin, intervaloMin: 0,
       preco: Number(x.preco), foto: x.foto, ativo: true, aceitaOnline: true,
     })),
+    /* ⚠ O QUE NÃO VEM, E É O PONTO: `custo` e `comissaoPct`.
+
+       A `vitrine()` não os devolve — ela nomeia campo por campo justamente
+       para isso (ver 25_loja.sql). Aqui a lista é remontada com o que chegou,
+       e se um dia alguém acrescentar um campo lá, ele precisa entrar AQUI
+       também para existir na tela. É a mesma corrente de cinco paradas que o
+       comentário do salão descreve logo acima. */
+    produtos: (v.produtos || []).map(x => ({
+      id: x.id, salaoId, nome: x.nome, marca: x.marca,
+      descricao: x.descricao, preco: Number(x.preco), foto: x.foto,
+    })),
     profissionais: (v.profissionais || []).map((x, i) => ({
       id: x.id, salaoId, nome: x.nome, foto: x.foto,
       // A cor do monograma não vem do banco. Sai do lugar na lista, que é
@@ -1189,7 +1216,19 @@ function desenhar(){
   bp.disabled = false;
 
   if(tela === 'saloes')      { desenharSaloes();    rodape.style.display='none'; trilhaAte(0); }
-  if(tela === 'capa')        { desenharCapa();      bp.textContent=voc('acao'); trilhaAte(0); }
+  if(tela === 'capa')        { desenharCapa(); desenharLojaNaCapa();
+                               bp.textContent=voc('acao'); trilhaAte(0); }
+  /* O botão diz o que falta, como nos outros passos: carrinho vazio não
+     manda mensagem nenhuma, e cinza mudo faria a pessoa procurar o que não
+     fez. E quando o salão não tem WhatsApp cadastrado, ele some de vez —
+     botão que abriria um `wa.me/` quebrado é pior que botão nenhum. */
+  if(tela === 'loja')        { desenharLoja(); trilhaAte(0);
+                               const n = itensNoCarrinho();
+                               if(!zapDoSalao()){ rodape.style.display='none'; }
+                               bp.disabled = !n;
+                               bp.textContent = n
+                                 ? 'Enviar pedido no WhatsApp'
+                                 : 'Escolha pelo menos 1 produto'; }
   // Botão desabilitado que DIZ o que falta. Cinza mudo faz a pessoa procurar
   // o que não fez; o rótulo resolve sem ela precisar adivinhar.
   if(tela === 'servico')     { desenharServicos();  trilhaAte(1);
@@ -2320,8 +2359,195 @@ function desenharMeus(){
 }
 
 /* ── Ações do botão principal ────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   A LOJA — carrinho no navegador, pedido pelo WhatsApp DA CLIENTE
+
+   ⚠ ISTO NÃO É UM CHECKOUT, e a diferença não é de acabamento.
+
+   Não há pagamento nesta página, não há reserva de estoque, e o pedido NÃO é
+   gravado no banco. O carrinho vira texto, o texto abre o WhatsApp dela, e
+   quem fecha a venda é a conversa entre as duas pessoas.
+
+   Por que o `wa.me` e não a nossa API do WhatsApp:
+
+     · custa zero, contra ~R$ 0,05 por pedido;
+     · não depende de modelo aprovado nem da verificação da Meta;
+     · é ELA quem escreve primeiro, e isso abre a janela de 24 horas — o dono
+       responde à vontade, negocia, combina entrega, manda o Pix. Pela nossa
+       API ele receberia um aviso e NÃO poderia responder pelo mesmo caminho.
+
+   ⚠ E uma coisa que não dá para impedir: a mensagem é entregue ao WhatsApp
+   dela, onde o texto pode ser editado antes de enviar. O preço que chega ao
+   dono NÃO é vinculante — quem confere é ele, ao montar a comanda. Não é
+   defeito a consertar: é a consequência de o pedido ser uma conversa, e é
+   mais um motivo para isto não virar checkout.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let carrinho = {};
+
+function chaveDoCarrinho(){
+  return 'agendapro.carrinho.' + (salao ? salao.id : 'sem-salao');
+}
+
+/* O carrinho sobrevive a fechar a aba, mas morre com o navegador da pessoa:
+   é dela, não nosso. Nada disto chega ao servidor. */
+function lerCarrinho(){
+  try{ carrinho = JSON.parse(localStorage.getItem(chaveDoCarrinho()) || '{}') || {}; }
+  catch(e){ carrinho = {}; }
+}
+function gravarCarrinho(){
+  try{ localStorage.setItem(chaveDoCarrinho(), JSON.stringify(carrinho)); }
+  catch(e){ /* aba anônima, armazenamento cheio: o carrinho só não persiste */ }
+}
+
+const produtosDaLoja = () => (bd.produtos || []).filter(p => p.salaoId === salao.id);
+const itensNoCarrinho = () =>
+  Object.values(carrinho).reduce((s, n) => s + (n > 0 ? n : 0), 0);
+
+function totalDoCarrinho(){
+  return produtosDaLoja().reduce(
+    (s, p) => s + (carrinho[p.id] > 0 ? carrinho[p.id] * Number(p.preco || 0) : 0), 0);
+}
+
+/* O número do salão, em dígitos, pronto para o `wa.me`. Devolve vazio quando
+   não dá para montar — e aí a tela esconde o caminho inteiro em vez de
+   oferecer um link que abre numa conversa com ninguém. */
+function zapDoSalao(){
+  const cru = String((salao && (salao.whatsapp || salao.telefone)) || '');
+  const so = cru.replace(/\D/g, '');
+  if(so.length === 10 || so.length === 11) return '55' + so;
+  if(so.length >= 12 && so.startsWith('55')) return so;
+  return '';
+}
+
+function mudarNoCarrinho(pid, delta){
+  const n = (carrinho[pid] || 0) + delta;
+  if(n > 0) carrinho[pid] = n; else delete carrinho[pid];
+  gravarCarrinho();
+  desenhar();
+}
+
+/* O convite na capa. Só aparece quando há o que vender E para onde mandar. */
+function desenharLojaNaCapa(){
+  const alvo = document.getElementById('capaLoja');
+  if(!alvo) return;
+  const lista = produtosDaLoja();
+  if(!lista.length || !zapDoSalao()){ alvo.innerHTML = ''; return; }
+  const n = itensNoCarrinho();
+  alvo.innerHTML = `
+    <div class="cat">Produtos</div>
+    <div class="bloco" style="cursor:pointer" onclick="irPara('loja')">
+      <div class="rot">${lista.length === 1
+        ? '1 produto à venda' : lista.length + ' produtos à venda'}</div>
+      <p style="font-size:13.5px;color:var(--txt2);margin:6px 0 10px">
+        Monte o pedido aqui e mande pelo WhatsApp do salão.</p>
+      <button class="btn" onclick="event.stopPropagation();irPara('loja')">
+        ${n ? 'Ver o carrinho (' + n + ')' : 'Ver os produtos'}</button>
+    </div>`;
+}
+
+function desenharLoja(){
+  const alvo = document.getElementById('listaProdutos');
+  if(!alvo) return;
+  const busca = (document.getElementById('buscaProduto').value || '')
+                  .trim().toLowerCase();
+  const lista = produtosDaLoja().filter(p => !busca
+    || (p.nome || '').toLowerCase().includes(busca)
+    || (p.marca || '').toLowerCase().includes(busca));
+
+  if(!lista.length){
+    alvo.innerHTML = `<div class="recado">${busca
+      ? 'Nenhum produto com esse nome.'
+      : 'Este salão ainda não tem produtos à venda.'}</div>`;
+    return;
+  }
+
+  alvo.innerHTML = lista.map(p => {
+    const n = carrinho[p.id] || 0;
+    return `<div class="bloco" style="display:flex;gap:12px;align-items:flex-start">
+      <div style="flex:0 0 64px;width:64px;height:64px;border-radius:9px;
+                  overflow:hidden;background:var(--fundo2,rgba(0,0,0,.05));
+                  display:flex;align-items:center;justify-content:center">
+        ${p.foto ? `<img src="${escapar(p.foto)}" alt="" loading="lazy"
+                        style="width:100%;height:100%;object-fit:cover">`
+                 : `<span data-ico="presente"></span>`}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div class="rot" style="margin:0">${escapar(p.nome)}</div>
+        ${p.marca ? `<div style="font-size:12.5px;color:var(--txt3)">${escapar(p.marca)}</div>` : ''}
+        ${p.descricao ? `<p style="font-size:13px;color:var(--txt2);margin:5px 0 0">
+            ${escapar(p.descricao)}</p>` : ''}
+        <div style="display:flex;align-items:center;justify-content:space-between;
+                    gap:10px;margin-top:9px;flex-wrap:wrap">
+          <b>${real(Number(p.preco))}</b>
+          ${n ? `<span style="display:inline-flex;align-items:center;gap:9px">
+                   <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',-1)">−</button>
+                   <b style="min-width:1.4em;text-align:center">${n}</b>
+                   <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)">+</button>
+                 </span>`
+               : `<button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)">
+                    Adicionar</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('') + (itensNoCarrinho() ? `
+    <div class="recado" style="margin-top:14px">
+      <b>${itensNoCarrinho()} item(ns) · ${real(totalDoCarrinho())}</b><br>
+      Este valor é uma estimativa. Quem confirma o preço final, o que tem em
+      estoque e a forma de pagamento é o salão, na conversa.
+      <div style="margin-top:9px">
+        <button class="link" onclick="esvaziarCarrinho()">Esvaziar o carrinho</button>
+      </div>
+    </div>` : '');
+
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+
+function esvaziarCarrinho(){
+  carrinho = {}; gravarCarrinho(); desenhar();
+}
+
+/* O texto do pedido. Sem emoji e sem enfeite: isto vai virar uma mensagem que
+   o dono lê no meio do expediente, e que ele vai reler na hora de montar a
+   comanda.
+
+   ⚠ CONCATENAÇÃO, E NÃO TEMPLATE LITERAL — de propósito, e não é estilo.
+
+   Todo o resto desta tela monta HTML, e por isso todo nome que entra num
+   `${...}` passa por `escapar()`. O varredor do `seguranca.test.mjs` cobra
+   isso lendo o arquivo, e ele apontou estas linhas quando elas eram template
+   literal.
+
+   Só que aqui NÃO É HTML: é texto puro indo para o WhatsApp. `escapar()`
+   estragaria a mensagem — um salão chamado "Ana & Cia" chegaria ao dono como
+   "Ana &amp; Cia". E abrir exceção no varredor seria pior: a exceção fica, e
+   o próximo trecho de HTML de verdade se esconde atrás dela.
+
+   Escrito com `+`, o trecho para de parecer marcação, o varredor não tem o
+   que apontar, e quem lê vê na hora que isto é uma string e não uma tela. */
+function textoDoPedido(){
+  const itens = produtosDaLoja()
+    .filter(p => carrinho[p.id] > 0)
+    .map(p => '• ' + p.nome + (p.marca ? ' (' + p.marca + ')' : '')
+            + ' — ' + carrinho[p.id] + 'x ' + real(Number(p.preco)));
+  return 'Olá! Vim pela página do ' + salao.nome + ' e quero estes produtos:'
+       + '\n\n' + itens.join('\n')
+       + '\n\nTotal estimado: ' + real(totalDoCarrinho())
+       + '\n\nPode confirmar o que tem disponível?';
+}
+
+function enviarPedido(){
+  const zap = zapDoSalao();
+  if(!zap || !itensNoCarrinho()) return;
+  /* `_blank` e não `location.href`: no computador o `wa.me` abre o WhatsApp
+     Web numa aba, e trocar a página atual faria a cliente perder a página do
+     salão — junto com o carrinho que ela acabou de montar. */
+  window.open('https://wa.me/' + zap + '?text=' + encodeURIComponent(textoDoPedido()),
+              '_blank', 'noopener');
+}
+
 function acaoPrincipal(){
   if(tela === 'capa')      return irPara('servico');
+  if(tela === 'loja')      return enviarPedido();
   if(tela === 'servico')   return irPara('prof');
   if(tela === 'prof')      return irPara('quando');
   if(tela === 'quando')    return irPara('dados');
@@ -2753,6 +2979,10 @@ function entrarNoSalao(slug){
     return;
   }
   salao = s;
+  /* O carrinho é por salão e é lido aqui, não na abertura da página: a chave
+     depende do `salao.id`, que só existe a partir desta linha. Quem montou um
+     pedido e fechou a aba encontra tudo no lugar ao voltar pelo mesmo link. */
+  lerCarrinho();
   // Mantém o endereço coerente com o que está na tela: dá para copiar da
   // barra e mandar para outra pessoa.
   const url = new URL(location.href);
