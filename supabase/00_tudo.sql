@@ -10144,15 +10144,30 @@ language sql stable security definer set search_path = public as $$
 
        ⚠ E REPARE NO QUE NÃO GOVERNA A LISTA: `estoque`.
 
-       Seria natural esconder o que está com estoque zero. Só que a coluna
-       nasce ZERO e NADA no sistema a movimenta — nem a comanda. Usá-la aqui
-       marcaria como esgotado todo produto recém-cadastrado, e o dono passaria
-       a tarde tentando entender por que a loja dele está vazia.
+       Seria natural esconder o que está com estoque zero. A coluna nasce ZERO
+       e usá-la aqui marcaria como esgotado todo produto recém-cadastrado — e
+       o dono passaria a tarde tentando entender por que a loja dele, cheia de
+       produto, aparece vazia para a cliente.
 
-       Quem decide o que aparece é o `venda_online`, que é um clique
-       consciente. Quando a comanda passar a dar baixa, o estoque vira verdade
-       e o "esgotado" entra aqui — com o teste que hoje não teria como
-       existir. */
+       ── ⚠ E POR QUE ISSO NÃO MUDOU COM O MÓDULO 26 ─────────────────────
+       Este comentário dizia "NADA no sistema movimenta o estoque — nem a
+       comanda", e prometia que o "esgotado" entraria aqui no dia em que a
+       comanda desse baixa. O 26_estoque.sql passou a dar, e a frase virou
+       mentira. A CONCLUSÃO, porém, continua a mesma — e é por isso que a
+       correção é do texto e não do código.
+
+       Dar baixa não é o mesmo que saber quanto tem. O 26 só SUBTRAI: ninguém
+       preenche a contagem inicial por ele. Salão que cadastra produto sem
+       digitar quantidade continua com zero em tudo, e esconder por estoque
+       continuaria escondendo a loja inteira de quem mais precisa dela.
+
+       O "esgotado" entra no dia em que o estoque for verdade — o que depende
+       de o dono ter contado, não de o sistema ter subtraído.
+
+       Até lá, quem decide o que aparece é o `venda_online`, que é um clique
+       consciente. E o pedido vai pelo WhatsApp justamente para a dona poder
+       responder "essa cor acabou" — a mensagem termina em "pode confirmar o
+       que tem disponível?" por este motivo. */
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', pr.id, 'nome', pr.nome, 'marca', pr.marca,

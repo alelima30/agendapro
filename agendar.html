@@ -2448,8 +2448,38 @@ function gravarCarrinho(){
 }
 
 const produtosDaLoja = () => (bd.produtos || []).filter(p => p.salaoId === salao.id);
-const itensNoCarrinho = () =>
-  Object.values(carrinho).reduce((s, n) => s + (n > 0 ? n : 0), 0);
+
+/* ⚠ CONTA PELA LOJA, E NÃO PELO CARRINHO. A diferença não é estilo.
+
+   O carrinho mora no `localStorage` e guarda IDS. A loja muda por baixo dele:
+   a dona desmarca "vender online", desativa ou apaga o produto, e o id que
+   está no carrinho de alguém deixa de existir na vitrine.
+
+   Isto aqui contava `Object.values(carrinho)` — tudo, inclusive o que não está
+   mais à venda — enquanto o `totalDoCarrinho()` e o `textoDoPedido()` sempre
+   percorreram a LOJA. As três discordavam, e o efeito, medido:
+
+     itensNoCarrinho() = 3   ·   totalDoCarrinho() = 0
+
+   Com isso o botão "Enviar pedido no WhatsApp" ficava LIGADO, e a cliente
+   mandava para a dona:
+
+     "Olá! Vim pela página do Salão X e quero estes produtos:
+      (nada)
+      Total estimado: R$ 0,00"
+
+   Sem erro nenhum no console. A dona recebia uma mensagem sem produto e a
+   cliente saía achando que tinha pedido.
+
+   Percorrendo a loja, as três funções passam a olhar a mesma lista, e a
+   divergência deixa de ser possível — em vez de ser consertada em três
+   lugares que podem voltar a discordar.
+
+   O que ficou no `localStorage` não é apagado de propósito: produto
+   despublicado por dois dias volta com as unidades que a cliente já tinha
+   escolhido, e produto que não volta simplesmente nunca mais é contado. */
+const itensNoCarrinho = () => produtosDaLoja()
+  .reduce((s, p) => s + (carrinho[p.id] > 0 ? carrinho[p.id] : 0), 0);
 
 function totalDoCarrinho(){
   return produtosDaLoja().reduce(

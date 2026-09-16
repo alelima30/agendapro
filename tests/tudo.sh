@@ -92,6 +92,25 @@ rodar() {
     # Se saiu por erro sem ter falhado teste — módulo faltando, bancada caída —
     # o rastro inteiro importa, porque ninguém adivinha isso pelo placar.
     echo "$saida" | grep -q "falharam" || { echo "   ── não chegou a rodar ──"; echo "$saida" | tail -12; }
+
+    # ⚠ AS LINHAS QUE REPROVARAM, AQUI MESMO, E O RASTRO INTEIRO NUM ARQUIVO.
+    #
+    # Antes saía só o placar — "✗ 2 de 73 verificações falharam" — e o resto
+    # era descartado. Para uma suíte que reprova SEMPRE, tudo bem: roda de novo
+    # sozinha e o detalhe aparece.
+    #
+    # Para uma que reprova SÓ NO CONJUNTO, não: rodar sozinha dá verde, e a
+    # única chance de saber o que houve foi jogada fora. Aconteceu comigo, e me
+    # custou várias rodadas de bisseção às cegas atrás de duas linhas que o
+    # corredor tinha na mão e apagou.
+    #
+    # Falha intermitente é justamente a que mais precisa do detalhe, e a que
+    # menos chance tem de ser reproduzida sob demanda.
+    echo "$saida" | grep -E '^[[:space:]]*✗' | head -12 | sed 's/^/   /'
+    local arq="${TMPDIR:-/tmp}/agendapro-reprovou-$(echo "$nome" | tr -c 'a-zA-Z0-9' '-').txt"
+    printf '%s\n' "$saida" > "$arq"
+    echo "   ── saída inteira em $arq ──"
+
     falhou=1; reprovadas+=("$nome")
   fi
 }
@@ -155,6 +174,7 @@ rodar "caixa na tela"     node "$AQUI/caixa-tela.test.mjs"
 rodar "cartões na foto"   node "$AQUI/cartoes.test.mjs"
 rodar "moldura do cartão" node "$AQUI/moldura.test.mjs"
 rodar "oferta de plano"   node "$AQUI/oferta-plano.test.mjs"
+rodar "carrinho da loja"  node "$AQUI/carrinho.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then
