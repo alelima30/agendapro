@@ -231,15 +231,47 @@ verdade('o banco recusa um horário dentro da antecedência',
 verdade('e explica o motivo em português — ' + JSON.stringify(String(recusa).slice(0, 60)),
   /livre|antecedência|horário/i.test(String(recusa)), recusa);
 
-// E o mesmo caminho aceita quando o horário está fora da antecedência.
-const maisTarde = new Date(Math.ceil((Date.now() + 200 * 60000) / 9e5) * 9e5);
-let aceitou = true, porque = null;
-try{
-  await d.chamar('agendar', { p_profissional: prof.id, p_inicio: maisTarde.toISOString(),
-    p_servicos:[sv.id], p_nome:'Cliente Tranquila', p_telefone:'+5511977775555' });
-}catch(e){ aceitou = false; porque = e.message || String(e); }
-verdade('mas aceita normalmente o que está fora dela', aceitou,
-  'recusou também o horário distante: ' + porque);
+/* E o mesmo caminho aceita quando o horário está fora da antecedência.
+
+   ⚠ O HORÁRIO DISTANTE SAI DO MOTOR, E NÃO DE UMA CONTA COM O RELÓGIO.
+
+   Aqui estava `agora + 200 minutos`, arredondado para cima no passo de 15.
+   Às 20h do salão isso cai às 23h30 — e o corte de 30 minutos terminaria às
+   00:00, fora da jornada, que vai até 23:59. O banco recusava com "Esse
+   horário não está mais livre", dizendo a verdade, e a linha abaixo lia a
+   recusa como se a antecedência tivesse barrado.
+
+   Ou seja: uma reprovação por causa da hora do dia, todas as noites, com o
+   dedo apontado para o motor quando o errado era a conta escrita aqui. É o
+   MESMO degrau da meia-noite que a régua da seção 2 já documenta vinte
+   linhas acima — a seção 3 é que fazia a conta à mão e não o conhecia.
+
+   Pedindo à `horarios_livres_periodo()` um horário que ela própria ofereça,
+   a verificação volta a medir o que existe para medir: que o `agendar()`
+   ACEITA o que a listagem oferece. Essa é a outra metade de "a regra é do
+   banco" — a primeira é recusar o que ela não oferece, logo acima. */
+const livres = await d.chamar('horarios_livres_periodo', {
+  p_profissionais:[prof.id], p_de:hoje(), p_ate:maisDias(hoje(), 1),
+  p_servicos:[sv.id] });
+const maisTarde = (Array.isArray(livres) ? livres : [])
+  .map(x => new Date(x.inicio)).sort((a, b) => a - b)
+  .find(x => x.getTime() - Date.now() > 120 * 60000);
+
+if(!maisTarde){
+  nao('mas aceita normalmente o que está fora dela',
+      'a listagem não ofereceu nenhum horário a mais de 120 min — '
+      + 'não dá para provar a aceitação sem um horário para aceitar');
+} else {
+  let aceitou = true, porque = null;
+  try{
+    await d.chamar('agendar', { p_profissional: prof.id,
+      p_inicio: maisTarde.toISOString(), p_servicos:[sv.id],
+      p_nome:'Cliente Tranquila', p_telefone:'+5511977775555' });
+  }catch(e){ aceitou = false; porque = e.message || String(e); }
+  verdade('mas aceita normalmente o que está fora dela — '
+    + maisTarde.toLocaleString('pt-BR', { timeZone: FUSO }), aceitou,
+    'recusou um horário que a própria listagem tinha oferecido: ' + porque);
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    4 — LIXO NO CAMPO NÃO PODE DERRUBAR A AGENDA

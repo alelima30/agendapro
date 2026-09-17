@@ -152,6 +152,14 @@ await p.addInitScript(([b, s]) => {
 await p.goto(BASE + '/app.html');
 await p.waitForTimeout(4000);
 
+/* O salão nasceu agora, sem horário de ninguém, e o passo a passo do
+   primeiro dia abre sozinho e cobre a tela — certo para ele, atravessado
+   para este teste, que é sobre a fila de espera. Dispensado como "já fiz":
+   a marca fica no `cfg` do salão, no banco. Quem prova que ele aparece é o
+   `funil-nuvem.test.mjs`. */
+await p.evaluate(() => { if(typeof pdFechar === 'function') pdFechar(true); });
+await p.waitForTimeout(1800);
+
 /* Pelo `evaluate`, e não pelo `p.textContent()`: sem o elemento, o
    `textContent` fica trinta segundos esperando e a suíte morre com
    "Timeout exceeded", que é a pior forma de contar que a tela não existe —

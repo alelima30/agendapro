@@ -178,6 +178,28 @@ const corpo = await q.evaluate(() => document.body.innerText.replace(/\s+/g, ' '
 verdade('e o painel mostra o salão desta pessoa, não outro',
   corpo.includes(NOMESALAO));
 
+/* ── O PASSO A PASSO DO PRIMEIRO DIA, NA NUVEM ────────────────────────────
+   Este é o único teste que percorre o caminho de verdade: cadastro pela
+   `criar.html`, login pela `entrar.html`, painel aberto pela primeira vez.
+   E o `criar_salao()` deixa o salão com uma profissional SEM jornada, nenhum
+   serviço e nenhum horário — exatamente o estado em que o assistente deve
+   aparecer. Se ele não aparecer aqui, ele não aparece para ninguém: o
+   `primeiro-dia.test.mjs` roda em `?demo=1`, onde o salão nasce semeado.
+
+   Depois ele é dispensado como "já fiz", porque o resto deste arquivo é
+   sobre outra coisa e ele cobre a tela de propósito. A marca vai para o
+   `cfg` do salão, no banco, e por isso atravessa os reloads lá embaixo. */
+verdade('o passo a passo do primeiro dia abre sozinho no salão recém-criado',
+  await q.evaluate(() => {
+    const w = document.getElementById('primeiroDia');
+    return !!w && !w.hidden
+        && document.getElementById('pdContador').textContent === 'Passo 1 de 8';
+  }));
+await q.evaluate(() => pdFechar(true));
+await q.waitForTimeout(2000);           // a marca subindo para o banco
+verdade('e sai da frente quando a dona diz que já fez',
+  await q.evaluate(() => document.getElementById('primeiroDia').hidden));
+
 /* ── O CAIXA E A JORNADA ──────────────────────────────────────────────────
    Aqui moravam os quatro `400`. Eles não derrubavam a tela: viravam lista
    vazia em silêncio, e o painel abria com cara de salão novo. Como o defeito

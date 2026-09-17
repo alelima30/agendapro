@@ -87,6 +87,15 @@ await p.addInitScript(([base, ses]) => {
 }, [BASE, d.sessao()]);
 await p.goto(BASE + '/app.html');
 await p.waitForTimeout(3500);
+
+/* Este salão acabou de nascer e não tem serviço nem horário, então o passo a
+   passo do primeiro dia abre sozinho e cobre a tela — que é o certo para ele
+   e o errado para este teste, que é sobre o plano. Dispensado como "já fiz":
+   a marca fica no `cfg` do salão, no banco, e atravessa os reloads abaixo.
+   Quem prova que ele aparece é o `funil-nuvem.test.mjs`. */
+await p.evaluate(() => { if(typeof pdFechar === 'function') pdFechar(true); });
+await p.waitForTimeout(1800);
+
 await p.click('a:has-text("Plano"), button:has-text("Plano")');
 await p.waitForTimeout(2500);
 

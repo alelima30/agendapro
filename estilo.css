@@ -2404,3 +2404,113 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 .qr-txt{ flex:1; min-width:180px; display:flex; flex-direction:column; gap:2px }
 .qr-txt b{ font-size:14px }
 .qr-txt span{ font-size:13px; color:var(--txt2) }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O PRIMEIRO DIA — o assistente que enche o salão novo
+
+   Tela cheia de propósito, e não um modal pequeno: são oito passos com lista,
+   preço e horário dentro, e uma caixinha no meio da tela faria a pessoa rolar
+   dentro de um retângulo rolando dentro da página.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pd-fundo{
+  position:fixed; inset:0; z-index:200; display:grid; place-items:center;
+  background:rgba(15,23,42,.55); padding:16px;
+}
+.pd-fundo[hidden]{ display:none }
+.pd-caixa{
+  width:min(720px, 100%); max-height:min(92vh, 900px);
+  display:flex; flex-direction:column;
+  background:var(--painel); border-radius:var(--r-lg);
+  box-shadow:var(--sombra-lg); overflow:hidden;
+}
+
+.pd-topo{ padding:16px 20px 0; background:var(--grad-marca); color:#FFFFFF }
+.pd-linha{ display:flex; align-items:center; gap:10px }
+.pd-passo{ font-size:13.5px; font-weight:700; letter-spacing:.01em; flex:1 }
+.pd-topo .btn-x{ color:#FFFFFF; background:transparent; border-color:transparent }
+.pd-topo .btn-x:hover{ background:rgba(255,255,255,.18) }
+
+/* A barra é a única coisa na tela que responde "falta muito?". Sem ela, oito
+   passos parecem infinitos no terceiro. */
+.pd-barra{
+  height:5px; margin:12px 0 0; border-radius:3px 3px 0 0;
+  background:rgba(255,255,255,.28); overflow:hidden;
+}
+.pd-barra i{
+  display:block; height:100%; width:0; background:#FBBF24;
+  border-radius:3px; transition:width .25s ease;
+}
+
+.pd-corpo{ padding:20px; overflow:auto; flex:1 }
+.pd-corpo h2{ font-size:20px; font-weight:800; margin:0 0 4px }
+.pd-sub{ color:var(--txt2); font-size:14px; margin:0 0 16px }
+
+.pd-pe{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:12px 20px; border-top:1px solid var(--borda); background:var(--painel2);
+}
+
+/* ── Cartões de escolha (categorias, sugestões de serviço) ──────────────── */
+.pd-grade{ display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px }
+.pd-op{
+  display:flex; align-items:center; gap:9px; min-height:48px; padding:10px 12px;
+  border:1px solid var(--borda); border-radius:var(--r-sm);
+  background:var(--painel); color:var(--txt); cursor:pointer;
+  font:inherit; font-size:14px; font-weight:600; text-align:left;
+}
+.pd-op:hover{ border-color:var(--borda-forte) }
+.pd-op.on{ border-color:var(--marca-media); background:var(--ac-soft); color:var(--marca) }
+.pd-op .pd-marca{ margin-left:auto; font-size:16px; line-height:1 }
+
+/* ── Sugestões de serviço, com duração e preço ──────────────────────────── */
+.pd-cat{ font-size:13px; font-weight:800; color:var(--txt2); margin:14px 0 6px;
+         text-transform:uppercase; letter-spacing:.03em }
+.pd-sug{
+  display:flex; align-items:center; gap:12px; width:100%; min-height:52px;
+  padding:10px 13px; margin-bottom:6px; cursor:pointer; font:inherit;
+  border:1px dashed var(--borda-forte); border-radius:var(--r-sm);
+  background:var(--painel); color:var(--txt); text-align:left;
+}
+.pd-sug.on{ border-style:solid; border-color:var(--ok);
+            background:var(--su-soft) }
+.pd-sug .pd-nome{ flex:1; font-weight:700; font-size:14.5px }
+.pd-sug .pd-det{ font-size:13px; color:var(--txt2); white-space:nowrap }
+.pd-sug .pd-mais{ font-size:19px; line-height:1; color:var(--marca) }
+.pd-sug.on .pd-mais{ color:var(--ok) }
+
+/* ── Horário de atendimento ─────────────────────────────────────────────── */
+.pd-dia{
+  border:1px solid var(--borda); border-radius:var(--r-sm);
+  padding:11px 13px; margin-bottom:8px; background:var(--painel);
+}
+/* Quebra de linha, porque "Copiar para os outros dias" não cabe ao lado do
+   nome do dia num aparelho de 375px — e sem quebrar ele saía por baixo da
+   borda do cartão, com metade do rótulo fora da tela. */
+.pd-dia-h{ display:flex; align-items:center; gap:8px; margin-bottom:6px;
+           flex-wrap:wrap }
+.pd-dia-h b{ font-size:14.5px; flex:1 1 auto; min-width:76px }
+.pd-dia.fechado b{ color:var(--txt3); font-weight:600 }
+.pd-faixa{ display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap }
+/* ⚠ 118px, e não 86. Com 86 o campo cabia "09:0" e cortava o resto — e num
+   navegador em inglês, que mostra "07:00 PM", sobrava menos ainda. Hora
+   cortada pela metade num editor de horário é o pior lugar possível para
+   economizar espaço: a pessoa não tem como conferir o que digitou. */
+.pd-faixa input{
+  width:118px; min-height:40px; padding:7px 9px; border:1px solid var(--borda);
+  border-radius:8px; background:var(--painel); color:var(--txt); font-size:14px;
+}
+.pd-faixa .pd-ate{ color:var(--txt3) }
+.pd-vazio{ color:var(--txt3); font-size:13.5px; font-style:italic; margin:2px 0 0 }
+
+/* ── O fim: link e QR ───────────────────────────────────────────────────── */
+.pd-fim{ display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+         padding:14px; border:1px solid var(--borda); border-radius:var(--r);
+         background:var(--painel2) }
+.pd-fim .pd-qr{ width:140px; flex:0 0 140px; line-height:0 }
+.pd-fim .pd-qr svg{ width:100%; height:auto; border-radius:6px }
+.pd-fim .pd-lado{ flex:1; min-width:200px }
+
+@media (max-width:520px){
+  .pd-fundo{ padding:0 }
+  .pd-caixa{ max-height:100vh; height:100vh; border-radius:0 }
+}

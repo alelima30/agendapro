@@ -98,6 +98,14 @@ await p.addInitScript(([b, s]) => {
 await p.goto(BASE + '/app.html');
 await p.waitForTimeout(4000);
 
+/* O salão nasceu agora, sem horário de ninguém, e o passo a passo do
+   primeiro dia abre sozinho e cobre a tela — certo para ele, atravessado
+   para este teste, que é sobre o caixa. Dispensado como "já fiz": a marca
+   fica no `cfg` do salão, no banco, e por isso atravessa o reload lá
+   embaixo. Quem prova que ele aparece é o `funil-nuvem.test.mjs`. */
+await p.evaluate(() => { if(typeof pdFechar === 'function') pdFechar(true); });
+await p.waitForTimeout(1800);
+
 /* ⚠ Lê o ESPERADO, e não o cartão inteiro.
 
    A primeira versão testava `/R\$\s*200/` contra `textContent` do cartão —

@@ -335,10 +335,6 @@ que nenhuma, porque dá trabalho a quem for conferir.
    `27_pacotes.sql` está instalado, com aba própria no painel, R$ 0,00 no link
    da cliente e dias da semana configuráveis — inclusive o bloqueio opcional
    fora desses dias, que vale só para o link e nunca para a recepção.
-5. **O primeiro dia.** Um salão novo abre o painel e encontra tudo vazio,
-   sem ordem sugerida. Proposto e nunca aprovado — fica registrado aqui
-   para não se perder.
-
 ### Depende do dono (fora do código)
 
 6. **Chaves do Mercado Pago** em Edge Functions → Secrets, e as funções
@@ -366,6 +362,13 @@ que nenhuma, porque dá trabalho a quem for conferir.
 - **A comissão é do banco**, pela escada par → catálogo → pessoa, com valor
   fixo e regra de bruto/líquido com data de corte.
 - **Caixa, sangria, suprimento e estorno**, e o **painel do dia**.
+- **O passo a passo do primeiro dia.** Oito passos que abrem sozinhos no
+  salão vazio: horário da semana com copiar para os outros dias, o que o
+  salão faz, serviços sugeridos com duração e preço num toque, equipe,
+  produtos (só para quem vende), os dois interruptores de comanda e
+  confirmação, e o link com o QR pronto para imprimir. Grava a cada passo,
+  então fechar no meio não perde nada. Não é aba: abre uma vez, e depois só
+  por quem procurar o botão em Meu salão.
 
 ## Onde este código mora
 

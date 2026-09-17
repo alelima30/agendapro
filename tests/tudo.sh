@@ -185,6 +185,7 @@ rodar "confirmação na tela"  node "$AQUI/confirmacao-tela.test.mjs"
 rodar "agenda do mês"        node "$AQUI/mes.test.mjs"
 rodar "QR"                   node "$AQUI/qr.test.js"
 rodar "QR na tela"           node "$AQUI/qr-tela.test.mjs"
+rodar "o primeiro dia"       node "$AQUI/primeiro-dia.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

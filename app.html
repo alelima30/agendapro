@@ -749,6 +749,41 @@ body.carregando-tudo .tela{ display:none }
 </footer>
 </div><!-- /palco -->
 
+<!-- ══════════ O PRIMEIRO DIA ══════════
+     Um salao novo abre o painel e encontra tudo vazio: nenhum servico, nenhum
+     horario, ninguem na equipe. A agenda nao tem o que mostrar, o link da
+     cliente nao tem o que oferecer, e nada na tela diz por onde comecar.
+
+     Este assistente e' a ordem sugerida. Ele grava a cada passo — quem fechar
+     no meio mantem o que ja fez — e da' para reabrir depois em Meu salao.
+
+     ⚠ E ele NAO e' uma aba do menu. Aba e' lugar de coisa que se volta;
+     isto se faz uma vez. Uma aba "Primeiro dia" morando no menu para sempre
+     seria um lembrete permanente de uma tarefa que acabou. -->
+<div class="pd-fundo" id="primeiroDia" hidden>
+  <div class="pd-caixa" role="dialog" aria-modal="true" aria-labelledby="pdTitulo">
+    <div class="pd-topo">
+      <div class="pd-linha">
+        <span class="pd-passo" id="pdContador">Passo 1 de 8</span>
+        <button class="btn btn-x" onclick="pdFechar()" aria-label="Fechar"
+                data-ico="fechar"></button>
+      </div>
+      <div class="pd-barra"><i id="pdBarra"></i></div>
+    </div>
+    <div class="pd-corpo">
+      <h2 id="pdTitulo">—</h2>
+      <p class="pd-sub" id="pdSub"></p>
+      <div id="pdCorpo"></div>
+    </div>
+    <div class="pd-pe">
+      <button class="btn" id="pdVoltar" onclick="pdAndar(-1)">← Voltar</button>
+      <span style="flex:1"></span>
+      <button class="btn" onclick="pdFechar()">Faço depois</button>
+      <button class="btn btn-p" id="pdProximo" onclick="pdAndar(1)">Próximo →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════ MODAL ══════════ -->
 <div class="fundo" id="fundo" onclick="if(event.target===this)fecharModal()">
   <div class="modal">
@@ -1518,7 +1553,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.098c23';
+const VERSAO_APP = 'v9.cfe369';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3954,8 +3989,13 @@ function prepararPublico(){
    O SVG é desenho: amplia sem perder nada.
 
    E o arquivo sai do navegador, montado aqui: nada sobe para lugar nenhum. */
-function baixarQr(){
-  const caixa = document.getElementById('qrDoLink');
+/* `qual` existe porque o QR é desenhado em dois lugares: no cartão de "Ver
+   como cliente" e no último passo do primeiro dia. Sem o parâmetro, o botão
+   do assistente baixaria o quadradinho do OUTRO lugar — que num salão recém
+   aberto nem foi desenhado ainda, e o dono levaria "recarregue a página" sem
+   nada de errado com a página. */
+function baixarQr(qual){
+  const caixa = document.getElementById(qual || 'qrDoLink');
   const svg = caixa && caixa.innerHTML;
   if(!svg){ alert('O QR ainda não foi desenhado. Recarregue a página.'); return; }
   const sl = acharSalao(salaoAtual) || {};
@@ -5729,6 +5769,20 @@ function pintar(){
    demonstração é `data:` no próprio navegador; ligado no Supabase, é URL do
    Storage. A tela não sabe a diferença — quem resolve isso é o imagens.js.
    ──────────────────────────────────────────────────────────────────────── */
+/* Os tipos de negócio, num lugar só: esta lista é lida aqui, no seletor de
+   "Meu salão", e no primeiro passo do assistente. Duas listas divergindo
+   fariam o assistente oferecer um tipo que o cadastro não aceita. */
+const TIPOS_NEGOCIO = [
+  ['salao',     'Salão de beleza'],
+  ['barbearia', 'Barbearia'],
+  ['estetica',  'Estética'],
+  ['manicure',  'Manicure e pedicure'],
+  ['clinica',   'Clínica'],
+  ['tatuagem',  'Tatuagem'],
+  ['pet',       'Pet shop'],
+  ['outro',     'Outro'],
+];
+
 function pintarSalao(){
   const sl = acharSalao(salaoAtual);
   if(!sl) return;
@@ -5790,22 +5844,28 @@ function pintarSalao(){
     </div>
 
     <div class="sub-tela" data-sub="dados">
+    <!-- O passo a passo do primeiro dia continua alcançável depois do
+         primeiro dia. Ele grava a cada passo, então reabrir não desfaz nada:
+         serve para quem pulou a equipe, ou para quem vai abrir a segunda
+         unidade e quer percorrer a mesma ordem. -->
     <div class="card" style="margin-bottom:16px">
       <h3 class="secao">Dados do estabelecimento</h3>
       <p class="secao-sub">É o que aparece para o cliente na página de
         agendamento, e o que vai na cobrança.</p>
+
+      <p style="margin:0 0 16px">
+        <button type="button" class="btn btn-peq" onclick="abrirPrimeiroDia(1)"
+                id="btPrimeiroDia">Refazer o passo a passo do primeiro dia</button>
+      </p>
 
       <div class="dupla">
         <div class="campo"><label for="cNome">Nome</label>
           <input id="cNome" value="${escapar(sl.nome || '')}" placeholder="Studio Bella"></div>
         <div class="campo"><label for="cTipo">Tipo de negócio</label>
           <select id="cTipo">
-            ${['salao','barbearia','estetica','manicure','clinica','tatuagem','pet','outro']
-              .map(t => `<option value="${t}" ${sl.tipo === t ? 'selected' : ''}>${
-                 ({salao:'Salão de beleza', barbearia:'Barbearia',
-                   estetica:'Estética', manicure:'Manicure e pedicure',
-                   clinica:'Clínica', tatuagem:'Tatuagem', pet:'Pet shop',
-                   outro:'Outro'})[t]}</option>`).join('')}
+            ${TIPOS_NEGOCIO.map(([t, rotulo]) =>
+               `<option value="${t}" ${sl.tipo === t ? 'selected' : ''}
+                 >${escapar(rotulo)}</option>`).join('')}
           </select>
           <span class="ajuda">Define o vocabulário do sistema: barbearia diz
             "barbeiro", esmalteria diz "manicure".</span></div>
@@ -6999,30 +7059,42 @@ function pintarConfirma(){
 
 function escolherConfirma(v){ confirmaEscolhida = !!v; pintarConfirma(); }
 
+/* ⚠ O TEXTO DOS DOIS INTERRUPTORES MORA AQUI, E NUM LUGAR SÓ.
+
+   Ele é escrito em duas telas: aqui, em Meu salão, e no passo a passo do
+   primeiro dia. Duas cópias da mesma explicação envelhecem em velocidades
+   diferentes — e a que envelhece é sempre a que o dono lê primeiro, no dia em
+   que está decidindo. Uma constante compartilhada não permite essa divergência. */
+const TXT_COMANDA = {
+  sim: 'A aba <b>Caixa</b> fica no menu e cada atendimento pode virar uma '
+     + 'comanda, com desconto, produto e forma de pagamento. É o jeito de '
+     + 'quem tem recepção.',
+  nao: 'A aba <b>Caixa</b> some e não existe comanda para abrir. Você marca, '
+     + 'atende e marca como concluído — e o sistema lança o valor dos '
+     + 'serviços sozinho, para o relatório e a comissão continuarem certos. '
+     + '<b>Nada do que você já fechou se perde.</b>',
+};
+
+const TXT_CONFIRMA = {
+  sim: 'O horário entra na agenda na hora, e a cliente recebe a confirmação no '
+     + 'WhatsApp em seguida. É o mais rápido para ela, e é como o sistema '
+     + 'sempre funcionou.',
+  nao: 'O horário entra como <b>pendente</b> e aparece no topo da sua agenda '
+     + 'esperando resposta. A cadeira fica guardada para ela enquanto isso — '
+     + 'ninguém mais consegue pegar aquele horário. <b>A confirmação no '
+     + 'WhatsApp só sai quando você confirmar.</b>',
+};
+
 function explicarConfirma(){
   const alvo = document.getElementById('explicaConfirma');
   if(!alvo) return;
-  alvo.innerHTML = confirmaEscolhida
-    ? 'O horário entra na agenda na hora, e a cliente recebe a confirmação no '
-      + 'WhatsApp em seguida. É o mais rápido para ela, e é como o sistema '
-      + 'sempre funcionou.'
-    : 'O horário entra como <b>pendente</b> e aparece no topo da sua agenda '
-      + 'esperando resposta. A cadeira fica guardada para ela enquanto isso — '
-      + 'ninguém mais consegue pegar aquele horário. <b>A confirmação no '
-      + 'WhatsApp só sai quando você confirmar.</b>';
+  alvo.innerHTML = confirmaEscolhida ? TXT_CONFIRMA.sim : TXT_CONFIRMA.nao;
 }
 
 function explicarComanda(){
   const alvo = document.getElementById('explicaComanda');
   if(!alvo) return;
-  alvo.innerHTML = comandaEscolhida
-    ? 'A aba <b>Caixa</b> fica no menu e cada atendimento pode virar uma '
-      + 'comanda, com desconto, produto e forma de pagamento. É o jeito de '
-      + 'quem tem recepção.'
-    : 'A aba <b>Caixa</b> some e não existe comanda para abrir. Você marca, '
-      + 'atende e marca como concluído — e o sistema lança o valor dos '
-      + 'serviços sozinho, para o relatório e a comissão continuarem certos. '
-      + '<b>Nada do que você já fechou se perde.</b>';
+  alvo.innerHTML = comandaEscolhida ? TXT_COMANDA.sim : TXT_COMANDA.nao;
 }
 
 function pintarTetoOnline(){
@@ -8781,6 +8853,986 @@ function explicarInstalacaoManual(){
   `, [['Entendi','fecharModal()','btn-p']]);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   O PASSO A PASSO DO PRIMEIRO DIA
+
+   ── O PROBLEMA ────────────────────────────────────────────────────────────
+   Um salão recém-cadastrado abre o painel e encontra uma agenda vazia. Não
+   vazia de clientes — vazia de tudo: nenhum serviço, nenhum horário, ninguém
+   na equipe. O link da cliente já existe e já funciona, e não oferece nada.
+
+   O painel tem doze abas. Todas estão certas, nenhuma diz qual vem primeiro,
+   e a ordem importa: sem horário não há grade, sem serviço não há o que
+   marcar, sem equipe não há para quem. Quem erra a ordem descobre isso no
+   fim, ao abrir o link e ver uma página que não deixa marcar nada.
+
+   ── O QUE ESTE ASSISTENTE É, E O QUE ELE NÃO É ────────────────────────────
+   Ele é a ordem sugerida, com as respostas prováveis já escritas. "Corte
+   masculino, 30 min, R$ 40" é um toque, e não sete campos — e continua
+   editável em Serviços como qualquer outro, porque o que ele cria é cadastro
+   normal, sem marca nenhuma de "veio do assistente".
+
+   Ele NÃO é um portão. Cada passo grava na hora, o botão "Faço depois" está
+   em todos, e fechar no meio mantém o que já foi feito. Assistente que
+   precisa terminar para valer é formulário longo com barra de progresso.
+
+   ── POR QUE ELE NÃO É UMA ABA ─────────────────────────────────────────────
+   Aba é lugar de coisa que se volta. Isto se faz uma vez, e uma aba
+   "Primeiro dia" morando no menu para sempre seria um lembrete permanente de
+   uma tarefa que acabou. Ele abre sozinho no salão vazio, e depois só por
+   quem procurar em Meu salão.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* As categorias são a peneira das sugestões, e não um cadastro: o que sobra
+   delas no banco é o texto de `servicos.categoria`, igual ao que se digita à
+   mão na tela de Serviços. */
+const PD_CATEGORIAS = [
+  ['cabelo',      'Cabelo'],
+  ['barba',       'Barba'],
+  ['unhas',       'Unhas'],
+  ['sobrancelha', 'Sobrancelha e cílios'],
+  ['depilacao',   'Depilação'],
+  ['estetica',    'Estética facial'],
+  ['corporal',    'Estética corporal'],
+  ['maquiagem',   'Maquiagem'],
+  ['massagem',    'Massagem'],
+  ['tatuagem',    'Tatuagem e piercing'],
+  ['pet',         'Banho e tosa'],
+  ['infantil',    'Infantil'],
+];
+const PD_ROTULO = Object.fromEntries(PD_CATEGORIAS);
+const PD_CHAVE  = Object.fromEntries(
+  PD_CATEGORIAS.map(([k, r]) => [nomeAchatado(r), k]));
+
+/* O tipo de negócio só PRÉ-MARCA categorias — todas continuam na tela. Uma
+   barbearia que também faz sobrancelha existe, e esconder a opção dela para
+   manter o palpite limpo seria o palpite mandando no cadastro. */
+const PD_POR_TIPO = {
+  salao:     ['cabelo','unhas','sobrancelha','maquiagem'],
+  barbearia: ['barba','cabelo'],
+  estetica:  ['estetica','corporal','depilacao','sobrancelha'],
+  manicure:  ['unhas','sobrancelha'],
+  clinica:   ['estetica','corporal','massagem'],
+  tatuagem:  ['tatuagem'],
+  pet:       ['pet'],
+  outro:     [],
+};
+
+/* ⚠ OS PREÇOS SÃO CHUTE, E O ASSISTENTE DIZ ISSO NA TELA.
+
+   Eles existem para o campo não nascer vazio, porque campo vazio obriga a
+   pessoa a parar e pensar num número no meio do cadastro. Estão na faixa do
+   que se cobra numa cidade média do Brasil, e vão estar errados para quase
+   todo mundo — caros para um, baratos para outro.
+
+   Por isso o preço aparece escrito no próprio botão ANTES do toque, e não
+   depois: quem discorda vê o número antes de aceitá-lo, e corrige em
+   Serviços em dois cliques. O que não pode acontecer é o salão descobrir o
+   preço de fantasia no dia em que a cliente chega com o valor na mão.
+   Formato: [nome, minutos, reais]. */
+const PD_SERVICOS = {
+  cabelo: [
+    ['Corte feminino', 60, 70], ['Corte masculino', 30, 40],
+    ['Escova', 40, 50], ['Hidratação', 60, 80],
+    ['Coloração', 120, 150], ['Luzes', 180, 280],
+    ['Progressiva', 180, 250], ['Penteado', 60, 120],
+  ],
+  barba: [
+    ['Barba', 30, 30], ['Cabelo e barba', 60, 60],
+    ['Barboterapia', 45, 55], ['Acabamento do bigode', 15, 15],
+  ],
+  unhas: [
+    ['Manicure', 40, 35], ['Pedicure', 50, 45], ['Mão e pé', 80, 70],
+    ['Esmaltação em gel', 60, 80], ['Alongamento de unhas', 120, 180],
+    ['Manutenção de alongamento', 90, 120], ['Spa dos pés', 60, 80],
+  ],
+  sobrancelha: [
+    ['Design de sobrancelha', 30, 35], ['Design com henna', 45, 50],
+    ['Extensão de cílios', 120, 150], ['Manutenção de cílios', 90, 100],
+    ['Lash lifting', 60, 120],
+  ],
+  depilacao: [
+    ['Depilação de buço', 15, 20], ['Depilação de axilas', 20, 25],
+    ['Depilação meia perna', 30, 45], ['Depilação perna inteira', 45, 65],
+    ['Depilação de virilha', 30, 55],
+  ],
+  estetica: [
+    ['Limpeza de pele', 60, 120], ['Peeling', 45, 150],
+    ['Microagulhamento', 60, 200], ['Massagem facial', 40, 80],
+  ],
+  corporal: [
+    ['Drenagem linfática', 60, 100], ['Massagem modeladora', 60, 110],
+    ['Esfoliação corporal', 45, 90],
+  ],
+  maquiagem: [
+    ['Maquiagem social', 60, 120], ['Maquiagem de noiva', 120, 350],
+    ['Maquiagem de festa', 75, 160],
+  ],
+  massagem: [
+    ['Massagem relaxante', 60, 90], ['Pedras quentes', 75, 130],
+    ['Quick massage', 30, 50], ['Shiatsu', 60, 110],
+  ],
+  tatuagem: [
+    ['Tatuagem pequena', 60, 200], ['Sessão de tatuagem', 180, 450],
+    ['Retoque', 60, 0], ['Piercing', 30, 90],
+  ],
+  pet: [
+    ['Banho', 60, 50], ['Banho e tosa', 120, 95],
+    ['Tosa higiênica', 45, 60], ['Corte de unhas', 15, 20],
+    ['Hidratação de pelos', 60, 70],
+  ],
+  infantil: [
+    ['Corte infantil', 30, 35], ['Primeiro corte', 40, 50],
+    ['Penteado infantil', 30, 40],
+  ],
+};
+
+/* Produtos, pela mesma peneira de categoria. Formato: [nome, reais]. */
+const PD_PRODUTOS = {
+  cabelo: [['Shampoo', 45], ['Condicionador', 45],
+           ['Máscara de hidratação', 60], ['Leave-in', 40], ['Óleo capilar', 55]],
+  barba:  [['Pomada modeladora', 40], ['Óleo para barba', 45],
+           ['Balm para barba', 40], ['Shampoo para barba', 35]],
+  unhas:  [['Esmalte', 15], ['Óleo para cutículas', 25],
+           ['Removedor', 12], ['Lixa', 6]],
+  sobrancelha: [['Henna', 35], ['Máscara para cílios', 40]],
+  depilacao:   [['Pós-depilatório', 35], ['Cera em bastão', 25]],
+  estetica:    [['Protetor solar facial', 75], ['Sérum de vitamina C', 90],
+                ['Hidratante facial', 65], ['Água micelar', 45]],
+  corporal:    [['Creme redutor', 80], ['Óleo corporal', 55]],
+  maquiagem:   [['Base', 70], ['Batom', 40], ['Demaquilante', 35]],
+  massagem:    [['Óleo de massagem', 50]],
+  tatuagem:    [['Pomada cicatrizante', 40], ['Filme protetor', 25]],
+  pet:         [['Shampoo pet', 45], ['Perfume pet', 30], ['Escova', 35]],
+  infantil:    [['Shampoo infantil', 35], ['Condicionador infantil', 35]],
+};
+
+/* Segunda primeiro, domingo por último — a semana como o salão pensa nela,
+   e não como o `getDay()` numera. */
+const PD_ORDEM_DIAS = [1, 2, 3, 4, 5, 6, 0];
+const PD_PADRAO_HORARIO = { 1:[[540,1140]], 2:[[540,1140]], 3:[[540,1140]],
+                            4:[[540,1140]], 5:[[540,1140]], 6:[[540,840]] };
+
+let pdPasso = 1;
+let pdHorario = null;        // { dia: [[ini,fim], …] } em minutos
+let pdCategorias = null;     // Set de chaves
+let pdProdutosSim = null;    // true / false / null (ainda não perguntado)
+let pdDoSalao = null;        // de qual salão é o rascunho acima
+const pdOferecido = new Set();
+
+const PD_PASSOS = [
+  { titulo:'Seu estabelecimento',
+    sub:'O nome que a cliente vê na página de agendamento.',
+    desenhar: pdDesenhar1, guardar: pdGuardar1 },
+  { titulo:'Horário de atendimento',
+    sub:'Os dias e as horas em que o salão está aberto. É o que forma a grade '
+      + 'da agenda e os horários que o link oferece.',
+    desenhar: pdDesenhar2, guardar: pdGuardar2 },
+  { titulo:'O que você faz?',
+    sub:'Marque tudo o que o salão atende. Serve só para eu sugerir os '
+      + 'serviços certos no próximo passo.',
+    desenhar: pdDesenhar3, guardar: pdGuardar3 },
+  { titulo:'Seus serviços',
+    sub:'Um toque cadastra. A duração e o preço são chute meu — dá para '
+      + 'mudar agora em Serviços, ou daqui a um mês.',
+    desenhar: pdDesenhar4 },
+  { titulo:'Sua equipe',
+    sub:'Quem atende no salão. Cada pessoa ganha uma coluna na agenda, e '
+      + 'começa com o horário que você acabou de definir.',
+    desenhar: pdDesenhar5 },
+  { titulo:'Você vende produtos?',
+    sub:'Shampoo, pomada, esmalte — o que sai na comanda junto com o '
+      + 'serviço. Se não vende, é só dizer que não.',
+    desenhar: pdDesenhar6 },
+  { titulo:'Como você trabalha',
+    sub:'Duas decisões que mudam o painel inteiro. Nenhuma delas é para '
+      + 'sempre: as duas ficam em Meu salão.',
+    desenhar: pdDesenhar7, depois: pdPintar7, guardar: pdGuardar7 },
+  { titulo:'Pronto — este é o seu link',
+    sub:'É este endereço que você manda para a cliente. Ele já está no ar.',
+    desenhar: pdDesenhar8 },
+];
+
+function abrirPrimeiroDia(n){
+  if(!bd || !acharSalao(salaoAtual)) return;
+  const painel = document.getElementById('primeiroDia');
+  if(!painel) return;
+  pdOferecido.add(salaoAtual);
+  /* Rascunho de outro salão não atravessa a troca: o horário da unidade do
+     centro não pode virar o da unidade do bairro por descuido. */
+  if(pdDoSalao !== salaoAtual){
+    pdHorario = null; pdCategorias = null; pdProdutosSim = null;
+    pdDoSalao = salaoAtual;
+  }
+  pdPasso = Math.min(Math.max(1, Number(n) || 1), PD_PASSOS.length);
+  painel.hidden = false;
+  pdDesenhar();
+}
+
+function pdDesenhar(){
+  const passo = PD_PASSOS[pdPasso - 1];
+  const total = PD_PASSOS.length;
+  document.getElementById('pdContador').textContent =
+    'Passo ' + pdPasso + ' de ' + total;
+  document.getElementById('pdBarra').style.width =
+    Math.round(pdPasso / total * 100) + '%';
+  document.getElementById('pdTitulo').textContent = passo.titulo;
+  document.getElementById('pdSub').textContent = passo.sub;
+
+  const corpo = document.getElementById('pdCorpo');
+  corpo.innerHTML = passo.desenhar();
+  if(passo.depois) passo.depois();
+  if(window.aplicarIcones) aplicarIcones(corpo);
+
+  /* "Voltar" fica invisível no primeiro passo em vez de sumir: sumindo, os
+     outros botões pulam de lugar a cada passo. */
+  document.getElementById('pdVoltar').style.visibility =
+    pdPasso === 1 ? 'hidden' : '';
+  document.getElementById('pdProximo').textContent =
+    pdPasso === total ? 'Terminei ✓' : 'Próximo →';
+}
+
+function pdAndar(n){
+  const passo = PD_PASSOS[pdPasso - 1];
+  const ok = passo.guardar ? passo.guardar() : true;
+  // Guardar só BARRA para a frente. Voltar com um campo pela metade é
+  // desistir daquele passo, não um erro a corrigir.
+  if(n > 0 && ok === false) return;
+  const total = PD_PASSOS.length;
+  if(n > 0 && pdPasso === total){ pdFechar(true); return; }
+  pdPasso = Math.min(Math.max(1, pdPasso + n), total);
+  pdMarcar({ passo: pdPasso });
+  pdDesenhar();
+}
+
+/* O marcador do assistente mora em `saloes.cfg`, que já é jsonb e já guarda
+   meia dúzia de ajustes — nenhuma coluna nova para uma tela que se usa uma
+   vez. `Object.assign` por cima, e não substituição: sobrescrever o `cfg`
+   inteiro apagaria a galeria, a antecedência e o resto. */
+function pdMarcar(extra){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  sl.cfg = Object.assign({}, sl.cfg, {
+    primeiroDia: Object.assign({}, (sl.cfg || {}).primeiroDia, extra),
+  });
+  salvar();
+}
+
+function pdFechar(terminou){
+  /* O `guardar()` de cada passo LÊ A TELA daquele passo. Com o painel
+     fechado não há tela para ler, e chamá-lo assim mesmo rebentaria no
+     primeiro `getElementById(...).value` de um campo que não existe. */
+  const painel = document.getElementById('primeiroDia');
+  const passo = PD_PASSOS[pdPasso - 1];
+  if(painel && !painel.hidden && passo && passo.guardar) passo.guardar();
+  pdMarcar(terminou ? { passo: PD_PASSOS.length, feito: true }
+                    : { passo: pdPasso });
+  document.getElementById('primeiroDia').hidden = true;
+  /* `iniciar()` e não `pintar()`: o assistente pode ter mudado o nome e o
+     tipo do salão, e os dois vivem na moldura — seletor, topo, vocabulário —
+     que só o `iniciar()` redesenha. */
+  iniciar();
+}
+
+/* ── Passo 1 · o estabelecimento ─────────────────────────────────────────── */
+function pdDesenhar1(){
+  const sl = acharSalao(salaoAtual) || {};
+  return `
+    <div class="campo"><label for="pdNome">Nome do estabelecimento</label>
+      <input id="pdNome" value="${escapar(sl.nome || '')}" placeholder="Studio Bella">
+    </div>
+    <div class="campo"><label for="pdTipo">O que é o seu negócio?</label>
+      <select id="pdTipo">
+        ${TIPOS_NEGOCIO.map(([t, r]) => `<option value="${t}"${
+          sl.tipo === t ? ' selected' : ''}>${escapar(r)}</option>`).join('')}
+      </select>
+      <span class="ajuda">Muda o vocabulário do sistema — barbearia diz
+        "barbeiro", esmalteria diz "manicure" — e as sugestões dos próximos
+        passos.</span>
+    </div>
+    <div class="campo"><label for="pdZap">WhatsApp do salão</label>
+      <input id="pdZap" value="${escapar(sl.whatsapp || '')}"
+             placeholder="(11) 99999-8888">
+      <span class="ajuda">É por onde sai a confirmação da cliente. Pode ficar
+        em branco agora.</span>
+    </div>`;
+}
+
+function pdGuardar1(){
+  const nome = (document.getElementById('pdNome').value || '').trim();
+  if(nome.length < 2){ alert('O estabelecimento precisa de um nome.'); return false; }
+  const sl = acharSalao(salaoAtual);
+  sl.nome     = nome;
+  sl.tipo     = document.getElementById('pdTipo').value;
+  sl.whatsapp = (document.getElementById('pdZap').value || '').trim();
+  salvar();
+  return true;
+}
+
+/* ── Passo 2 · o horário ─────────────────────────────────────────────────── */
+function pdHorarioAtual(){
+  if(pdHorario) return pdHorario;
+  const sl = acharSalao(salaoAtual) || {};
+  const guardado = (sl.cfg || {}).horario;
+  if(guardado && typeof guardado === 'object'){
+    pdHorario = {};
+    for(const d of PD_ORDEM_DIAS){
+      const f = guardado[d];
+      if(Array.isArray(f) && f.length){
+        pdHorario[d] = f.map(x => [Number(x[0]), Number(x[1])]);
+      }
+    }
+    if(Object.keys(pdHorario).length) return pdHorario;
+  }
+  /* Sem horário guardado, a melhor resposta é a de quem já atende: um salão
+     que chegou aqui pelo botão de Meu salão pode ter uma semana inteira
+     montada na ficha da equipe, e oferecer o padrão de fábrica por cima
+     disso seria pedir para digitar de novo o que já está certo. */
+  const quem = doSalao(bd.profissionais).find(temJornadaAlguma);
+  pdHorario = _copia(quem ? quem.jornada : PD_PADRAO_HORARIO);
+  return pdHorario;
+}
+
+function pdDesenhar2(){
+  const h = pdHorarioAtual();
+  return PD_ORDEM_DIAS.map(d => {
+    const f = h[d] || null;
+    const almoco = !!(f && f.length > 1);
+    const abre  = f ? f[0][0] : 540;
+    const fecha = f ? f[f.length - 1][1] : 1140;
+    const meio  = almoco ? [f[0][1], f[1][0]] : null;
+    return `
+      <div class="pd-dia${f ? '' : ' fechado'}">
+        <div class="pd-dia-h">
+          <b style="text-transform:capitalize">${DIAS[d]}</b>
+          <button type="button" class="btn btn-peq" onclick="pdVirarDia(${d})"
+            >${f ? 'Fechar' : 'Abrir'}</button>
+          ${f ? `<button type="button" class="btn btn-peq"
+                   onclick="pdCopiarDia(${d})">Copiar para os outros dias</button>` : ''}
+        </div>
+        ${f ? `
+        <div class="pd-faixa">
+          <input type="time" step="900" id="pdH${d}a" value="${hm(abre)}"
+                 aria-label="Abre" onchange="pdLer2()">
+          <span class="pd-ate">às</span>
+          <input type="time" step="900" id="pdH${d}b"
+                 value="${hm(almoco ? meio[0] : fecha)}"
+                 aria-label="${almoco ? 'Para o almoço' : 'Fecha'}" onchange="pdLer2()">
+          ${almoco ? `
+            <span class="pd-ate">· volta</span>
+            <input type="time" step="900" id="pdH${d}c" value="${hm(meio[1])}"
+                   aria-label="Volta do almoço" onchange="pdLer2()">
+            <span class="pd-ate">às</span>
+            <input type="time" step="900" id="pdH${d}d" value="${hm(fecha)}"
+                   aria-label="Fecha" onchange="pdLer2()">
+            <button type="button" class="btn btn-peq"
+                    onclick="pdAlmoco(${d}, false)">Sem intervalo</button>`
+          : `<button type="button" class="btn btn-peq"
+                    onclick="pdAlmoco(${d}, true)">+ intervalo</button>`}
+        </div>` : `
+        <p class="pd-vazio">Fechado — nenhum horário aparece para a cliente
+          neste dia.</p>`}
+      </div>`;
+  }).join('') + `
+    <p class="ajuda" style="margin-top:10px">Este é o horário do salão. Ele vai
+      para a ficha de quem ainda não tem horário próprio — quem já tem, como a
+      pessoa que sai mais cedo às sextas, não é mexida.</p>`;
+}
+
+/* Lê a semana da tela de volta para `pdHorario`, e devolve o número do
+   primeiro dia impossível, ou null.
+   ⚠ Dia ruim NÃO é apagado: o que está na tela continua na tela, e o aviso
+   diz qual é. Apagar seria o assistente fechando a terça-feira por conta
+   própria porque alguém digitou a hora errada. */
+function pdLer2(){
+  const h = pdHorarioAtual();
+  let ruim = null;
+  for(const d of PD_ORDEM_DIAS){
+    if(!h[d]) continue;
+    const ler = s => {
+      const el = document.getElementById('pdH' + d + s);
+      return el && el.value ? minDe(el.value) : null;
+    };
+    const a = ler('a'), b = ler('b'), c = ler('c'), f = ler('d');
+    const faixas = [];
+    if(a != null && b != null && b > a) faixas.push([a, b]);
+    if(c != null && f != null && f > c) faixas.push([c, f]);
+    const esperadas = (c != null || f != null) ? 2 : 1;
+    if(faixas.length !== esperadas || (faixas.length === 2 && faixas[1][0] < faixas[0][1])){
+      if(ruim === null) ruim = d;
+      continue;
+    }
+    h[d] = faixas;
+  }
+  return ruim;
+}
+
+function pdGuardar2(){
+  const ruim = pdLer2();
+  if(ruim !== null){
+    alert('O horário de ' + DIAS[ruim] + ' não fecha.\n\n'
+        + 'A hora de fechar precisa ser depois da de abrir, e a volta do '
+        + 'almoço depois da saída. Para não atender nesse dia, use "Fechar".');
+    return false;
+  }
+  pdAplicarHorario();
+  return true;
+}
+
+function pdVirarDia(d){
+  pdLer2();
+  const h = pdHorarioAtual();
+  if(h[d]) delete h[d]; else h[d] = [[540, 1140]];
+  pdDesenhar();
+}
+
+function pdAlmoco(d, ligar){
+  pdLer2();
+  const h = pdHorarioAtual();
+  const f = h[d];
+  if(!f) return;
+  const ini = f[0][0], fim = f[f.length - 1][1];
+  if(!ligar){ h[d] = [[ini, fim]]; pdDesenhar(); return; }
+  // Uma hora no meio do dia, arredondada na meia hora. É palpite: quem tem
+  // almoço tem hora certa para ele, e vai corrigir os dois campos.
+  const meio = Math.round((ini + fim) / 2 / 30) * 30;
+  const a = Math.max(ini + 30, meio - 30), b = Math.min(fim - 30, meio + 30);
+  if(b <= a){
+    alert('Este dia é curto demais para ter intervalo no meio.');
+    return;
+  }
+  h[d] = [[ini, a], [b, fim]];
+  pdDesenhar();
+}
+
+/* ⚠ COPIA SÓ PARA OS DIAS QUE JÁ ESTÃO ABERTOS.
+   Copiando para todos, quem tem o mesmo horário de segunda a sexta e aperta
+   o botão ganharia domingo aberto de brinde — e descobriria no primeiro
+   domingo em que uma cliente marcasse. */
+function pdCopiarDia(d){
+  pdLer2();
+  const h = pdHorarioAtual();
+  if(!h[d]) return;
+  for(const outro of PD_ORDEM_DIAS){
+    if(outro !== d && h[outro]) h[outro] = _copia(h[d]);
+  }
+  pdDesenhar();
+}
+
+/* Duas jornadas são a mesma semana? Compara dia a dia, em texto. */
+function pdMesmaJornada(a, b){
+  const chapar = j => PD_ORDEM_DIAS.map(d =>
+    (j && j[d] ? j[d].map(f => f[0] + '-' + f[1]).join(',') : '')).join('|');
+  return chapar(a) === chapar(b);
+}
+
+/* ⚠ HORÁRIO DE SALÃO NÃO EXISTE NO BANCO — QUEM TEM JORNADA É PESSOA.
+   A tabela `jornadas` tem `profissional_id`, e a agenda desenha a coluna de
+   cada um a partir dela. Então o horário escolhido aqui precisa POUSAR em
+   alguém para virar grade; guardado só no `cfg` do salão, ele seria um
+   ajuste bonito que não abre um único horário.
+
+   A cópia no `cfg` continua existindo, e por outro motivo: é dela que sai o
+   horário de quem for cadastrado no passo da equipe, e é ela que diz, numa
+   volta ao assistente, quem ainda está no horário da casa e quem já tem o
+   seu. Quem tem o seu não é tocado. */
+function pdAplicarHorario(){
+  const sl = acharSalao(salaoAtual);
+  const antes = (sl.cfg || {}).horario || null;
+  const h = pdHorarioAtual();
+  sl.cfg = Object.assign({}, sl.cfg, { horario: _copia(h) });
+  for(const p of doSalao(bd.profissionais)){
+    if(!temJornadaAlguma(p) || (antes && pdMesmaJornada(p.jornada, antes))){
+      p.jornada = _copia(h);
+    }
+  }
+  salvar();
+}
+
+/* ── Passo 3 · as categorias ─────────────────────────────────────────────── */
+function pdCategoriasAtuais(){
+  if(pdCategorias) return pdCategorias;
+  const sl = acharSalao(salaoAtual) || {};
+  const guardadas = ((sl.cfg || {}).primeiroDia || {}).categorias;
+  if(Array.isArray(guardadas)){
+    pdCategorias = new Set(guardadas.filter(c => PD_SERVICOS[c]));
+    if(pdCategorias.size) return pdCategorias;
+  }
+  // Nunca escolhidas: o que os serviços do salão já dizem, e só então o
+  // palpite do tipo de negócio.
+  const jaUsadas = new Set(doSalao(bd.servicos)
+    .map(s => PD_CHAVE[nomeAchatado(s.categoria)]).filter(Boolean));
+  pdCategorias = jaUsadas.size ? jaUsadas
+    : new Set(PD_POR_TIPO[sl.tipo] || []);
+  return pdCategorias;
+}
+
+function pdDesenhar3(){
+  const esc = pdCategoriasAtuais();
+  return '<div class="pd-grade">' + PD_CATEGORIAS.map(([k, r]) => `
+    <button type="button" class="pd-op${esc.has(k) ? ' on' : ''}"
+            aria-pressed="${esc.has(k)}" onclick="pdVirarCategoria('${k}')">
+      ${escapar(r)}<span class="pd-marca">${esc.has(k) ? '✓' : ''}</span>
+    </button>`).join('') + '</div>';
+}
+
+function pdVirarCategoria(k){
+  const esc = pdCategoriasAtuais();
+  if(esc.has(k)) esc.delete(k); else esc.add(k);
+  pdDesenhar();
+}
+
+function pdGuardar3(){
+  pdMarcar({ categorias: [...pdCategoriasAtuais()] });
+  return true;
+}
+
+/* ── Passo 4 · os serviços ───────────────────────────────────────────────── */
+/* Um serviço com o mesmo nome já cadastrado, ignorando acento e caixa. É o
+   que faz a sugestão nascer marcada quando o dono volta ao assistente, em
+   vez de oferecer "Corte masculino" a quem já tem um. */
+function pdServicoIgual(nome){
+  const alvo = nomeAchatado(nome);
+  return doSalao(bd.servicos).find(s => nomeAchatado(s.nome) === alvo) || null;
+}
+
+/* Um cadastro em uso não some por um toque distraído: ele está preso a
+   atendimentos que já aconteceram, e apagá-lo deixaria a agenda e o
+   relatório apontando para o nada. Aqui a resposta é a verdade, e o caminho
+   é desativar em Serviços — que é o que preserva o histórico. */
+function pdServicoEmUso(sid){
+  return (bd.agendamentos || []).some(a =>
+           (a.servicos || []).some(x => x.servicoId === sid))
+      || (bd.comandas || []).some(c =>
+           (c.itens || []).some(i => i.servicoId === sid))
+      || (bd.pacote_servicos || []).some(x => x.servicoId === sid);
+}
+
+function pdVirarServico(k, i){
+  const linha = (PD_SERVICOS[k] || [])[i];
+  if(!linha) return;
+  const [nome, dur, preco] = linha;
+  const ja = pdServicoIgual(nome);
+  if(ja){
+    if(pdServicoEmUso(ja.id)){
+      alert(nome + ' já tem atendimento na agenda, então não dá para tirar '
+          + 'daqui.\n\nPara parar de oferecer, desative em Serviços — assim o '
+          + 'histórico continua de pé.');
+      return;
+    }
+    bd.servicos = bd.servicos.filter(s => s.id !== ja.id);
+  } else {
+    bd.servicos.push({ id:id(), salaoId:salaoAtual, nome,
+      categoria: PD_ROTULO[k] || '', duracaoMin: dur, intervaloMin: 0,
+      preco, comissaoPct: null, comissaoFixa: null, foto: null, ativo: true });
+  }
+  salvar();
+  pdDesenhar();
+}
+
+function pdServicoAMao(){
+  const nome = (document.getElementById('pdSvNome').value || '').trim();
+  const dur = parseInt(document.getElementById('pdSvDur').value, 10);
+  if(nome.length < 2){ alert('Informe o nome do serviço.'); return; }
+  if(!dur || dur <= 0){ alert('A duração precisa ser maior que zero.'); return; }
+  if(pdServicoIgual(nome)){ alert('Já existe um serviço com esse nome.'); return; }
+  bd.servicos.push({ id:id(), salaoId:salaoAtual, nome, categoria:'',
+    duracaoMin: dur, intervaloMin: 0,
+    preco: parseFloat(document.getElementById('pdSvPreco').value) || 0,
+    comissaoPct: null, comissaoFixa: null, foto: null, ativo: true });
+  salvar();
+  pdDesenhar();
+}
+
+function pdDesenhar4(){
+  const esc = [...pdCategoriasAtuais()].filter(k => (PD_SERVICOS[k] || []).length);
+  let html = '';
+  for(const k of esc){
+    html += `<div class="pd-cat">${escapar(PD_ROTULO[k])}</div>`
+      + PD_SERVICOS[k].map(([nome, dur, preco], i) => {
+          const tem = !!pdServicoIgual(nome);
+          return `
+            <button type="button" class="pd-sug${tem ? ' on' : ''}"
+                    aria-pressed="${tem}" onclick="pdVirarServico('${k}', ${i})">
+              <span class="pd-mais">${tem ? '✓' : '+'}</span>
+              <span class="pd-nome">${escapar(nome)}</span>
+              <span class="pd-det">${dur} min · ${real(preco)}</span>
+            </button>`;
+        }).join('');
+  }
+  if(!esc.length){
+    html += `<p class="pd-vazio">Nenhuma categoria marcada no passo anterior —
+      então não tenho o que sugerir. Cadastre à mão aqui embaixo, ou volte e
+      marque o que o salão faz.</p>`;
+  }
+
+  const meus = doSalao(bd.servicos);
+  return html + `
+    <div class="pd-cat">Não está na lista?</div>
+    <div class="pd-faixa">
+      <input id="pdSvNome" placeholder="Nome do serviço"
+             style="flex:1;min-width:150px" aria-label="Nome do serviço">
+      <input id="pdSvDur" type="number" min="5" step="5" value="60"
+             style="width:76px" aria-label="Duração em minutos">
+      <span class="pd-ate">min</span>
+      <input id="pdSvPreco" type="number" min="0" step="1" placeholder="0"
+             style="width:86px" aria-label="Preço em reais">
+      <button type="button" class="btn btn-peq" onclick="pdServicoAMao()"
+        >Adicionar</button>
+    </div>
+    <p class="ajuda" style="margin-top:12px">
+      ${meus.length
+        ? `<b>${meus.length} ${meus.length === 1 ? 'serviço cadastrado'
+                                                : 'serviços cadastrados'}.</b>
+           Duração, preço e comissão mudam a qualquer hora, na aba Serviços.`
+        : 'Sem nenhum serviço, o link da cliente abre e não oferece nada.'}
+    </p>`;
+}
+
+/* ── Passo 5 · a equipe ──────────────────────────────────────────────────── */
+function pdEquipeAMao(){
+  const campo = document.getElementById('pdEqNome');
+  const nome = (campo.value || '').trim();
+  if(nome.length < 2){ alert('Informe o nome de quem atende.'); return; }
+  const eq = doSalao(bd.profissionais);
+  if(eq.some(p => nomeAchatado(p.nome) === nomeAchatado(nome))){
+    alert('Já existe alguém com esse nome na equipe.');
+    return;
+  }
+  bd.profissionais.push({
+    id: id(), salaoId: salaoAtual, nome,
+    comissaoPct: 0, comissaoFixa: null,
+    cor: CORES_EQUIPE[eq.length % CORES_EQUIPE.length],
+    ativo: true, telefone: null, notifNovo: true, notifResumo: false,
+    foto: null,
+    // Nasce com o horário do salão, do passo 2. Profissional sem jornada não
+    // tem coluna na agenda — seria um cadastro que não atende ninguém.
+    jornada: _copia(pdHorarioAtual()),
+  });
+  salvar();
+  pdDesenhar();
+}
+
+function pdTirarDaEquipe(pid){
+  const p = acharProf(pid);
+  if(!p) return;
+  const temAgenda = (bd.agendamentos || []).some(a => a.profissionalId === pid);
+  if(temAgenda){
+    alert(p.nome + ' já tem atendimento na agenda, então não dá para tirar '
+        + 'daqui.\n\nPara parar de oferecer, desative em Equipe — assim o '
+        + 'histórico e as comissões continuam de pé.');
+    return;
+  }
+  if(!confirm('Tirar ' + p.nome + ' da equipe?')) return;
+  bd.profissionais = bd.profissionais.filter(x => x.id !== pid);
+  salvar();
+  pdDesenhar();
+}
+
+function pdDesenhar5(){
+  const eq = doSalao(bd.profissionais);
+  const quantos = d => (d ? d.length : 0);
+  const linhas = eq.map(p => {
+    const dias = PD_ORDEM_DIAS.filter(d => quantos((p.jornada || {})[d]));
+    return `
+      <div class="pd-sug on" style="cursor:default">
+        <span class="pd-mais" style="color:${escapar(p.cor || '#2563EB')}">●</span>
+        <span class="pd-nome">${escapar(p.nome)}</span>
+        <span class="pd-det">${dias.length
+          ? dias.length + (dias.length === 1 ? ' dia na semana' : ' dias na semana')
+          : 'sem horário'}</span>
+        <button type="button" class="btn btn-peq"
+                onclick="pdTirarDaEquipe('${p.id}')">Tirar</button>
+      </div>`;
+  }).join('');
+
+  return (linhas || `<p class="pd-vazio">Ninguém na equipe ainda.</p>`) + `
+    <div class="pd-cat">Quem mais atende?</div>
+    <div class="pd-faixa">
+      <input id="pdEqNome" placeholder="Nome de quem atende"
+             style="flex:1;min-width:170px" aria-label="Nome de quem atende">
+      <button type="button" class="btn btn-peq" onclick="pdEquipeAMao()"
+        >Adicionar</button>
+    </div>
+    <p class="ajuda" style="margin-top:12px">Se você atende sozinho, cadastre
+      só o seu nome — a agenda fica com uma coluna só. Foto, comissão e
+      horário próprio ficam na aba Equipe.</p>`;
+}
+
+/* ── Passo 6 · os produtos ───────────────────────────────────────────────── */
+function pdProdutosAtual(){
+  if(pdProdutosSim !== null) return pdProdutosSim;
+  const sl = acharSalao(salaoAtual) || {};
+  const guardado = ((sl.cfg || {}).primeiroDia || {}).vendeProdutos;
+  if(guardado != null) pdProdutosSim = !NAO.includes(String(guardado).trim().toLowerCase());
+  else pdProdutosSim = doSalao(bd.produtos || []).length > 0;
+  return pdProdutosSim;
+}
+
+function pdEscolherProdutos(v){
+  pdProdutosSim = !!v;
+  pdMarcar({ vendeProdutos: pdProdutosSim });
+  pdDesenhar();
+}
+
+function pdProdutoIgual(nome){
+  const alvo = nomeAchatado(nome);
+  return doSalao(bd.produtos || []).find(p => nomeAchatado(p.nome) === alvo) || null;
+}
+
+function pdVirarProduto(k, i){
+  const linha = (PD_PRODUTOS[k] || [])[i];
+  if(!linha) return;
+  const [nome, preco] = linha;
+  const ja = pdProdutoIgual(nome);
+  if(ja){
+    const usado = (bd.comandas || []).some(c =>
+      (c.itens || []).some(x => x.produtoId === ja.id));
+    if(usado){
+      alert(nome + ' já foi vendido em alguma comanda, então não dá para '
+          + 'tirar daqui.\n\nPara parar de oferecer, desative em Produtos.');
+      return;
+    }
+    bd.produtos = (bd.produtos || []).filter(p => p.id !== ja.id);
+  } else {
+    /* ⚠ `comissaoPct: 0`, e não null — `produtos.comissao_pct` é `not null`
+       no 16_comissao.sql, ao contrário da coluna do serviço. Null aqui faz o
+       banco recusar a gravação inteira da tela. Está escrito por extenso no
+       `salvarProduto()`. */
+    (bd.produtos = bd.produtos || []).push({
+      id: id(), salaoId: salaoAtual, nome, marca: '', descricao: '',
+      preco, custo: 0, estoque: 0, comissaoPct: 0, comissaoFixa: null,
+      ativo: true, vendaOnline: false, foto: null,
+    });
+  }
+  salvar();
+  pdDesenhar();
+}
+
+function pdProdutoAMao(){
+  const nome = (document.getElementById('pdPrNome').value || '').trim();
+  if(nome.length < 2){ alert('Informe o nome do produto.'); return; }
+  if(pdProdutoIgual(nome)){ alert('Já existe um produto com esse nome.'); return; }
+  (bd.produtos = bd.produtos || []).push({
+    id: id(), salaoId: salaoAtual, nome, marca: '', descricao: '',
+    preco: parseFloat(document.getElementById('pdPrPreco').value) || 0,
+    custo: 0, estoque: 0, comissaoPct: 0, comissaoFixa: null,
+    ativo: true, vendaOnline: false, foto: null,
+  });
+  salvar();
+  pdDesenhar();
+}
+
+function pdDesenhar6(){
+  const sim = pdProdutosAtual();
+  const regua = `
+    <div class="regua" id="pdReguaProdutos" style="justify-content:flex-start">
+      <button type="button" class="${sim ? 'on' : ''}"
+              onclick="pdEscolherProdutos(true)">Vendo produtos</button>
+      <button type="button" class="${sim ? '' : 'on'}"
+              onclick="pdEscolherProdutos(false)">Só serviços</button>
+    </div>`;
+
+  if(!sim){
+    return regua + `
+      <p class="ajuda" style="margin-top:12px">Tudo bem — a aba <b>Produtos</b>
+        continua no menu, vazia, esperando o dia em que você resolver vender
+        shampoo na recepção. Nada aqui é para sempre.</p>`;
+  }
+
+  const esc = [...pdCategoriasAtuais()].filter(k => (PD_PRODUTOS[k] || []).length);
+  let html = '';
+  for(const k of esc){
+    html += `<div class="pd-cat">${escapar(PD_ROTULO[k])}</div>`
+      + PD_PRODUTOS[k].map(([nome, preco], i) => {
+          const tem = !!pdProdutoIgual(nome);
+          return `
+            <button type="button" class="pd-sug${tem ? ' on' : ''}"
+                    aria-pressed="${tem}" onclick="pdVirarProduto('${k}', ${i})">
+              <span class="pd-mais">${tem ? '✓' : '+'}</span>
+              <span class="pd-nome">${escapar(nome)}</span>
+              <span class="pd-det">${real(preco)}</span>
+            </button>`;
+        }).join('');
+  }
+  if(!esc.length){
+    html += `<p class="pd-vazio">Nenhuma categoria marcada lá atrás, então não
+      tenho produto para sugerir. Cadastre à mão aqui embaixo.</p>`;
+  }
+
+  return regua + html + `
+    <div class="pd-cat">Não está na lista?</div>
+    <div class="pd-faixa">
+      <input id="pdPrNome" placeholder="Nome do produto"
+             style="flex:1;min-width:150px" aria-label="Nome do produto">
+      <input id="pdPrPreco" type="number" min="0" step="1" placeholder="0"
+             style="width:86px" aria-label="Preço em reais">
+      <button type="button" class="btn btn-peq" onclick="pdProdutoAMao()"
+        >Adicionar</button>
+    </div>
+    <p class="ajuda" style="margin-top:12px">Custo, estoque e comissão ficam na
+      aba Produtos. Aqui vai só o nome e o preço de venda.</p>`;
+}
+
+/* ── Passo 7 · como o salão trabalha ─────────────────────────────────────── */
+function pdDesenhar7(){
+  if(comandaEscolhida === null || comandaDoSalao !== salaoAtual){
+    comandaEscolhida = usaComanda(); comandaDoSalao = salaoAtual;
+  }
+  if(confirmaEscolhida === null || confirmaDoSalao !== salaoAtual){
+    confirmaEscolhida = confirmaAuto(); confirmaDoSalao = salaoAtual;
+  }
+  return `
+    <div class="pd-cat">O dinheiro do dia</div>
+    <div class="regua" id="pdReguaComanda" style="justify-content:flex-start"></div>
+    <p class="ajuda" id="pdExplicaComanda" style="margin-top:9px"></p>
+
+    <div class="pd-cat" style="margin-top:22px">Quem confirma o que vem pelo link</div>
+    <div class="regua" id="pdReguaConfirma" style="justify-content:flex-start"></div>
+    <p class="ajuda" id="pdExplicaConfirma" style="margin-top:9px"></p>`;
+}
+
+/* As mesmas duas réguas de Meu salão, com os MESMOS textos — eles saem das
+   constantes `TXT_COMANDA` e `TXT_CONFIRMA`, e não de uma segunda redação
+   que envelheceria sozinha. */
+function pdPintar7(){
+  const desenhar = (alvo, escolhido, quando, aca) => {
+    const el = document.getElementById(alvo);
+    if(!el) return;
+    el.innerHTML = quando.map(([v, rot]) => `<button type="button"
+        class="${v === escolhido ? 'on' : ''}"
+        onclick="${aca}(${v})">${escapar(rot)}</button>`).join('');
+  };
+  desenhar('pdReguaComanda', comandaEscolhida,
+           [[true, 'Com comanda e caixa'], [false, 'Só a agenda']],
+           'pdEscolherComanda');
+  desenhar('pdReguaConfirma', confirmaEscolhida,
+           [[true, 'Já entra confirmado'], [false, 'Eu confirmo']],
+           'pdEscolherConfirma');
+  const c = document.getElementById('pdExplicaComanda');
+  if(c) c.innerHTML = comandaEscolhida ? TXT_COMANDA.sim : TXT_COMANDA.nao;
+  const f = document.getElementById('pdExplicaConfirma');
+  if(f) f.innerHTML = confirmaEscolhida ? TXT_CONFIRMA.sim : TXT_CONFIRMA.nao;
+}
+
+function pdEscolherComanda(v){  comandaEscolhida  = !!v; pdPintar7(); }
+function pdEscolherConfirma(v){ confirmaEscolhida = !!v; pdPintar7(); }
+
+function pdGuardar7(){
+  const sl = acharSalao(salaoAtual);
+  /* `?? true` e não `||`: `false` é escolha legítima nos dois, e com `||` o
+     "Só a agenda" gravaria `true` — a mesma armadilha escrita por extenso no
+     `salvarCadastroSalao()`. */
+  sl.cfg = Object.assign({}, sl.cfg, {
+    usaComanda:   comandaEscolhida  ?? true,
+    confirmaAuto: confirmaEscolhida ?? true,
+  });
+  salvar();
+  return true;
+}
+
+/* ── Passo 8 · o link ────────────────────────────────────────────────────── */
+function pdLinkDoSalao(){
+  const sl = acharSalao(salaoAtual) || {};
+  return location.href.replace(/\/[^\/]*$/, '/') + 'agendar.html?salao=' + sl.slug;
+}
+
+function pdCopiarLink(bt){
+  const el = document.getElementById('pdLink');
+  if(!el) return;
+  el.select();
+  const pronto = () => {
+    if(!bt) return;
+    const r = bt.textContent;
+    bt.textContent = 'Copiado';
+    setTimeout(() => { bt.textContent = r; }, 1600);
+  };
+  // navigator.clipboard exige https ou localhost — aberto como arquivo local
+  // ele nem existe, e aí vale o execCommand antigo em vez de falhar calado.
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(el.value).then(pronto)
+      .catch(e => console.error('Falha ao copiar:', e));
+  } else {
+    try{ document.execCommand('copy'); pronto(); }
+    catch(e){ console.error('Falha ao copiar:', e); alert('Copie o link à mão.'); }
+  }
+}
+
+function pdDesenhar8(){
+  const sl = acharSalao(salaoAtual) || {};
+  const base = pdLinkDoSalao();
+  let qr = '';
+  try{
+    if(window.QR) qr = QR.svg(base, { rotulo: 'QR do link de ' + sl.nome });
+  }catch(erro){
+    // Endereço absurdamente longo é a única forma de cair aqui. Melhor sem
+    // QR do que com um desenho pela metade que alguém imprime.
+    qr = '';
+    console.error('[AgendaPro] QR:', erro.message);
+  }
+
+  const servicos = servsAtivos().length;
+  const equipe = profsAtivos().filter(temJornadaAlguma).length;
+  const falta = [];
+  if(!servicos) falta.push('nenhum serviço cadastrado');
+  if(!equipe)   falta.push('ninguém com horário na agenda');
+
+  return `
+    <div class="pd-fim">
+      ${qr ? `<div class="pd-qr" id="pdQrCaixa">${qr}</div>` : ''}
+      <div class="pd-lado">
+        <b>${escapar(sl.nome || 'Seu salão')}</b>
+        <input id="pdLink" readonly value="${escapar(base)}"
+               aria-label="Link da sua agenda" style="width:100%;margin:8px 0">
+        <div class="pd-faixa" style="margin-top:0">
+          <button type="button" class="btn btn-peq"
+                  onclick="pdCopiarLink(this)">Copiar o link</button>
+          ${qr ? `<button type="button" class="btn btn-peq"
+                    onclick="baixarQr('pdQrCaixa')">Baixar o QR</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <p class="ajuda" style="margin-top:12px">O link vai na bio do Instagram e no
+      status do WhatsApp. O QR é o mesmo endereço em desenho: imprime e cola no
+      espelho, na vitrine ou no cartão, e a cliente aponta a câmera.</p>
+
+    ${falta.length ? `
+      <div class="aviso atencao">
+        <b>O link abre, mas ainda não deixa marcar:</b> ${escapar(falta.join(' e '))}.
+        Volte um ou dois passos — ou faça depois, pelas abas Serviços e Equipe.
+      </div>`
+    : `
+      <div class="aviso ok">
+        <b>Está tudo de pé.</b> ${servicos}
+        ${servicos === 1 ? 'serviço' : 'serviços'}, ${equipe}
+        ${equipe === 1 ? 'pessoa atendendo' : 'pessoas atendendo'}.
+        Quem abrir esse link agora consegue marcar um horário.
+      </div>`}`;
+}
+
+/* ── Quando ele aparece sozinho ──────────────────────────────────────────── */
+/* Uma vez por salão, por sessão, e só para quem manda no cadastro. Quem
+   trabalha na recepção não decide serviço nem preço, e receber um assistente
+   de oito passos ao abrir o painel seria oferecer a ela um trabalho que não
+   é dela — e que o RLS ia recusar no meio. */
+function talvezOferecerPrimeiroDia(){
+  if(!bd || pdOferecido.has(salaoAtual)) return;
+  pdOferecido.add(salaoAtual);
+  if(!souGestor()) return;
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  if(((sl.cfg || {}).primeiroDia || {}).feito) return;
+  /* Salão com serviço E gente com horário não é salão novo, mesmo que nunca
+     tenha visto este assistente — é o caso de quem já usava o sistema antes
+     de ele existir, e abrir um passo a passo de cadastro para essa pessoa
+     seria sugerir que algo está faltando quando não está. */
+  const pronto = doSalao(bd.servicos).length
+              && doSalao(bd.profissionais).some(temJornadaAlguma);
+  if(pronto) return;
+  abrirPrimeiroDia(((sl.cfg || {}).primeiroDia || {}).passo || 1);
+}
+
 function registrarServiceWorker(){
   if(!('serviceWorker' in navigator)) return;
   if(location.protocol === 'file:'){
@@ -8815,6 +9867,10 @@ function iniciar(){
   montarAbas();
   mostrarQuemEstaLogado();
   pintar();
+  /* Por último, e depois do `pintar()`: o assistente cobre a tela, e cobrir
+     uma tela em branco faria a pessoa fechá-lo para descobrir o que tem
+     atrás. Fechado, ele já revela o painel montado. */
+  talvezOferecerPrimeiroDia();
 }
 
 /* ── QUEM ESTÁ USANDO O SISTEMA AGORA ─────────────────────────────────────
