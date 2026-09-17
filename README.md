@@ -335,6 +335,11 @@ que nenhuma, porque dá trabalho a quem for conferir.
    `27_pacotes.sql` está instalado, com aba própria no painel, R$ 0,00 no link
    da cliente e dias da semana configuráveis — inclusive o bloqueio opcional
    fora desses dias, que vale só para o link e nunca para a recepção.
+5. **Dias da semana por serviço.** Hoje a restrição de dia só existe DENTRO
+   do pacote (`pacotes.so_nos_dias`). "Escova só de quinta a sábado", sem
+   pacote nenhum, não tem onde ser dita — e é pedido de quem tem serviço
+   longo que só cabe em dia de movimento fraco. Aprovado, não começado.
+
 ### Depende do dono (fora do código)
 
 6. **Chaves do Mercado Pago** em Edge Functions → Secrets, e as funções
