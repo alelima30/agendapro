@@ -3626,6 +3626,86 @@ comment on function public.pacote_fora_do_dia(uuid, uuid[], timestamptz) is
 comment on table public.pacotes is
   'Pacotes que o salão vende. `dias` no padrão do Postgres: 0=domingo. `so_nos_dias` faz o link recusar fora dos dias; o painel marca assim mesmo.';
 
+create or replace function public.usa_comanda(p_salao uuid)
+returns boolean language sql stable set search_path = public as $$
+  select coalesce(
+    (select lower(btrim(coalesce(sa.cfg->>'usaComanda', 'true')))
+              not in ('false', 'f', '0', 'no', 'nao', 'não')
+       from public.saloes sa where sa.id = p_salao),
+    true)
+$$;
+comment on function public.usa_comanda(uuid) is
+  'O salão trabalha com comanda e caixa? cfg.usaComanda, padrão LIGADO. Desligado, o atendimento concluído vira comanda sozinho.';
+do $$
+declare v_nome text;
+begin
+  select con.conname into v_nome
+    from pg_constraint con
+   where con.conrelid = 'public.pagamentos'::regclass
+     and con.contype = 'c'
+     and con.conkey = array[(select a.attnum from pg_attribute a
+                              where a.attrelid = 'public.pagamentos'::regclass
+                                and a.attname = 'forma')]
+   limit 1;
+  if v_nome is not null then
+    execute format('alter table public.pagamentos drop constraint %I', v_nome);
+  end if;
+end $$;
+alter table public.pagamentos
+  add constraint pagamentos_forma_check
+  check (forma in ('dinheiro','pix','debito','credito',
+                   'transferencia','cortesia','pacote','nao_informado'));
+alter table public.comandas
+  add column if not exists automatica boolean not null default false;
+comment on column public.comandas.automatica is
+  'Nasceu sozinha ao concluir o atendimento, num salão sem comanda. Desmarcar o atendimento a apaga.';
+create or replace function public.tg_agendamento_sem_comanda()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_comanda uuid;
+  v_total   numeric(10,2);
+begin
+  if coalesce(old.status, '') = 'concluido' and new.status <> 'concluido' then
+    delete from public.comandas c
+     where c.agendamento_id = new.id and c.automatica;
+    return new;
+  end if;
+  if new.status <> 'concluido' or coalesce(old.status, '') = 'concluido' then
+    return new;
+  end if;
+  if public.usa_comanda(new.salao_id) then return new; end if;
+  if new.cliente_id is null then return new; end if;
+  if exists (select 1 from public.comandas c
+              where c.agendamento_id = new.id) then return new; end if;
+  select round(coalesce(sum(s.preco), 0), 2) into v_total
+    from public.agendamento_servicos s
+   where s.agendamento_id = new.id;
+  if v_total is null or v_total <= 0 then return new; end if;
+  insert into public.comandas (salao_id, agendamento_id, cliente_id, automatica)
+       values (new.salao_id, new.id, new.cliente_id, true)
+    returning id into v_comanda;
+  insert into public.comanda_itens (comanda_id, tipo, servico_id, descricao,
+                                    qtd, preco_unit, profissional_id)
+  select v_comanda, 'servico', s.servico_id,
+         coalesce(sv.nome, 'Serviço'), 1, s.preco, new.profissional_id
+    from public.agendamento_servicos s
+    left join public.servicos sv on sv.id = s.servico_id
+   where s.agendamento_id = new.id
+   order by s.ordem;
+  insert into public.pagamentos (comanda_id, forma, valor)
+       values (v_comanda, 'nao_informado', v_total);
+  update public.comandas
+     set status = 'fechada', fechada_em = now()
+   where id = v_comanda;
+  return new;
+end $$;
+drop trigger if exists tg_agend_sem_comanda on public.agendamentos;
+create trigger tg_agend_sem_comanda
+  after update of status on public.agendamentos
+  for each row execute function public.tg_agendamento_sem_comanda();
+revoke all on function public.usa_comanda(uuid) from public, anon;
+grant execute on function public.usa_comanda(uuid) to authenticated;
+
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();
 alter table public.lista_espera

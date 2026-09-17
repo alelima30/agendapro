@@ -1366,10 +1366,23 @@ function minhaFichaDeProf(){
 }
 const vejoTudo  = () => BALCAO.includes(meuPapel());
 
-// As abas que ESTA pessoa alcança.
+/* As abas que ESTA pessoa alcança.
+
+   ⚠ DUAS PENEIRAS, E ELAS SÃO DIFERENTES.
+
+   O papel diz o que a pessoa PODE ver — e quem barra de verdade é o RLS, não
+   esta linha. O interruptor diz o que o salão USA: um salão que não trabalha
+   com comanda não tem caixa nenhum para conferir, e a aba abriria numa gaveta
+   que ninguém vai abrir.
+
+   Esconder por configuração é conforto; esconder por papel é o espelho de uma
+   trava que existe no banco. Misturar as duas coisas num comentário só faria
+   alguém amanhã achar que o interruptor protege alguma coisa. Não protege:
+   ligar de volta traz a aba inteira, com tudo o que estava lá. */
 const minhasTelas = () => {
   const p = meuPapel();
-  return TELAS.filter(t => t[4].includes(p));
+  const comanda = usaComanda();
+  return TELAS.filter(t => t[4].includes(p) && (comanda || t[0] !== 'caixa'));
 };
 
 function montarAbas(){
@@ -1464,7 +1477,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.cb3f64';
+const VERSAO_APP = 'v9.385894';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2868,7 +2881,12 @@ function desenharHoje(p){
     </div>
     <p style="margin:10px 0 18px;font-size:13px">${comp}</p>`;
 
-  const gaveta = k
+  /* ⚠ SEM COMANDA, SEM CARTÃO DE GAVETA — e este era o pior dos três lugares
+     para esquecer. A aba Caixa some do menu, mas o cartão do "Hoje" continuava
+     dizendo "Abra em Caixa para ter o que conferir no fim do dia", apontando
+     para uma aba que não existe mais. Todo santo dia, na primeira tela que o
+     dono abre. */
+  const gaveta = !usaComanda() ? '' : k
     ? `<div class="card" style="margin-bottom:16px">
          <b>Caixa aberto</b> · esperado na gaveta
          <b>${real(Number(k.esperado || 0))}</b>
@@ -4058,7 +4076,10 @@ function abrirDetalhe(agId){
        Pior que a aba do Caixa, porque é na agenda, que é a tela onde quem
        atende passa o dia. O `vejoTudo()` já existia para isto e não estava
        ligado em lugar nenhum. */
-    ...(vejoTudo()
+    /* E some também no salão que não usa comanda. Lá o atendimento concluído
+       já vira dinheiro sozinho (28_sem_comanda.sql): oferecer o botão seria
+       oferecer uma segunda contagem do mesmo atendimento. */
+    ...(vejoTudo() && usaComanda()
         ? [['Abrir comanda', `comandaDoAgendamento('${agId}')`, '']] : []),
     ['Salvar', `salvarStatus('${agId}')`, 'btn-p'],
   ]);
@@ -5521,6 +5542,22 @@ function pintarSalao(){
           </select></div>
       </div>
 
+      <!-- COMO O SALAO TRABALHA. Vem antes das regras da agenda de proposito:
+           e a pergunta mais larga das tres, e a resposta muda o menu inteiro.
+           (Sem crase e sem acento: comentario dentro de template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Como você trabalha</h3>
+      <p class="secao-sub">Salão grande costuma abrir comanda e conferir o
+        caixa no fim do dia. Quem atende sozinho quase sempre não quer nada
+        disso — marca, atende, e pronto.</p>
+      <!-- REGUA, e nao caixinha de marcar. A caixinha reprovou na suite do
+           celular: 13px de alvo num aparelho de 375px, quando a regra da casa
+           e 40. E a regua ja e a linguagem desta tela — a janela da agenda e a
+           antecedencia, logo abaixo, sao iguais.
+           (Sem crase e sem acento: comentario em template literal.) -->
+      <div class="regua" id="reguaComanda" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaComanda" style="margin-top:9px"></p>
+
       <!-- ATÉ QUANDO A AGENDA FICA ABERTA. Não é preferência de tela: é regra
            de negócio, e o banco a aplica — dias_liberados() limita o que
            horarios_livres() oferece, então mexer aqui muda o que a cliente
@@ -5831,6 +5868,7 @@ function pintarSalao(){
   // Depois do innerHTML: os botões da janela só existem agora.
   pintarJanelaAgenda();
   pintarAntecedencia();
+  pintarComanda();
   pintarTetoOnline();
   pintarNotificacoes();
   pintarAparencia();
@@ -6544,6 +6582,61 @@ const aparar = (v, min, max, padrao) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : padrao;
 };
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMANDA E CAIXA: USA OU NÃO USA
+
+   ⚠ A PENEIRA É A MESMA DO BANCO, letra por letra. `usa_comanda()` no
+   28_sem_comanda.sql só desliga quando o valor é literalmente falso; qualquer
+   outra coisa deixa ligado. Se a tela usasse `!!cfg.usaComanda`, a string
+   `'false'` — que é verdadeira em JavaScript — apareceria LIGADA na tela e
+   DESLIGADA no banco. O dono veria a aba Caixa e o sistema estaria gerando
+   comanda automática pelas costas dele.
+
+   Tela e banco discordando sobre dinheiro é o defeito que este projeto mais
+   pagou para aprender a evitar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const NAO = ['false', 'f', '0', 'no', 'nao', 'não'];
+function usaComanda(sl){
+  const v = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).usaComanda;
+  if(v == null) return true;                        // sem a chave: usa
+  return !NAO.includes(String(v).trim().toLowerCase());
+}
+
+/* A escolha fica numa variável enquanto a tela está aberta, e só vira `cfg` no
+   Salvar — igual à régua da antecedência. `null` quer dizer "ainda não abri
+   esta tela neste salão": aí o valor vem do banco. Sem o `comandaDoSalao`, a
+   escolha de um salão vazaria para o outro na troca. */
+let comandaEscolhida = null, comandaDoSalao = null;
+
+function pintarComanda(){
+  const alvo = document.getElementById('reguaComanda');
+  if(!alvo) return;
+  if(comandaEscolhida === null || comandaDoSalao !== salaoAtual){
+    comandaEscolhida = usaComanda();
+    comandaDoSalao = salaoAtual;
+  }
+  alvo.innerHTML = [[true, 'Com comanda e caixa'], [false, 'Só a agenda']]
+    .map(([v, rot]) => `<button type="button"
+        class="${v === comandaEscolhida ? 'on' : ''}"
+        onclick="escolherComanda(${v})">${escapar(rot)}</button>`).join('');
+  explicarComanda();
+}
+
+function escolherComanda(v){ comandaEscolhida = !!v; pintarComanda(); }
+
+function explicarComanda(){
+  const alvo = document.getElementById('explicaComanda');
+  if(!alvo) return;
+  alvo.innerHTML = comandaEscolhida
+    ? 'A aba <b>Caixa</b> fica no menu e cada atendimento pode virar uma '
+      + 'comanda, com desconto, produto e forma de pagamento. É o jeito de '
+      + 'quem tem recepção.'
+    : 'A aba <b>Caixa</b> some e não existe comanda para abrir. Você marca, '
+      + 'atende e marca como concluído — e o sistema lança o valor dos '
+      + 'serviços sozinho, para o relatório e a comissão continuarem certos. '
+      + '<b>Nada do que você já fechou se perde.</b>';
+}
+
 function pintarTetoOnline(){
   const sel = document.getElementById('cTetoPct');
   if(!sel) return;
@@ -6626,6 +6719,11 @@ function salvarCadastroSalao(){
        O `diasLiberados` acima pode usar `||` porque zero dia não é escolha:
        agenda aberta por zero dias não existe. */
     antecedenciaMin: antecEscolhida ?? 30,
+    /* Booleano de verdade, e `?? true` porque `false` é escolha legítima: com
+       `||` o "Só a agenda" gravaria `true` e o dono veria a aba Caixa voltar
+       sozinha depois de salvar. É a mesma armadilha da antecedência zero, oito
+       linhas acima. */
+    usaComanda: comandaEscolhida ?? true,
     tetoOnlinePct:    aparar(v('cTetoPct'),    10, 100, 70),
     tetoOnlineRajada: aparar(v('cTetoRajada'),  1, 100, 10),
   });

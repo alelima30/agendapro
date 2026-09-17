@@ -178,6 +178,8 @@ rodar "carrinho da loja"  node "$AQUI/carrinho.test.mjs"
 rodar "antecedência"      node "$AQUI/antecedencia.test.mjs"
 rodar "pacotes"          node "$AQUI/pacotes.test.mjs"
 rodar "pacotes na tela"  node "$AQUI/pacotes-tela.test.mjs"
+rodar "sem comanda"          node "$AQUI/sem-comanda.test.mjs"
+rodar "sem comanda na tela"  node "$AQUI/sem-comanda-tela.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then
