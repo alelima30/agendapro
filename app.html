@@ -534,6 +534,11 @@ body.carregando-tudo .tela{ display:none }
 
          Esta faixa pergunta uma coisa so, sobre ontem e antes: quem veio?
          (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <!-- O QUE ESTA ESPERANDO RESPOSTA. Vem ANTES do fecho do dia de proposito:
+         o fecho pergunta sobre ontem, e isto e sobre alguem que esta esperando
+         agora. Quem espera vem primeiro.
+         (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <div id="aConfirmar"></div>
     <div id="fechoDoDia"></div>
     <div id="filaEspera"></div>
     <div class="grade-wrap"><div class="grade" id="grade"></div></div>
@@ -1477,7 +1482,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.385894';
+const VERSAO_APP = 'v9.adfe82';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -1781,6 +1786,89 @@ function semDesfecho(){
       .localeCompare(b.data + String(b.inicio).padStart(6, '0')));
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   O QUE ESTÁ ESPERANDO RESPOSTA
+
+   No salão que confirma à mão, o agendamento nasce `pendente` e a cliente fica
+   esperando. Sem esta faixa, o único lugar onde isso apareceria seria a
+   etiqueta cinza dentro da ficha do atendimento — que só quem abre a ficha vê.
+   O dono passaria o dia sem saber que tem gente esperando.
+
+   ⚠ E ela some sozinha no salão que confirma automático: lá nunca existe
+   pendente, e uma faixa vazia ocupando o topo da agenda todo dia seria ruído.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function esperandoResposta(){
+  const agora = hoje();
+  return agendaDoSalao()
+    .filter(a => a.status === 'pendente' && a.data >= agora)
+    .sort((a, b) => (a.data + String(a.inicio).padStart(6, '0'))
+      .localeCompare(b.data + String(b.inicio).padStart(6, '0')));
+}
+
+function pintarAConfirmar(){
+  const alvo = document.getElementById('aConfirmar');
+  if(!alvo) return;
+  const lista = esperandoResposta();
+  if(!lista.length){ alvo.innerHTML = ''; return; }
+
+  alvo.innerHTML = `
+    <div class="card" style="margin-bottom:14px;border-left:3px solid var(--alerta)">
+      <h3 class="secao" style="margin-top:0">${lista.length} ${
+        lista.length === 1 ? 'horário espera' : 'horários esperam'
+      } sua confirmação</h3>
+      <p class="secao-sub">A cliente já escolheu e está aguardando. O horário
+        fica guardado para ela enquanto você não responde — e a mensagem de
+        confirmação só sai quando você disser que sim.</p>
+      <table class="tabela"><tbody>${lista.map(a => `
+        <tr>
+          <td style="width:150px;white-space:nowrap">
+            <b>${escapar(porExtenso(a.data))}</b>
+            <div style="font-size:13px;color:var(--txt2)">${hm(a.inicio)}</div>
+          </td>
+          <!-- O data-r porque no celular a linha empilha como cartao e o
+               cabecalho some: sem o rotulo a celula do meio fica um nome
+               solto, sem dizer de que coluna veio. A suite do celular cobra
+               isso, e so nao tinha cobrado antes porque ela inspeciona a
+               PRIMEIRA tabela da pagina — e ate agora nenhuma destas duas
+               estava desenhada na hora da medida.
+               (Sem crase e sem acento: comentario em template literal.) -->
+          <td data-r="Cliente">
+            ${escapar(nomeCliente(a.clienteId))}
+            <div style="font-size:13px;color:var(--txt2)">${
+              escapar(rotuloServicos(a))} · ${
+              escapar((acharProf(a.profissionalId) || {}).nome || '—')}</div>
+          </td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn btn-primario btn-peq"
+                    onclick="confirmarHorario('${a.id}')">Confirmar</button>
+            <button class="btn btn-peq" style="margin-left:6px"
+                    onclick="recusarHorario('${a.id}')">Recusar</button>
+          </td>
+        </tr>`).join('')}</tbody></table>
+    </div>`;
+}
+
+/* Confirmar é só mudar o status — e é o gatilho do 29 que manda a mensagem.
+   Se a tela mandasse a mensagem, o horário confirmado pela recepção de outro
+   jeito (pela ficha, por uma automação) não avisaria ninguém. */
+function confirmarHorario(agId){
+  const a = bd.agendamentos.find(x => x.id === agId);
+  if(!a) return;
+  a.status = 'confirmado';
+  salvar(); pintar();
+}
+
+function recusarHorario(agId){
+  const a = bd.agendamentos.find(x => x.id === agId);
+  if(!a) return;
+  if(!confirm('Recusar o horário de ' + nomeCliente(a.clienteId) + '?\n\n'
+    + 'O horário volta a ficar livre no app, e nenhuma mensagem de '
+    + 'confirmação é enviada.')) return;
+  a.status = 'cancelado';
+  a.canceladoMotivo = 'não confirmado pelo salão';
+  salvar(); pintar();
+}
+
 function pintarFecho(){
   const alvo = document.getElementById('fechoDoDia');
   if(!alvo) return;
@@ -1801,7 +1889,14 @@ function pintarFecho(){
             <b>${escapar(porExtenso(a.data))}</b>
             <div style="font-size:13px;color:var(--txt2)">${hm(a.inicio)}</div>
           </td>
-          <td>
+          <!-- O data-r porque no celular a linha empilha como cartao e o
+               cabecalho some: sem o rotulo a celula do meio fica um nome
+               solto, sem dizer de que coluna veio. A suite do celular cobra
+               isso, e so nao tinha cobrado antes porque ela inspeciona a
+               PRIMEIRA tabela da pagina — e ate agora nenhuma destas duas
+               estava desenhada na hora da medida.
+               (Sem crase e sem acento: comentario em template literal.) -->
+          <td data-r="Cliente">
             ${escapar(nomeCliente(a.clienteId))}
             <div style="font-size:13px;color:var(--txt2)">${
               escapar(rotuloServicos(a))} · ${
@@ -1834,6 +1929,7 @@ function desfecho(agId, status){
 function pintarAgenda(){
   // Antes de qualquer `return`: a vista de semana e o salão sem profissional
   // saem cedo desta função, e nem a fila nem o fecho podem sumir com eles.
+  pintarAConfirmar();
   pintarFecho();
   pintarFila();
 
@@ -4081,6 +4177,18 @@ function abrirDetalhe(agId){
        oferecer uma segunda contagem do mesmo atendimento. */
     ...(vejoTudo() && usaComanda()
         ? [['Abrir comanda', `comandaDoAgendamento('${agId}')`, '']] : []),
+    /* ⚠ UM BOTÃO, e não "mude a situação no seletor e clique em Salvar".
+
+       Confirmar é a resposta que a cliente está esperando, e no seletor ela
+       fica escondida entre "Em atendimento", "Faltou" e "Cancelado" — quatro
+       escolhas para uma decisão que é sim ou não. O seletor continua lá para
+       tudo o mais; isto aqui é o caminho de um clique.
+
+       Só aparece quando há o que confirmar: num salão que confirma
+       automático, nenhum atendimento chega em `pendente`. */
+    ...(a.status === 'pendente'
+        ? [['Confirmar horário', `confirmarHorario('${agId}');fecharModal()`, 'btn-p']]
+        : []),
     ['Salvar', `salvarStatus('${agId}')`, 'btn-p'],
   ]);
 }
@@ -5558,6 +5666,17 @@ function pintarSalao(){
       <div class="regua" id="reguaComanda" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaComanda" style="margin-top:9px"></p>
 
+      <!-- QUEM CONFIRMA O QUE VEM PELO LINK. Fica nesta secao e nao junto das
+           regras da agenda porque nao e uma regra de QUANDO: e uma decisao
+           sobre como o salao trabalha, igual a de cima.
+           (Sem crase e sem acento: comentario em template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Quem confirma o horário que vem pelo link</h3>
+      <p class="secao-sub">A cliente escolhe o horário no app. Ou ele já entra
+        confirmado, ou fica esperando você dizer que sim.</p>
+      <div class="regua" id="reguaConfirma" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaConfirma" style="margin-top:9px"></p>
+
       <!-- ATÉ QUANDO A AGENDA FICA ABERTA. Não é preferência de tela: é regra
            de negócio, e o banco a aplica — dias_liberados() limita o que
            horarios_livres() oferece, então mexer aqui muda o que a cliente
@@ -5869,6 +5988,7 @@ function pintarSalao(){
   pintarJanelaAgenda();
   pintarAntecedencia();
   pintarComanda();
+  pintarConfirma();
   pintarTetoOnline();
   pintarNotificacoes();
   pintarAparencia();
@@ -6624,6 +6744,48 @@ function pintarComanda(){
 
 function escolherComanda(v){ comandaEscolhida = !!v; pintarComanda(); }
 
+/* ── QUEM CONFIRMA O QUE VEM PELO LINK ────────────────────────────────────
+   Mesma peneira do `confirma_automatico()` no 29, letra por letra, e pelo
+   mesmo motivo da comanda: tela e banco discordando aqui fariam o dono achar
+   que confirma sozinho enquanto as clientes esperam uma resposta que ele não
+   sabe que deve dar. */
+let confirmaEscolhida = null, confirmaDoSalao = null;
+
+function confirmaAuto(sl){
+  const v = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).confirmaAuto;
+  if(v == null) return true;
+  return !NAO.includes(String(v).trim().toLowerCase());
+}
+
+function pintarConfirma(){
+  const alvo = document.getElementById('reguaConfirma');
+  if(!alvo) return;
+  if(confirmaEscolhida === null || confirmaDoSalao !== salaoAtual){
+    confirmaEscolhida = confirmaAuto();
+    confirmaDoSalao = salaoAtual;
+  }
+  alvo.innerHTML = [[true, 'Já entra confirmado'], [false, 'Eu confirmo']]
+    .map(([v, rot]) => `<button type="button"
+        class="${v === confirmaEscolhida ? 'on' : ''}"
+        onclick="escolherConfirma(${v})">${escapar(rot)}</button>`).join('');
+  explicarConfirma();
+}
+
+function escolherConfirma(v){ confirmaEscolhida = !!v; pintarConfirma(); }
+
+function explicarConfirma(){
+  const alvo = document.getElementById('explicaConfirma');
+  if(!alvo) return;
+  alvo.innerHTML = confirmaEscolhida
+    ? 'O horário entra na agenda na hora, e a cliente recebe a confirmação no '
+      + 'WhatsApp em seguida. É o mais rápido para ela, e é como o sistema '
+      + 'sempre funcionou.'
+    : 'O horário entra como <b>pendente</b> e aparece no topo da sua agenda '
+      + 'esperando resposta. A cadeira fica guardada para ela enquanto isso — '
+      + 'ninguém mais consegue pegar aquele horário. <b>A confirmação no '
+      + 'WhatsApp só sai quando você confirmar.</b>';
+}
+
 function explicarComanda(){
   const alvo = document.getElementById('explicaComanda');
   if(!alvo) return;
@@ -6724,6 +6886,7 @@ function salvarCadastroSalao(){
        sozinha depois de salvar. É a mesma armadilha da antecedência zero, oito
        linhas acima. */
     usaComanda: comandaEscolhida ?? true,
+    confirmaAuto: confirmaEscolhida ?? true,
     tetoOnlinePct:    aparar(v('cTetoPct'),    10, 100, 70),
     tetoOnlineRajada: aparar(v('cTetoRajada'),  1, 100, 10),
   });

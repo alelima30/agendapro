@@ -206,6 +206,20 @@ vitrines = [open('supabase/' + f, encoding='utf-8').read() for f in reescrevem]
 pacotes = [f for f in modulos if define(f, 'pacote_que_cobre')]
 assert pacotes, 'ninguém define pacote_que_cobre() — o remendo sairia quebrado'
 
+# ⚠ E A CONFIRMAÇÃO, PELO MESMO MOTIVO, MAIS UM.
+#
+# O `agendar()` chama `confirma_automatico()`, e o fechamento de dependências
+# lá embaixo puxaria essa função sozinho. Só que o módulo 29 tem também um
+# GATILHO — o que manda a mensagem quando o dono confirma — e gatilho não é
+# chamada de função: o fechamento não enxerga.
+#
+# Sem ele, um banco resgatado pelo remendo deixaria o agendamento nascer
+# pendente e NUNCA avisaria a cliente quando o salão confirmasse. O pior tipo
+# de defeito: tudo instalado, nada acusando, e a cliente esperando uma
+# mensagem que não vem.
+confirmacao = [f for f in modulos if define(f, 'confirma_automatico')]
+assert confirmacao, 'ninguém define confirma_automatico() — o remendo sairia quebrado'
+
 partes = [
     limpar(arquivar),
     limpar(digitos),
@@ -217,7 +231,8 @@ partes = [
     "grant execute on function public.horarios_livres(uuid, date, uuid[]) to anon, authenticated;",
     limpar(ficha),
     "revoke all on function public.ficha_do_cliente(uuid, text, text) from public;",
-] + [limpar(x) for f in pacotes for x in inteiro_com_consertos(f)] + [
+] + [limpar(x) for f in pacotes + confirmacao
+                for x in inteiro_com_consertos(f)] + [
     limpar(open('supabase/09_cliente.sql', encoding='utf-8').read()),
 ] + [limpar(v) for v in vitrines]
 

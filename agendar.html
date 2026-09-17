@@ -1002,6 +1002,9 @@ async function abrirSalaoDaNuvem(slug){
   // Os pacotes dela, se houver sessão guardada. Não bloqueia a abertura da
   // página: chega quando chegar, e o `desenhar()` do próximo passo já usa.
   carregarMeusPacotes().then(() => { if(tela === 'servico') desenhar(); });
+  /* Não bloqueia nada e não redesenha: só é lida lá na frente, quando ela
+     termina de marcar. Pedir agora é ter a resposta na mão na hora certa. */
+  carregarPoliticaDeConfirmacao();
 }
 
 /* A pergunta sobre horários é feita UMA vez por combinação de
@@ -3054,7 +3057,46 @@ function confirmarAgendamento(){
 /* A tela de "pronto" é a mesma nos dois modos. Ela ficava embutida no fim do
    caminho local; separada, o caminho da nuvem termina exatamente igual — e a
    cliente não tem como notar por qual dos dois ela passou, que é o objetivo. */
+/* ⚠ O SALÃO CONFIRMA SOZINHO, OU ESPERA O DONO?
+
+   Sai do banco (`confirma_automatico()` no 29) e não de um palpite da tela: é
+   ele que decide entre "Pronto, está confirmado" e "Você receberá uma mensagem
+   de confirmação". Dizer a frase errada aqui é prometer em nome do salão.
+
+   Carregado na abertura, junto com os pacotes, porque a resposta precisa estar
+   na mão no instante em que ela termina de marcar — não é hora de esperar rede.
+
+   O padrão é `true` porque é o padrão do banco: um salão que nunca mexeu nisso
+   confirma sozinho, e é a leitura certa quando a chamada não responde. */
+let salaoConfirmaSozinho = true;
+
+async function carregarPoliticaDeConfirmacao(){
+  if(!NA_NUVEM || !salao) return;
+  try{
+    const r = await Dados.chamar('confirma_automatico', { p_salao: salao.id });
+    if(typeof r === 'boolean') salaoConfirmaSozinho = r;
+    else if(Array.isArray(r) && typeof r[0] === 'boolean') salaoConfirmaSozinho = r[0];
+  }catch(e){
+    console.info('[AgendaPro] confirma_automatico:', e.message);
+  }
+}
+
 function mostrarPronto(prof, unit, filho){
+  /* ── A TELA DE QUEM VAI ESPERAR ────────────────────────────────────────
+     Três coisas mudam, e nenhuma é enfeite: o título deixa de afirmar que
+     está agendado, a etiqueta diz PENDENTE, e a bolha do WhatsApp deixa de
+     mostrar uma confirmação que ainda não existe. Mostrar a mensagem de
+     confirmação aqui seria simular um envio que não aconteceu — e o projeto
+     tem regra escrita sobre isso. */
+  if(!salaoConfirmaSozinho){ return mostrarPedidoEnviado(prof, unit, filho); }
+
+  /* ⚠ O TÍTULO É REESCRITO AQUI, mesmo já estando certo no HTML.
+
+     A tela é a mesma nos dois caminhos, e a outra função troca o `<h2>` para
+     "Pedido enviado!". Sem esta linha, uma segunda marcação na mesma sessão —
+     depois de o salão ter mudado a configuração, ou marcando em outro salão —
+     mostraria o título do caminho anterior sobre o texto deste. */
+  document.querySelector('#p-pronto h2').textContent = 'Agendado!';
   document.getElementById('prontoTexto').innerHTML =
     `${dataLonga(escolha.data)} às <b>${hm(escolha.inicio)}</b>, com ${escapar(prof.nome)}.`
     + (escolha.para === 'ambos'
@@ -3076,6 +3118,46 @@ function mostrarPronto(prof, unit, filho){
       com ${escapar(prof.nome)}<br><br>
       ${Endereco.linha(salao.endereco)}
       <div class="hr">${h} &#10003;&#10003;</div>
+    </div>`;
+
+  historico = [];
+  irPara('pronto', true);
+  convidarAInstalar();
+}
+
+/* ── O PEDIDO QUE AINDA VAI SER RESPONDIDO ────────────────────────────────
+   A mesma tela, com outra promessa. Ela precisa sair daqui sabendo três
+   coisas, e a ordem importa:
+
+     1. deu certo — o pedido chegou ao salão
+     2. ainda não está confirmado
+     3. o horário está guardado para ela enquanto isso
+
+   A terceira é a que evita a ligação para o salão. Sem ela, "pendente" lê-se
+   como "talvez eu perca o horário", e a pessoa liga para garantir — que é
+   exatamente o telefonema que a agenda online existe para não acontecer.
+
+   ⚠ E NADA DE BOLHA DE WHATSAPP AQUI. A bolha da outra tela mostra a
+   confirmação que o banco acabou de enfileirar; esta não tem o que mostrar,
+   porque a mensagem só nasce quando o dono confirmar. Desenhar uma seria
+   simular um envio que não houve. */
+function mostrarPedidoEnviado(prof, unit, filho){
+  document.querySelector('#p-pronto h2').textContent = 'Pedido enviado!';
+  document.getElementById('prontoTexto').innerHTML =
+    `${dataLonga(escolha.data)} às <b>${hm(escolha.inicio)}</b>, com ${escapar(prof.nome)}.`
+    + (escolha.para === 'ambos'
+        ? `<br>Dois horários seguidos: você às ${hm(escolha.inicio)} e `
+          + `${filho || 'seu filho'} às ${hm(escolha.inicio + unit)}.`
+        : escolha.para === 'filho' ? `<br>Atendimento de ${filho}.` : '');
+  document.getElementById('resumoPronto').innerHTML =
+    document.getElementById('resumoFinal').innerHTML;
+
+  document.getElementById('bolhaConfirmacao').innerHTML = `
+    <div class="recado" style="margin-top:14px">
+      <b>Você receberá uma mensagem de confirmação.</b><br>
+      ${escapar(salao.nome)} ainda vai olhar este horário. Enquanto isso ele
+      fica <b>guardado para você</b> — ninguém mais consegue marcar nesse
+      horário.
     </div>`;
 
   historico = [];

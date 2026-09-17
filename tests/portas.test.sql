@@ -45,6 +45,12 @@ insert into porta_aberta values
   ('porque_nao_agenda',       'explica à cliente por que o horário não serve'),
   ('agendar',                 'a cliente marcando — o produto inteiro'),
   ('entrar_na_fila',          'a cliente entrando na fila de espera'),
+  -- Devolve um sim ou não sobre a POLÍTICA de um salão cujo link é público de
+  -- propósito, e o id que ela recebe é o mesmo que está na URL. É com esta
+  -- resposta que a página decide entre "Pronto, está confirmado" e "Você
+  -- receberá uma mensagem de confirmação" — dizer a frase errada ali é
+  -- prometer, em nome do salão, uma coisa que o dono não decidiu.
+  ('confirma_automatico',     'a página da cliente precisa saber o que prometer'),
 
   -- Caminhos por TOKEN: quem tem o link tem o direito, e o token é o segredo.
   ('cancelar_agendamento',    'link de cancelar, mandado à cliente'),

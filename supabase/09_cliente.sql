@@ -219,12 +219,27 @@ begin
       using errcode = 'check_violation';
   end if;
 
+  /* ⚠ O STATUS SAI DA CONFIGURAÇÃO DO SALÃO, e não escrito à mão.
+
+     Aqui estava `'confirmado'` fixo, e o `'pendente'` era uma porta que o
+     schema tinha desde o começo e ninguém abria: `ha_choque`, a cota e o
+     `porque_nao_agenda` já contavam pendente, mas nada criava um.
+
+     O salão que confirma à mão recebe pendente — e a cadeira fica reservada
+     enquanto ele decide, porque `ha_choque()` conta pendente. Se não contasse,
+     duas pessoas marcariam o mesmo horário durante a espera, e uma delas
+     ouviria "não" depois de já ter combinado o dia.
+
+     Quem NÃO configurou nada continua recebendo confirmado, como sempre —
+     `confirma_automatico()` no 29 tem o padrão do lado de quem já usa. */
   begin
     insert into public.agendamentos
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
        valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id)
     values
-      (v_salao, v_cliente, p_profissional, p_inicio, v_fim, 'confirmado', 'online',
+      (v_salao, v_cliente, p_profissional, p_inicio, v_fim,
+       case when public.confirma_automatico(v_salao) then 'confirmado'
+            else 'pendente' end, 'online',
        v_valor, v_quem,
        nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;

@@ -573,8 +573,19 @@ begin
   select public.so_digitos(c.telefone) into v_tel_cli
     from public.clientes c where c.id = new.cliente_id;
 
-  -- ── Confirmação, agora ──────────────────────────────────────────────
+  /* ── Confirmação, agora ──────────────────────────────────────────────
+     ⚠ SÓ QUANDO ESTÁ CONFIRMADO DE VERDADE.
+
+     Antes bastava o status ser `pendente` ou `confirmado` — e como nada neste
+     sistema criava um pendente, a distinção nunca apareceu. Com o 29 ela passa
+     a existir: o salão que confirma à mão recebe o agendamento `pendente`, e
+     mandar "Seu horário está confirmado" ali seria prometer, em nome do dono,
+     uma coisa que ele ainda não decidiu.
+
+     Quando ele confirmar, o gatilho do 29 chama esta mesma função de novo e a
+     mensagem sai naquele momento. */
   if v_tel_cli is not null
+     and new.status = 'confirmado'
      and public.notif_liga(new.salao_id, 'notifConfirma', true) then
     v_corpo := public.texto_agendamento(new.id, 'confirmacao');
     if v_corpo is not null then
@@ -589,9 +600,15 @@ begin
     end if;
   end if;
 
-  -- ── Lembrete, na hora configurada ───────────────────────────────────
+  /* ── Lembrete, na hora configurada ───────────────────────────────────
+     Também espera a confirmação, e pelo mesmo motivo: lembrar a cliente de um
+     horário que o salão ainda não aceitou é confirmá-lo por tabela. Quem
+     recebe "seu horário é amanhã às 15h" não lê aquilo como "talvez".
+
+     Se o dono recusar, o `tg_notificacao_agenda_mudou` logo abaixo cancela o
+     que estiver pendente — mas o lembrete nem chega a ser marcado. */
   v_min := public.lembrete_minutos(new.salao_id);
-  if v_tel_cli is not null and v_min > 0 then
+  if v_tel_cli is not null and new.status = 'confirmado' and v_min > 0 then
     v_quando := new.inicio - make_interval(mins => v_min);
     -- Quem marca para daqui a uma hora com lembrete de duas não recebe
     -- lembrete: a hora dele já passou. Não é falha, é aritmética.

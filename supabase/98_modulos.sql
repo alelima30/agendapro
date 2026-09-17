@@ -2503,6 +2503,7 @@ begin
   select public.so_digitos(c.telefone) into v_tel_cli
     from public.clientes c where c.id = new.cliente_id;
   if v_tel_cli is not null
+     and new.status = 'confirmado'
      and public.notif_liga(new.salao_id, 'notifConfirma', true) then
     v_corpo := public.texto_agendamento(new.id, 'confirmacao');
     if v_corpo is not null then
@@ -2517,7 +2518,7 @@ begin
     end if;
   end if;
   v_min := public.lembrete_minutos(new.salao_id);
-  if v_tel_cli is not null and v_min > 0 then
+  if v_tel_cli is not null and new.status = 'confirmado' and v_min > 0 then
     v_quando := new.inicio - make_interval(mins => v_min);
     if v_quando > now() then
       v_corpo := public.texto_agendamento(new.id, 'lembrete');
@@ -3706,6 +3707,25 @@ create trigger tg_agend_sem_comanda
 revoke all on function public.usa_comanda(uuid) from public, anon;
 grant execute on function public.usa_comanda(uuid) to authenticated;
 
+create or replace function public.confirma_automatico(p_salao uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select lower(btrim(coalesce(sa.cfg->>'confirmaAuto', 'true')))
+              not in ('false', 'f', '0', 'no', 'nao', 'não')
+       from public.saloes sa where sa.id = p_salao),
+    true)
+$$;
+comment on function public.confirma_automatico(uuid) is
+  'O link confirma sozinho? cfg.confirmaAuto, padrão SIM. Desligado, o agendamento nasce pendente e espera o salão.';
+drop trigger if exists tg_notif_agend_confirmado on public.agendamentos;
+create trigger tg_notif_agend_confirmado
+  after update of status on public.agendamentos
+  for each row
+  when (new.status = 'confirmado' and old.status is distinct from 'confirmado')
+  execute function public.tg_notificar_agendamento();
+revoke all on function public.confirma_automatico(uuid) from public;
+grant execute on function public.confirma_automatico(uuid) to anon, authenticated;
+
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();
 alter table public.lista_espera
@@ -3814,7 +3834,9 @@ begin
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
        valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id)
     values
-      (v_salao, v_cliente, p_profissional, p_inicio, v_fim, 'confirmado', 'online',
+      (v_salao, v_cliente, p_profissional, p_inicio, v_fim,
+       case when public.confirma_automatico(v_salao) then 'confirmado'
+            else 'pendente' end, 'online',
        v_valor, v_quem,
        nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
