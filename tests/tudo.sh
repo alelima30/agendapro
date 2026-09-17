@@ -182,6 +182,7 @@ rodar "sem comanda"          node "$AQUI/sem-comanda.test.mjs"
 rodar "sem comanda na tela"  node "$AQUI/sem-comanda-tela.test.mjs"
 rodar "confirmação"          node "$AQUI/confirmacao.test.mjs"
 rodar "confirmação na tela"  node "$AQUI/confirmacao-tela.test.mjs"
+rodar "agenda do mês"        node "$AQUI/mes.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

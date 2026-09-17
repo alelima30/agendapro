@@ -134,11 +134,21 @@ await dono.waitForTimeout(500);
 /* ══════════════════════════════════════════════════════════════════════════
    1. TROCAR DE VISTA
    ══════════════════════════════════════════════════════════════════════════ */
-secao('O botão Dia | Semana');
+secao('O botão Dia | Semana | Mês');
 
 igual('a agenda abre no dia', await dono.evaluate(() => vistaAgenda), 'dia');
-verdade('e os dois botões estão lá',
-  await dono.evaluate(() => document.querySelectorAll('#vistas button').length) === 2);
+/* ⚠ PELO NOME, e não pela quantidade.
+
+   Aqui estava `length === 2`, e a visão de mês reprovou este arquivo ao
+   nascer — sem nada de errado com a semana, que é o que ele mede. Contar
+   botões amarra esta suíte a toda visão que o seletor ganhar depois.
+
+   O que ela precisa garantir é que o caminho da semana existe: o botão está
+   lá e leva para lá. */
+const rotulos = await dono.evaluate(() =>
+  [...document.querySelectorAll('#vistas button')].map(b => b.textContent.trim()));
+verdade('e o seletor oferece a semana — ' + JSON.stringify(rotulos),
+  rotulos.includes('Semana') && rotulos.includes('Dia'), JSON.stringify(rotulos));
 
 await dono.evaluate(() => trocarVista('semana'));
 await dono.waitForTimeout(400);

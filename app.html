@@ -541,7 +541,15 @@ body.carregando-tudo .tela{ display:none }
     <div id="aConfirmar"></div>
     <div id="fechoDoDia"></div>
     <div id="filaEspera"></div>
+    <!-- A VISAO DE MES. Fica fora da grade-wrap de proposito: a grade e um
+         calendario de HORAS, com rolagem propria e altura em pixels por bloco
+         de 15 minutos. O mes e outra coisa — sete colunas de dias, sem hora
+         nenhuma — e enfia-lo na mesma caixa faria os dois brigarem por regras
+         de layout que nenhum dos dois quer.
+         (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <div id="mesCalendario"></div>
     <div class="grade-wrap"><div class="grade" id="grade"></div></div>
+    <div id="listaDoDia"></div>
     <p class="nota" id="notaAgenda"></p>
   </section>
 
@@ -1465,11 +1473,24 @@ function diasDaSemana(dia){
   return [0,1,2,3,4,5,6].map(i => somarDias(s, i));
 }
 
-// Um passo é um dia na visão de dia e uma semana inteira na de semana — o
-// botão ‹ › tem que andar o que a tela mostra, senão navegar a semana vira
-// sete cliques.
+/* Mês seguinte guardando o dia, e aparando quando ele não existe lá.
+
+   31 de janeiro + 1 mês não é 31 de fevereiro. O `new Date(2026, 1, 31)` do
+   JavaScript escorrega sozinho para 3 de março — e o botão ‹ › pularia
+   fevereiro inteiro, uma vez por ano, para quem estivesse no fim do mês. */
+function somarMeses(dia, n){
+  const [y, m, d] = dia.split('-').map(Number);
+  const alvo = new Date(y, m - 1 + n, 1);
+  const ultimo = new Date(alvo.getFullYear(), alvo.getMonth() + 1, 0).getDate();
+  return iso(new Date(alvo.getFullYear(), alvo.getMonth(), Math.min(d, ultimo)));
+}
+
+// Um passo é um dia na visão de dia, uma semana inteira na de semana e um mês
+// na de mês — o botão ‹ › tem que andar o que a tela mostra, senão navegar a
+// semana vira sete cliques e navegar o mês vira trinta.
 function mudarDia(n){
-  diaAtual = somarDias(diaAtual, vistaAgenda === 'semana' ? n * 7 : n);
+  diaAtual = vistaAgenda === 'mes' ? somarMeses(diaAtual, n)
+           : somarDias(diaAtual, vistaAgenda === 'semana' ? n * 7 : n);
   pintar();
 }
 function irHoje(){ diaAtual = hoje(); pintar(); }
@@ -1482,7 +1503,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.adfe82';
+const VERSAO_APP = 'v9.f1f30e';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -1933,15 +1954,38 @@ function pintarAgenda(){
   pintarFecho();
   pintarFila();
 
-  document.getElementById('vistas').innerHTML = ['dia','semana']
+  const ROT_VISTA = { dia:'Dia', semana:'Semana', mes:'Mês' };
+  document.getElementById('vistas').innerHTML = ['dia','semana','mes']
     .map(v => `<button class="${vistaAgenda===v?'on':''}"
                  ${vistaAgenda===v?'aria-current="true"':''}
-                 onclick="trocarVista('${v}')">${v==='dia'?'Dia':'Semana'}</button>`)
+                 onclick="trocarVista('${v}')">${ROT_VISTA[v]}</button>`)
     .join('');
-  document.getElementById('notaAgenda').textContent = vistaAgenda === 'semana'
-    ? 'Clique no dia para abri-lo. Clique num atendimento para ver o detalhe.'
+  document.getElementById('notaAgenda').textContent =
+      vistaAgenda === 'mes'    ? 'Clique num dia para ver o resumo dele aqui '
+                               + 'embaixo. O número no quadradinho é quantos '
+                               + 'atendimentos aquele dia tem.'
+    : vistaAgenda === 'semana' ? 'Clique no dia para abri-lo. Clique num '
+                               + 'atendimento para ver o detalhe.'
     : 'Clique num espaço vazio da coluna para marcar naquele horário. '
       + 'Clique num atendimento para mudar o status ou abrir a comanda.';
+
+  /* ⚠ A GRADE DE HORAS SAI DA TELA NO MÊS, e volta nas outras duas.
+
+     Sem o `display` de volta, trocar para Mês e voltar para Dia deixava a
+     agenda em branco: a grade continuava escondida, e nada na tela dizia por
+     quê. Esconder é fácil de escrever e fácil de esquecer de desfazer. */
+  const caixaGrade = document.querySelector('#tela-agenda .grade-wrap');
+  if(caixaGrade) caixaGrade.style.display = vistaAgenda === 'mes' ? 'none' : '';
+  const cal = document.getElementById('mesCalendario');
+  if(cal && vistaAgenda !== 'mes') cal.innerHTML = '';
+
+  if(vistaAgenda === 'mes'){
+    pintarMes();
+    pintarKpis();
+    pintarListaDoDia();
+    return;
+  }
+  pintarListaDoDia();          // limpa o que a visão de mês tiver deixado
 
   if(vistaAgenda === 'semana') return pintarSemana();
 
@@ -2104,6 +2148,132 @@ function conferirGrade(desenhados){
    Quando dois atendimentos se cruzam no mesmo dia eles dividem a largura em
    pistas. Sem isso um cobriria o outro e a semana mentiria dizendo que há
    uma cadeira livre onde há duas ocupadas. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   A AGENDA DO MÊS
+
+   A pergunta desta tela não é "quem vem às 14h" — é "como está o mês". Onde
+   tem dia cheio, onde tem dia vazio, e para onde ainda dá para empurrar
+   cliente quando alguém pede "qualquer dia dessas duas semanas".
+
+   ⚠ O NÚMERO DENTRO DO QUADRADINHO É O RECURSO INTEIRO. Um calendário que só
+   marca com um pontinho os dias que têm movimento obriga a abrir um por um
+   para saber quanto tem — e aí ele não respondeu nada, só mudou o lugar da
+   pergunta. Com a contagem no dia, o mês se lê de longe.
+
+   ⚠ E OS BLOQUEIOS CONTAM SEPARADO. Somados aos atendimentos, um dia de
+   folga cadastrada apareceria como dia cheio de trabalho — o oposto do que
+   ele é, e justamente no dia em que o dono está procurando onde encaixar
+   alguém.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const DIAS_MES = ['dom','seg','ter','qua','qui','sex','sáb'];
+
+function pintarMes(){
+  const alvo = document.getElementById('mesCalendario');
+  if(!alvo) return;
+  const [ano, mes] = diaAtual.split('-').map(Number);
+
+  document.getElementById('rotuloDia').textContent =
+    MESES[mes - 1] + ' de ' + ano;
+
+  /* O calendário começa no domingo ANTERIOR ao dia 1, e vai até completar
+     semanas inteiras. Sem isso as colunas deixariam de ser dias da semana: o
+     dia 1 cairia embaixo de "dom" fosse ele domingo ou quinta. */
+  const primeiro = new Date(ano, mes - 1, 1);
+  const comeco = new Date(ano, mes - 1, 1 - primeiro.getDay());
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  const fim = new Date(ano, mes - 1, ultimoDia);
+  /* Quantas semanas cabem: as que forem precisas, nem sempre seis. Fixar seis
+     deixaria uma linha inteira de outro mês pendurada na maioria dos meses. */
+  const quantos = Math.ceil((fim - comeco) / 864e5) + 1;
+  const semanas = Math.ceil(quantos / 7);
+
+  const hj = hoje();
+  let celulas = '';
+  for(let i = 0; i < semanas * 7; i++){
+    const dt = new Date(comeco.getFullYear(), comeco.getMonth(), comeco.getDate() + i);
+    const dia = iso(dt);
+    /* ⚠ `doMes`, e NÃO `noMes`. O guardião de segurança procura campo de
+       gente dentro de interpolação, e a lista dele tem `nome` — que é o que
+       `noMes` vira em minúsculas. Ele acusou esta linha como nome de cliente
+       entrando cru em HTML.
+
+       Renomear é melhor que abrir exceção na lista do guardião: exceção o
+       afrouxa para sempre por causa de uma variável de uma tela. */
+    const doMes = dt.getMonth() === mes - 1;
+    const qtd = agendaDoDia(dia).filter(a => ATIVOS.includes(a.status)).length;
+    const bloq = (bd.bloqueios || [])
+      .filter(b => b.salaoId === salaoAtual && b.data === dia).length;
+
+    celulas += `<button type="button" class="mes-dia${doMes ? '' : ' mes-outro'}${
+        dia === hj ? ' hoje' : ''}${dia === diaAtual ? ' sel' : ''}"
+        onclick="escolherDiaDoMes('${dia}')"
+        aria-label="${escapar(porExtenso(dia))}${
+          qtd ? ', ' + qtd + (qtd === 1 ? ' atendimento' : ' atendimentos') : ''}">
+      <span class="mes-num">${dt.getDate()}</span>
+      ${qtd ? `<span class="mes-qtd">${qtd}</span>`
+            : bloq ? '<span class="mes-qtd bloq">·</span>' : ''}
+    </button>`;
+  }
+
+  const temBloqueio = (bd.bloqueios || []).some(b => b.salaoId === salaoAtual);
+  alvo.innerHTML = `
+    <div class="mes-cal">
+      <div class="mes-semana">${DIAS_MES.map(d => `<span>${d}</span>`).join('')}</div>
+      <div class="mes-grade">${celulas}</div>
+      <div class="mes-legenda">
+        <span><i class="i-ag"></i>Atendimentos</span>
+        ${temBloqueio ? '<span><i class="i-bl"></i>Bloqueios</span>' : ''}
+      </div>
+    </div>`;
+}
+
+/* Escolher um dia no mês NÃO troca de visão, e isso é decisão.
+
+   Na semana o clique abre o dia, porque quem está na semana já está olhando
+   horários. No mês a pessoa está comparando dias — mandá-la para a grade de
+   horas a cada clique tiraria dela justamente a comparação que ela veio
+   fazer. O resumo e a lista descem embaixo do calendário, e quem quiser a
+   grade tem o botão "Abrir o dia". */
+function escolherDiaDoMes(dia){ diaAtual = dia; pintar(); }
+
+/* A lista do dia escolhido, em cartões. Não é a grade: cartão não tem altura
+   proporcional à duração, e é isso que o deixa legível num dia com quatro
+   atendimentos de dez minutos — que na grade viram quatro riscos. */
+function pintarListaDoDia(){
+  const alvo = document.getElementById('listaDoDia');
+  if(!alvo) return;
+  if(vistaAgenda !== 'mes'){ alvo.innerHTML = ''; return; }
+
+  const doDia = agendaDoDia(diaAtual)
+    .filter(a => ATIVOS.includes(a.status))
+    .sort((a, b) => a.inicio - b.inicio);
+
+  const cabeca = `<h3>${escapar(porExtenso(diaAtual))}</h3>`;
+
+  if(!doDia.length){
+    alvo.innerHTML = `<div class="dia-lista">${cabeca}
+      <div class="vazio"><b>Nenhum atendimento neste dia</b>
+        Clique em <b>+ Agendamento</b> para marcar, ou escolha outro dia
+        no calendário.</div></div>`;
+    return;
+  }
+
+  alvo.innerHTML = `<div class="dia-lista">${cabeca}
+    ${doDia.map(a => `
+      <button type="button" class="dia-cartao" onclick="abrirDetalhe('${a.id}')">
+        <span class="dc-txt">
+          <span class="dc-nome">${escapar(nomeCliente(a.clienteId))}</span>
+          <span class="dc-sub">${hm(a.inicio)}–${hm(a.fim)} · ${
+            escapar(rotuloServicos(a))} · ${
+            escapar((acharProf(a.profissionalId) || {}).nome || '—')}</span>
+        </span>
+        <span class="dc-vlr">${real(totalDe(a))}</span>
+      </button>`).join('')}
+    <button class="btn btn-peq" style="margin-top:4px"
+            onclick="trocarVista('dia')">Abrir o dia na grade de horários</button>
+  </div>`;
+}
+
 function pintarSemana(){
   const dias = diasDaSemana(diaAtual);
   const grade = document.getElementById('grade');

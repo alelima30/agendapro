@@ -2272,3 +2272,122 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
   /* No bloco baixo o ícone cobriria o nome. Ali ele não entra. */
   .ag.curto .ag-zap{ display:none }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A AGENDA DO MÊS
+
+   Sete colunas de dias, e nenhuma hora. A pergunta desta tela é outra: não é
+   "quem vem às 14h", é "como está o mês" — onde tem dia cheio, onde tem dia
+   vazio, e para onde eu ainda posso empurrar cliente.
+
+   ⚠ O NÚMERO DENTRO DO DIA É O PONTO. Um calendário que só pinta os dias com
+   movimento obriga a abrir um por um para saber quanto tem. A contagem no
+   próprio quadradinho responde a pergunta inteira de longe — que é como se
+   olha um mês.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.mes-cal{
+  background:var(--painel); border:1px solid var(--borda);
+  border-radius:var(--r-md); padding:12px; margin-bottom:14px;
+  box-shadow:var(--sombra-xs);
+}
+.mes-semana{
+  display:grid; grid-template-columns:repeat(7, 1fr); gap:4px;
+  margin-bottom:6px;
+}
+.mes-semana span{
+  text-align:center; font-size:12px; font-weight:700; color:var(--txt3);
+  text-transform:lowercase; letter-spacing:.02em;
+}
+.mes-grade{ display:grid; grid-template-columns:repeat(7, 1fr); gap:4px }
+
+/* O dia é um botão: no celular a coisa toda é alvo de toque, e a regra da casa
+   é 40px.
+
+   ⚠ E SEM `aspect-ratio`. Escrevi `aspect-ratio:1/1` primeiro, pensando no
+   quadradinho do celular — e num monitor de 1280px cada coluna tem 140px de
+   largura, então cada dia virou um quadrado de 140px de ALTURA. O mês ocupava
+   três telas de rolagem para mostrar o que cabe numa.
+
+   Altura própria, igual em qualquer largura: 52px passa folgado na regra dos
+   40, e o mês inteiro cabe na tela — que é a única coisa que esta visão tem a
+   oferecer sobre a de semana. */
+.mes-dia{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:3px; min-height:52px; padding:4px;
+  border:1px solid transparent; border-radius:var(--r-sm);
+  background:transparent; color:var(--txt); cursor:pointer;
+  font-size:14px; font-weight:600; line-height:1;
+  transition:background .12s ease, border-color .12s ease;
+}
+.mes-dia:hover{ background:var(--ac-soft); border-color:var(--ac-line) }
+.mes-dia:focus-visible{ outline:2px solid var(--marca-media); outline-offset:1px }
+
+/* Dia de outro mês continua CLICÁVEL, e é de propósito: quem olha o fim de
+   setembro quer poder abrir o 1º de outubro sem trocar de mês primeiro. Só
+   fica apagado, para não competir com o mês que está sendo olhado.
+
+   ⚠ `mes-outro`, e NÃO `fora`. Eu tinha escrito `.mes-dia.fora`, e o painel já
+   tem um `.fora` global — a faixa listrada de "fora da jornada" na grade de
+   horas, que é `position:absolute; left:0; right:0`.
+
+   O seletor `.mes-dia.fora` é mais específico na COR, mas não desfaz o
+   `position` que o `.fora` sozinho já aplicou. Os dias do mês vizinho saíram
+   da grade e foram empilhados por cima dos outros: o calendário aparecia com
+   a primeira semana desalinhada e dois números um em cima do outro.
+
+   É o mesmo estrago do `.fundo` documentado no cartão de foto: nome de classe
+   escolhido por um motivo, colidindo com outro escolhido por outro. Com
+   prefixo, o espaço de nomes é desta tela. */
+.mes-dia.mes-outro{ color:var(--txt3); font-weight:500 }
+
+.mes-dia.hoje{ border-color:var(--marca-media) }
+.mes-dia.hoje .mes-num{ color:var(--marca); font-weight:800 }
+
+.mes-dia.sel{
+  background:var(--marca-media); border-color:var(--marca-media); color:#FFFFFF;
+}
+.mes-dia.sel .mes-num{ color:#FFFFFF }
+.mes-dia.sel .mes-qtd{ background:rgba(255,255,255,.28); color:#FFFFFF }
+
+.mes-num{ font-size:14px }
+
+/* A pastilha da contagem. Sem número não existe — quadradinho com "0" dentro
+   polui o mês inteiro para dizer o que o vazio já diz. */
+.mes-qtd{
+  display:inline-grid; place-items:center;
+  min-width:17px; height:17px; padding:0 4px;
+  border-radius:9px; font-size:11px; font-weight:700; line-height:1;
+  background:var(--ac-soft); color:var(--marca);
+}
+/* Bloqueio não é atendimento: é hora fechada. Cor diferente, e some quando não
+   há — senão a legenda passaria a explicar uma cor que nunca aparece. */
+.mes-qtd.bloq{ background:var(--n-200); color:var(--txt2) }
+
+.mes-legenda{
+  display:flex; gap:14px; justify-content:flex-end; flex-wrap:wrap;
+  margin-top:10px; font-size:12px; color:var(--txt2);
+}
+.mes-legenda i{
+  display:inline-block; width:9px; height:9px; border-radius:50%;
+  margin-right:5px; vertical-align:middle;
+}
+.mes-legenda .i-ag{ background:var(--marca-media) }
+.mes-legenda .i-bl{ background:var(--n-400) }
+
+/* ── A lista do dia escolhido, embaixo do calendário ────────────────────── */
+.dia-lista{ margin-bottom:14px }
+.dia-lista h3{
+  font-size:16px; font-weight:800; margin:0 0 10px;
+}
+.dia-cartao{
+  display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+  background:var(--painel); border:1px solid var(--borda);
+  border-left:3px solid var(--marca-media);
+  border-radius:var(--r-sm); padding:11px 13px; margin-bottom:8px;
+  cursor:pointer; font:inherit; color:inherit;
+}
+.dia-cartao:hover{ border-color:var(--borda-forte); box-shadow:var(--sombra-xs) }
+.dia-cartao .dc-txt{ flex:1; min-width:0 }
+.dia-cartao .dc-nome{ font-weight:700; font-size:14.5px }
+.dia-cartao .dc-sub{ font-size:13px; color:var(--txt2); margin-top:2px }
+.dia-cartao .dc-vlr{ font-weight:800; white-space:nowrap }
