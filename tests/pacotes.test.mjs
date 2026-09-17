@@ -274,10 +274,10 @@ await dona.chamar('vender_pacote', { p_pacote: so2a.id, p_cliente: fichaAna.id }
 /* Acha a próxima segunda e a próxima quarta, no fuso do salão. Fixar "daqui a
    N dias" daria um dia da semana diferente a cada dia em que o teste rodasse —
    é a armadilha que fez a `corrida.test.mjs` reprovar uma hora por dia. */
-const proximo = (dow) => {
+const proximo = (dow, horaUTC = 15) => {
   for(let i = 2; i < 16; i++){
     const d = new Date(Date.now() + i * 864e5);
-    d.setUTCHours(15, 0, 0, 0);
+    d.setUTCHours(horaUTC, 0, 0, 0);
     if(new Date(d.toLocaleString('en-US', { timeZone:'America/Sao_Paulo' }))
          .getDay() === dow) return d.toISOString();
   }
@@ -291,20 +291,213 @@ igual('na segunda, a escova sai por R$ 0,00', Number(rSeg[0].valor), 0);
 await atender(rSeg[0].id);
 
 const rQua = await marcar(ana, [escova.id], naQuarta, 'Ana Segunda', TEL_ANA);
-/* ⚠ E NA QUARTA ELA CONTINUA CONSEGUINDO MARCAR — pagando. O pacote restringe
-   o BENEFÍCIO, não o acesso: bloquear seria tirar da cliente uma coisa que
-   ela já tem hoje, e transformar um desconto num castigo. */
+/* ⚠ E NA QUARTA ELA CONTINUA CONSEGUINDO MARCAR — pagando.
+
+   Este pacote não pediu bloqueio (`so_nos_dias` ficou no padrão, false), e
+   este número é a prova de que o padrão NÃO MUDOU quando o bloqueio foi
+   criado: quem comprou pacote antes continua marcando em qualquer dia.
+
+   A seção 5b mede o outro lado, com a coluna ligada. As duas juntas são o
+   ponto: o salão escolhe, e nenhuma das duas posturas é imposta. */
 igual('na quarta ela marca do mesmo jeito, pagando os R$ 50',
   Number(rQua[0].valor), 50);
 await desmarcar(rQua[0].id);
+
+/* ══════════════════════════════════════════════════════════════════════════
+   5b — ⚠ O BLOQUEIO DE VERDADE, E A PORTA QUE CONTINUA ABERTA
+
+   Com `so_nos_dias` ligado, o LINK recusa fora dos dias. O que esta seção
+   existe para provar é que a recusa é do link e SÓ do link:
+
+     · a recepção marca a quarta-feira dela pelo painel, cobrando — é a saída
+       para "quero atender fora dos dias, pagando"
+     · quem não tem o pacote marca a mesma quarta pelo link, normalmente — o
+       bloqueio de uma pessoa não fecha o dia do salão
+
+   Sem estas duas medidas, "bloqueia" seria uma palavra sem tamanho, e o
+   primeiro salão a ligar a coluna descobriria o tamanho sozinho.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('Pacote que BLOQUEIA fora dos dias');
+
+const trava = await dona.inserir('pacotes', { salaoId:SALAO,
+  nome:'Manutenção Segunda', preco:80, sessoes:10, validadeDias:90,
+  dias:[1], soNosDias:true, ativo:true });
+await dona.inserir('pacote_servicos',
+  { pacoteId: trava.id, servicoId: manutencao.id });
+verdade('o pacote guardou o bloqueio', trava.soNosDias === true,
+  'veio ' + JSON.stringify(trava.soNosDias)
+  + ' — se o dados.js não traduz a coluna, nada abaixo mede o que diz medir');
+
+/* Uma cliente NOVA, e é de propósito: a Maria ainda tem sessão do "Unha em
+   Dia", que vale todos os dias. Com dois pacotes na mesma ficha, uma falha do
+   bloqueio apareceria como "o outro pacote cobriu" — e eu mediria o pacote
+   errado a tarde inteira. */
+const bia = novaAba();
+const TEL_BIA = tel(4);
+await bia.criarConta({ email:`pac-bia-${marca}@teste.com`, senha:'minhasenhaboa',
+  nome:'Bia Trava', telefone: TEL_BIA });
+const biaPrimeira = await marcar(bia, [manutencao.id], daquiA(3, 16),
+  'Bia Trava', TEL_BIA);
+await desmarcar(biaPrimeira[0].id);
+const fichaBia = (await dona.lista('clientes', { salaoId: SALAO }))
+  .find(c => soDigitos(c.telefone) === soDigitos(TEL_BIA));
+await dona.chamar('vender_pacote', { p_pacote: trava.id, p_cliente: fichaBia.id });
+
+const seg2 = proximo(1, 17), qua2 = proximo(3, 17);
+verdade('achei outra segunda e outra quarta, em outro horário',
+  !!seg2 && !!qua2 && seg2 !== naSegunda);
+
+const bSeg = await marcar(bia, [manutencao.id], seg2, 'Bia Trava', TEL_BIA);
+igual('na segunda, a manutenção da Bia sai por R$ 0,00', Number(bSeg[0].valor), 0);
+await atender(bSeg[0].id);
+
+// ── O NÃO, e o não precisa dizer por quê ──────────────────────────────────
+let barrou = null;
+try{ await marcar(bia, [manutencao.id], qua2, 'Bia Trava', TEL_BIA); }
+catch(e){ barrou = e.message || String(e); }
+verdade('na quarta o link RECUSA — ' + JSON.stringify(barrou),
+  barrou !== null, 'MARCOU: o bloqueio não está pegando');
+verdade('e a recusa diz o nome do pacote', /Manutenção Segunda/.test(barrou || ''),
+  barrou);
+verdade('e escreve os dias que valem', /segunda/i.test(barrou || ''), barrou);
+/* Recusa sem saída é cliente que fecha a página. A frase tem que dizer o que
+   fazer agora — e o que fazer agora é falar com o salão, que marca pagando. */
+verdade('e aponta uma saída, não só o não',
+  /whatsapp|sal[ãa]o/i.test(barrou || ''), barrou);
+
+// ── ⚠ A SAÍDA: a recepção marca a mesma quarta, cobrando ──────────────────
+/* Isto é o painel: insert direto na tabela, `origem: recepcao`. Nenhuma regra
+   da agenda online passa por aqui — só o `agendar()` e o `horarios_livres()`
+   chamam o `porque_nao_agenda()`, e nenhum gatilho de `agendamentos` chama.
+   Medido, não suposto: é esta linha que responde "e se eu quiser atender fora
+   dos dias, pagando?". */
+/* ⚠ OUTRA HORA NA MESMA QUARTA, e não a hora que a Bia tentou.
+
+   Eu tinha escrito as duas no mesmo horário, e a mutação mostrou o preço: com
+   o bloqueio quebrado, a Bia MARCAVA as 14h, e o insert do balcão falhava por
+   choque de horário — uma medida da recepção reprovando por causa do defeito
+   da outra. Dois ✗ para um defeito só, e o segundo apontando para o lugar
+   errado. Em horários diferentes, esta linha mede o balcão e só o balcão. */
+const noBalcao = proximo(3, 20);
+const fimQua = new Date(new Date(noBalcao).getTime() + 60 * 60000).toISOString();
+let peloBalcao = null, erroBalcao = null;
+try{
+  peloBalcao = await dona.inserir('agendamentos', { salaoId: SALAO,
+    clienteId: fichaBia.id, profissionalId: prof.id, inicio: noBalcao,
+    fim: fimQua,
+    status:'confirmado', origem:'recepcao', valorPrevisto: 40 });
+  await dona.inserir('agendamento_servicos', { agendamentoId: peloBalcao.id,
+    servicoId: manutencao.id, ordem:1, duracaoMin:60, preco:40, comissaoPct:0 });
+}catch(e){ erroBalcao = e.message || String(e); }
+verdade('a recepção marca essa MESMA quarta pelo painel, cobrando',
+  !!peloBalcao && !erroBalcao,
+  erroBalcao || 'o bloqueio vazou do link para o balcão — a dona perdeu a '
+              + 'exceção que ela mesma quis dar');
+if(peloBalcao) await desmarcar(peloBalcao.id);
+
+// ── E o dia do SALÃO não encolheu ─────────────────────────────────────────
+const carla = novaAba();
+const TEL_CARLA = tel(5);
+await carla.criarConta({ email:`pac-carla-${marca}@teste.com`,
+  senha:'minhasenhaboa', nome:'Carla Sem Pacote', telefone: TEL_CARLA });
+const carlaQua = await marcar(carla, [manutencao.id], proximo(3, 18),
+  'Carla Sem Pacote', TEL_CARLA);
+igual('quem não tem o pacote marca a mesma quarta, pagando os R$ 40',
+  Number(carlaQua[0].valor), 40);
+await desmarcar(carlaQua[0].id);
+
+// ── A tela precisa saber, senão ela oferece o horário e o banco recusa ────
+const deBia = await bia.chamar('meus_pacotes', { p_salao: SALAO });
+const PBIA = (Array.isArray(deBia) ? deBia : []).find(x => x.nome === 'Manutenção Segunda');
+verdade('meus_pacotes() entrega o bloqueio para a tela espelhar',
+  !!PBIA && PBIA.so_nos_dias === true, JSON.stringify(deBia));
+verdade('junto com os dias em que vale',
+  !!PBIA && Array.isArray(PBIA.dias) && PBIA.dias.length === 1
+        && Number(PBIA.dias[0]) === 1, JSON.stringify(PBIA && PBIA.dias));
+
+/* ── ⚠ PACOTE SEM SESSÃO NÃO BLOQUEIA MAIS NADA ───────────────────────────
+   O caso que faltava, e que só apareceu quando eu fui procurar o que as
+   mutações NÃO derrubavam: a cliente gastou tudo, o pacote acabou, e se ele
+   continuasse barrando a quarta ela ficaria presa a segunda-feira para sempre
+   — por um benefício que não existe mais. Castigo sem dono: ela não entende, e
+   o salão não sabe de onde veio.
+
+   Uma sessão só, de propósito: gastar dez para medir isto seria dez marcações
+   para uma pergunta de uma linha. */
+const travinha = await dona.inserir('pacotes', { salaoId:SALAO,
+  nome:'Escova Segunda', preco:50, sessoes:1, validadeDias:90,
+  dias:[1], soNosDias:true, ativo:true });
+await dona.inserir('pacote_servicos',
+  { pacoteId: travinha.id, servicoId: escova.id });
+
+const duda = novaAba();
+const TEL_DUDA = tel(6);
+await duda.criarConta({ email:`pac-duda-${marca}@teste.com`,
+  senha:'minhasenhaboa', nome:'Duda Uma Só', telefone: TEL_DUDA });
+const dudaPrimeira = await marcar(duda, [escova.id], daquiA(3, 19),
+  'Duda Uma Só', TEL_DUDA);
+await desmarcar(dudaPrimeira[0].id);
+const fichaDuda = (await dona.lista('clientes', { salaoId: SALAO }))
+  .find(c => soDigitos(c.telefone) === soDigitos(TEL_DUDA));
+await dona.chamar('vender_pacote', { p_pacote: travinha.id, p_cliente: fichaDuda.id });
+
+let dudaBarrada = null;
+try{ await marcar(duda, [escova.id], proximo(3, 21), 'Duda Uma Só', TEL_DUDA); }
+catch(e){ dudaBarrada = e.message || String(e); }
+verdade('com a sessão na mão, a quarta dela é barrada', dudaBarrada !== null,
+  'o bloqueio nem chegou a pegar — o resto desta medida não vale nada');
+
+const dSeg = await marcar(duda, [escova.id], proximo(1, 21), 'Duda Uma Só', TEL_DUDA);
+igual('ela usa a única sessão na segunda, por R$ 0,00', Number(dSeg[0].valor), 0);
+await atender(dSeg[0].id);
+
+const dQua = await marcar(duda, [escova.id], proximo(3, 21), 'Duda Uma Só', TEL_DUDA);
+igual('sessões esgotadas, a quarta ABRE de novo — pagando os R$ 50',
+  Number(dQua[0].valor), 50);
+await desmarcar(dQua[0].id);
+
+// ── Pacote cancelado não manda mais em dia nenhum ─────────────────────────
+/* O bloqueio é do pacote vivo. Tirar a cliente do pacote e continuar barrando
+   a quarta dela seria um castigo sem dono — ninguém saberia de onde vinha. */
+const vinculoBia = (await dona.lista('pacote_clientes', {}))
+  .find(v => v.clienteId === fichaBia.id && v.pacoteId === trava.id);
+await dona.chamar('cancelar_pacote_cliente', { p_id: vinculoBia.id });
+const depoisDoCancelamento = await marcar(bia, [manutencao.id], proximo(3, 19),
+  'Bia Trava', TEL_BIA);
+igual('tirada do pacote, ela volta a marcar a quarta pagando',
+  Number(depoisDoCancelamento[0].valor), 40);
+await desmarcar(depoisDoCancelamento[0].id);
 
 /* ══════════════════════════════════════════════════════════════════════════
    6 — VALIDADE
    ══════════════════════════════════════════════════════════════════════════ */
 secao('Pacote vencido');
 
-await dona.atualizar('pacote_clientes', VENDA,
-  { venceEm: new Date(Date.now() - 864e5).toISOString().slice(0, 10) });
+/* ⚠ ONTEM NO SALÃO, NÃO ONTEM EM UTC — e a diferença reprovava este arquivo
+   três horas por dia.
+
+   `new Date(Date.now() - 864e5).toISOString()` dá ontem em UTC. Entre 21h e
+   meia-noite em São Paulo, "ontem em UTC" ainda é HOJE no salão: o pacote
+   vencia num dia que ainda não tinha chegado, e o `meus_pacotes()` — que
+   compara com `hoje_no_salao()` — devolvia o pacote, corretamente.
+
+   O `pacote_que_cobre()` não notava, porque compara com a data da MARCAÇÃO,
+   14 dias à frente. Então o arquivo dizia "vencido, volta a custar R$ 40" ✓ e
+   "e some da lista dela" ✗, no mesmo fôlego, sem nada de errado no código.
+
+   É a mesma armadilha que o `proximo()` desta página já resolve para o dia da
+   semana, e que a `corrida.test.mjs` pagou para aprender. Aqui a data sai do
+   fuso do salão, ancorada ao meio-dia para nenhum horário de verão empurrá-la
+   para o dia vizinho. */
+const diaNoSalao = (deslocamento) => {
+  const hojeLa = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'America/Sao_Paulo', year:'numeric', month:'2-digit',
+    day:'2-digit' }).format(new Date());
+  const d = new Date(hojeLa + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + deslocamento);
+  return d.toISOString().slice(0, 10);
+};
+await dona.atualizar('pacote_clientes', VENDA, { venceEm: diaNoSalao(-1) });
 const vencido = await marcar(maria, [manutencao.id], daquiA(14, 13),
   'Maria Pacote', TEL_MARIA);
 igual('vencido, volta a custar R$ 40', Number(vencido[0].valor), 40);

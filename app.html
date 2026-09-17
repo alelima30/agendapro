@@ -1464,7 +1464,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.ee1c92';
+const VERSAO_APP = 'v9.cb3f64';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2288,6 +2288,13 @@ function pintarPacotes(){
             ${p.sessoes} sessão(ões) · vale ${p.validadeDias} dias ·
             ${(p.dias || []).length === 7 ? 'todos os dias'
               : (p.dias || []).map(d => DIAS_CURTOS[d]).join(', ')}</p>
+          <!-- So aparece quando esta LIGADO. Escrever "fora dos dias ela marca
+               pagando" em todo pacote seria repetir o normal em sete lugares;
+               o que precisa de aviso e' a excecao. -->
+          ${p.soNosDias && (p.dias || []).length < 7 ? `
+            <p style="font-size:12.5px;color:var(--alerta);margin-top:3px">
+              Fora desses dias o link recusa — você marca por aqui, cobrando.
+            </p>` : ''}
         </div>
         <div style="text-align:right">
           <div style="font-size:19px;font-weight:800">${real(p.preco)}</div>
@@ -2341,14 +2348,23 @@ function abrirPacote(pid){
     <div class="campo"><label>Vale por quantos dias</label>
       <input type="number" id="pkValidade" min="1" step="1"
              value="${p ? p.validadeDias : 90}"></div>
-    <!-- Os dias em que o BENEFICIO vale. Fora deles a cliente ainda marca,
-         pagando o preco normal: bloquear seria tirar dela uma coisa que ela
-         ja tem. (Sem crase e sem acento: comentario em template literal.) -->
+    <!-- Os dias em que o BENEFICIO vale. Fora deles o pacote nunca conta; o
+         que o interruptor abaixo decide e' se ela ainda consegue marcar
+         pagando. (Sem crase e sem acento: comentario em template literal.) -->
     <div class="campo"><label>Vale em quais dias</label>
       <div class="regua" id="pkDias" style="justify-content:flex-start">${
         DIAS_CURTOS.map((d, i) => `<button type="button" data-dia="${i}"
            class="${dias.includes(i) ? 'on' : ''}"
            onclick="this.classList.toggle('on')">${d}</button>`).join('')}</div>
+      <label class="check" style="margin-top:9px">
+        <input type="checkbox" id="pkSoNosDias"${p && p.soNosDias ? ' checked' : ''}>
+        <span>Fora desses dias, não deixar marcar pelo link</span></label>
+      <p style="font-size:12.5px;color:var(--txt3);margin-top:5px">
+        Desmarcado, quem tem o pacote marca em qualquer dia — fora dos dias
+        ela paga o preço normal, e o link avisa que está cobrando.<br>
+        Marcado, o link recusa e diz quais são os dias.
+        <b>Você continua marcando por aqui em qualquer dia</b>, cobrando: o
+        bloqueio é do link, não do balcão.</p>
     </div>
     <div class="campo"><label>Quais serviços entram</label>
       <div id="pkServicos" style="max-height:210px;overflow:auto;
@@ -2394,6 +2410,7 @@ function salvarPacote(pid){
     sessoes: Math.max(1, Number(v('pkSessoes')) || 1),
     validadeDias: Math.max(1, Number(v('pkValidade')) || 90),
     dias,
+    soNosDias: !!(document.getElementById('pkSoNosDias') || {}).checked,
     ativo: pid ? !!(document.getElementById('pkAtivo') || {}).checked : true,
   };
   if(p) Object.assign(p, dados);
@@ -2415,8 +2432,25 @@ function salvarPacote(pid){
      Não bastou pôr `default gen_random_uuid()` na coluna: o `dados.js` confere
      o id ANTES de mandar, no navegador, e o padrão do banco nunca chega a ser
      usado. Quem gera é esta linha. */
+  /* ⚠ E O `id` DE QUEM JÁ EXISTE É REAPROVEITADO — sortear um novo quebrava
+     toda edição de pacote.
+
+     A chave primária é o par (pacote, serviço), mas o `dados.js` decide entre
+     INSERT e UPDATE pelo `id`. Com um id novo para o mesmo par, ele mandava
+     INSERT, e o banco recusava: `duplicate key value violates unique
+     constraint "pacote_servicos_pkey"`.
+
+     O estrago não parava aí. A gravação morria no meio: o `pacotes` tinha ido,
+     o `pacote_servicos` não — e as linhas antigas já tinham sido apagadas. O
+     pacote ficava SEM SERVIÇO NENHUM, e a dona só via um alerta dizendo que
+     não deu para salvar. Editar uma vez esvaziava o pacote.
+
+     Só apareceu quando um teste abriu o painel, clicou em Editar e em Salvar:
+     nenhuma suíte de banco passa por aqui, e criar funcionava. */
+  const antigos = new Map((bd.pacote_servicos || [])
+    .filter(x => x.pacoteId === id).map(x => [x.servicoId, x.id]));
   bd.pacote_servicos = (bd.pacote_servicos || []).filter(x => x.pacoteId !== id)
-    .concat(svs.map(sid => ({ id: crypto.randomUUID(),
+    .concat(svs.map(sid => ({ id: antigos.get(sid) || crypto.randomUUID(),
                               pacoteId: id, servicoId: sid })));
 
   salvar();

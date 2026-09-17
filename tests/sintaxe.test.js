@@ -481,6 +481,63 @@ console.log('\nFunção definida em mais de um módulo: qual versão viaja');
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   O REMENDO NÃO PODE CHAMAR O QUE ELE NÃO TRAZ
+
+   O 99_remendo.sql é o arquivo de RESGATE: cola-se quando o 00_tudo.sql chegou
+   picotado. Ele pode se apoiar no núcleo antigo — `e_gestor`, `hoje_no_salao`,
+   coisas dos primeiros módulos, que qualquer instalação tem. O que ele NÃO
+   pode é chamar uma função que só nasce num módulo tardio sem trazer esse
+   módulo junto.
+
+   O PL/pgSQL não avisa: ele só resolve o nome na hora de EXECUTAR. Então o
+   remendo instala limpo, o editor do Supabase diz "Success", e o estrago
+   aparece na primeira cliente que tenta marcar.
+
+   Aconteceu duas vezes, e as duas foram medidas num banco de verdade:
+
+     · `horarios_livres()` vinha recortada do 14_motor.sql e chamava
+       `jornada_costurada()`, `ha_choque()` e `ha_bloqueio()` — as três do
+       mesmo 14, nenhuma delas no remendo. Toda listagem de horários morria.
+     · o 09_cliente.sql inteiro chamava `pacote_que_cobre()` e
+       `pacote_fora_do_dia()`, do 27. Toda marcação de cliente LOGADA morria.
+
+   A regra que este bloco cobra: se a função existe em algum módulo e SÓ existe
+   em módulos de número 10 ou maior, o remendo tem que trazer a definição dela.
+   ═══════════════════════════════════════════════════════════════════════════ */
+console.log('\nO remendo traz tudo o que chama');
+{
+  const dir = path.join(RAIZ, 'supabase');
+  const caminho = path.join(dir, '99_remendo.sql');
+  if(fs.existsSync(caminho)){
+    const rem = fs.readFileSync(caminho, 'utf8');
+    const definidas = new Set([...rem.matchAll(
+      /create or replace function\s+public\.(\w+)/gi)].map(m => m[1]));
+    const chamadas = new Set([...rem.matchAll(/public\.(\w+)\s*\(/g)]
+      .map(m => m[1]).filter(n => !definidas.has(n)));
+
+    const mods = fs.readdirSync(dir)
+      .filter(f => /^(?!00_)\d\d_.*\.sql$/.test(f) && !/^9\d_/.test(f)).sort();
+    const onde = new Map();
+    for(const f of mods){
+      const txt = fs.readFileSync(path.join(dir, f), 'utf8');
+      for(const m of txt.matchAll(/create or replace function\s+public\.(\w+)/gi)){
+        if(!onde.has(m[1])) onde.set(m[1], []);
+        if(!onde.get(m[1]).includes(f)) onde.get(m[1]).push(f);
+      }
+    }
+
+    const faltando = [...chamadas].filter(n => onde.has(n)
+      && onde.get(n).every(f => Number(f.slice(0, 2)) >= 10)).sort();
+
+    dizer(faltando.length === 0,
+      'o 99_remendo.sql define toda função de módulo tardio que ele chama',
+      'chama sem trazer: ' + faltando.map(n => n + '() do ' + onde.get(n).join('/'))
+        .join(', ') + ' — o remendo instala com "Success" e a agenda morre na '
+      + 'primeira chamada de verdade');
+  }
+}
+
 console.log('\n' + (falhas
   ? `✗ ${falhas} problema(s) de sintaxe.`
   : `✓ ${ok} verificações de sintaxe.`));

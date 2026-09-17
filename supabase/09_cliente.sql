@@ -185,6 +185,27 @@ begin
   then
     v_pacote := public.pacote_que_cobre(v_cliente, p_servicos, p_inicio);
     if v_pacote is not null then v_valor := 0; end if;
+
+    /* ── O DIA FORA DO PACOTE ─────────────────────────────────────────────
+       Só chega aqui quem NÃO foi coberta — se o pacote cobriu, o dia estava
+       certo por definição, e perguntar de novo seria perguntar duas vezes a
+       mesma coisa com respostas que podem divergir.
+
+       A recusa é do LINK, e só do link. O painel grava na tabela direto e não
+       passa por aqui: a recepção marca a quinta-feira da Maria cobrando, que é
+       exatamente a saída que o texto da recusa oferece a ela.
+
+       ⚠ E ela mora AQUI DENTRO, no mesmo `if` do desconto, não no
+       `porque_nao_agenda()`. Aquela função responde sobre o DIA e o
+       PROFISSIONAL — ela não sabe quem está do outro lado, e o 19_teto_online
+       já explica por quê. Um bloqueio de pacote colocado lá fecharia a
+       quinta-feira para o salão inteiro por causa do pacote de uma pessoa. */
+    if v_pacote is null then
+      v_motivo := public.pacote_fora_do_dia(v_cliente, p_servicos, p_inicio);
+      if v_motivo is not null then
+        raise exception '%', v_motivo using errcode = 'check_violation';
+      end if;
+    end if;
   end if;
 
   select count(*) into v_abertos from public.agendamentos a

@@ -92,6 +92,54 @@ assert motores, 'ninguém define horarios_livres() — o remendo sairia sem o mo
 livres = recortar(open('supabase/' + motores[-1], encoding='utf-8').read(),
                   'create or replace function public.horarios_livres(')
 
+# ⚠ E O MÓDULO DO MOTOR VEM INTEIRO, não só a `horarios_livres()`.
+#
+# Recortar só ela levava um motor que chama `jornada_costurada()`,
+# `ha_choque()` e `ha_bloqueio()` — as três nascidas no MESMO 14_motor.sql, e
+# nenhuma delas vinha junto. Num banco que não tivesse o 14, o remendo entrava
+# com "Success" e a primeira listagem de horários morria com `function
+# public.jornada_costurada(uuid, date) does not exist`. Medido.
+#
+# É o mesmo defeito dos pacotes logo abaixo, e a mesma cura: quem carrega uma
+# função carrega o módulo dela. Recorte é para quando se quer UMA coisa de um
+# arquivo grande; aqui se quer o motor, e o motor são as quatro.
+motor_inteiro = open('supabase/' + motores[-1], encoding='utf-8').read()
+
+# ⚠ E LEVAR UM MÓDULO INTEIRO TEM UM PREÇO: ele traz as funções que um módulo
+# MAIS NOVO reescreveu depois.
+#
+# O 14_motor.sql define `checar_cabe_agendamento()`, e o 20_corrida.sql a
+# reescreve. Colando o 14 sozinho por cima de uma instalação boa, o remendo
+# consertava o motor e DESFAZIA a trava da corrida — sem erro nenhum, porque
+# as duas compilam. É exatamente o estrago da vitrine descrito abaixo, e eu
+# acabei de reintroduzi-lo por outro caminho; quem pegou foi o guardião do
+# `sintaxe.test.js`, que cobra que os arquivos de colar levem sempre a ÚLTIMA
+# definição de cada função.
+#
+# Então, para todo módulo que entra inteiro, vem atrás a versão vigente de
+# cada função que um módulo posterior reescreveu. `create or replace` duas
+# vezes dá no mesmo, e a última é a que fica.
+todos_mods = sorted(f for f in os.listdir('supabase')
+                    if re.match(r'(?!00_)\d\d_.*\.sql$', f)
+                    and not re.match(r'9\d_', f))
+
+def define(arquivo, nome):
+    return re.search(r'create or replace function\s+public\.' + nome + r'\s*\(',
+                     open('supabase/' + arquivo, encoding='utf-8').read())
+
+def inteiro_com_consertos(arquivo):
+    """O módulo, mais a versão VIGENTE do que outro módulo reescreveu depois."""
+    fonte = open('supabase/' + arquivo, encoding='utf-8').read()
+    saida = [fonte]
+    for nome in dict.fromkeys(re.findall(
+            r'create or replace function public\.(\w+)', fonte)):
+        donos = [f for f in todos_mods if define(f, nome)]
+        if donos and donos[-1] != arquivo:
+            saida.append(recortar(
+                open('supabase/' + donos[-1], encoding='utf-8').read(),
+                'create or replace function public.' + nome + '('))
+    return saida
+
 # ⚠ A VITRINE VEM DO ÚLTIMO MÓDULO QUE A REESCREVE, E NÃO DO 06.
 #
 # `vitrine()` é uma função SQL monolítica: não há como acrescentar uma chave
@@ -132,18 +180,87 @@ assert reescrevem and reescrevem[0] == '06_vitrine.sql', \
     'a vitrine() deixou de nascer no 06 — este recorte precisa ser revisto'
 vitrines = [open('supabase/' + f, encoding='utf-8').read() for f in reescrevem]
 
+# ⚠ OS PACOTES VÊM INTEIROS, E ANTES DO 09 — senão o remendo instala um
+# `agendar()` QUEBRADO.
+#
+# O 09_cliente.sql, que entra logo abaixo, chama `pacote_que_cobre()` e
+# `pacote_fora_do_dia()`. Nenhuma das duas nascia aqui, e o PL/pgSQL não
+# reclama na criação: ele só resolve o nome na hora de executar. Então o
+# remendo instalava limpo, dizia "Success", e a primeira cliente LOGADA a
+# marcar levava `function public.pacote_que_cobre(...) does not exist`.
+#
+# Medido num banco sem o módulo 27: o remendo entrou com exit 0, o `agendar()`
+# ficou lá, e a chamada derrubou.
+#
+# É o mesmo estrago da vitrine logo acima, e pela mesma razão: este é o arquivo
+# de RESGATE, o que se cola quando o 00_tudo.sql chegou picotado. Quem mais
+# precisa dele era exatamente quem levava a agenda quebrada.
+#
+# Vem o módulo inteiro, com `create table if not exists` e `add column if not
+# exists`: num banco que já tem os pacotes, não muda nada; num que não tem,
+# cria. Por varredura, para o dia em que outro módulo mexer nos pacotes.
+#
+# ⚠ Quem DEFINE, não quem menciona. Escrevi `'public.pacote_que_cobre(' in ...`
+# e isso casava também com o 09_cliente.sql, que apenas CHAMA a função — o
+# remendo sairia com o 09 duas vezes, e a ordem certa por acidente.
+pacotes = [f for f in modulos if define(f, 'pacote_que_cobre')]
+assert pacotes, 'ninguém define pacote_que_cobre() — o remendo sairia quebrado'
+
 partes = [
     limpar(arquivar),
     limpar(digitos),
     limpar(primeiro),
     limpar(telefone),
+] + [limpar(x) for x in inteiro_com_consertos(motores[-1])] + [
     limpar(livres),
     "revoke all on function public.horarios_livres(uuid, date, uuid[]) from public;",
     "grant execute on function public.horarios_livres(uuid, date, uuid[]) to anon, authenticated;",
     limpar(ficha),
     "revoke all on function public.ficha_do_cliente(uuid, text, text) from public;",
+] + [limpar(x) for f in pacotes for x in inteiro_com_consertos(f)] + [
     limpar(open('supabase/09_cliente.sql', encoding='utf-8').read()),
 ] + [limpar(v) for v in vitrines]
+
+# ── ⚠ O FECHAMENTO DA CADEIA ──────────────────────────────────────────────
+#
+# Puxar uma função de módulo tardio puxa as DELA junto, e isso não para no
+# primeiro nível. Carregar o 14_motor.sql inteiro obrigou a trazer a
+# `checar_cabe_agendamento()` vigente, que é do 20_corrida.sql — e essa chama
+# `travar_agenda()`, que também só existe no 20. Remendar caso a caso daria um
+# arquivo que fecha hoje e abre de novo no próximo módulo.
+#
+# Então a conta é feita até parar: enquanto houver função chamada aqui dentro
+# que só nasce num módulo 10+, entra a versão VIGENTE dela. No fim, o remendo
+# não chama nada que ele mesmo não traga — que é o que o `sintaxe.test.js`
+# cobra, e a razão de o guardião existir.
+#
+# O limite de 12 voltas não é medo de laço infinito: é para uma dependência
+# circular aparecer como erro de montagem, e não como um arquivo enorme que
+# ninguém entende por que cresceu.
+def recortar_re(fonte, nome):
+    m = re.search(r'create or replace function\s+public\.' + nome + r'\s*\(', fonte)
+    return fonte[m.start():fonte.index('$$;', m.start()) + 3]
+
+def faltantes(texto):
+    tem = set(re.findall(r'create or replace function\s+public\.(\w+)', texto))
+    fora = []
+    for nome in sorted(set(re.findall(r'public\.(\w+)\s*\(', texto)) - tem):
+        donos = [f for f in todos_mods if define(f, nome)]
+        if donos and all(int(f[:2]) >= 10 for f in donos):
+            fora.append((nome, donos[-1]))
+    return fora
+
+for _ in range(12):
+    pendentes = faltantes('\n\n'.join(partes))
+    if not pendentes:
+        break
+    for nome, arquivo in pendentes:
+        partes.append(limpar(recortar_re(
+            open('supabase/' + arquivo, encoding='utf-8').read(), nome)))
+else:
+    raise SystemExit('a cadeia de dependências do remendo não fechou em 12 '
+                     'voltas — provavelmente há um ciclo')
+
 saida = '\n\n'.join(partes) + '\n'
 assert '--' not in saida, 'sobrou comentário: o remendo perde a imunidade'
 open('supabase/99_remendo.sql', 'w', encoding='utf-8').write(saida)

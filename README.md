@@ -330,8 +330,11 @@ que nenhuma, porque dá trabalho a quem for conferir.
    JUNTO com o `where` do gatilho anti-choque e das policies: só no `check`
    ele vira um horário que não conta como ocupado, e abre buraco na agenda
    em vez de fechar.
-4. **Sinal por Pix, pacotes e fidelidade.** Os campos `sinal_exigido` e
-   `sinal_pago` existem em `agendamentos`, vazios.
+4. **Sinal por Pix e fidelidade.** Os campos `sinal_exigido` e `sinal_pago`
+   existem em `agendamentos`, vazios. Os **pacotes** saíram desta lista: o
+   `27_pacotes.sql` está instalado, com aba própria no painel, R$ 0,00 no link
+   da cliente e dias da semana configuráveis — inclusive o bloqueio opcional
+   fora desses dias, que vale só para o link e nunca para a recepção.
 5. **O primeiro dia.** Um salão novo abre o painel e encontra tudo vazio,
    sem ordem sugerida. Proposto e nunca aprovado — fica registrado aqui
    para não se perder.

@@ -1207,11 +1207,51 @@ function pacoteCobre(ids, data){
      tinha pacote, em silêncio: sem erro, sem aviso, só o número errado.
 
      Os arrays (`servicos`, `dias`) chegam como arrays de verdade, conferido. */
-  return meusPacotes.some(p =>
-    (p.restantes > 0) &&
-    ((p.vence_em || p.venceEm) >= (data || hoje())) &&
-    (p.dias || []).includes(dow) &&
-    ids.every(id => (p.servicos || []).includes(id)));
+  return meusPacotes.some(p => pacoteVivo(p, ids, data) &&
+    (p.dias || []).includes(dow));
+}
+
+/* As três condições que `pacoteCobre()` e as duas funções abaixo têm em comum:
+   sessão sobrando, não vencido, cobre tudo que ela pediu. Estavam escritas
+   três vezes e eu ia manter as três iguais para sempre — que é a promessa que
+   ninguém cumpre. O dia da semana fica FORA porque é justamente nele que as
+   três discordam: uma quer dentro, a outra quer fora. */
+function pacoteVivo(p, ids, data){
+  return (p.restantes > 0)
+      && ((p.vence_em || p.venceEm) >= (data || hoje()))
+      && ids.every(id => (p.servicos || []).includes(id));
+}
+
+/* ⚠ O PACOTE QUE PROÍBE ESTE DIA — espelho do `pacote_fora_do_dia()`.
+
+   Devolve o pacote que barra, ou null. Só barra o que tem `so_nos_dias`
+   ligado: sem ele o dia de fora apenas cobra, e cobrar não é barrar.
+
+   E, como sempre, QUEM DECIDE É O BANCO. Esta função existe para a tela não
+   deixar a pessoa escolher um horário que o `agendar()` vai recusar três
+   cliques depois — recusa no fim do caminho é a pior hora de receber um não. */
+function pacoteQueBloqueia(ids, data){
+  if(!meusPacotes.length || !ids || !ids.length) return null;
+  const dow = new Date((data || hoje()) + 'T12:00:00').getDay();
+  return meusPacotes.find(p => p.so_nos_dias && pacoteVivo(p, ids, data)
+    && !(p.dias || []).includes(dow)) || null;
+}
+
+/* O pacote que ela TEM para estes serviços, mesmo que hoje não valha. É o que
+   permite a tela dizer "você está pagando porque é quinta", em vez de mostrar
+   o preço cheio calada — que era o que ela via antes, sem entender. */
+function pacoteDestesServicos(ids, data){
+  if(!meusPacotes.length || !ids || !ids.length) return null;
+  return meusPacotes.find(p => pacoteVivo(p, ids, data)) || null;
+}
+
+// "segunda, terça e quarta" — espelho do `dias_por_extenso()` do 27_pacotes.
+const DIAS_LONGOS = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+function diasPorExtenso(dias){
+  const n = (dias || []).slice().sort((a,b) => a-b).map(d => DIAS_LONGOS[d]);
+  if(!n.length) return '';
+  if(n.length === 1) return n[0];
+  return n.slice(0, -1).join(', ') + ' e ' + n[n.length - 1];
 }
 
 function precoEscolhido(){
@@ -1891,6 +1931,42 @@ function desenharQuando(){
       <i>${d.qtd ? d.qtd + ' vagas' : 'cheio'}</i></button>`;
   }).join('');
 
+  /* ── O DIA QUE O PACOTE DELA NÃO DEIXA ────────────────────────────────
+     Só entra aqui quem TEM o pacote, com `so_nos_dias` ligado, pedindo os
+     serviços que ele cobre, num dia de fora. Para todo mundo mais esta linha
+     não existe: o dia continua aberto, e a agenda do salão não encolhe por
+     causa do pacote de uma pessoa.
+
+     E a tela não some — ela EXPLICA. Esconder os horários daria o mesmo
+     resultado visual de um dia lotado, e ela concluiria que o salão está
+     cheio na quinta para sempre. A saída aparece junto: os dias que valem,
+     logo acima, e o WhatsApp para quem quer vir fora deles pagando. */
+  const barrado = pacoteQueBloqueia(escolha.servicos, escolha.data);
+  if(barrado){
+    donoDoHorario = {};
+    const livre = dias.find(d => d.qtd > 0
+      && !pacoteQueBloqueia(escolha.servicos, d.data));
+    document.getElementById('cardProximo').innerHTML = livre
+      ? `<button class="proximo" style="width:100%;text-align:left"
+                 onclick="escolherDia('${livre.data}')">
+           <span class="ii">${ico('calendario')}</span>
+           <span><b>No seu pacote, o mais perto é ${dataLonga(livre.data)}</b>
+           <span>Nesse dia você não paga nada.</span></span>
+         </button>` : '';
+    const zap = zapDoSalao();
+    document.getElementById('listaHoras').innerHTML = `<div class="nada">
+      <b>Seu pacote ${escapar(barrado.nome)} vale
+         ${escapar(diasPorExtenso(barrado.dias))}</b>
+      Escolha um desses dias aqui em cima — neles o atendimento sai sem pagar
+      nada.${zap ? ' Para vir fora deles, '
+        + `<a href="https://wa.me/${zap}" target="_blank" rel="noopener">fale com `
+        + escapar(salao.nome) + '</a> — dá para atender pagando.'
+        : ' Para vir fora deles, fale com ' + escapar(salao.nome)
+        + ' — dá para atender pagando.'}</div>`;
+    desenharEspera(false);
+    return;
+  }
+
   // Horários do dia escolhido, agrupados por turno.
   donoDoHorario = {};
   const mapa = {};
@@ -2246,9 +2322,31 @@ function desenharConfirmar(){
     <div class="l total"><span>Total</span><b>${
       pacoteCobre(escolha.servicos, escolha.data)
         ? 'R$ 0,00' : real(precoEscolhido())}</b></div>
-    ${pacoteCobre(escolha.servicos, escolha.data)
-      ? `<div class="recado ok" style="margin-top:10px">Este atendimento está
-           no seu pacote. Você não paga nada agora.</div>` : ''}`;
+    ${avisoDoPacote()}`;
+}
+
+/* ⚠ O PREÇO CHEIO CALADO ERA O DEFEITO.
+
+   Quem tem pacote e escolhe um dia de fora via `R$ 50,00` no total, sem uma
+   palavra. O número está certo — o pacote não vale naquele dia — mas ela
+   comprou um pacote justamente para não ver esse número, e o silêncio faz
+   parecer erro do sistema. A cliente reclama no balcão, e o salão não sabe
+   dizer por quê.
+
+   Então são duas frases, nunca as duas juntas: "está no seu pacote" quando
+   está, e "seu pacote vale seg, ter e qua" quando o dia é outro. O caso
+   barrado (`so_nos_dias`) não chega aqui — ela nem escolheu horário. */
+function avisoDoPacote(){
+  if(pacoteCobre(escolha.servicos, escolha.data))
+    return `<div class="recado ok" style="margin-top:10px">Este atendimento está
+      no seu pacote. Você não paga nada agora.</div>`;
+
+  const tem = pacoteDestesServicos(escolha.servicos, escolha.data);
+  if(!tem) return '';
+  return `<div class="recado" style="margin-top:10px">Seu pacote
+    ${escapar(tem.nome)} vale ${escapar(diasPorExtenso(tem.dias))} — e
+    ${dataLonga(escolha.data)} não é um desses dias. Por isso este atendimento
+    é cobrado, e a sessão do pacote continua guardada.</div>`;
 }
 
 /* ── MEUS HORÁRIOS, NA NUVEM ──────────────────────────────────────────────

@@ -3371,6 +3371,7 @@ create table if not exists public.pacotes (
   sessoes       int not null,
   validade_dias int not null default 90,
   dias          smallint[] not null default '{0,1,2,3,4,5,6}',
+  so_nos_dias   boolean not null default false,
   ativo         boolean not null default true,
   criado_em     timestamptz not null default now(),
   constraint pacotes_sessoes_check   check (sessoes between 1 and 365),
@@ -3381,6 +3382,8 @@ create table if not exists public.pacotes (
     and dias <@ array[0,1,2,3,4,5,6]::smallint[])
 );
 create index if not exists ix_pacote_salao on public.pacotes(salao_id) where ativo;
+alter table public.pacotes
+  add column if not exists so_nos_dias boolean not null default false;
 create table if not exists public.pacote_servicos (
   id         uuid not null default gen_random_uuid(),
   pacote_id  uuid not null references public.pacotes(id)  on delete cascade,
@@ -3453,14 +3456,74 @@ begin
    limit 1;
   return v_id;
 end $$;
+create or replace function public.dias_por_extenso(p_dias smallint[])
+returns text language plpgsql immutable set search_path = public as $$
+declare v_nomes text[]; v_n int;
+begin
+  select array_agg(x.nome order by x.d) into v_nomes
+    from (select distinct d,
+                 (array['domingo','segunda','terça','quarta',
+                        'quinta','sexta','sábado'])[d + 1] as nome
+            from unnest(coalesce(p_dias, '{}'::smallint[])) as d
+           where d between 0 and 6) x;
+  v_n := coalesce(array_length(v_nomes, 1), 0);
+  if v_n = 0 then return ''; end if;
+  if v_n = 1 then return v_nomes[1]; end if;
+  return array_to_string(v_nomes[1:v_n - 1], ', ') || ' e ' || v_nomes[v_n];
+end $$;
+create or replace function public.pacote_fora_do_dia(
+  p_cliente uuid, p_servicos uuid[], p_quando timestamptz)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  v_fuso text;
+  v_data date;
+  v_dia  smallint;
+  v_nome text;
+  v_dias smallint[];
+begin
+  if p_cliente is null or p_servicos is null or cardinality(p_servicos) = 0 then
+    return null;
+  end if;
+  select sa.fuso into v_fuso
+    from public.clientes c
+    join public.saloes sa on sa.id = c.salao_id
+   where c.id = p_cliente;
+  if v_fuso is null then return null; end if;
+  v_data := (p_quando at time zone v_fuso)::date;
+  v_dia  := extract(dow from v_data)::smallint;
+  select p.nome, p.dias into v_nome, v_dias
+    from public.pacote_clientes pc
+    join public.pacotes p on p.id = pc.pacote_id
+   where pc.cliente_id = p_cliente
+     and pc.cancelado_em is null
+     and pc.vence_em >= v_data
+     and p.ativo
+     and p.so_nos_dias
+     and not (v_dia = any(p.dias))
+     and not exists (
+       select 1 from unnest(p_servicos) as pedido(id)
+        where not exists (
+          select 1 from public.pacote_servicos ps
+           where ps.pacote_id = p.id and ps.servico_id = pedido.id))
+     and public.pacote_sessoes_restantes(pc.id) > 0
+   order by pc.vence_em, pc.criado_em
+   limit 1;
+  if v_nome is null then return null; end if;
+  return format(
+    'Seu pacote %s vale %s. Para marcar fora desses dias, chame o salão no '
+    || 'WhatsApp — dá para atender pagando.',
+    v_nome, public.dias_por_extenso(v_dias));
+end $$;
+drop function if exists public.meus_pacotes(uuid);
 create or replace function public.meus_pacotes(p_salao uuid)
 returns table (id uuid, nome text, servicos uuid[], dias smallint[],
-               vence_em date, restantes int)
+               vence_em date, restantes int, so_nos_dias boolean)
 language sql stable security definer set search_path = public as $$
   select pc.id, p.nome,
          (select coalesce(array_agg(ps.servico_id), '{}')
             from public.pacote_servicos ps where ps.pacote_id = p.id),
-         p.dias, pc.vence_em, public.pacote_sessoes_restantes(pc.id)
+         p.dias, pc.vence_em, public.pacote_sessoes_restantes(pc.id),
+         p.so_nos_dias
     from public.pacote_clientes pc
     join public.pacotes  p on p.id = pc.pacote_id
     join public.clientes c on c.id = pc.cliente_id
@@ -3548,6 +3611,7 @@ grant select, insert, update, delete on public.pacote_servicos to authenticated;
 grant select, insert, update, delete on public.pacote_clientes to authenticated;
 revoke all on function public.pacote_sessoes_restantes(uuid) from public, anon;
 revoke all on function public.pacote_que_cobre(uuid, uuid[], timestamptz) from public, anon;
+revoke all on function public.pacote_fora_do_dia(uuid, uuid[], timestamptz) from public, anon;
 revoke all on function public.meus_pacotes(uuid)              from public, anon;
 revoke all on function public.vender_pacote(uuid, uuid)       from public, anon;
 revoke all on function public.cancelar_pacote_cliente(uuid)   from public, anon;
@@ -3557,8 +3621,10 @@ grant execute on function public.vender_pacote(uuid, uuid)      to authenticated
 grant execute on function public.cancelar_pacote_cliente(uuid)  to authenticated;
 comment on function public.pacote_que_cobre(uuid, uuid[], timestamptz) is
   'Qual pacote da cliente cobre estes serviços neste dia. NÃO confere identidade — quem chama é que exige perfil_id = auth.uid().';
+comment on function public.pacote_fora_do_dia(uuid, uuid[], timestamptz) is
+  'Frase de recusa quando o pacote tem so_nos_dias e o dia está fora da lista. NULL quando não há nada a barrar. Só o link usa: a recepção marca por fora.';
 comment on table public.pacotes is
-  'Pacotes que o salão vende. `dias` no padrão do Postgres: 0=domingo.';
+  'Pacotes que o salão vende. `dias` no padrão do Postgres: 0=domingo. `so_nos_dias` faz o link recusar fora dos dias; o painel marca assim mesmo.';
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();
@@ -3647,6 +3713,12 @@ begin
   then
     v_pacote := public.pacote_que_cobre(v_cliente, p_servicos, p_inicio);
     if v_pacote is not null then v_valor := 0; end if;
+    if v_pacote is null then
+      v_motivo := public.pacote_fora_do_dia(v_cliente, p_servicos, p_inicio);
+      if v_motivo is not null then
+        raise exception '%', v_motivo using errcode = 'check_violation';
+      end if;
+    end if;
   end if;
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente

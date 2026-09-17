@@ -74,11 +74,67 @@ const sv = await d.inserir('servicos', { salaoId:SALAO, nome:'Corte', preco:50,
   duracaoMin:30, intervaloMin:0, ativo:true, aceitaOnline:true });
 ok('salão de teste, com a agenda aberta o dia inteiro');
 
-const hoje = () => new Date().toISOString().slice(0, 10);
-// Quantos minutos faltam para o primeiro horário que o motor oferece hoje.
+/* ⚠ "HOJE" É O DIA DO SALÃO, NÃO O DIA EM UTC — e a diferença reprovava este
+   arquivo três horas por dia.
+
+   `toISOString()` dá a data em UTC. Das 21h à meia-noite em São Paulo, isso já
+   é o dia SEGUINTE: o teste pedia os horários de amanhã e media a distância
+   até o começo de amanhã. Resultado, medido às 21h39: todos os valores da
+   régua devolviam 140 minutos — que era a distância até a meia-noite do salão,
+   e não a antecedência de coisa nenhuma. Oito verificações reprovando juntas,
+   com o motor funcionando perfeitamente.
+
+   O `pacotes.test.mjs` caiu na mesma armadilha, na mesma noite, por escrever
+   "ontem" em UTC. É a terceira vez que este projeto paga por isso — as datas
+   que o banco compara são SEMPRE as do fuso do salão. */
+const FUSO = 'America/Sao_Paulo';
+const hoje = () => new Intl.DateTimeFormat('en-CA', { timeZone: FUSO,
+  year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+const maisDias = (data, n) => {
+  const x = new Date(data + 'T12:00:00Z');       // meio-dia: nenhum horário de
+  x.setUTCDate(x.getUTCDate() + n);              // verão empurra para o vizinho
+  return x.toISOString().slice(0, 10);
+};
+
+/* Quantos minutos faltam para a meia-noite DO SALÃO. Serve para o degrau
+   abaixo, e é lido do relógio de lá, não do relógio desta máquina. */
+const ateMeiaNoite = () => {
+  const la = new Date(new Date().toLocaleString('en-US', { timeZone: FUSO }));
+  return 24 * 60 - (la.getHours() * 60 + la.getMinutes());
+};
+
+/* ⚠ O DEGRAU DA MEIA-NOITE, e por que o teto não pode ser sempre `min + 15`.
+
+   A jornada vai até 23:59 e o corte dura 30 minutos, então o último horário
+   que CABE hoje começa às 23:15. Entre ele e as 00:00 de amanhã existe um vão
+   de 45 minutos em que a agenda legitimamente não tem nada a oferecer.
+
+   Se `agora + antecedência` cair nesse vão, o primeiro horário é o começo do
+   dia seguinte — e cobrar "no máximo +15" ali seria cobrar do motor uma vaga
+   que o expediente não tem. Fora do vão, o teto continua apertado como era.
+
+   ⚠ E O VÃO É SÓ ESSA FAIXA, não "tudo depois dela". Eu tinha escrito
+   `min > ate - DUR` sozinho, e isso afrouxava o teto para SEMPRE depois da
+   meia-noite: com 137 minutos até o fim do dia, o valor 240 passou a aceitar
+   qualquer coisa até 152 — e o motor, corretíssimo, devolveu 242. A medida
+   reprovou apontando para o motor quando o errado era a régua que eu tinha
+   acabado de escrever. Passada a meia-noite a grade de amanhã é densa outra
+   vez, e o teto apertado volta a valer. */
+const DUR = 30, PASSO = 15;
+const tetoEsperado = (min) => {
+  const ate = ateMeiaNoite();
+  return (min > ate - DUR && min < ate) ? ate + PASSO : min + PASSO;
+};
+
+/* Quantos minutos faltam para o primeiro horário que o motor oferece.
+
+   ⚠ A JANELA VAI ATÉ AMANHÃ. Com 240 minutos de antecedência pedidos às 22h,
+   não existe horário nenhum HOJE — e o teste leria "null" como defeito do
+   motor quando é o expediente acabando. */
 async function primeiroDaqui(){
   const r = await d.chamar('horarios_livres_periodo', {
-    p_profissionais:[prof.id], p_de:hoje(), p_ate:hoje(), p_servicos:[sv.id] });
+    p_profissionais:[prof.id], p_de:hoje(), p_ate:maisDias(hoje(), 1),
+    p_servicos:[sv.id] });
   const todos = (Array.isArray(r) ? r : []).map(x => new Date(x.inicio).getTime())
     .sort((a, b) => a - b);
   return todos.length ? Math.round((todos[0] - Date.now()) / 60000) : null;
@@ -104,8 +160,9 @@ verdade('o primeiro horário está a 30 min ou mais — ' + padrao + ' min',
 /* O passo da agenda é de 15 minutos, então o primeiro horário cai entre 30 e
    45 minutos daqui. Sem este teto, `antecedenciaMin` grande passaria também —
    e o teste diria "está certo" para uma agenda fechada demais. */
-verdade('e não mais que 45, que é o passo seguinte — ' + padrao + ' min',
-  padrao !== null && padrao <= 45, 'veio ' + padrao);
+verdade('e não mais que o passo seguinte — ' + padrao + ' min '
+  + '(teto de ' + tetoEsperado(30) + ')',
+  padrao !== null && padrao <= tetoEsperado(30), 'veio ' + padrao);
 
 /* ══════════════════════════════════════════════════════════════════════════
    2 — A ESCOLHA MANDA, PARA MAIS E PARA MENOS
@@ -117,9 +174,10 @@ for(const min of [0, 15, 30, 60, 120, 240]){
   await usar(min);
   const daqui = await primeiroDaqui();
   medidas.push({ min, daqui });
+  const teto = tetoEsperado(min);
   verdade(`com ${min} min, o primeiro horário está a ${daqui} min`,
-    daqui !== null && daqui >= min && daqui <= min + 15,
-    'esperava entre ' + min + ' e ' + (min + 15) + ', veio ' + daqui);
+    daqui !== null && daqui >= min && daqui <= teto,
+    'esperava entre ' + min + ' e ' + teto + ', veio ' + daqui);
 }
 /* ⚠ ESTRITAMENTE MAIOR, e não `>=`.
 
@@ -132,10 +190,20 @@ for(const min of [0, 15, 30, 60, 120, 240]){
    A comparação é entre valores distantes (0 vs 240), e não entre vizinhos: o
    passo da agenda é de 15 minutos, então 0 e 15 podem legitimamente cair no
    mesmo horário. O que não pode é o primeiro e o último empatarem. */
+/* ⚠ E A FOLGA É CALCULADA, não um 200 escrito à mão.
+
+   O 200 fixo quebrava perto da meia-noite: com 40 minutos até o fim do dia, o
+   valor 0 já devolvia 40 (o degrau acima), o 240 devolvia 240, e `240 > 240`
+   é falso — uma reprovação por causa do relógio, não do motor.
+
+   `240 - 0 - 60` é a mesma exigência escrita de um jeito que sobrevive ao
+   degrau, e continua pegando o defeito que esta linha existe para pegar: se o
+   ajuste for ignorado, todas as medidas empatam e a diferença é ZERO. */
 const primeiro = medidas[0], ultimo = medidas[medidas.length - 1];
+const folgaMinima = ultimo.min - primeiro.min - 60;
 verdade('e o primeiro horário se afasta de verdade quando o ajuste cresce — '
   + medidas.map(m => m.min + '→' + m.daqui).join(', '),
-  ultimo.daqui > primeiro.daqui + 200,
+  ultimo.daqui - primeiro.daqui >= folgaMinima,
   'com ' + primeiro.min + ' min deu ' + primeiro.daqui + ' e com '
   + ultimo.min + ' min deu ' + ultimo.daqui + ': o ajuste não está sendo lido');
 const sobe = medidas.every((m, i) => i === 0 || m.daqui >= medidas[i-1].daqui);
@@ -188,7 +256,8 @@ let quebrou = null, comLixo = null;
 try{ comLixo = await primeiroDaqui(); }catch(e){ quebrou = e.message; }
 verdade('a agenda continua respondendo', quebrou === null, quebrou);
 verdade('e cai no padrão de 30 min — ' + comLixo + ' min',
-  comLixo !== null && comLixo >= 30 && comLixo <= 45, 'veio ' + comLixo);
+  comLixo !== null && comLixo >= 30 && comLixo <= tetoEsperado(30),
+  'veio ' + comLixo);
 
 /* Número absurdo passa pela peneira do texto e ainda assim fecharia a agenda
    para sempre. O teto de 7 dias é o que impede o dono de se trancar fora. */
@@ -197,7 +266,7 @@ await d.atualizar('saloes', SALAO,
 const r8 = await d.chamar('horarios_livres_periodo', {
   p_profissionais:[prof.id], p_de:hoje(), p_ate:hoje(), p_servicos:[sv.id] });
 igual('999999 minutos não oferece nada hoje', (r8 || []).length, 0);
-const daqui8 = new Date(Date.now() + 8 * 864e5).toISOString().slice(0, 10);
+const daqui8 = maisDias(hoje(), 8);        // no fuso do salão, como tudo aqui
 const r9 = await d.chamar('horarios_livres_periodo', {
   p_profissionais:[prof.id], p_de:daqui8, p_ate:daqui8, p_servicos:[sv.id] });
 verdade('mas depois de 8 dias volta a oferecer — o teto de 7 dias segurou',

@@ -101,7 +101,7 @@ const COLUNAS = {
   produtos:      { salaoId:'salao_id', comissaoPct:'comissao_pct',
                    comissaoFixa:'comissao_fixa', vendaOnline:'venda_online' },
   pacotes:       { salaoId:'salao_id', validadeDias:'validade_dias',
-                   criadoEm:'criado_em' },
+                   soNosDias:'so_nos_dias', criadoEm:'criado_em' },
   pacote_servicos: { pacoteId:'pacote_id', servicoId:'servico_id' },
   pacote_clientes: { pacoteId:'pacote_id', clienteId:'cliente_id',
                    venceEm:'vence_em', criadoEm:'criado_em',
