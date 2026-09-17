@@ -16,7 +16,7 @@
 /* Sobe a cada correção publicada, e tem que andar junto com o VERSAO_APP do
    app.html: o carimbo na lateral mostra aquele, e dois números divergentes
    fariam a tela afirmar uma versão que não é a que está servindo. */
-const VERSAO = 'agendapro-v9.f1f30e';
+const VERSAO = 'agendapro-v9.098c23';
 
 const ESSENCIAIS = [
   './',
@@ -32,6 +32,10 @@ const ESSENCIAIS = [
   './demo.js',
   './imagens.js',
   './endereco.js',
+  // O QR do link. Sem ele no cache, o painel aberto sem rede carrega uma tela
+  // que chama um arquivo que não está lá — e o cartão do link fica sem o
+  // quadradinho que o texto ao lado promete.
+  './qr.js',
   './config.js',
   './dados.js',
   './manifest.webmanifest',

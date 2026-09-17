@@ -692,6 +692,20 @@ body.carregando-tudo .tela{ display:none }
             <a class="btn btn-peq btn-p" id="abrirComoCliente" target="_blank"
                style="text-decoration:none">Abrir o app do cliente <span data-ico="externo"></span></a>
           </div>
+          <!-- O QR do proprio link, desenhado no navegador. O botao de baixar
+               entrega um arquivo SVG: quem manda imprimir num adesivo ou numa
+               placa precisa de um desenho que nao borra ao ampliar, e foto de
+               tela borra. -->
+          <div class="qr-linha">
+            <div class="qr-caixa" id="qrDoLink"></div>
+            <div class="qr-txt">
+              <b>Ou aponte a câmera</b>
+              <span>Imprima e cole no espelho, no balcão ou na porta. Quem
+                apontar o telefone cai direto na sua agenda.</span>
+              <button class="btn btn-peq" onclick="baixarQr()"
+                      style="margin-top:8px">Baixar para imprimir</button>
+            </div>
+          </div>
         </div>
         <!-- Aqui dizia "a regra que garante isso está no 02_rls.sql". Nome de
              arquivo do código não quer dizer nada para quem tem salão, e o
@@ -751,6 +765,7 @@ body.carregando-tudo .tela{ display:none }
 <script src="icones.js"></script>
 <script src="imagens.js"></script>
 <script src="endereco.js"></script>
+<script src="qr.js"></script>
 <script src="demo.js"></script>
 <script src="config.js"></script>
 <script src="dados.js"></script>
@@ -1503,7 +1518,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.f1f30e';
+const VERSAO_APP = 'v9.098c23';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3895,6 +3910,25 @@ function prepararPublico(){
   document.getElementById('linkPublico').value = base;
   document.getElementById('abrirComoCliente').href = 'agendar.html?salao=' + s.slug;
 
+  /* ⚠ O QR QUE O CARTÃO AQUI EM CIMA PROMETIA HÁ MUITO TEMPO.
+
+     O texto diz "imprime como QR no espelho" desde sempre, e não havia QR
+     nenhum: o dono lia a frase, procurava o quadradinho e não achava.
+
+     Desenhado aqui, no navegador, sem serviço de fora — o endereço do salão
+     não sai desta máquina para virar figura. Ver `qr.js`. */
+  const caixaQr = document.getElementById('qrDoLink');
+  if(caixaQr && window.QR){
+    try{
+      caixaQr.innerHTML = QR.svg(base, { rotulo: 'QR do link de ' + s.nome });
+    }catch(erro){
+      /* Endereço absurdamente longo é a única forma de cair aqui. Melhor a
+         caixa vazia do que um desenho pela metade que alguém imprime. */
+      caixaQr.innerHTML = '';
+      console.error('[AgendaPro] QR:', erro.message);
+    }
+  }
+
   const sv = document.getElementById('pubServico');
   const svAntes = sv.value;
   sv.innerHTML = servsAtivos().map(x =>
@@ -3911,6 +3945,28 @@ function prepararPublico(){
   dt.min = hoje();
 
   pintarPublico();
+}
+
+/* ⚠ SVG, E NÃO UMA FOTO DA TELA.
+
+   Quem imprime um QR manda para adesivo, placa ou folha A4, e imagem de pixel
+   ampliada borra a borda dos módulos — que é justamente o que o leitor mede.
+   O SVG é desenho: amplia sem perder nada.
+
+   E o arquivo sai do navegador, montado aqui: nada sobe para lugar nenhum. */
+function baixarQr(){
+  const caixa = document.getElementById('qrDoLink');
+  const svg = caixa && caixa.innerHTML;
+  if(!svg){ alert('O QR ainda não foi desenhado. Recarregue a página.'); return; }
+  const sl = acharSalao(salaoAtual) || {};
+  const nome = (sl.slug || 'salao') + '-qr.svg';
+  const url = URL.createObjectURL(new Blob([svg], { type:'image/svg+xml' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  /* Sem o revoke o navegador segura o arquivo na memória até a aba fechar.
+     Um QR é pequeno; o hábito é que não pode ser esse. */
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function copiarLink(){

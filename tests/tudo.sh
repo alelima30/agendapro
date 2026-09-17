@@ -183,6 +183,8 @@ rodar "sem comanda na tela"  node "$AQUI/sem-comanda-tela.test.mjs"
 rodar "confirmação"          node "$AQUI/confirmacao.test.mjs"
 rodar "confirmação na tela"  node "$AQUI/confirmacao-tela.test.mjs"
 rodar "agenda do mês"        node "$AQUI/mes.test.mjs"
+rodar "QR"                   node "$AQUI/qr.test.js"
+rodar "QR na tela"           node "$AQUI/qr-tela.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

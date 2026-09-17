@@ -2391,3 +2391,16 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 .dia-cartao .dc-nome{ font-weight:700; font-size:14.5px }
 .dia-cartao .dc-sub{ font-size:13px; color:var(--txt2); margin-top:2px }
 .dia-cartao .dc-vlr{ font-weight:800; white-space:nowrap }
+
+/* ── O QR do link, no cartão de "Ver como cliente" ──────────────────────── */
+.qr-linha{
+  display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:12px;
+  padding-top:12px; border-top:1px solid var(--borda);
+}
+/* Largura fixa e pequena: o QR é para ser lido de perto na tela e impresso
+   grande no papel. Ocupar meia tela aqui não ajuda ninguém. */
+.qr-caixa{ width:132px; flex:0 0 132px; line-height:0 }
+.qr-caixa svg{ width:100%; height:auto; border-radius:6px }
+.qr-txt{ flex:1; min-width:180px; display:flex; flex-direction:column; gap:2px }
+.qr-txt b{ font-size:14px }
+.qr-txt span{ font-size:13px; color:var(--txt2) }
