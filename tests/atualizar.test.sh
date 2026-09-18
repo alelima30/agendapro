@@ -321,6 +321,56 @@ for f in $({ grep -rohE "chamar\('[a-z_0-9]+"   "$RAIZ"/*.html "$RAIZ"/*.js
 done
 [ "$faltando" = "0" ] && echo "✓ toda função que a tela chama existe, e só uma vez."
 
+# ── ⚠ E DÁ PARA MARCAR NO BANCO DE QUEM ATUALIZA? ─────────────────────────
+#
+# Contar funções e comparar schema NÃO é a mesma coisa que marcar. As duas
+# medidas acima passavam verdes num dia em que o link da cliente estava
+# quebrado no ar — porque o que o PostgREST recusa não é a função faltando,
+# é a CHAMADA não casando com a assinatura.
+#
+# Foi assim: a página passou a mandar `p_email`, `p_nascimento` e `p_cpf`; o
+# banco de quem já era cliente continuava com a `agendar()` de sete
+# argumentos; e a resposta virou
+#
+#     404  PGRST202  Could not find the function public.agendar(...)
+#
+# A cliente chegava ao fim do caminho e o botão falhava. Nada no banco estava
+# "errado" — ele só estava velho, e nenhum teste perguntava se dava para
+# marcar nele.
+#
+# Esta é a pergunta mais curta que cobre isso: a MESMA lista de argumentos
+# que o `agendar.html` monta, contra o banco recém-atualizado. Recusar por
+# profissional inexistente é a resposta CERTA — quer dizer que a função foi
+# encontrada, aceitou os dez argumentos e chegou a rodar. O que não pode é o
+# Postgres não achar a função com essa assinatura.
+erro="$(psql -v ON_ERROR_STOP=1 -q -d atu_velho 2>&1 <<'SQL'
+do $marcar$
+begin
+  perform public.agendar(
+    p_profissional  := '00000000-0000-0000-0000-000000000000'::uuid,
+    p_inicio        := now() + interval '1 day',
+    p_servicos      := array[]::uuid[],
+    p_nome          := 'Cliente de Teste',
+    p_telefone      := '51999998888',
+    p_atendido_nome := null,
+    p_obs           := null,
+    p_email         := 'teste@exemplo.com',
+    p_nascimento    := date '1990-01-01',
+    p_cpf           := '529.982.247-25');
+exception
+  when undefined_function then
+    raise exception 'ASSINATURA FORA DO LUGAR: %', sqlerrm;
+  when others then null;
+end $marcar$;
+SQL
+)" || true
+if echo "$erro" | grep -qiE "ASSINATURA FORA DO LUGAR|não existe|does not exist"; then
+  reprovar "quem atualiza fica sem conseguir marcar pelo link:
+    $(echo "$erro" | grep -i 'ERROR' | head -1)"
+else
+  echo "✓ e a marcação pelo link aceita os campos que a página manda."
+fi
+
 if [ "$falhou" = "0" ]; then
   n=$(wc -l < "$TMP/b.txt")
   echo "✓ $n itens de schema conferem entre atualizar e instalar do zero."
