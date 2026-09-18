@@ -528,9 +528,21 @@ select t_verdade('anon pode executar horarios_livres',
   has_function_privilege('anon',
     'public.horarios_livres(uuid, date, uuid[])', 'execute'));
 
+-- Nove argumentos desde o cadastro da cliente: os dois últimos são o e-mail e
+-- o nascimento que ela preenche antes de confirmar. A assinatura de sete foi
+-- DERRUBADA no 09_cliente.sql de propósito — duas `agendar()` vivas ao mesmo
+-- tempo deixariam o PostgREST escolher entre elas, e a antiga engole o
+-- cadastro sem erro nenhum.
 select t_verdade('anon pode executar agendar',
   has_function_privilege('anon',
-    'public.agendar(uuid, timestamptz, uuid[], text, text, text, text)', 'execute'));
+    'public.agendar(uuid, timestamptz, uuid[], text, text, text, text, text, date)',
+    'execute'));
+
+select t_falso('e a assinatura antiga, de sete argumentos, não sobrou viva',
+  exists (select 1 from pg_proc p
+            join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname = 'agendar'
+             and p.pronargs = 7));
 
 select t_falso('mas anon NÃO lê a tabela de agendamentos',
   has_table_privilege('anon', 'public.agendamentos', 'select'));
@@ -577,5 +589,139 @@ select t_falso('nem o de profissionais, com conta',
 -- link da cliente parado.
 select t_verdade('mas quem sabe o apelido entra pela vitrine',
   has_function_privilege('anon', 'public.vitrine(text)', 'execute'));
+
+-- ---------------------------------------------------------------------------
+-- O CADASTRO QUE A CLIENTE PREENCHE ANTES DE CONFIRMAR
+--
+-- O link deixou de pedir só nome e telefone: pede também o aniversário e o
+-- e-mail. Os dois viajam no `agendar()` e pousam em `clientes`.
+--
+-- ⚠ E A REGRA INTEIRA É "SÓ PREENCHE O QUE ESTÁ VAZIO".
+--
+-- Não é detalhe de implementação, é de quem manda na ficha. O salão corrige
+-- um e-mail digitado errado; o preenchimento automático do navegador da
+-- cliente manda o errado de volta na marcação seguinte. Se o `agendar()`
+-- sobrescrevesse, a correção do salão duraria até o próximo corte — e
+-- ninguém entenderia por que o e-mail "volta sozinho".
+--
+-- A agenda é limpa aqui de propósito: esta seção precisa de horários livres
+-- e de fichas novas, e amarrá-la ao que as seções de cima deixaram para trás
+-- seria fazê-la reprovar no dia em que alguém mexesse lá em cima.
+-- ---------------------------------------------------------------------------
+delete from public.agendamento_servicos;
+delete from public.agendamentos;
+delete from public.clientes;
+
+select t_igual('a cliente marca preenchendo a ficha',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '09:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Marta Prado', '(51) 98888-1111', null, null,
+     'marta@exemplo.com', date '1990-04-17')), 1);
+
+select t_texto('o e-mail dela entrou na ficha',
+  (select email from public.clientes where nome = 'Marta Prado'),
+  'marta@exemplo.com');
+
+select t_texto('e o aniversário também — é dele que sai a lista do mês',
+  (select nascimento::text from public.clientes where nome = 'Marta Prado'),
+  '1990-04-17');
+
+-- A recepção arruma o e-mail: a cliente tinha digitado errado no celular.
+update public.clientes set email = 'marta.prado@certo.com'
+ where nome = 'Marta Prado';
+
+select t_igual('ela marca de novo, e o navegador repete o e-mail velho',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '11:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Marta Prado', '(51) 98888-1111', null, null,
+     'marta@exemplo.com', date '1980-01-01')), 1);
+
+select t_texto('a correção do salão fica de pé',
+  (select email from public.clientes where nome = 'Marta Prado'),
+  'marta.prado@certo.com');
+
+select t_texto('e o aniversário já preenchido não é trocado',
+  (select nascimento::text from public.clientes where nome = 'Marta Prado'),
+  '1990-04-17');
+
+select t_igual('e marca uma terceira vez sem preencher nada',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '14:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Marta Prado', '(51) 98888-1111', null, null, '   ', null)), 1);
+
+-- `nullif(btrim(...), '')` é o que transforma "   " em null antes da conta.
+-- Sem ele, o `coalesce` acharia que veio conteúdo e gravaria três espaços.
+select t_texto('campo em branco não apaga o que já estava lá',
+  (select email from public.clientes where nome = 'Marta Prado'),
+  'marta.prado@certo.com');
+
+/* ⚠ A FICHA PELA METADE — E A CENA QUE FALTAVA AQUI.
+
+   As duas cenas de cima passam com a regra ERRADA instalada, e eu só
+   descobri porque troquei a ordem do `coalesce` de propósito para ver o
+   teste reprovar. Ele não reprovou.
+
+   O motivo: com e-mail E aniversário já preenchidos, o `where` da função
+   descarta a linha antes de qualquer conta, e as expressões do `set` nem
+   são avaliadas. Ou seja, a proteção que aquelas cenas mediam era a do
+   `where`, e a do `coalesce` seguia sem ninguém olhando.
+
+   O estado misto é que separa as duas — e não é hipótese de laboratório: é
+   a ficha em que o salão digitou o e-mail e nunca perguntou o aniversário,
+   que é a ficha mais comum que existe. Aqui o `where` deixa passar, e a
+   única coisa entre o navegador da cliente e o e-mail do salão é a ordem
+   dos argumentos do `coalesce`. */
+insert into public.clientes (salao_id, nome, telefone, email) values
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'Sônia Vieira', '51966663333',
+   'sonia@salao-anotou.com');
+
+select t_igual('a ficha pela metade marca',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '17:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Sônia Vieira', '(51) 96666-3333', null, null,
+     'outro@exemplo.com', date '1979-12-05')), 1);
+
+select t_texto('o aniversário que faltava é preenchido',
+  (select nascimento::text from public.clientes where nome = 'Sônia Vieira'),
+  '1979-12-05');
+
+select t_texto('e o e-mail que o salão tinha anotado NÃO é trocado no caminho',
+  (select email from public.clientes where nome = 'Sônia Vieira'),
+  'sonia@salao-anotou.com');
+
+/* O caso mais comum de todos num salão que já roda: a ficha existe porque a
+   recepção anotou a pessoa no balcão um dia, com nome e telefone e mais
+   nada. A primeira marcação pelo link é o que completa o que falta — sem
+   isso, o cadastro só valeria para quem chegou depois da funcionalidade. */
+insert into public.clientes (salao_id, nome, telefone) values
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'Rita Alves', '51977772222');
+
+select t_igual('a ficha velha da recepção também marca',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '16:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Rita Alves', '(51) 97777-2222', null, null,
+     'rita@exemplo.com', date '1985-09-02')), 1);
+
+select t_texto('e recebe o e-mail que faltava nela',
+  (select email from public.clientes where nome = 'Rita Alves'),
+  'rita@exemplo.com');
+
+select t_texto('e o aniversário que faltava',
+  (select nascimento::text from public.clientes where nome = 'Rita Alves'),
+  '1985-09-02');
+
+select t_igual('sem criar ficha nova para quem já tinha uma',
+  (select count(*) from public.clientes
+    where salao_id = 'aaaaaaaa-0000-0000-0000-000000000001'), 3);
 
 select t_ok('agenda pública: tudo conferido');

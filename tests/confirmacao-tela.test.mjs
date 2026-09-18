@@ -159,6 +159,10 @@ await c.waitForTimeout(1500);
    a tela de "pronto", que nunca tinha sido alcançada. */
 await c.fill('#dNome', 'Maria Cliente');
 await c.fill('#dTel', '51988887777');
+// Obrigatório desde que o link passou a pedir ficha completa. É exatamente
+// o caso que o comentário acima descreve: faltando, a tela só reescreve o
+// aviso e fica onde está.
+await c.fill('#dNasc', '1989-10-04');
 await c.waitForTimeout(300);
 await c.click('#btPrincipal');            // dados → confirmar
 await c.waitForTimeout(1500);

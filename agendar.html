@@ -150,6 +150,19 @@ h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:3px}
 .campo input:focus{outline:none;border-color:var(--marca);
   box-shadow:0 0 0 3px rgba(37,99,235,.14);background:var(--painel)}
 
+/* A linha embaixo do campo que diz PARA QUE serve o que está sendo pedido.
+   Era um `style=` repetido à mão; virou classe quando o cadastro passou de
+   dois campos para quatro, e quatro cópias do mesmo estilo em linha é como
+   uma delas fica diferente das outras sem ninguém perceber. */
+.pista{font-size:12.5px;color:var(--txt2);margin-top:6px}
+
+/* "opcional" escrito NO RÓTULO, e não deduzido do que não tem asterisco.
+   Campo que a pessoa pode pular precisa dizer isso onde ela está olhando —
+   senão ela preenche por via das dúvidas, e é aí que nasce e-mail
+   inventado. */
+.opcional{font-weight:600;font-size:11.5px;color:var(--txt3,var(--txt2));
+  text-transform:uppercase;letter-spacing:.04em;margin-left:5px}
+
 .codigo{display:flex;gap:8px;justify-content:center;margin:20px 0}
 .codigo input{
   width:46px;height:56px;text-align:center;font-size:24px;font-weight:800;
@@ -443,10 +456,27 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
       <div id="areaEspera"></div>
     </section>
 
-    <!-- ══════ 4 · SEUS DADOS (sem código — marcar não pede verificação) ══════ -->
+    <!-- ══════ 4 · O CADASTRO (sem codigo — marcar nao pede verificacao) ══════
+         Preenchido UMA VEZ. Da segunda marcacao em diante o aparelho lembra,
+         a pessoa confere e segue.
+
+         ⚠ E ele fica NO FIM, depois de escolher servico, profissional e
+         horario — nunca na entrada. Quem chega pelo Instagram so' para ver
+         quanto custa uma escova nao pode esbarrar num formulario antes do
+         preco: esse e' justamente o visitante que vira cliente, e uma porta
+         fechada na cara dele e' uma marcacao que nao acontece.
+
+         Nome e WhatsApp continuam obrigatorios, como sempre foram. O
+         ANIVERSARIO entrou obrigatorio porque e' o unico campo daqui que so'
+         a propria pessoa sabe e que o salao usa depois. O E-MAIL e' opcional
+         de proposito: e' o campo que mais gente inventa quando e' exigido, e
+         endereco inventado no cadastro e' pior que campo vazio — ele parece
+         um dado.
+         (Sem crase neste comentario: ele vive dentro do HTML deste arquivo,
+         que e' lido como template literal noutros pontos.) -->
     <section class="passo" id="p-dados">
-      <h2>Seus dados</h2>
-      <p class="sub">Só o necessário para o salão te reconhecer e avisar.</p>
+      <h2>Seu cadastro</h2>
+      <p class="sub">Só na primeira vez. Depois este aparelho lembra de você.</p>
       <div id="reconhecido"></div>
       <div class="campo">
         <label>Nome completo</label>
@@ -456,8 +486,18 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
         <label>WhatsApp</label>
         <input id="dTel" type="tel" inputmode="numeric" placeholder="(11) 99999-9999"
                autocomplete="tel" oninput="mascaraTelefone(this)">
-        <p style="font-size:12.5px;color:var(--txt2);margin-top:6px">
-          É por aqui que chega a confirmação e o lembrete.</p>
+        <p class="pista">É por aqui que chega a confirmação e o lembrete.</p>
+      </div>
+      <div class="campo">
+        <label>Aniversário</label>
+        <input id="dNasc" type="date" autocomplete="bday">
+        <p class="pista">O salão costuma guardar um agrado para o seu mês.</p>
+      </div>
+      <div class="campo">
+        <label>E-mail <span class="opcional">opcional</span></label>
+        <input id="dEmail" type="email" inputmode="email"
+               placeholder="voce@exemplo.com" autocomplete="email">
+        <p class="pista">Só para recibo e novidades. Pode ficar em branco.</p>
       </div>
       <div id="avisoDados"></div>
     </section>
@@ -2168,7 +2208,7 @@ function escolherHora(h){ escolha.inicio = h; desenhar(); }
    telefone — porque a recepção cadastrou um dia — a pessoa reencontra o
    próprio histórico em vez de virar cliente nova do zero.
    ──────────────────────────────────────────────────────────────────────── */
-function garantirFicha(nome, tel){
+function garantirFicha(nome, tel, nascimento, email){
   bd.perfis = bd.perfis || [];
   const e164 = paraE164(tel);
 
@@ -2187,15 +2227,39 @@ function garantirFicha(nome, tel){
   let ficha = bd.clientes.find(c => c.salaoId === salao.id && c.perfilId === perfil.id);
   if(!ficha){
     ficha = { id: novoId(), salaoId: salao.id, perfilId: perfil.id,
-              nome, telefone: tel, obs: '', criadoEm: new Date().toISOString() };
+              nome, telefone: tel, nascimento: nascimento || '', email: email || '',
+              obs: '', criadoEm: new Date().toISOString() };
     bd.clientes.push(ficha);
+  } else {
+    /* ⚠ SÓ PREENCHE O QUE ESTÁ VAZIO — a mesma regra do `agendar()` no
+       09_cliente.sql, escrita aqui porque na demonstração não há banco para
+       aplicá-la. Se as duas divergirem, o mesmo gesto dá resultado diferente
+       na demonstração e na nuvem, e quem descobre é o dono, achando que
+       encontrou um defeito num dos dois.
+
+       O motivo é o mesmo lá e aqui: a recepção pode ter corrigido um e-mail
+       digitado errado, e o preenchimento automático do navegador da cliente
+       mandaria o errado de volta na marcação seguinte. Quem manda na ficha é
+       o salão; a cliente completa o que falta. */
+    if(!ficha.nascimento && nascimento) ficha.nascimento = nascimento;
+    if(!ficha.email && email)           ficha.email = email;
   }
 
   // Sessão do aparelho. `verificado: false` porque marcar não pede código —
   // é lembrança do aparelho, não prova de identidade. Ver ou cancelar
   // horário exige o código, e é lá que `verificado` vira true.
+  //
+  // O cadastro inteiro entra na lembrança, e não só nome e telefone: é o que
+  // faz "só na primeira vez" ser verdade. Guardado, e não conferido — quem
+  // marca todo mês não redigita o aniversário doze vezes por ano.
   if(!sessao || !sessao.verificado){
-    sessao = { perfilId: perfil.id, nome, telefone: tel, verificado: false };
+    sessao = { perfilId: perfil.id, nome, telefone: tel,
+               nascimento: nascimento || '', email: email || '',
+               verificado: false };
+    guardarSessao();
+  } else {
+    if(!sessao.nascimento && nascimento) sessao.nascimento = nascimento;
+    if(!sessao.email && email)           sessao.email = email;
     guardarSessao();
   }
   return ficha;
@@ -2214,10 +2278,28 @@ function desenharDados(){
   const nome = document.getElementById('dNome');
   const tel  = document.getElementById('dTel');
 
+  /* O aparelho lembra, e é isso que faz o cadastro ser "só na primeira vez".
+     Sem isto, exigir aniversário seria exigir de novo a cada corte — e a
+     pessoa que marca todo mês redigitaria a mesma data doze vezes por ano.
+
+     ⚠ `!nome.value` guarda a linha inteira: quem já começou a digitar tem o
+     que escreveu preservado, mesmo que a memória discorde. O que ela acabou
+     de teclar vale mais que o que estava guardado. */
   if(sessao && !nome.value){
-    nome.value = sessao.nome || '';
-    tel.value = sessao.telefone || '';
+    nome.value  = sessao.nome || '';
+    tel.value   = sessao.telefone || '';
+    const nasc  = document.getElementById('dNasc');
+    const email = document.getElementById('dEmail');
+    if(nasc)  nasc.value  = sessao.nascimento || '';
+    if(email) email.value = sessao.email || '';
   }
+
+  /* Nascimento é data: hoje nunca serve, e daqui a dez anos menos ainda. O
+     `max` fecha o calendário no dia de hoje em vez de deixar o seletor
+     oferecer 2035 e o banco recusar depois, com a pessoa já no fim do
+     caminho. */
+  const nasc = document.getElementById('dNasc');
+  if(nasc && !nasc.max) nasc.max = hoje();
 
   document.getElementById('reconhecido').innerHTML = (sessao && sessao.nome)
     ? `<div class="recado">Este aparelho lembra de <b>${escapar(sessao.nome)}</b>.
@@ -2230,27 +2312,59 @@ function desenharDados(){
       escolha.para === 'filho' ? '<br>Atendimento para ' + escapar(escolha.filhoNome || 'seu filho') + '.' : ''}</div>`;
 }
 
+/* Um e-mail tem arroba, um ponto depois dela, e nenhum espaço. É toda a
+   conferência que se pode fazer daqui sem mandar mensagem — e é de propósito
+   frouxa: regex severa de e-mail recusa endereço válido, e recusar o
+   endereço verdadeiro de alguém no meio de uma marcação é um estrago maior
+   do que aceitar um endereço torto. Quem decide se ele existe é a primeira
+   mensagem que voltar. */
+const EMAIL_PLAUSIVEL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 function salvarDados(){
-  const nome = (document.getElementById('dNome').value || '').trim();
-  const tel  = (document.getElementById('dTel').value || '').trim();
+  const nome  = (document.getElementById('dNome').value || '').trim();
+  const tel   = (document.getElementById('dTel').value || '').trim();
+  const nasc  = (document.getElementById('dNasc').value || '').trim();
+  const email = (document.getElementById('dEmail').value || '').trim();
+  const dizer = txt => { document.getElementById('avisoDados').innerHTML =
+    '<div class="recado erro">' + txt + '</div>'; };
 
   if(nome.length < 2){
-    document.getElementById('avisoDados').innerHTML =
-      '<div class="recado erro">Escreva seu nome para o salão saber quem chega.</div>';
+    dizer('Escreva seu nome para o salão saber quem chega.');
     return;
   }
   if(soDigitos(tel).length < 10){
-    document.getElementById('avisoDados').innerHTML =
-      '<div class="recado erro">Falta o WhatsApp com DDD — é por onde vem a confirmação.</div>';
+    dizer('Falta o WhatsApp com DDD — é por onde vem a confirmação.');
+    return;
+  }
+  if(!nasc){
+    dizer('Falta o seu aniversário. É só o dia — o salão usa para o agrado '
+        + 'do seu mês.');
+    return;
+  }
+  /* ⚠ Data no futuro e data absurda barram AQUI, e não no banco.
+     `<input type="date">` tem `max`, e ainda assim o campo aceita 1900
+     digitado à mão, e num navegador antigo aceita qualquer coisa. Deixar
+     passar para o banco recusar depois faria a pessoa levar a mensagem só
+     no fim do caminho, quando já achava que tinha terminado. */
+  if(nasc > hoje()){
+    dizer('Essa data de aniversário ainda não chegou. Confira o ano.');
+    return;
+  }
+  if(nasc < '1900-01-01'){
+    dizer('Confira o ano do seu aniversário.');
+    return;
+  }
+  if(email && !EMAIL_PLAUSIVEL.test(email)){
+    dizer('Esse e-mail parece incompleto. Corrija, ou deixe o campo em '
+        + 'branco — ele é opcional.');
     return;
   }
   if(escolha.para !== 'mim' && !(escolha.filhoNome||'').trim()){
-    document.getElementById('avisoDados').innerHTML =
-      '<div class="recado erro">Diga o nome do seu filho para o barbeiro chamar certo.</div>';
+    dizer('Diga o nome do seu filho para o barbeiro chamar certo.');
     return;
   }
 
-  garantirFicha(nome, tel);
+  garantirFicha(nome, tel, nasc, email);
   salvar();
   irPara('confirmar');
 }
@@ -3209,6 +3323,16 @@ async function confirmarNaNuvem(profId, prof){
       p_telefone: sessao.telefone,
       p_atendido_nome: atendido || null,
       p_obs: recado || null,
+      /* O cadastro sobe junto com a marcação, numa chamada só. Não é
+         economia de rede: gravar a ficha numa segunda chamada abriria a
+         janela em que a marcação deu certo e o cadastro não, e ninguém
+         saberia qual das duas faltou.
+
+         Quem decide o que fica na ficha é o `agendar()` — ele só preenche
+         campo vazio, e não desfaz correção da recepção. Esta tela manda o
+         que a pessoa digitou; o banco decide o que aproveitar. */
+      p_email: sessao.email || null,
+      p_nascimento: sessao.nascimento || null,
     });
     const feito = Array.isArray(r) ? r[0] : r;
     if(feito && feito.token) guardarToken('agendamentos', feito.token);

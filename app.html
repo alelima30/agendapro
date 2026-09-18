@@ -1553,7 +1553,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.cfe369';
+const VERSAO_APP = 'v9.654977';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -5055,6 +5055,16 @@ function abrirCliente(cid){
       <div class="campo"><label>Nascimento</label>
         <input type="date" id="kNasc" value="${c ? (c.nascimento||'') : ''}"></div>
     </div>
+    <!-- ⚠ O E-MAIL FALTAVA AQUI, e a coluna existe desde o primeiro dia.
+         Enquanto a tela nao tinha o campo, ninguem digitava e ninguem via —
+         entao a ausencia nao incomodava. Mas o link da cliente passou a
+         PEDIR o e-mail no cadastro, e um dado que entra pelo link e nao
+         aparece na ficha e' pior que dado nenhum: o dono ve a cliente
+         preencher e nao encontra em lugar nenhum.
+         (Sem crase: comentario dentro de template literal.) -->
+    <div class="campo"><label>E-mail</label>
+      <input id="kEmail" type="email" value="${escapar(c ? (c.email||'') : '')}"
+             placeholder="cliente@exemplo.com"></div>
     <div class="campo"><label>Observações e alergias</label>
       <textarea id="kObs" rows="3" placeholder="Fórmula da cor, preferências, alergias">${escapar(c ? (c.obs||'') : '')}</textarea></div>
   `, [
@@ -5088,6 +5098,7 @@ function salvarCliente(cid){
     nome,
     telefone: tel,
     nascimento: document.getElementById('kNasc').value || '',
+    email: (document.getElementById('kEmail').value || '').trim(),
     obs: document.getElementById('kObs').value || '',
   };
   if(cid) Object.assign(acharCliente(cid), dados);

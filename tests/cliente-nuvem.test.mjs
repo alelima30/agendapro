@@ -153,6 +153,19 @@ igual('depois do horário vem "seus dados"', await tela(), 'dados');
 
 await p.fill('#dNome', 'Juliana Ferreira');
 await p.fill('#dTel', '51988776655');
+
+/* ⚠ O ANIVERSÁRIO É OBRIGATÓRIO, e isto é conferido ANTES de preenchê-lo.
+   Sem esta parada, as duas linhas de cima seguiriam dando verde no dia em
+   que alguém apagasse a exigência sem querer — e o cadastro voltaria a ser
+   nome e telefone, com o teste satisfeito. */
+await p.click('#btPrincipal'); await p.waitForTimeout(400);
+igual('sem o aniversário o cadastro não passa', await tela(), 'dados');
+verdade('e a tela diz o que está faltando',
+  /anivers/i.test(await p.textContent('#avisoDados')),
+  await p.textContent('#avisoDados'));
+
+await p.fill('#dNasc', '1992-03-11');
+await p.fill('#dEmail', 'juliana@exemplo.com');
 await p.click('#btPrincipal'); await p.waitForTimeout(600);
 igual('e a confirmação', await tela(), 'confirmar');
 
@@ -190,6 +203,24 @@ igual('o valor foi calculado pelo banco, não enviado pela tela',
 const fichas = await dona.lista('clientes', { salaoId });
 igual('e a ficha da cliente nasceu junto', fichas.length, 1);
 igual('com o nome que ela digitou', (fichas[0]||{}).nome, 'Juliana Ferreira');
+
+/* ⚠ O CADASTRO ATRAVESSANDO O CAMINHO INTEIRO, QUE É O QUE O TESTE DE BANCO
+   NÃO ALCANÇA.
+
+   O `03_agenda_publica.test.sql` chama `agendar()` direto. Aqui o mesmo dado
+   sai de um <input>, vira `sessao`, atravessa o `Dados.chamar()` e o
+   PostgREST, e só então chega à ficha — e cada emenda desse caminho é uma
+   chance de ele se perder.
+
+   Errar o NOME do parâmetro não é o risco: medido, o PostgREST devolve 404
+   quando não reconhece um argumento, e a marcação inteira falha alto. O
+   risco é o valor chegar sempre nulo — a tela deixar de preencher `sessao`,
+   ou mandar o campo errado. Aí a marcação dá certo, a cliente vê "pronto", e
+   a ficha fica vazia. Sem estas duas linhas, nada nesta suíte percebe: é a
+   única coisa aqui que olha o que foi gravado. */
+igual('e o aniversário que ela preencheu chegou ao banco',
+  String((fichas[0]||{}).nascimento || '').slice(0, 10), '1992-03-11');
+igual('e o e-mail também', (fichas[0]||{}).email, 'juliana@exemplo.com');
 
 secao('E o horário sai da lista para a próxima pessoa');
 

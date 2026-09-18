@@ -3471,11 +3471,20 @@ create unique index if not exists ix_agend_token on public.agendamentos (gerenci
 create unique index if not exists ix_espera_token on public.lista_espera (gerenciar_token);
 
 -- ---------------------------------------------------------------------------
--- 2) agendar() passa a devolver o segredo
+-- 2) agendar() passa a devolver o segredo, e a receber a ficha
 --
 -- Mudar o que uma função devolve exige derrubá-la antes: `create or replace`
--- recusa alterar o tipo de retorno. Como a assinatura de ENTRADA não muda,
--- quem chama continua chamando igual.
+-- recusa alterar o tipo de retorno.
+--
+-- ⚠ E O DROP TAMBÉM É O QUE IMPEDE DUAS `agendar()` VIVAS AO MESMO TEMPO.
+--
+-- No Postgres, acrescentar parâmetro — mesmo com `default` — não altera a
+-- função: cria uma SOBRECARGA. Sem este drop, o banco ficaria com a de sete
+-- argumentos (do 05_agenda.sql) e a de nove lado a lado, as duas liberadas
+-- para o anon, e qual delas o PostgREST escolhe depende dos nomes que o
+-- navegador mandar. Uma página velha em cache continuaria marcando pela
+-- antiga, que ignora e-mail e nascimento — e o cadastro que a cliente
+-- preencheu sumiria sem erro nenhum, que é o pior jeito de sumir.
 -- ---------------------------------------------------------------------------
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text);
 
@@ -3486,7 +3495,9 @@ create or replace function public.agendar(
   p_nome          text,
   p_telefone      text,
   p_atendido_nome text default null,
-  p_obs           text default null)
+  p_obs           text default null,
+  p_email         text default null,
+  p_nascimento    date default null)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -3558,6 +3569,34 @@ begin
   -- 05_agenda.sql. Aqui estava a terceira cópia da busca só-por-telefone,
   -- e era ESTA a que rodava: o 09 substitui o agendar() do 05.
   v_cliente := public.ficha_do_cliente(v_salao, v_nome, v_tel);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     O CADASTRO QUE A CLIENTE PREENCHEU
+
+     O link pede e-mail e aniversário antes de confirmar. Eles chegam aqui e
+     pousam na ficha — que é o único lugar onde servem para alguma coisa: o
+     salão abre a ficha e vê, e o aniversário do mês sai de `nascimento`.
+
+     ⚠ `is null` NAS DUAS PONTAS, E ESSA É A REGRA INTEIRA.
+
+     Só preenche o que está VAZIO. Nunca corrige, nunca apaga:
+
+       · a recepção pode ter arrumado um e-mail digitado errado, e o
+         preenchimento automático do navegador da cliente mandaria o errado
+         de volta na marcação seguinte — a correção do salão duraria até o
+         próximo corte;
+
+       · campo em branco no formulário não pode zerar o que já estava lá.
+         `coalesce` sozinho não bastaria: `nullif(btrim(...), '')` é o que
+         transforma "  " em null antes de a conta começar.
+
+     Quem manda na ficha é o salão. A cliente só preenche o que falta.
+     ══════════════════════════════════════════════════════════════════════ */
+  update public.clientes c
+     set email      = coalesce(c.email, nullif(btrim(coalesce(p_email, '')), '')),
+         nascimento = coalesce(c.nascimento, p_nascimento)
+   where c.id = v_cliente
+     and (c.email is null or c.nascimento is null);
 
   /* QUEM DE FATO VEM, quando o nome informado não é o da ficha.
 
@@ -3951,8 +3990,8 @@ revoke all on function public.minha_fila(uuid[])          from public;
 revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
-revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text, text)
-  from public;
+revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
+                                      text, text, date) from public;
 
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
@@ -3960,8 +3999,8 @@ grant execute on function public.minha_fila(uuid[])          to anon, authentica
 grant execute on function public.sair_da_fila(uuid)          to anon, authenticated;
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
-grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text, text)
-  to anon, authenticated;
+grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
+                                         text, text, date) to anon, authenticated;
 
 -- ###########################################################################
 -- ## 10_campanhas.sql

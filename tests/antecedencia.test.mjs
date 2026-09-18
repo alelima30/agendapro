@@ -119,11 +119,41 @@ const ateMeiaNoite = () => {
    qualquer coisa até 152 — e o motor, corretíssimo, devolveu 242. A medida
    reprovou apontando para o motor quando o errado era a régua que eu tinha
    acabado de escrever. Passada a meia-noite a grade de amanhã é densa outra
-   vez, e o teto apertado volta a valer. */
+   vez, e o teto apertado volta a valer.
+
+   ⚠ E MESMO ASSIM A CONTA ESTAVA ERRADA NA BORDA, por um degrau.
+
+   `min > ate - DUR` compara a ANTECEDÊNCIA com o fim do dia, e o motor não
+   trabalha assim: ele só oferece pontos da grade de 15 minutos. Às 21h30,
+   com 120 de antecedência, `120 > 150 - 30` é falso — a régua exigia um
+   horário a no máximo 135 minutos. Mas `agora + 120` é 23h30, o último
+   ponto da grade que ainda termina dentro da jornada é 23h15, e ele já
+   passou. Não existe vaga hoje, o motor devolveu o começo de amanhã, a
+   150, e a medida reprovou apontando para ele.
+
+   Nenhuma fórmula sobre `min` sozinho acerta isso, porque o que decide é
+   onde cai o PRÓXIMO PONTO DA GRADE — e isso depende do minuto do relógio,
+   não só da antecedência. Então a régua agora calcula esse ponto, do jeito
+   que o motor calcula, e só então decide se cabe hoje. */
 const DUR = 30, PASSO = 15;
+
+/* O primeiro ponto da grade de 15 minutos em ou depois de `min` minutos
+   daqui, contado no relógio do salão — que é onde a grade está ancorada. */
+const proximoNaGrade = (min) => {
+  const la = new Date(new Date().toLocaleString('en-US', { timeZone: FUSO }));
+  const agoraMin = la.getHours() * 60 + la.getMinutes();
+  return Math.ceil((agoraMin + min) / PASSO) * PASSO - agoraMin;
+};
+
 const tetoEsperado = (min) => {
   const ate = ateMeiaNoite();
-  return (min > ate - DUR && min < ate) ? ate + PASSO : min + PASSO;
+  const primeiro = proximoNaGrade(min);
+  // Cabe hoje? O atendimento tem que TERMINAR dentro da jornada, que vai
+  // até 23:59 — daí o `- 1`.
+  if(primeiro + DUR <= ate - 1) return min + PASSO;
+  // Não cabe: o primeiro é o começo de amanhã, ou a própria antecedência
+  // quando ela sozinha já passa da meia-noite.
+  return Math.max(ate, primeiro) + PASSO;
 };
 
 /* Quantos minutos faltam para o primeiro horário que o motor oferece.

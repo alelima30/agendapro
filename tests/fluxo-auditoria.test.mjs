@@ -133,10 +133,13 @@ await cli.waitForTimeout(800);
 await avancar();
 await cli.waitForTimeout(1000);
 
-// Dados da pessoa
+// O cadastro da pessoa. O aniversário é obrigatório desde que o link passou
+// a pedir ficha completa; sem ele a tela não avança, e este arquivo pararia
+// aqui apontando para a tela de "pronto" que nunca chegou.
 if(await cli.isVisible('#dNome')){
   await cli.fill('#dNome', 'Cliente Auditoria');
   await cli.fill('#dTel', '(11) 96666-5555');
+  await cli.fill('#dNasc', '1991-06-20');
   await cli.waitForTimeout(500);
   await avancar();
 }

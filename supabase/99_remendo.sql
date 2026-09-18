@@ -730,7 +730,9 @@ create or replace function public.agendar(
   p_nome          text,
   p_telefone      text,
   p_atendido_nome text default null,
-  p_obs           text default null)
+  p_obs           text default null,
+  p_email         text default null,
+  p_nascimento    date default null)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -789,6 +791,11 @@ begin
   v_fim     := p_inicio + make_interval(mins => v_duracao);
   v_perfil := auth.uid();
   v_cliente := public.ficha_do_cliente(v_salao, v_nome, v_tel);
+  update public.clientes c
+     set email      = coalesce(c.email, nullif(btrim(coalesce(p_email, '')), '')),
+         nascimento = coalesce(c.nascimento, p_nascimento)
+   where c.id = v_cliente
+     and (c.email is null or c.nascimento is null);
   if nullif(btrim(coalesce(p_atendido_nome, '')), '') is null then
     select case when not public.mesmo_primeiro_nome(c.nome, v_nome)
                   then v_nome end
@@ -1036,16 +1043,16 @@ revoke all on function public.minha_fila(uuid[])          from public;
 revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
-revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text, text)
-  from public;
+revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
+                                      text, text, date) from public;
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
 grant execute on function public.minha_fila(uuid[])          to anon, authenticated;
 grant execute on function public.sair_da_fila(uuid)          to anon, authenticated;
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
-grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text, text)
-  to anon, authenticated;
+grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
+                                         text, text, date) to anon, authenticated;
 
 create or replace function public.vitrine(p_slug text)
 returns jsonb
