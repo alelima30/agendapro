@@ -493,6 +493,24 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
         <input id="dNasc" type="date" autocomplete="bday">
         <p class="pista">O salão costuma guardar um agrado para o seu mês.</p>
       </div>
+      <!-- ⚠ O CPF NAO LEVA ETIQUETA, e isso foi pedido assim.
+           O registro de que a decisao e' consciente fica aqui, porque a
+           ausencia de marca nao se explica sozinha na tela: ao lado de um
+           campo escrito OPCIONAL, um campo sem marca nenhuma e' lido como
+           obrigatorio. Quem so' quer marcar um corte vai preencher.
+
+           Por isso ele NAO TRAVA a marcacao — o `salvarDados` deixa passar em
+           branco, e o `agendar()` no 09_cliente.sql descarta CPF torto em
+           vez de recusar. A tela sugere; ninguem fica sem horario por causa
+           de um documento que o corte nao precisa.
+           (Sem crase e sem acento: comentario dentro de HTML que e' lido
+           como template literal noutros pontos deste arquivo.) -->
+      <div class="campo">
+        <label>CPF</label>
+        <input id="dCpf" type="text" inputmode="numeric" placeholder="000.000.000-00"
+               maxlength="14" oninput="Documento.mascaraCpf(this)">
+        <p class="pista">Fica na sua ficha, para a nota do salão.</p>
+      </div>
       <div class="campo">
         <label>E-mail <span class="opcional">opcional</span></label>
         <input id="dEmail" type="email" inputmode="email"
@@ -622,6 +640,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
 <script src="icones.js"></script>
 <script src="imagens.js"></script>
 <script src="endereco.js"></script>
+<script src="documento.js"></script>
 <script src="demo.js"></script>
 <script src="config.js"></script>
 <script src="dados.js"></script>
@@ -2208,7 +2227,7 @@ function escolherHora(h){ escolha.inicio = h; desenhar(); }
    telefone — porque a recepção cadastrou um dia — a pessoa reencontra o
    próprio histórico em vez de virar cliente nova do zero.
    ──────────────────────────────────────────────────────────────────────── */
-function garantirFicha(nome, tel, nascimento, email){
+function garantirFicha(nome, tel, nascimento, email, cpf){
   bd.perfis = bd.perfis || [];
   const e164 = paraE164(tel);
 
@@ -2228,7 +2247,7 @@ function garantirFicha(nome, tel, nascimento, email){
   if(!ficha){
     ficha = { id: novoId(), salaoId: salao.id, perfilId: perfil.id,
               nome, telefone: tel, nascimento: nascimento || '', email: email || '',
-              obs: '', criadoEm: new Date().toISOString() };
+              cpf: cpf || '', obs: '', criadoEm: new Date().toISOString() };
     bd.clientes.push(ficha);
   } else {
     /* ⚠ SÓ PREENCHE O QUE ESTÁ VAZIO — a mesma regra do `agendar()` no
@@ -2243,6 +2262,7 @@ function garantirFicha(nome, tel, nascimento, email){
        o salão; a cliente completa o que falta. */
     if(!ficha.nascimento && nascimento) ficha.nascimento = nascimento;
     if(!ficha.email && email)           ficha.email = email;
+    if(!ficha.cpf && cpf)               ficha.cpf = cpf;
   }
 
   // Sessão do aparelho. `verificado: false` porque marcar não pede código —
@@ -2255,11 +2275,12 @@ function garantirFicha(nome, tel, nascimento, email){
   if(!sessao || !sessao.verificado){
     sessao = { perfilId: perfil.id, nome, telefone: tel,
                nascimento: nascimento || '', email: email || '',
-               verificado: false };
+               cpf: cpf || '', verificado: false };
     guardarSessao();
   } else {
     if(!sessao.nascimento && nascimento) sessao.nascimento = nascimento;
     if(!sessao.email && email)           sessao.email = email;
+    if(!sessao.cpf && cpf)               sessao.cpf = cpf;
     guardarSessao();
   }
   return ficha;
@@ -2290,8 +2311,10 @@ function desenharDados(){
     tel.value   = sessao.telefone || '';
     const nasc  = document.getElementById('dNasc');
     const email = document.getElementById('dEmail');
+    const cpf   = document.getElementById('dCpf');
     if(nasc)  nasc.value  = sessao.nascimento || '';
     if(email) email.value = sessao.email || '';
+    if(cpf)   cpf.value   = sessao.cpf ? Endereco.documento(sessao.cpf) : '';
   }
 
   /* Nascimento é data: hoje nunca serve, e daqui a dez anos menos ainda. O
@@ -2325,6 +2348,7 @@ function salvarDados(){
   const tel   = (document.getElementById('dTel').value || '').trim();
   const nasc  = (document.getElementById('dNasc').value || '').trim();
   const email = (document.getElementById('dEmail').value || '').trim();
+  const cpf   = (document.getElementById('dCpf').value || '').trim();
   const dizer = txt => { document.getElementById('avisoDados').innerHTML =
     '<div class="recado erro">' + txt + '</div>'; };
 
@@ -2359,12 +2383,22 @@ function salvarDados(){
         + 'branco — ele é opcional.');
     return;
   }
+  /* ⚠ SÓ CONFERE QUEM PREENCHEU — em branco passa direto.
+     O dígito verificador é barato e pega o erro de digitação enquanto a
+     pessoa ainda está aqui. Mas ele não diz que o CPF EXISTE, nem que é dela:
+     diz só que os onze números são consistentes entre si. Quem sabe de quem é
+     o documento é a Receita, e isso não se pergunta de dentro do navegador. */
+  if(cpf && !Documento.cpfValido(cpf)){
+    dizer('Esse CPF não confere — deve ter escapado um número. '
+        + 'Confira, ou siga sem ele.');
+    return;
+  }
   if(escolha.para !== 'mim' && !(escolha.filhoNome||'').trim()){
     dizer('Diga o nome do seu filho para o barbeiro chamar certo.');
     return;
   }
 
-  garantirFicha(nome, tel, nasc, email);
+  garantirFicha(nome, tel, nasc, email, Documento.soDigitos(cpf));
   salvar();
   irPara('confirmar');
 }
@@ -3333,6 +3367,7 @@ async function confirmarNaNuvem(profId, prof){
          que a pessoa digitou; o banco decide o que aproveitar. */
       p_email: sessao.email || null,
       p_nascimento: sessao.nascimento || null,
+      p_cpf: sessao.cpf || null,
     });
     const feito = Array.isArray(r) ? r[0] : r;
     if(feito && feito.token) guardarToken('agendamentos', feito.token);

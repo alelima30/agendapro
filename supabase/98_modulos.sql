@@ -3732,7 +3732,10 @@ alter table public.lista_espera
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();
 create unique index if not exists ix_agend_token on public.agendamentos (gerenciar_token);
 create unique index if not exists ix_espera_token on public.lista_espera (gerenciar_token);
+alter table public.clientes add column if not exists cpf text;
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text);
+drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
+                                       text, date);
 create or replace function public.agendar(
   p_profissional  uuid,
   p_inicio        timestamptz,
@@ -3742,7 +3745,8 @@ create or replace function public.agendar(
   p_atendido_nome text default null,
   p_obs           text default null,
   p_email         text default null,
-  p_nascimento    date default null)
+  p_nascimento    date default null,
+  p_cpf           text default null)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -3803,9 +3807,12 @@ begin
   v_cliente := public.ficha_do_cliente(v_salao, v_nome, v_tel);
   update public.clientes c
      set email      = coalesce(c.email, nullif(btrim(coalesce(p_email, '')), '')),
-         nascimento = coalesce(c.nascimento, p_nascimento)
+         nascimento = coalesce(c.nascimento, p_nascimento),
+         cpf        = coalesce(c.cpf,
+                        case when public.so_digitos(p_cpf) ~ '^[0-9]{11}$'
+                             then public.so_digitos(p_cpf) end)
    where c.id = v_cliente
-     and (c.email is null or c.nascimento is null);
+     and (c.email is null or c.nascimento is null or c.cpf is null);
   if nullif(btrim(coalesce(p_atendido_nome, '')), '') is null then
     select case when not public.mesmo_primeiro_nome(c.nome, v_nome)
                   then v_nome end
@@ -4054,7 +4061,7 @@ revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
 revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                      text, text, date) from public;
+                                      text, text, date, text) from public;
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
 grant execute on function public.minha_fila(uuid[])          to anon, authenticated;
@@ -4062,4 +4069,4 @@ grant execute on function public.sair_da_fila(uuid)          to anon, authentica
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                         text, text, date) to anon, authenticated;
+                                         text, text, date, text) to anon, authenticated;

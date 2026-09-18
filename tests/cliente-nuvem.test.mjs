@@ -166,6 +166,7 @@ verdade('e a tela diz o que está faltando',
 
 await p.fill('#dNasc', '1992-03-11');
 await p.fill('#dEmail', 'juliana@exemplo.com');
+await p.fill('#dCpf', '529.982.247-25');
 await p.click('#btPrincipal'); await p.waitForTimeout(600);
 igual('e a confirmação', await tela(), 'confirmar');
 
@@ -221,6 +222,8 @@ igual('com o nome que ela digitou', (fichas[0]||{}).nome, 'Juliana Ferreira');
 igual('e o aniversário que ela preencheu chegou ao banco',
   String((fichas[0]||{}).nascimento || '').slice(0, 10), '1992-03-11');
 igual('e o e-mail também', (fichas[0]||{}).email, 'juliana@exemplo.com');
+// Só dígitos: a pontuação é da tela, e o `agendar()` normaliza antes de gravar.
+igual('e o CPF, sem pontuação', (fichas[0]||{}).cpf, '52998224725');
 
 secao('E o horário sai da lista para a próxima pessoa');
 

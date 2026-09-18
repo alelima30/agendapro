@@ -52,6 +52,31 @@ create unique index if not exists ix_agend_token on public.agendamentos (gerenci
 create unique index if not exists ix_espera_token on public.lista_espera (gerenciar_token);
 
 -- ---------------------------------------------------------------------------
+-- 1b) O CPF da cliente
+--
+-- `clientes` já tinha nome, telefone, e-mail e nascimento. O CPF entra ao lado
+-- deles, como coluna de verdade e não dentro do `ficha` jsonb: ele identifica
+-- pessoa, e o `ficha` é para o que é livre por natureza — fórmula de cor,
+-- preferência, alerta.
+--
+-- ⚠ SEM `check`, E SEM ÍNDICE ÚNICO. Os dois seriam defensáveis no papel e
+-- caros aqui:
+--
+--   · um `check` de onze dígitos derruba a gravação INTEIRA da tela quando
+--     um CPF malformado escapa por qualquer caminho — e este projeto já
+--     pagou esse preço uma vez, com um campo opcional em branco derrubando o
+--     cadastro todo. Quem garante o formato é a normalização nos dois pontos
+--     de escrita: aqui no `agendar()` e no painel;
+--
+--   · um índice único por salão recusaria a marcação quando duas fichas
+--     acabassem com o mesmo CPF — e a recusa cairia sobre a CLIENTE, no
+--     meio de marcar, por causa de uma duplicidade de cadastro que é do
+--     salão resolver. Ficha repetida é problema de cadastro, não motivo para
+--     alguém não conseguir marcar um corte.
+-- ---------------------------------------------------------------------------
+alter table public.clientes add column if not exists cpf text;
+
+-- ---------------------------------------------------------------------------
 -- 2) agendar() passa a devolver o segredo, e a receber a ficha
 --
 -- Mudar o que uma função devolve exige derrubá-la antes: `create or replace`
@@ -60,14 +85,23 @@ create unique index if not exists ix_espera_token on public.lista_espera (gerenc
 -- ⚠ E O DROP TAMBÉM É O QUE IMPEDE DUAS `agendar()` VIVAS AO MESMO TEMPO.
 --
 -- No Postgres, acrescentar parâmetro — mesmo com `default` — não altera a
--- função: cria uma SOBRECARGA. Sem este drop, o banco ficaria com a de sete
--- argumentos (do 05_agenda.sql) e a de nove lado a lado, as duas liberadas
--- para o anon, e qual delas o PostgREST escolhe depende dos nomes que o
--- navegador mandar. Uma página velha em cache continuaria marcando pela
--- antiga, que ignora e-mail e nascimento — e o cadastro que a cliente
--- preencheu sumiria sem erro nenhum, que é o pior jeito de sumir.
+-- função: cria uma SOBRECARGA. Sem os drops, o banco acumularia uma
+-- `agendar()` por versão — a de sete argumentos do 05_agenda.sql, a de nove
+-- de quando entrou o cadastro, a de dez de agora — todas liberadas para o
+-- anon ao mesmo tempo, e qual delas o PostgREST escolhe depende dos nomes
+-- que o navegador mandar. Uma página velha em cache continuaria marcando
+-- pela antiga, que ignora o cadastro inteiro — e o que a cliente preencheu
+-- sumiria sem erro nenhum, que é o pior jeito de sumir.
+--
+-- Por isso os drops são CUMULATIVOS: cada assinatura que já existiu continua
+-- listada aqui para sempre. Tirar uma da lista, um dia, é deixar viva a
+-- sobrecarga que ela derrubava — num banco que já estava instalado.
 -- ---------------------------------------------------------------------------
+-- A de sete (do 05_agenda.sql) e a de nove (a versão anterior deste arquivo).
+-- As duas caem, sempre, para nunca sobrar sobrecarga viva.
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text);
+drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
+                                       text, date);
 
 create or replace function public.agendar(
   p_profissional  uuid,
@@ -78,7 +112,8 @@ create or replace function public.agendar(
   p_atendido_nome text default null,
   p_obs           text default null,
   p_email         text default null,
-  p_nascimento    date default null)
+  p_nascimento    date default null,
+  p_cpf           text default null)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -173,11 +208,24 @@ begin
 
      Quem manda na ficha é o salão. A cliente só preenche o que falta.
      ══════════════════════════════════════════════════════════════════════ */
+  /* ⚠ O CPF É NORMALIZADO AQUI, E CPF TORTO É IGNORADO EM SILÊNCIO.
+
+     Guardado só se sobrarem exatamente onze dígitos. Não há `check` na
+     coluna de propósito (o motivo está lá em cima, na seção 1b), então esta
+     linha é o que garante que o que entra na coluna tem forma de CPF.
+
+     E o que não tem é DESCARTADO, nunca recusado: o campo é opcional, a tela
+     já avisou quem digitou errado, e derrubar a marcação inteira por causa
+     dele seria cobrar da cliente o preço de um campo que ela nem precisava
+     preencher. Marcar o corte é o que importa; o CPF é acessório. */
   update public.clientes c
      set email      = coalesce(c.email, nullif(btrim(coalesce(p_email, '')), '')),
-         nascimento = coalesce(c.nascimento, p_nascimento)
+         nascimento = coalesce(c.nascimento, p_nascimento),
+         cpf        = coalesce(c.cpf,
+                        case when public.so_digitos(p_cpf) ~ '^[0-9]{11}$'
+                             then public.so_digitos(p_cpf) end)
    where c.id = v_cliente
-     and (c.email is null or c.nascimento is null);
+     and (c.email is null or c.nascimento is null or c.cpf is null);
 
   /* QUEM DE FATO VEM, quando o nome informado não é o da ficha.
 
@@ -572,7 +620,7 @@ revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
 revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                      text, text, date) from public;
+                                      text, text, date, text) from public;
 
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
@@ -581,4 +629,4 @@ grant execute on function public.sair_da_fila(uuid)          to anon, authentica
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                         text, text, date) to anon, authenticated;
+                                         text, text, date, text) to anon, authenticated;

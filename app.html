@@ -800,6 +800,7 @@ body.carregando-tudo .tela{ display:none }
 <script src="icones.js"></script>
 <script src="imagens.js"></script>
 <script src="endereco.js"></script>
+<script src="documento.js"></script>
 <script src="qr.js"></script>
 <script src="demo.js"></script>
 <script src="config.js"></script>
@@ -1553,7 +1554,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.654977';
+const VERSAO_APP = 'v9.99539f';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -5062,9 +5063,20 @@ function abrirCliente(cid){
          aparece na ficha e' pior que dado nenhum: o dono ve a cliente
          preencher e nao encontra em lugar nenhum.
          (Sem crase: comentario dentro de template literal.) -->
-    <div class="campo"><label>E-mail</label>
-      <input id="kEmail" type="email" value="${escapar(c ? (c.email||'') : '')}"
-             placeholder="cliente@exemplo.com"></div>
+    <div class="dupla">
+      <div class="campo"><label>E-mail</label>
+        <input id="kEmail" type="email" value="${escapar(c ? (c.email||'') : '')}"
+               placeholder="cliente@exemplo.com"></div>
+      <!-- O CPF que a cliente pode ter preenchido pelo link, e que a recepcao
+           tambem digita aqui. Guardado so' com digitos; a pontuacao e' da
+           tela, e duas grafias do mesmo documento na coluna seriam dois
+           documentos para qualquer busca futura. -->
+      <div class="campo"><label>CPF</label>
+        <input id="kCpf" type="text" inputmode="numeric" maxlength="14"
+               value="${escapar(c ? Endereco.documento(c.cpf || '') : '')}"
+               placeholder="000.000.000-00"
+               oninput="Documento.mascaraCpf(this)"></div>
+    </div>
     <div class="campo"><label>Observações e alergias</label>
       <textarea id="kObs" rows="3" placeholder="Fórmula da cor, preferências, alergias">${escapar(c ? (c.obs||'') : '')}</textarea></div>
   `, [
@@ -5077,6 +5089,17 @@ function salvarCliente(cid){
   const nome = (document.getElementById('kNome').value || '').trim();
   if(nome.length < 2){ alert('Informe o nome.'); return; }
   const tel = telefoneParaBanco(document.getElementById('kTel').value);
+
+  /* CPF conferido só quando preenchido — em branco é estado normal de ficha.
+     Aqui SIM vale barrar, ao contrário do link: quem digita é a recepção, com
+     o documento na mão, e um dígito trocado só aparece meses depois, na hora
+     de emitir a nota, quando ninguém lembra de onde veio. */
+  const kcpf = (document.getElementById('kCpf').value || '').trim();
+  if(kcpf && !Documento.cpfValido(kcpf)){
+    alert('Esse CPF não confere — deve ter escapado um número.\n\n'
+        + 'Confira, ou deixe o campo em branco.');
+    return;
+  }
 
   /* Mesma trava do banco, dita antes e em português. Aqui NÃO se pergunta se
      é a mesma pessoa: no cadastro de cliente juntar duas fichas seria mover
@@ -5099,6 +5122,12 @@ function salvarCliente(cid){
     telefone: tel,
     nascimento: document.getElementById('kNasc').value || '',
     email: (document.getElementById('kEmail').value || '').trim(),
+    /* ⚠ SÓ DÍGITOS, e a conferência ANTES de gravar.
+       A coluna não tem `check` de propósito (o motivo está no 09_cliente.sql),
+       então é aqui e no `agendar()` que a forma é garantida. Gravar
+       "123.456.789-00" e "12345678900" na mesma coluna seria guardar dois
+       documentos diferentes para a mesma pessoa. */
+    cpf: Documento.soDigitos(document.getElementById('kCpf').value),
     obs: document.getElementById('kObs').value || '',
   };
   if(cid) Object.assign(acharCliente(cid), dados);

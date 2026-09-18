@@ -535,14 +535,17 @@ select t_verdade('anon pode executar horarios_livres',
 -- cadastro sem erro nenhum.
 select t_verdade('anon pode executar agendar',
   has_function_privilege('anon',
-    'public.agendar(uuid, timestamptz, uuid[], text, text, text, text, text, date)',
+    'public.agendar(uuid, timestamptz, uuid[], text, text, text, text, text, date, text)',
     'execute'));
 
-select t_falso('e a assinatura antiga, de sete argumentos, não sobrou viva',
+/* Cumulativo: toda assinatura que já existiu continua cobrada aqui. Tirar
+   uma desta conta é deixar viva a sobrecarga que o drop derrubava — num
+   banco que já estava instalado, e sem barulho nenhum. */
+select t_falso('e nenhuma assinatura antiga de agendar sobrou viva',
   exists (select 1 from pg_proc p
             join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'public' and p.proname = 'agendar'
-             and p.pronargs = 7));
+             and p.pronargs in (7, 9)));
 
 select t_falso('mas anon NÃO lê a tabela de agendamentos',
   has_table_privilege('anon', 'public.agendamentos', 'select'));
@@ -723,5 +726,56 @@ select t_texto('e o aniversário que faltava',
 select t_igual('sem criar ficha nova para quem já tinha uma',
   (select count(*) from public.clientes
     where salao_id = 'aaaaaaaa-0000-0000-0000-000000000001'), 3);
+
+/* ── O CPF ────────────────────────────────────────────────────────────────
+   Mesma regra dos outros dois: só preenche o que está vazio. O que muda é o
+   que acontece com um CPF TORTO.
+
+   ⚠ CPF malformado é DESCARTADO, nunca recusado.
+
+   Não há `check` na coluna de propósito — está escrito na seção 1b, e o
+   motivo é o mesmo que já custou caro neste projeto: um campo opcional
+   derrubando a gravação inteira. Então quem garante a forma é a
+   normalização, e o que não tem onze dígitos simplesmente não entra.
+
+   Recusar seria pior de um jeito específico: a marcação inteira cairia, com
+   a cliente no fim do caminho, por causa de um campo que ela nem precisava
+   preencher. Marcar o corte é o que importa; o CPF é acessório. */
+insert into public.clientes (salao_id, nome, telefone) values
+  ('aaaaaaaa-0000-0000-0000-000000000001', 'Bete Nunes', '51955554444');
+
+select t_igual('marcar com CPF torto não derruba a marcação',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '10:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Bete Nunes', '(51) 95555-4444', null, null, null, null, '123')), 1);
+
+select t_verdade('e o CPF torto não é guardado',
+  (select cpf is null from public.clientes where nome = 'Bete Nunes'));
+
+select t_igual('e com um CPF de onze dígitos ela marca de novo',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '13:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Bete Nunes', '(51) 95555-4444', null, null, null, null,
+     '529.982.247-25')), 1);
+
+-- Guardado só com dígitos: a pontuação é enfeite de tela, e duas grafias do
+-- mesmo documento na coluna são dois documentos para qualquer busca futura.
+select t_texto('o CPF entra na ficha sem pontuação',
+  (select cpf from public.clientes where nome = 'Bete Nunes'), '52998224725');
+
+select t_igual('e uma terceira marcação com OUTRO CPF não troca o que já está lá',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '15:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Bete Nunes', '(51) 95555-4444', null, null, null, null,
+     '111.444.777-35')), 1);
+
+select t_texto('o CPF da ficha continua o primeiro',
+  (select cpf from public.clientes where nome = 'Bete Nunes'), '52998224725');
 
 select t_ok('agenda pública: tudo conferido');

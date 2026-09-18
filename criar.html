@@ -431,6 +431,7 @@ input.bom{border-color:rgba(21,128,61,.5)!important}
 <script src="icones.js"></script>
 <script src="imagens.js"></script>
 <script src="endereco.js"></script>
+<script src="documento.js"></script>
 <script src="config.js"></script>
 <script src="dados.js"></script>
 <script>
@@ -553,53 +554,21 @@ function mascaraTel(el){
   el.value = v;
 }
 
-function mascaraDoc(el){
-  let v = soDigitos(el.value).slice(0,14);
-  if(v.length <= 11){
-    v = v.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2')
-         .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  } else {
-    v = v.replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-         .replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2');
-  }
-  el.value = v;
-}
+/* ⚠ `mascaraDoc`, `cpfValido` e `cnpjValido` MORAVAM AQUI, sem uso nenhum.
 
-function cpfValido(cpf){
-  cpf = soDigitos(cpf);
-  if(cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
-  for(const [ate, pos] of [[9,10],[10,11]]){
-    let soma = 0;
-    for(let i = 0; i < ate; i++) soma += Number(cpf[i]) * (pos - i);
-    let d = (soma * 10) % 11;
-    if(d === 10) d = 0;
-    if(d !== Number(cpf[ate])) return false;
-  }
-  return true;
-}
+   O comentário que ficava logo abaixo dizia que o documento passaria a ser
+   pedido na hora de assinar "e é lá que eles voltam". Voltaram — e em mais
+   lugares do que aquele: o link da cliente passou a oferecer o campo de CPF,
+   e a ficha do painel também.
 
-function cnpjValido(cnpj){
-  cnpj = soDigitos(cnpj);
-  if(cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
-  const calc = tam => {
-    let soma = 0, pos = tam - 7;
-    for(let i = tam; i >= 1; i--){
-      soma += Number(cnpj[tam - i]) * pos--;
-      if(pos < 2) pos = 9;
-    }
-    const r = soma % 11;
-    return r < 2 ? 0 : 11 - r;
-  };
-  return calc(12) === Number(cnpj[12]) && calc(13) === Number(cnpj[13]);
-}
+   Três cópias de um dígito verificador em três arquivos é como uma delas
+   fica diferente das outras sem ninguém perceber. Foram para o
+   `documento.js`, inteiras e sem uma vírgula mudada, e se chamam
+   `Documento.mascara`, `Documento.cpfValido` e `Documento.cnpjValido`. */
 
 /* Não existe "confirme a senha". O campo duplicado é ritual antigo: com o
    botão de revelar, ele só dobra o trabalho e a chance de errar. Quem digita
-   errado usa "esqueci minha senha", que precisa existir de qualquer jeito.
-
-   `cpfValido` e `cnpjValido` continuam aqui de propósito, sem uso no
-   cadastro: o documento passa a ser pedido na hora de assinar, e é lá que
-   eles voltam. */
+   errado usa "esqueci minha senha", que precisa existir de qualquer jeito. */
 function forcaSenha(s){
   let n = 0;
   if(s.length >= 8) n++;
