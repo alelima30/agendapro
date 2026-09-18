@@ -1554,7 +1554,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.4f2305';
+const VERSAO_APP = 'v9.88b9d8';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -9149,6 +9149,47 @@ function pdAndar(n){
    meia dúzia de ajustes — nenhuma coluna nova para uma tela que se usa uma
    vez. `Object.assign` por cima, e não substituição: sobrescrever o `cfg`
    inteiro apagaria a galeria, a antecedência e o resto. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⚠ O ASSISTENTE PRECISA ESPERAR O BANCO RESPONDER
+
+   Todo passo daqui escrevia assim:
+
+       bd.profissionais.push(…);
+       salvar();          // na nuvem isto é uma PROMESSA, e ela era jogada fora
+       pdDesenhar();      // desenhava o "feito" antes de haver resposta
+
+   Na demonstração funciona: `salvar()` grava no localStorage e volta. Na
+   nuvem, não. O banco pode recusar — e recusa de verdade:
+
+     · a COTA DO PLANO. `tg_limite_prof` barra o segundo profissional em
+       plano que cobre um. O `salvar()` mostra o aviso, recarrega o `bd` do
+       banco e desfaz a linha recusada — mas o assistente já tinha desenhado
+       a pessoa na lista. Ela aparecia cadastrada e não existia;
+
+     · e aí "Tirar" nela não tirava nada, porque no banco ela nunca esteve.
+       O desenho seguinte, vindo do `bd` já corrigido, mostrava ela de volta.
+       Foi exatamente o que apareceu na tela: uma pessoa que não sai.
+
+   Esperar conserta os dois de uma vez, e sem inventar mensagem nenhuma: o
+   `salvar()` já avisa e já recarrega. O que faltava era desenhar DEPOIS.
+
+   A trava do meio impede o segundo toque enquanto o primeiro está no ar —
+   sem ela, dois cliques rápidos mandam duas gravações do mesmo retrato. */
+let pdGravando = false;
+
+async function pdGravar(){
+  if(pdGravando) return;
+  pdGravando = true;
+  try{ await salvar(); }
+  catch(erro){
+    // `salvar()` já trata e avisa; isto é só para um erro inesperado não
+    // deixar a trava presa e o assistente mudo para sempre.
+    console.error('[AgendaPro] assistente ao gravar:', erro);
+  }
+  finally{ pdGravando = false; }
+  pdDesenhar();
+}
+
 function pdMarcar(extra){
   const sl = acharSalao(salaoAtual);
   if(!sl) return;
@@ -9448,7 +9489,7 @@ function pdServicoEmUso(sid){
       || (bd.pacote_servicos || []).some(x => x.servicoId === sid);
 }
 
-function pdVirarServico(k, i){
+async function pdVirarServico(k, i){
   const linha = (PD_SERVICOS[k] || [])[i];
   if(!linha) return;
   const [nome, dur, preco] = linha;
@@ -9463,25 +9504,82 @@ function pdVirarServico(k, i){
     bd.servicos = bd.servicos.filter(s => s.id !== ja.id);
   } else {
     bd.servicos.push({ id:id(), salaoId:salaoAtual, nome,
-      categoria: PD_ROTULO[k] || '', duracaoMin: dur, intervaloMin: 0,
+      // A grafia que o salão já usa vence a do catálogo — senão a página da
+      // cliente ganha uma segunda seção com o mesmo nome.
+      categoria: pdGrafiaDaCategoria(PD_ROTULO[k] || ''),
+      duracaoMin: dur, intervaloMin: 0,
       preco, comissaoPct: null, comissaoFixa: null, foto: null, ativo: true });
   }
-  salvar();
-  pdDesenhar();
+  await pdGravar();
 }
 
-function pdServicoAMao(){
+async function pdServicoAMao(){
   const nome = (document.getElementById('pdSvNome').value || '').trim();
   const dur = parseInt(document.getElementById('pdSvDur').value, 10);
   if(nome.length < 2){ alert('Informe o nome do serviço.'); return; }
   if(!dur || dur <= 0){ alert('A duração precisa ser maior que zero.'); return; }
   if(pdServicoIgual(nome)){ alert('Já existe um serviço com esse nome.'); return; }
-  bd.servicos.push({ id:id(), salaoId:salaoAtual, nome, categoria:'',
+  const cat = (document.getElementById('pdSvCat') || {}).value || '';
+  bd.servicos.push({ id:id(), salaoId:salaoAtual, nome,
+    categoria: cat ? pdGrafiaDaCategoria(cat) : '',
     duracaoMin: dur, intervaloMin: 0,
     preco: parseFloat(document.getElementById('pdSvPreco').value) || 0,
     comissaoPct: null, comissaoFixa: null, foto: null, ativo: true });
-  salvar();
-  pdDesenhar();
+  await pdGravar();
+}
+
+/* As categorias que o seletor oferece: as marcadas no passo 3, mais qualquer
+   grafia que o salão JÁ use e que não esteja entre elas. Um salão com "Barba
+   masculina" cadastrada à mão continua podendo pôr o próximo serviço lá, em
+   vez de ser empurrado para o vocabulário do catálogo. */
+function pdCategoriasParaEscolher(){
+  const vistos = new Map();
+  for(const k of pdCategoriasAtuais()){
+    const r = PD_ROTULO[k];
+    if(r) vistos.set(nomeAchatado(r), r);
+  }
+  for(const s of doSalao(bd.servicos)){
+    const r = (s.categoria || '').trim();
+    if(r && !vistos.has(nomeAchatado(r))) vistos.set(nomeAchatado(r), r);
+  }
+  return [...vistos.values()];
+}
+
+/* ⚠ A GRAFIA QUE O SALÃO JÁ USA VENCE A DO CATÁLOGO.
+
+   O catálogo daqui diz "Cabelo". Se o salão já tem serviços com "cabelo" ou
+   "Cabelos", criar mais um com "Cabelo" abriria uma SEGUNDA seção na página
+   da cliente — ela rolaria procurando a escova numa lista partida ao meio
+   por um detalhe de digitação. Aconteceu: refazer o passo a passo num salão
+   que já tinha serviços deixou a página com duas vezes "Unhas" e duas
+   "Cabelo".
+
+   A página da cliente foi consertada para agrupar sem olhar caixa nem
+   acento, o que repara o que já está gravado torto. Esta função é a outra
+   metade: impede que grafia nova nasça. */
+function pdGrafiaDaCategoria(rotulo){
+  const alvo = nomeAchatado(rotulo);
+  const ja = doSalao(bd.servicos)
+    .map(s => (s.categoria || '').trim()).filter(Boolean)
+    .find(c => nomeAchatado(c) === alvo);
+  return ja || rotulo;
+}
+
+/* Tirar um serviço que não veio do catálogo. Passa pela mesma trava do toque
+   na sugestão: cadastro preso a atendimento que já aconteceu não some daqui,
+   porque apagá-lo deixaria agenda e relatório apontando para o nada. */
+async function pdTirarServico(sid){
+  const s = acharServico(sid);
+  if(!s) return;
+  if(pdServicoEmUso(sid)){
+    alert(s.nome + ' já tem atendimento na agenda, então não dá para tirar '
+        + 'daqui.\n\nPara parar de oferecer, desative em Serviços — assim o '
+        + 'histórico continua de pé.');
+    return;
+  }
+  if(!confirm('Tirar ' + s.nome + ' da lista de serviços?')) return;
+  bd.servicos = bd.servicos.filter(x => x.id !== sid);
+  await pdGravar();
 }
 
 function pdDesenhar4(){
@@ -9506,6 +9604,37 @@ function pdDesenhar4(){
       marque o que o salão faz.</p>`;
   }
 
+  /* ⚠ OS SERVIÇOS DO SALÃO QUE NÃO ESTÃO NO CATÁLOGO APARECEM AQUI.
+
+     Faltava esta lista, e o efeito era o pior possível: cadastrar em "Não
+     está na lista?" não mudava NADA na tela. O serviço ia para o banco e
+     sumia de vista — só o contador lá embaixo mexia, e ninguém olha
+     contador. A pessoa cadastra de novo, achando que não funcionou.
+
+     Ela também mostra o que o salão já tinha ANTES do assistente, que é o
+     caso de quem refaz o passo a passo: sem isso, o passo dava a entender
+     que o salão não tem serviço nenhum. */
+  const nosCatalogos = new Set();
+  for(const lista of Object.values(PD_SERVICOS))
+    for(const [nome] of lista) nosCatalogos.add(nomeAchatado(nome));
+  const proprios = doSalao(bd.servicos)
+    .filter(s => !nosCatalogos.has(nomeAchatado(s.nome)));
+
+  if(proprios.length){
+    html += `<div class="pd-cat">Seus serviços</div>`
+      + proprios.map(s => `
+          <div class="pd-sug on" style="cursor:default">
+            <span class="pd-mais">✓</span>
+            <span class="pd-nome">${escapar(s.nome)}${s.categoria
+              ? ` <span style="font-weight:500;color:var(--txt2)">· ${
+                  escapar(s.categoria)}</span>` : ''}</span>
+            <span class="pd-det">${s.duracaoMin} min · ${real(s.preco)}</span>
+            <button type="button" class="btn btn-peq"
+                    onclick="pdTirarServico('${s.id}')">Tirar</button>
+          </div>`).join('');
+  }
+
+  const cats = pdCategoriasParaEscolher();
   const meus = doSalao(bd.servicos);
   return html + `
     <div class="pd-cat">Não está na lista?</div>
@@ -9517,6 +9646,20 @@ function pdDesenhar4(){
       <span class="pd-ate">min</span>
       <input id="pdSvPreco" type="number" min="0" step="1" placeholder="0"
              style="width:86px" aria-label="Preço em reais">
+    </div>
+    <!-- ⚠ A CATEGORIA DO SERVICO A MAO, e ela faltava.
+         Sem o seletor, tudo o que era cadastrado aqui nascia com categoria
+         VAZIA — e servico sem categoria cai num bloco solto na pagina da
+         cliente, separado do resto. A lista sai das categorias marcadas no
+         passo anterior, que e' onde a pessoa acabou de dizer o que o salao
+         faz, mais as que o salao ja' usa.
+         (Sem crase: comentario dentro de template literal.) -->
+    <div class="pd-faixa" style="margin-top:8px">
+      <select id="pdSvCat" aria-label="Categoria do serviço"
+              style="flex:1;min-width:150px">
+        ${cats.map(c => `<option value="${escapar(c)}">${escapar(c)}</option>`).join('')}
+        <option value="">Sem categoria</option>
+      </select>
       <button type="button" class="btn btn-peq" onclick="pdServicoAMao()"
         >Adicionar</button>
     </div>
@@ -9530,7 +9673,7 @@ function pdDesenhar4(){
 }
 
 /* ── Passo 5 · a equipe ──────────────────────────────────────────────────── */
-function pdEquipeAMao(){
+async function pdEquipeAMao(){
   const campo = document.getElementById('pdEqNome');
   const nome = (campo.value || '').trim();
   if(nome.length < 2){ alert('Informe o nome de quem atende.'); return; }
@@ -9549,11 +9692,10 @@ function pdEquipeAMao(){
     // tem coluna na agenda — seria um cadastro que não atende ninguém.
     jornada: _copia(pdHorarioAtual()),
   });
-  salvar();
-  pdDesenhar();
+  await pdGravar();
 }
 
-function pdTirarDaEquipe(pid){
+async function pdTirarDaEquipe(pid){
   const p = acharProf(pid);
   if(!p) return;
   const temAgenda = (bd.agendamentos || []).some(a => a.profissionalId === pid);
@@ -9565,8 +9707,7 @@ function pdTirarDaEquipe(pid){
   }
   if(!confirm('Tirar ' + p.nome + ' da equipe?')) return;
   bd.profissionais = bd.profissionais.filter(x => x.id !== pid);
-  salvar();
-  pdDesenhar();
+  await pdGravar();
 }
 
 function pdDesenhar5(){
@@ -9620,7 +9761,7 @@ function pdProdutoIgual(nome){
   return doSalao(bd.produtos || []).find(p => nomeAchatado(p.nome) === alvo) || null;
 }
 
-function pdVirarProduto(k, i){
+async function pdVirarProduto(k, i){
   const linha = (PD_PRODUTOS[k] || [])[i];
   if(!linha) return;
   const [nome, preco] = linha;
@@ -9645,11 +9786,10 @@ function pdVirarProduto(k, i){
       ativo: true, vendaOnline: false, foto: null,
     });
   }
-  salvar();
-  pdDesenhar();
+  await pdGravar();
 }
 
-function pdProdutoAMao(){
+async function pdProdutoAMao(){
   const nome = (document.getElementById('pdPrNome').value || '').trim();
   if(nome.length < 2){ alert('Informe o nome do produto.'); return; }
   if(pdProdutoIgual(nome)){ alert('Já existe um produto com esse nome.'); return; }
@@ -9659,8 +9799,7 @@ function pdProdutoAMao(){
     custo: 0, estoque: 0, comissaoPct: 0, comissaoFixa: null,
     ativo: true, vendaOnline: false, foto: null,
   });
-  salvar();
-  pdDesenhar();
+  await pdGravar();
 }
 
 function pdDesenhar6(){

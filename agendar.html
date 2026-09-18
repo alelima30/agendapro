@@ -1566,15 +1566,13 @@ function desenharCapa(){
      função de desenho só, sem lógica duplicada. O que muda é a forma, e quem
      decide a forma é o CSS pelo `data-moldura` na raiz. */
   const elegante = (salao.moldura || (salao.cfg||{}).moldura) === 'elegante';
-  const porCat = {};
-  for(const s of svs){ (porCat[s.categoria || ''] ||= []).push(s); }
-  const categorias = Object.keys(porCat);
+  const grupos = agruparPorCategoria(svs);
 
   document.getElementById('capaServicos').innerHTML = !svs.length ? '' : `
     <div class="cat">${voc('oferecemos')}</div>
-    ${categorias.map(cat => `
-      ${categorias.length > 1 && cat ? `<div class="cat-sub">${cat}</div>` : ''}
-      <div class="sv-grade">${porCat[cat].map(s => `
+    ${grupos.map(({ rotulo, lista }) => `
+      ${grupos.length > 1 && rotulo ? `<div class="cat-sub">${escapar(rotulo)}</div>` : ''}
+      <div class="sv-grade">${lista.map(s => `
         <button class="sv-cartao${s.foto ? '' : ' sem-foto'}"
                 onclick="irPara('servico')">
           ${s.foto ? `<span class="sv-cartao-foto"
@@ -1768,6 +1766,32 @@ function semAcento(t){
   return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
 }
 
+/* ⚠ AGRUPA SEM DEPENDER DE CAIXA NEM DE ACENTO.
+
+   Era `porCat[s.categoria]`, comparando o texto letra por letra. "Cabelo",
+   "cabelo" e "Cabelos" viravam TRÊS seções na página da cliente, cada uma
+   com parte dos serviços — e ela rolava procurando a escova numa lista que
+   estava dividida por um detalhe de digitação.
+
+   Aconteceu de verdade: o salão tinha serviços cadastrados à mão, o passo a
+   passo do primeiro dia foi refeito e criou os dele com a grafia do
+   catálogo. A cliente viu duas vezes "Unhas" e duas vezes "Cabelo".
+
+   A chave agora é o nome achatado; o RÓTULO exibido é a primeira grafia que
+   aparece, que é a do salão. Nenhuma linha do banco é mexida — o conserto
+   vale também para o que já está gravado torto. */
+function agruparPorCategoria(svs, padrao){
+  const grupos = new Map();
+  for(const s of svs){
+    const rotulo = (s.categoria || '').trim() || padrao || '';
+    const chave = semAcento(rotulo);
+    if(!grupos.has(chave)) grupos.set(chave, { rotulo, lista: [] });
+    grupos.get(chave).lista.push(s);
+  }
+  return [...grupos.values()];
+}
+
+
 function desenharServicos(){
   // Marca o segmentado do "para quem".
   for(const v of ['mim','filho','ambos']){
@@ -1816,12 +1840,9 @@ function desenharServicos(){
     return;
   }
 
-  const porCat = {};
-  for(const s of svs){ (porCat[s.categoria || 'Serviços'] ||= []).push(s); }
-
   alvo.innerHTML =
-    Object.entries(porCat).map(([cat, lista]) => `
-      <div class="cat">${cat}</div>
+    agruparPorCategoria(svs, 'Serviços').map(({ rotulo, lista }) => `
+      <div class="cat">${escapar(rotulo)}</div>
       ${lista.map(s => {
         const sel = escolha.servicos.includes(s.id);
         /* AQUI é onde a foto e o preço aparecem — não na capa. A pessoa já

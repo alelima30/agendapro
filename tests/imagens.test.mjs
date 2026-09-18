@@ -115,6 +115,61 @@ const jaEndereco = await p.evaluate(() =>
 diz(jaEndereco === 'https://exemplo.com/foto.jpg',
     'endereço que já é URL passa direto, sem reprocessar');
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   O ARQUIVO QUE O NAVEGADOR NÃO ABRE
+
+   "O arquivo não é uma imagem que o navegador abra." — foi o que apareceu na
+   tela do dono ao escolher uma foto do celular. A frase é verdadeira e é um
+   beco: o arquivo É uma imagem, só não uma que a <img> decodifica. Sem saída
+   escrita, a conclusão de quem lê é que o sistema está quebrado.
+
+   Duas coisas mudaram, e as duas são medidas aqui:
+
+     · `createImageBitmap` tenta primeiro, direto do Blob. Decodifica no
+       motor do navegador, sem a volta pelo `data:` — que para uma foto de
+       12 MP é uma string de uns 8 MB só para ser lida, e sozinha derruba a
+       aba num aparelho apertado;
+
+     · quando nada abre, a mensagem diz O QUE FAZER, e diz diferente para
+       HEIC — que é o caso real do celular, e tem conserto na galeria.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const decodifica = await p.evaluate(async () => {
+  const saida = {};
+
+  // Uma imagem de verdade, montada aqui: o caminho feliz continua feliz.
+  const c = document.createElement('canvas');
+  c.width = 400; c.height = 300;
+  const cx = c.getContext('2d');
+  cx.fillStyle = '#2563EB'; cx.fillRect(0, 0, 400, 300);
+  const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  try{
+    const r = await Imagens.reduzir(new File([blob], 'foto.png', { type:'image/png' }),
+                                    'servico');
+    saida.boa = { ok:true, largura:r.largura, altura:r.altura };
+  }catch(e){ saida.boa = { ok:false, erro:e.message }; }
+
+  const tentar = async arq => {
+    try{ await Imagens.reduzir(arq, 'servico'); return null; }
+    catch(e){ return e.message; }
+  };
+  saida.heic  = await tentar(new File([new Uint8Array([1,2,3,4,5,6,7,8])],
+                                      'IMG_0042.HEIC', { type:'image/heic' }));
+  saida.outro = await tentar(new File([new Uint8Array([1,2,3])],
+                                      'contrato.pdf', { type:'application/pdf' }));
+  return saida;
+});
+
+diz(decodifica.boa.ok && decodifica.boa.largura === 400,
+    'uma imagem de verdade continua passando', JSON.stringify(decodifica.boa));
+diz(!!decodifica.heic, 'arquivo que o navegador não abre continua sendo recusado');
+/* A diferença que importa: quem lê isto está com o celular na mão, no meio de
+   cadastrar um serviço. "Não é uma imagem" faz a pessoa parar; "abra na
+   galeria, edite e salve" faz ela terminar o cadastro. */
+diz(/HEIC/i.test(decodifica.heic || '') && /galeria|JPEG/i.test(decodifica.heic || ''),
+    'e a recusa do HEIC ensina o caminho da galeria', decodifica.heic);
+diz(/JPG|JPEG/i.test(decodifica.outro || ''),
+    'e a de qualquer outro arquivo diz que formato funciona', decodifica.outro);
+
 diz(erros.length === 0, 'nenhum erro de JavaScript na página', erros.join(' | '));
 
 await nav.close();

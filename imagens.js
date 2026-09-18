@@ -74,6 +74,53 @@ function carregarImagem(url){
   });
 }
 
+/* ⚠ DECODIFICAR DIRETO DO ARQUIVO, ANTES DE TENTAR O CAMINHO ANTIGO.
+
+   O caminho de sempre é `FileReader` → `data:` → `new Image()`. Ele falha no
+   celular por dois motivos que nada têm a ver com a foto estar ruim:
+
+     · FORMATO. Foto de celular moderno sai em HEIC/HEIF, e nenhum navegador
+       decodifica isso numa <img>. O dono escolhe a foto na galeria, vê "O
+       arquivo não é uma imagem que o navegador abra" e conclui que o sistema
+       está quebrado — foi o que aconteceu, com um print comum na mão.
+
+     · TAMANHO. Uma foto de 12 MP vira uma string base64 de uns 8 MB só para
+       ser decodificada. Em aparelho apertado isso sozinho derruba a aba.
+
+   `createImageBitmap` recebe o Blob e decodifica no motor do navegador, sem
+   passar por texto nenhum. Onde o formato é suportado ele resolve os dois
+   problemas de uma vez; onde não é, ele falha e o caminho antigo é tentado
+   assim mesmo — nenhuma foto que funcionava antes deixa de funcionar. */
+async function decodificar(arquivo){
+  if(typeof createImageBitmap === 'function'){
+    try{
+      const bitmap = await createImageBitmap(arquivo);
+      if(bitmap && bitmap.width && bitmap.height) return bitmap;
+    }catch(e){
+      console.info('[imagens] createImageBitmap não deu conta, tentando o '
+                 + 'caminho antigo:', e && e.message);
+    }
+  }
+  try{
+    return await carregarImagem(await lerArquivo(arquivo));
+  }catch(e){
+    /* A mensagem tem que dizer O QUE FAZER. "Não é uma imagem" é verdade e
+       não ajuda: o arquivo É uma imagem, só não uma que o navegador abre.
+       Quem lê precisa saber que existe saída, e qual. */
+    const nome = (arquivo && arquivo.name) || '';
+    const heic = /\.(heic|heif)$/i.test(nome)
+              || /heic|heif/i.test((arquivo && arquivo.type) || '');
+    throw new Error(heic
+      ? 'Esta foto está em HEIC, o formato novo da câmera, e o navegador não '
+      + 'abre esse tipo.\n\nNo celular: abra a foto na galeria, toque em '
+      + 'editar e salve — a cópia sai em JPEG. Ou mude a câmera para "Mais '
+      + 'compatível" nos ajustes.'
+      : 'Não consegui abrir este arquivo como imagem.\n\nSe veio da câmera do '
+      + 'celular, pode estar em HEIC: abra na galeria, toque em editar e '
+      + 'salve — a cópia sai em JPEG. Fotos em JPG e PNG funcionam sempre.');
+  }
+}
+
 /* Reduz até caber no lado maior pedido, e depois insiste na qualidade até
    caber no teto de bytes. Duas etapas porque são dois limites diferentes: uma
    foto de tela lisa fica minúscula em 1200px, uma foto de salão cheio não. */
@@ -81,7 +128,7 @@ async function reduzir(arquivo, tipo){
   const m = MEDIDAS[tipo];
   if(!m) throw new Error('Tipo de imagem desconhecido: ' + tipo);
 
-  const im = await carregarImagem(await lerArquivo(arquivo));
+  const im = await decodificar(arquivo);
 
   let { width: l, height: a } = im;
   if(!l || !a) throw new Error('A imagem veio sem dimensão.');
@@ -99,6 +146,11 @@ async function reduzir(arquivo, tipo){
   ctx.fillRect(0, 0, l, a);
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(im, 0, 0, l, a);
+  /* O `ImageBitmap` segura os pixels decodificados na memória do navegador
+     até alguém soltar — e uma foto de 12 MP são uns 48 MB. Num celular
+     apertado, três fotos seguidas sem isto derrubam a aba. O `<img>` do
+     caminho antigo não tem `close`, daí o teste. */
+  if(typeof im.close === 'function') im.close();
 
   let q = m.qualidade;
   let saida = tela.toDataURL('image/jpeg', q);

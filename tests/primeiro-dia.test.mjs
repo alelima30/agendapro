@@ -620,6 +620,179 @@ e('terminado, ele marca que acabou', terminou.feito, JSON.stringify(terminou));
 e('e nunca mais aparece sozinho, nem com o salão ainda vazio',
   !terminou.voltou, 'apareceu de novo depois de terminado');
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   O SALÃO QUE JÁ EXISTIA — e os quatro defeitos que ele revelou
+
+   Tudo acima roda num salão vazio, que é o caso para o qual o assistente foi
+   feito. Mas ele é REABRÍVEL, e reabri-lo num salão que já trabalha foi o
+   que quebrou na mão do dono:
+
+     · o serviço cadastrado em "Não está na lista?" não aparecia em canto
+       nenhum — ia para o banco e sumia de vista. A pessoa cadastrava de
+       novo, achando que não tinha funcionado;
+     · ele nascia com categoria VAZIA, e serviço sem categoria cai num bloco
+       solto na página da cliente;
+     · a sugestão do catálogo gravava "Cabelo" onde o salão escrevia
+       "cabelo", e a página da cliente passou a mostrar DUAS seções "Cabelo"
+       e DUAS "Unhas";
+     · e nada disso esperava o banco responder.
+   ══════════════════════════════════════════════════════════════════════════ */
+console.log('\nReabrindo num salão que já trabalha');
+
+/* O salão ganha a grafia dele: tudo em "cabelo", minúsculo, como quem
+   digitou à mão às pressas. */
+await p.evaluate(() => {
+  /* As secoes de cima esvaziam o salao de proposito. Aqui ele precisa estar
+     CHEIO, e cheio do jeito de quem cadastrou a mao: a grafia minuscula e' o
+     que faz o defeito existir. */
+  bd.servicos.push(
+    { id:id(), salaoId:salaoAtual, nome:'Corte simples', categoria:'cabelo',
+      duracaoMin:30, intervaloMin:0, preco:45, comissaoPct:null,
+      comissaoFixa:null, foto:null, ativo:true },
+    { id:id(), salaoId:salaoAtual, nome:'Pe e mao', categoria:'unhas',
+      duracaoMin:60, intervaloMin:0, preco:60, comissaoPct:null,
+      comissaoFixa:null, foto:null, ativo:true });
+  for(const s of doSalao(bd.servicos)) if(!s.categoria) s.categoria = 'cabelo';
+  const sl = acharSalao(salaoAtual);
+  sl.cfg = Object.assign({}, sl.cfg,
+    { primeiroDia: { categorias: ['cabelo', 'unhas'] } });
+  salvar();
+  abrirPrimeiroDia(4);
+});
+await p.waitForTimeout(400);
+
+const seletor = await p.evaluate(() =>
+  [...document.querySelectorAll('#pdSvCat option')].map(o => o.textContent.trim()));
+console.log('      ' + JSON.stringify(seletor));
+/* Sem o seletor, tudo o que entrava por ali nascia sem categoria. */
+e('o campo à mão tem seletor de categoria, com as marcadas no passo anterior',
+  seletor.includes('Cabelo') && seletor.includes('Unhas'),
+  JSON.stringify(seletor));
+e('e uma saída para quem não quer categoria nenhuma',
+  seletor.some(o => /sem categoria/i.test(o)), JSON.stringify(seletor));
+
+const svAMao = await p.evaluate(async () => {
+  document.getElementById('pdSvNome').value  = 'Corte navalhado';
+  document.getElementById('pdSvDur').value   = '40';
+  document.getElementById('pdSvPreco').value = '55';
+  document.getElementById('pdSvCat').value   = 'Cabelo';
+  await pdServicoAMao();
+  const s = doSalao(bd.servicos).find(x => x.nome === 'Corte navalhado');
+  return { naTela: /Corte navalhado/.test(document.getElementById('pdCorpo').innerText),
+           // `.pd-cat` e' maiuscula por CSS, e o `innerText` respeita o
+           // `text-transform` — dai o /i.
+           secao:  /seus serviços/i.test(document.getElementById('pdCorpo').innerText),
+           categoria: s ? s.categoria : null,
+           duracao: s ? s.duracaoMin : null };
+});
+console.log('      ' + JSON.stringify(svAMao));
+/* O defeito era este: cadastrava, e a tela não mudava. Só o contador lá
+   embaixo mexia, e ninguém olha contador. */
+e('o serviço cadastrado à mão APARECE na tela do passo',
+  svAMao.naTela && svAMao.secao, JSON.stringify(svAMao));
+/* ⚠ E a categoria sai com a GRAFIA DO SALÃO, não a do catálogo. O seletor
+   mostra "Cabelo" porque é o rótulo bonito; o que vai para a coluna é
+   "cabelo", que é como o salão já escreve. Sem isso, a página da cliente
+   ganha uma segunda seção com o mesmo nome. */
+e('com a categoria escolhida, na grafia que o salão já usa — '
+  + JSON.stringify(svAMao.categoria),
+  svAMao.categoria === 'cabelo', JSON.stringify(svAMao));
+
+const daSugestao = await p.evaluate(async () => {
+  await pdVirarServico('cabelo', 1);          // Corte masculino
+  const s = doSalao(bd.servicos).find(x => x.nome === 'Corte masculino');
+  return { categoria: s ? s.categoria : null,
+           grafias: [...new Set(doSalao(bd.servicos).map(x => x.categoria))] };
+});
+console.log('      ' + JSON.stringify(daSugestao));
+e('e a sugestão do catálogo também respeita a grafia do salão',
+  daSugestao.categoria === 'cabelo', JSON.stringify(daSugestao));
+e('nenhuma grafia nova de categoria nasceu — ' + JSON.stringify(daSugestao.grafias),
+  !daSugestao.grafias.some(g => g && g !== 'cabelo' && g !== 'unhas'),
+  JSON.stringify(daSugestao.grafias));
+
+/* ⚠ E A PÁGINA DA CLIENTE JUNTA O QUE JÁ ESTÁ GRAVADO TORTO.
+
+   A grafia nova deixou de nascer, mas o que já existe continua lá — e era
+   ele que produzia as duas seções. O agrupamento passou a ignorar caixa e
+   acento, o que repara a base sem mexer numa linha dela. */
+const agrupa = await p.evaluate(() => {
+  const finge = [
+    { nome:'a', categoria:'Cabelo' }, { nome:'b', categoria:'cabelo' },
+    { nome:'c', categoria:'CABELO' }, { nome:'d', categoria:'Unhas'  },
+    { nome:'e', categoria:'unhas'  }, { nome:'f', categoria:''       },
+  ];
+  // A mesma função que a página da cliente usa, carregada aqui pelo iframe.
+  const q = document.createElement('iframe');
+  q.src = 'agendar.html?salao=studio-bella&demo=1';
+  return new Promise(pronto => {
+    q.onload = () => {
+      const g = q.contentWindow.agruparPorCategoria(finge, 'Serviços');
+      q.remove();
+      pronto(g.map(x => x.rotulo + ':' + x.lista.length));
+    };
+    document.body.appendChild(q);
+  });
+});
+console.log('      ' + JSON.stringify(agrupa));
+e('três grafias de "Cabelo" viram UMA seção na página da cliente — '
+  + JSON.stringify(agrupa),
+  agrupa.length === 3 && agrupa.includes('Cabelo:3') && agrupa.includes('Unhas:2'),
+  JSON.stringify(agrupa));
+e('e o rótulo mostrado é a primeira grafia, que é a do salão',
+  agrupa[0] === 'Cabelo:3', JSON.stringify(agrupa));
+
+await p.evaluate(() => { document.getElementById('primeiroDia').hidden = true; });
+
+
+/* ⚠ E O ASSISTENTE ESPERA O BANCO RESPONDER ANTES DE REDESENHAR.
+
+   Este é o defeito que produziu os outros dois relatos — "tirei e não saiu" e
+   "adicionar dá erro" — e ele não aparece na demonstração, onde `salvar()`
+   grava no localStorage e volta na mesma linha. Na nuvem é uma PROMESSA, e
+   ela era jogada fora:
+
+       bd.profissionais.push(…);
+       salvar();          // promessa descartada
+       pdDesenhar();      // desenhava o "feito" antes da resposta
+
+   Aí a cota do plano recusava o segundo profissional, o `salvar()` avisava e
+   recarregava o `bd` do banco — mas a pessoa já estava desenhada na lista.
+   Aparecia cadastrada sem existir; e "Tirar" nela não tirava nada, porque no
+   banco ela nunca esteve.
+
+   A medida não finge uma recusa: ela troca o `salvar()` por um que demora, e
+   cobra que o desenho aconteça DEPOIS. É a propriedade que faltava, e a que
+   faz o aviso do banco chegar antes da tela mentir. */
+const esperou = await p.evaluate(async () => {
+  const salvarOriginal = window.salvar;
+  const desenhoOriginal = window.pdDesenhar;
+  let gravou = 0, desenhou = 0, ordem = 0;
+  window.salvar = () => new Promise(pronto =>
+    setTimeout(() => { gravou = ++ordem; pronto(); }, 80));
+  window.pdDesenhar = function(){
+    desenhou = ++ordem;
+    return desenhoOriginal.apply(this, arguments);
+  };
+  try{
+    document.getElementById('pdEqNome') ||
+      (pdPasso = 5, desenhoOriginal());          // garante o campo na tela
+    document.getElementById('pdEqNome').value = 'Quem Espera';
+    await pdEquipeAMao();
+  } finally {
+    window.salvar = salvarOriginal;
+    window.pdDesenhar = desenhoOriginal;
+  }
+  return { gravou, desenhou };
+});
+console.log('      ' + JSON.stringify(esperou));
+e('o desenho acontece DEPOIS de o banco responder — '
+  + JSON.stringify(esperou),
+  esperou.gravou > 0 && esperou.desenhou > esperou.gravou,
+  'o assistente redesenhou antes da resposta: é assim que ele mostra como '
+  + 'feito o que o banco recusou');
+
 /* ── 11 · No celular ─────────────────────────────────────────────────────── */
 console.log('\nNo celular');
 
