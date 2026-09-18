@@ -156,10 +156,13 @@ h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:3px}
    uma delas fica diferente das outras sem ninguém perceber. */
 .pista{font-size:12.5px;color:var(--txt2);margin-top:6px}
 
-/* "opcional" escrito NO RÓTULO, e não deduzido do que não tem asterisco.
-   Campo que a pessoa pode pular precisa dizer isso onde ela está olhando —
-   senão ela preenche por via das dúvidas, e é aí que nasce e-mail
-   inventado. */
+/* ⚠ SEM USO no cadastro desde que o e-mail virou obrigatório e o CPF ficou
+   sem marca nenhuma. A regra fica aqui porque a etiqueta é a forma certa de
+   dizer "pode pular" QUANDO houver um campo assim — escrita no rótulo, onde
+   o olho está, e não deduzida de quem não tem asterisco.
+
+   Apagá-la não economizaria nada e faria a próxima pessoa reinventá-la
+   diferente. Se ela continuar sem uso por muito tempo, aí sim é lixo. */
 .opcional{font-weight:600;font-size:11.5px;color:var(--txt3,var(--txt2));
   text-transform:uppercase;letter-spacing:.04em;margin-left:5px}
 
@@ -467,11 +470,15 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
          fechada na cara dele e' uma marcacao que nao acontece.
 
          Nome e WhatsApp continuam obrigatorios, como sempre foram. O
-         ANIVERSARIO entrou obrigatorio porque e' o unico campo daqui que so'
-         a propria pessoa sabe e que o salao usa depois. O E-MAIL e' opcional
-         de proposito: e' o campo que mais gente inventa quando e' exigido, e
-         endereco inventado no cadastro e' pior que campo vazio — ele parece
-         um dado.
+         ANIVERSARIO e o E-MAIL entraram obrigatorios por decisao do dono.
+
+         ⚠ Sobre o e-mail, o que foi dito na hora de decidir, para nao se
+         perder: exigido, ele e' o campo que mais gente inventa. Endereco
+         falso e' pior que campo vazio, porque parece um dado — o salao manda
+         o recibo e acha que chegou. A escolha e' do salao, e esta' feita.
+
+         O CPF nao leva marca nem linha de apoio, tambem por pedido, e e' o
+         unico daqui que NAO trava a marcacao.
          (Sem crase neste comentario: ele vive dentro do HTML deste arquivo,
          que e' lido como template literal noutros pontos.) -->
     <section class="passo" id="p-dados">
@@ -493,29 +500,32 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
         <input id="dNasc" type="date" autocomplete="bday">
         <p class="pista">O salão costuma guardar um agrado para o seu mês.</p>
       </div>
-      <!-- ⚠ O CPF NAO LEVA ETIQUETA, e isso foi pedido assim.
-           O registro de que a decisao e' consciente fica aqui, porque a
-           ausencia de marca nao se explica sozinha na tela: ao lado de um
-           campo escrito OPCIONAL, um campo sem marca nenhuma e' lido como
-           obrigatorio. Quem so' quer marcar um corte vai preencher.
+      <!-- ⚠ O CPF NAO LEVA ETIQUETA NEM LINHA DE APOIO, e isso foi pedido
+           assim, duas vezes. O registro de que a decisao e' consciente fica
+           aqui, porque o silencio na tela nao se explica sozinho: sem marca e
+           sem explicacao, um campo e' lido como obrigatorio, e quem so' quer
+           marcar um corte vai preencher.
 
            Por isso ele NAO TRAVA a marcacao — o `salvarDados` deixa passar em
-           branco, e o `agendar()` no 09_cliente.sql descarta CPF torto em
-           vez de recusar. A tela sugere; ninguem fica sem horario por causa
-           de um documento que o corte nao precisa.
+           branco, e o `agendar()` no 09_cliente.sql descarta CPF torto em vez
+           de recusar. A tela nao explica; mas ninguem fica sem horario por
+           causa de um documento que o corte nao precisa.
            (Sem crase e sem acento: comentario dentro de HTML que e' lido
            como template literal noutros pontos deste arquivo.) -->
       <div class="campo">
         <label>CPF</label>
         <input id="dCpf" type="text" inputmode="numeric" placeholder="000.000.000-00"
                maxlength="14" oninput="Documento.mascaraCpf(this)">
-        <p class="pista">Fica na sua ficha, para a nota do salão.</p>
       </div>
+      <!-- O e-mail passou a ser obrigatorio por decisao do dono. Ele deixa de
+           ser "so' para recibo": vira parte do cadastro que o salao exige
+           para marcar. A linha de apoio diz para que serve — mas nao promete
+           mais que da' para pular, porque nao da'. -->
       <div class="campo">
-        <label>E-mail <span class="opcional">opcional</span></label>
+        <label>E-mail</label>
         <input id="dEmail" type="email" inputmode="email"
                placeholder="voce@exemplo.com" autocomplete="email">
-        <p class="pista">Só para recibo e novidades. Pode ficar em branco.</p>
+        <p class="pista">Para o recibo e os avisos do salão.</p>
       </div>
       <div id="avisoDados"></div>
     </section>
@@ -2378,9 +2388,20 @@ function salvarDados(){
     dizer('Confira o ano do seu aniversário.');
     return;
   }
-  if(email && !EMAIL_PLAUSIVEL.test(email)){
-    dizer('Esse e-mail parece incompleto. Corrija, ou deixe o campo em '
-        + 'branco — ele é opcional.');
+  /* ⚠ O E-MAIL PASSOU A SER OBRIGATÓRIO — decisão do dono, e não uma
+     consequência técnica. Antes ele era opcional de propósito, porque é o
+     campo que mais gente inventa quando é exigido. Exigido, ele custa
+     marcação e ganha endereço falso; foi dito, e a escolha é do salão.
+
+     As DUAS mensagens existem e são diferentes: "não preencheu" e
+     "preencheu torto" mandam a pessoa fazer coisas diferentes, e juntar as
+     duas num texto só faria quem esqueceu procurar o erro de digitação. */
+  if(!email){
+    dizer('Falta o seu e-mail — é por onde vem o recibo.');
+    return;
+  }
+  if(!EMAIL_PLAUSIVEL.test(email)){
+    dizer('Esse e-mail parece incompleto. Confira antes de seguir.');
     return;
   }
   /* ⚠ SÓ CONFERE QUEM PREENCHEU — em branco passa direto.

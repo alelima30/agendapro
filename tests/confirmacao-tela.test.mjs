@@ -163,6 +163,8 @@ await c.fill('#dTel', '51988887777');
 // o caso que o comentário acima descreve: faltando, a tela só reescreve o
 // aviso e fica onde está.
 await c.fill('#dNasc', '1989-10-04');
+// Obrigatório desde que o dono decidiu exigir e-mail no cadastro.
+await c.fill('#dEmail', 'maria@exemplo.com');
 await c.waitForTimeout(300);
 await c.click('#btPrincipal');            // dados → confirmar
 await c.waitForTimeout(1500);

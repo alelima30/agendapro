@@ -5,9 +5,9 @@
      PLAYWRIGHT=… node tests/cadastro-cliente.test.mjs
 
    ── O QUE MUDOU, E O QUE ESTÁ EM JOGO ──────────────────────────────────────
-   O link pedia nome e WhatsApp. Agora pede também o aniversário, e oferece o
-   e-mail — marcado como opcional — e o CPF, que por pedido não leva marca
-   nenhuma.
+   O link pedia nome e WhatsApp. Agora pede também o aniversário e o e-mail,
+   os dois obrigatórios por decisão do dono, e oferece o CPF — que por pedido
+   não leva marca nem linha de apoio, e é o único que não trava nada.
 
    Cada campo novo num formulário de marcação é um lugar a mais onde a pessoa
    desiste. Quem chega pelo Instagram para ver quanto custa uma escova não
@@ -19,11 +19,12 @@
      · que o cadastro fique NO FIM, depois do preço e do horário;
      · que seja UMA VEZ SÓ — o aparelho lembra, e a segunda marcação não
        pede nada de novo;
-     · que o e-mail seja de verdade opcional, e não opcional no rótulo e
-       obrigatório na validação;
-     · que o CPF, mesmo SEM marca nenhuma, também não trave a marcação — se
-       travasse, a ausência da etiqueta deixaria de ser escolha de texto e
-       viraria exigência escondida;
+     · que o e-mail barre de duas formas diferentes — em branco e torto —,
+       porque mandam a pessoa fazer coisas diferentes;
+     · que o CPF, SEM marca e SEM explicação nenhuma, mesmo assim não trave a
+       marcação. É a única coisa que impede o silêncio da tela de virar
+       exigência escondida: sem etiqueta e barrando, a pessoa descobriria que
+       o campo era obrigatório ao ser barrada por ele;
      · que o que ela digitou não sobrescreva o que o salão corrigiu.
 
    ⚠ E a ficha do painel: a coluna `clientes.email` existia desde o começo e
@@ -108,19 +109,29 @@ e('e a tela se chama "Seu cadastro" — ' + tela.titulo,
    permanente. */
 e('e promete que é só na primeira vez',
   /primeira vez/i.test(tela.sub), tela.sub);
-e('o e-mail é marcado como opcional NO RÓTULO, onde o olho está',
-  tela.rotulos.some(r => /e-mail/i.test(r) && /opcional/i.test(r)),
+/* O e-mail virou obrigatório: a etiqueta saiu junto. Etiqueta de opcional
+   num campo que barra é a pior combinação possível — a pessoa lê que pode
+   pular, pula, e leva um "não" que não entende. */
+e('o e-mail não diz mais "opcional", porque não é mais',
+  tela.rotulos.some(r => /e-mail/i.test(r)) &&
+  !tela.rotulos.some(r => /e-mail/i.test(r) && /opcional/i.test(r)),
   JSON.stringify(tela.rotulos));
 
-/* ⚠ O CPF NÃO LEVA ETIQUETA, E ISSO FOI PEDIDO ASSIM.
-   A verificação existe para a decisão ficar registrada, e não porque "sem
-   etiqueta" seja melhor: ao lado de um campo escrito OPCIONAL, um campo sem
-   marca nenhuma é lido como obrigatório, e quem só quer marcar um corte vai
-   preencher. Se um dia alguém puser a etiqueta de volta, esta linha reprova
-   e obriga a conversa a acontecer em vez de a tela mudar sozinha. */
-e('e o CPF, de propósito, não leva etiqueta nenhuma',
-  tela.rotulos.some(r => /^cpf$/i.test(r)),
-  JSON.stringify(tela.rotulos));
+/* ⚠ O CPF NÃO LEVA ETIQUETA NEM LINHA DE APOIO, E ISSO FOI PEDIDO ASSIM.
+   A verificação existe para a decisão ficar registrada, e não porque o
+   silêncio seja melhor: campo sem marca e sem explicação é lido como
+   obrigatório, e quem só quer marcar um corte vai preencher. Se um dia
+   alguém puser texto de volta, esta linha reprova e obriga a conversa a
+   acontecer, em vez de a tela mudar sozinha. */
+const cpfMudo = await p.evaluate(() => {
+  const campo = [...document.querySelectorAll('#p-dados .campo')]
+    .find(c => c.querySelector('#dCpf'));
+  return { rotulo: campo.querySelector('label').textContent.replace(/\s+/g,' ').trim(),
+           pistas: campo.querySelectorAll('.pista').length };
+});
+e('o CPF, de propósito, não leva etiqueta — ' + cpfMudo.rotulo,
+  /^cpf$/i.test(cpfMudo.rotulo), JSON.stringify(cpfMudo));
+e('nem linha nenhuma embaixo', cpfMudo.pistas === 0, JSON.stringify(cpfMudo));
 /* Sem `max`, o seletor de data oferece 2035 de bandeja — e a pessoa só
    descobre o problema depois, no fim do caminho. */
 e('e o calendário do aniversário fecha em hoje — ' + tela.max,
@@ -142,28 +153,28 @@ e('e ele vem DEPOIS do serviço e do horário, nunca na entrada',
 /* ── 2 · O que passa e o que não passa ───────────────────────────────────── */
 console.log('\nO que o formulário aceita');
 
-const semNome = await preencher('', '(11) 98888-7777', '1990-04-17', '');
+const semNome = await preencher('', '(11) 98888-7777', '1990-04-17', 'marta@exemplo.com');
 e('sem nome, não passa', semNome.tela === 'dados' && /nome/i.test(semNome.aviso),
   JSON.stringify(semNome));
 
-const semTel = await preencher('Marta Prado', '9999', '1990-04-17', '');
+const semTel = await preencher('Marta Prado', '9999', '1990-04-17', 'marta@exemplo.com');
 e('sem WhatsApp completo, não passa',
   semTel.tela === 'dados' && /whatsapp|ddd/i.test(semTel.aviso),
   JSON.stringify(semTel));
 
-const semNasc = await preencher('Marta Prado', '(11) 98888-7777', '', '');
+const semNasc = await preencher('Marta Prado', '(11) 98888-7777', '', 'marta@exemplo.com');
 e('sem aniversário, não passa',
   semNasc.tela === 'dados' && /anivers/i.test(semNasc.aviso),
   JSON.stringify(semNasc));
 
-const futuro = await preencher('Marta Prado', '(11) 98888-7777', '2099-01-01', '');
+const futuro = await preencher('Marta Prado', '(11) 98888-7777', '2099-01-01', 'marta@exemplo.com');
 /* Barrado AQUI e não no banco: deixar passar faria a pessoa levar a recusa
    no fim do caminho, quando já achava que tinha terminado. */
 e('aniversário que ainda não chegou, não passa',
   futuro.tela === 'dados' && /não chegou|ano/i.test(futuro.aviso),
   JSON.stringify(futuro));
 
-const antigo = await preencher('Marta Prado', '(11) 98888-7777', '1802-05-01', '');
+const antigo = await preencher('Marta Prado', '(11) 98888-7777', '1802-05-01', 'marta@exemplo.com');
 e('e ano absurdo também não',
   antigo.tela === 'dados' && /ano/i.test(antigo.aviso), JSON.stringify(antigo));
 
@@ -173,12 +184,17 @@ e('e-mail pela metade, não passa',
   emailTorto.tela === 'dados' && /e-mail/i.test(emailTorto.aviso),
   JSON.stringify(emailTorto));
 
-/* ⚠ OPCIONAL NO RÓTULO TEM QUE SER OPCIONAL NA VALIDAÇÃO.
-   Campo escrito "opcional" que barra em branco é a pior combinação: a pessoa
-   lê que pode pular, pula, e leva um "não" que não entende. */
+/* ⚠ AS DUAS RECUSAS DO E-MAIL SÃO DIFERENTES, E DE PROPÓSITO.
+   "Não preencheu" e "preencheu torto" mandam a pessoa fazer coisas
+   diferentes. Juntar as duas num texto só faria quem esqueceu o campo sair
+   procurando um erro de digitação que não existe. */
 const semEmail = await preencher('Marta Prado', '(11) 98888-7777', '1990-04-17', '');
-e('mas SEM e-mail passa — ele é opcional de verdade',
-  semEmail.tela === 'confirmar', JSON.stringify(semEmail));
+e('sem e-mail não passa — ele virou obrigatório',
+  semEmail.tela === 'dados' && /e-mail/i.test(semEmail.aviso),
+  JSON.stringify(semEmail));
+e('e a mensagem de "faltou" não é a mesma de "está torto"',
+  semEmail.aviso !== emailTorto.aviso,
+  JSON.stringify({ faltou: semEmail.aviso, torto: emailTorto.aviso }));
 
 /* ── 2b · O CPF ──────────────────────────────────────────────────────────── */
 console.log('\nO CPF');
@@ -222,7 +238,7 @@ e('e trava em onze dígitos — ' + mascarou.travado,
 await p.evaluate(() => irPara('dados'));
 await p.waitForTimeout(200);
 const cpfTorto = await preencher('Marta Prado', '(11) 98888-7777',
-                                 '1990-04-17', '', '529.982.247-26');
+                                 '1990-04-17', 'marta@exemplo.com', '529.982.247-26');
 e('CPF com um número trocado não passa',
   cpfTorto.tela === 'dados' && /CPF/i.test(cpfTorto.aviso),
   JSON.stringify(cpfTorto));
@@ -232,7 +248,7 @@ e('CPF com um número trocado não passa',
    de ser uma escolha de texto e viraria uma exigência escondida: a pessoa
    descobriria que o campo era obrigatório ao ser barrada por ele. */
 const cpfVazio = await preencher('Marta Prado', '(11) 98888-7777',
-                                 '1990-04-17', '', '');
+                                 '1990-04-17', 'marta@exemplo.com', '');
 e('mas em branco passa — o campo não trava a marcação',
   cpfVazio.tela === 'confirmar', JSON.stringify(cpfVazio));
 

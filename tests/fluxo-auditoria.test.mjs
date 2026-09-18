@@ -140,6 +140,8 @@ if(await cli.isVisible('#dNome')){
   await cli.fill('#dNome', 'Cliente Auditoria');
   await cli.fill('#dTel', '(11) 96666-5555');
   await cli.fill('#dNasc', '1991-06-20');
+  // Obrigatório desde que o dono decidiu exigir e-mail no cadastro.
+  await cli.fill('#dEmail', 'auditoria@exemplo.com');
   await cli.waitForTimeout(500);
   await avancar();
 }
