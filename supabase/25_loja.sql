@@ -30,6 +30,24 @@
 -- `loja.test.sql` cobra que nenhuma chave antiga sumiu.
 -- ===========================================================================
 
+/* ── ⚠ UMA COLUNA QUE NÃO É DESTE MÓDULO, E MESMO ASSIM MORA AQUI ──────────
+   `servicos.dias` é do 31_dias_servico.sql — é lá que a regra vive, com a
+   explicação inteira. Só a DECLARAÇÃO precisa vir antes, e é por um motivo do
+   Postgres, não de arquitetura: `create or replace function` de função SQL
+   COMPILA o corpo na hora. A `vitrine()` logo abaixo lê `v.dias`, então sem a
+   coluna já existente ela nem chega a ser criada — o install para com
+   "column v.dias does not exist".
+
+   Declarar no 31 não resolve: nas DUAS montagens (00_tudo e 98_modulos) o 25
+   roda antes do 31. Aconteceu exatamente assim, e o banco recusou o arquivo
+   inteiro.
+
+   `if not exists` deixa a linha inofensiva: num banco que já tem a coluna ela
+   não faz nada, e o 31 não a declara de novo para não haver duas verdades
+   sobre o mesmo tipo. */
+alter table public.servicos
+  add column if not exists dias smallint[];
+
 create or replace function public.vitrine(p_slug text)
 returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -208,11 +226,24 @@ language sql stable security definer set search_path = public as $$
        where pr.salao_id = s.id and pr.ativo and pr.venda_online
          and coalesce((s.cfg->>'loja')::boolean, true)), '[]'::jsonb),
 
+    /* ── ⚠ `dias` PRECISA VIR JUNTO, E NÃO É ENFEITE ─────────────────────
+       Quem RECUSA é o banco (`porque_nao_agenda`, no 31). Sem esta chave a
+       página da cliente saberia que a segunda-feira não tem horário e não
+       saberia POR QUÊ — e a faixa de dias marcaria o dia como "cheio", que é
+       mentira: o salão está vazio, o serviço é que não é feito ali.
+
+       "Cheio" manda a pessoa esperar uma vaga que nunca vai abrir. Com os
+       dias na mão, a tela diz o que é e ela troca de dia num toque.
+
+       Nulo ou vazio = todos os dias, igual ao banco. Serviço que já existe
+       vem com nulo, e a tela não muda nada para ele. */
     'servicos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', v.id, 'nome', v.nome, 'categoria', v.categoria,
                'descricao', v.descricao, 'duracaoMin', v.duracao_min,
-               'preco', v.preco, 'foto', v.foto)
+               'preco', v.preco, 'foto', v.foto,
+               'dias', case when v.dias is null or cardinality(v.dias) = 0
+                            then null else to_jsonb(v.dias) end)
              order by v.categoria nulls last, v.nome)
         from public.servicos v
        where v.salao_id = s.id and v.ativo and v.aceita_online), '[]'::jsonb),

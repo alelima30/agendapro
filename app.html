@@ -498,12 +498,24 @@ body.carregando-tudo .tela{ display:none }
 
   <!-- ══════════ AGENDA ══════════ -->
   <section class="tela on" id="tela-agenda">
+    <!-- ══════════ AS VISTAS, COMO SUB-ABA ══════════
+         Estavam espremidas dentro da faixa do topo, entre a data e o botao de
+         marcar: tres assuntos diferentes na mesma linha — andar no tempo,
+         escolher o tamanho da janela, e criar. No celular a linha quebrava e
+         os tres viravam um bloco so'.
+
+         Aqui elas sao o MESMO componente das sub-abas de Meu salao: mesmo
+         trilho, mesma pastilha, mesmo lugar na tela, logo abaixo do titulo.
+         Duas peças com a mesma funcao tem que ter a mesma cara e o mesmo
+         endereço, senao cada tela ensina um jeito diferente de fazer a mesma
+         coisa. (Sem crase e sem acento em alguns pontos: comentario dentro de
+         template literal.) -->
+    <div class="sub-abas" id="vistas"></div>
     <div class="barra">
       <button class="btn btn-x" onclick="mudarDia(-1)">&lsaquo;</button>
       <span class="dia" id="rotuloDia"></span>
       <button class="btn btn-x" onclick="mudarDia(1)">&rsaquo;</button>
       <button class="btn btn-peq" onclick="irHoje()">Hoje</button>
-      <span class="vistas" id="vistas"></span>
       <span class="espaco"></span>
       <button class="btn btn-p" onclick="abrirNovo()">+ Agendamento</button>
     </div>
@@ -1743,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.adcec5';
+const VERSAO_APP = 'v9.5874d0';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3189,7 +3201,17 @@ function pintarProdutos(){
     return;
   }
 
-  alvo.innerHTML = `<table class="tab"><thead><tr>
+  /* ⚠ `tabela`, e NÃO `tab`. `.tab` não existe no CSS deste projeto — nunca
+     existiu, então a tela ficava com uma tabela crua de seis colunas. Num
+     celular de 412px o resultado foi o relatado: "Editar" e "Excluir"
+     cortados para fora da tela, a página rolando de lado, e o preço colado no
+     estoque — "R$ 45,000", que se lê como quarenta e cinco mil.
+
+     `.tabela` resolve isso desde sempre: abaixo de 720px ela vira lista de
+     cartões, e o `rotularTabelas()` copia o cabeçalho para dentro de cada
+     célula. Não faltava funcionalidade — era uma classe errada, e classe que
+     não existe não dá erro em lugar nenhum: simplesmente não pinta nada. */
+  alvo.innerHTML = `<table class="tabela"><thead><tr>
       <th>Produto</th><th>Marca</th><th>Preço</th><th>Estoque</th>
       <th>Na loja</th><th></th>
     </tr></thead><tbody>` + lista.map(p => `<tr>
@@ -3212,6 +3234,10 @@ function pintarProdutos(){
         : ''}</td>
     </tr>`).join('') + '</tbody></table>';
   if(window.aplicarIcones) aplicarIcones(alvo);
+  // Os rótulos de cada célula, que o cartão do celular usa no lugar do
+  // cabeçalho. O `pintar()` já faz uma passada geral; esta é para quando a
+  // lista é redesenhada sozinha, sem passar por lá.
+  rotularTabelas(alvo);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4069,8 +4095,19 @@ function dashFatSemana(d){
          dia existe e não vendeu", que é informação. */
       const alt = Math.max(6, Math.round(v / teto * 100));
       const dia = String(x.dia).slice(0, 10);
+      /* ⚠ `barra-fatia`, e NUNCA `barra`. `.barra` já era, desde o começo do
+         projeto, a faixa do topo de TODA tela do painel — e ela mora no
+         <style> do app.html, enquanto esta mora no estilo.css. Nomes iguais,
+         arquivos diferentes, e o estilo.css ganhou: a faixa do topo de todas
+         as telas apareceu pintada de `--ac-600`, com a data escura em cima de
+         azul forte. Foi relatado como "esse azul atrapalhando a visão", e
+         nada no dashboard parecia ter a ver com a agenda.
+
+         Colisão de nome de classe não dá erro em lugar nenhum: as duas regras
+         são válidas, as duas se aplicam, e quem perde é a tela que ninguém
+         estava olhando. */
       return `<div class="barra-col" title="${real(v)}">
-        <div class="barra${v ? '' : ' zero'}" style="height:${alt}%"></div>
+        <div class="barra-fatia${v ? '' : ' zero'}" style="height:${alt}%"></div>
         <span>${DIAS[diaDaSemana(dia)].slice(0,3).toLowerCase()}</span>
       </div>`;
     }).join('')}</div>
@@ -4220,11 +4257,51 @@ function desenharDash(){
    para quem navega por teclado ou leitor de tela. Duas setas resolvem os dois
    casos e não dependem de gesto nenhum.
    ───────────────────────────────────────────────────────────────────────── */
-let dashRascunho = null;
+/* ── ⚠ DOIS ESTADOS, E O PRIMEIRO NÃO SE MEXE SOZINHO ─────────────────────
+
+   `dashOrdem` é a ORDEM DAS LINHAS NA TELA, e `dashMarcados` é quais estão
+   ligadas. Antes havia um só — a lista dos escolhidos — e a tela era desenhada
+   com os ligados em cima e os desligados embaixo. Quer dizer: marcar ou
+   desmarcar REORDENAVA a lista debaixo do dedo.
+
+   Foi relatado como "o dashboard não está filtrando para gravar", e a
+   gravação nunca teve nada de errado. Medido, num celular de 412px:
+
+     toque na 2ª linha  → "Faturamento anual" desmarca e PULA para a 4ª
+                          posição; "Faturamento semanal" sobe para a 2ª
+     toque na 2ª linha  → desmarca o "semanal", que a pessoa nem tinha
+       de novo           olhado
+
+   Dois toques no mesmo ponto da tela — o gesto mais natural que existe num
+   celular — e o dono termina com uma escolha que ele nunca fez. Ele grava,
+   vê outra coisa, e conclui que a tela não funciona. Estava funcionando: a
+   lista é que mentia sobre o que ele tinha tocado.
+
+   Com os dois estados separados, a linha NUNCA muda de lugar por causa de um
+   toque na caixinha. Quem move linha é a seta, que é um pedido explícito.
+
+   E vira um modelo mais simples de explicar: a lista É o dashboard, na ordem
+   em que ele vai sair; o que estiver marcado aparece. */
+let dashOrdem = null;
+let dashMarcados = null;
+
+// O que vai para o banco: a ordem da tela, peneirada pelo que está marcado.
+// Uma verdade só, montada na hora, em vez de duas listas para manter de acordo.
+function dashDoRascunho(){
+  return (dashOrdem || []).filter(id => (dashMarcados || new Set()).has(id));
+}
 
 function abrirConfigDash(){
-  // Cópia: mexer direto no `cfg` faria "Cancelar" não cancelar nada.
-  dashRascunho = dashEscolhidos().slice();
+  /* Cópia: mexer direto no `cfg` faria "Cancelar" não cancelar nada.
+
+     A ordem da tela nasce dos escolhidos, e o resto vem atrás na ordem do
+     catálogo. Nasce UMA VEZ, aqui — daqui para a frente ela só muda por
+     seta. */
+  const escolhidos = dashEscolhidos().slice();
+  dashMarcados = new Set(escolhidos);
+  dashOrdem = escolhidos.concat(
+    CARTOES_DASH.map(c => c[0]).filter(id => !dashMarcados.has(id)));
+
   abrirModal('Configuração do dashboard', '<div id="dashConfig"></div>', [
     ['Cancelar', 'fecharModal()', ''],
     ['Gravar', 'gravarConfigDash()', 'btn-p'],
@@ -4235,18 +4312,19 @@ function abrirConfigDash(){
 function pintarConfigDash(){
   const alvo = document.getElementById('dashConfig');
   if(!alvo) return;
-  const ligados = dashRascunho;
-  // Os escolhidos primeiro, na ordem deles; depois o resto, apagado.
-  const ordem = ligados.concat(
-    CARTOES_DASH.filter(c => !ligados.includes(c[0])).map(c => c[0]));
+  /* ⚠ A ORDEM VEM DO `dashOrdem`, QUE NÃO SE MEXE AQUI. Esta função só
+     desenha. Foi calcular a ordem aqui dentro — ligados em cima, desligados
+     embaixo — que fazia a linha pular de lugar a cada toque. Ver o comentário
+     grande do `abrirConfigDash`. */
+  const ordem = dashOrdem || [];
   const titulo = id => (CARTOES_DASH.find(c => c[0] === id) || [])[1] || id;
 
   alvo.innerHTML = `
     <p class="ajuda" style="margin:-4px 0 12px">
-      Marque o que você quer ver, e use as setas para pôr na ordem.</p>
-    ${ordem.map(id => {
-      const on = ligados.includes(id);
-      const pos = ligados.indexOf(id);
+      Esta lista é o seu dashboard, nesta ordem. Marque o que você quer ver, e
+      use as setas para mudar a ordem.</p>
+    ${ordem.map((id, pos) => {
+      const on = dashMarcados.has(id);
       /* ⚠ `rotulo`, e NÃO `nome`. Pelo mesmo motivo do `doMes` e do
          `naVistaDeMes`: o guardião de segurança procura campo de gente
          dentro de interpolação, e `nome` está na lista dele. Ele acusou
@@ -4259,12 +4337,17 @@ function pintarConfigDash(){
          causa de uma tela. (E aqui não há dado de gente nenhum: o rótulo
          vem do `CARTOES_DASH`, que é texto nosso.) */
       const rotulo = escapar(titulo(id));
+      /* As setas valem para QUALQUER linha, marcada ou não. Antes só a
+         marcada podia mover, e isso obrigava o dono a ligar o cartão para
+         depois poder posicioná-lo. Mover uma linha desligada não faz nada no
+         dashboard e não custa nada explicar — o que custava era a seta
+         apagada sem motivo visível. */
       return `<div class="dash-cfg${on ? ' on' : ''}">
-        <button class="btn btn-peq" ${!on || pos === 0 ? 'disabled' : ''}
+        <button class="btn btn-peq" ${pos === 0 ? 'disabled' : ''}
                 onclick="moverCartaoDash('${id}', -1)"
                 aria-label="Subir ${rotulo}">↑</button>
         <button class="btn btn-peq"
-                ${!on || pos === ligados.length - 1 ? 'disabled' : ''}
+                ${pos === ordem.length - 1 ? 'disabled' : ''}
                 onclick="moverCartaoDash('${id}', 1)"
                 aria-label="Descer ${rotulo}">↓</button>
         <label class="check dash-cfg-nome">
@@ -4276,20 +4359,22 @@ function pintarConfigDash(){
     }).join('')}`;
 }
 
+/* ⚠ SÓ LIGA E DESLIGA. A linha fica onde está — é o conserto do defeito
+   relatado. O cartão aparece no dashboard exatamente na posição em que a
+   linha está aqui, então ligar não precisa mover nada. */
 function virarCartaoDash(id){
-  const i = dashRascunho.indexOf(id);
-  // Entra no FIM: é onde a pessoa espera encontrar o que acabou de ligar.
-  if(i >= 0) dashRascunho.splice(i, 1); else dashRascunho.push(id);
+  if(dashMarcados.has(id)) dashMarcados.delete(id); else dashMarcados.add(id);
   pintarConfigDash();
 }
 
+// A seta é o ÚNICO jeito de uma linha mudar de lugar, e é um pedido explícito.
 function moverCartaoDash(id, passo){
-  const i = dashRascunho.indexOf(id);
+  const i = dashOrdem.indexOf(id);
   const j = i + passo;
-  if(i < 0 || j < 0 || j >= dashRascunho.length) return;
-  const t = dashRascunho[i];
-  dashRascunho[i] = dashRascunho[j];
-  dashRascunho[j] = t;
+  if(i < 0 || j < 0 || j >= dashOrdem.length) return;
+  const t = dashOrdem[i];
+  dashOrdem[i] = dashOrdem[j];
+  dashOrdem[j] = t;
   pintarConfigDash();
 }
 
@@ -4299,7 +4384,7 @@ async function gravarConfigDash(){
   /* Mesmo cuidado da aparência e dos destaques: o `cfg` guarda mais coisa com
      o tempo, e sobrescrever o objeto inteiro apagaria o que outra tela puser
      lá — cor, tema, janela da agenda, tudo de uma vez. */
-  sl.cfg = Object.assign({}, sl.cfg, { dashboard: dashRascunho.slice() });
+  sl.cfg = Object.assign({}, sl.cfg, { dashboard: dashDoRascunho() });
   await salvar();
   fecharModal();
   desenharDash();
@@ -6081,6 +6166,41 @@ function abrirServico(sid){
     <div class="campo"><label>Intervalo depois (min)</label>
       <input type="number" id="sInt" value="${s ? (s.intervaloMin||0) : 0}" min="0" step="5">
       <span style="font-size:12px;color:var(--txt2)">Tempo de arrumar a estação. Ocupa a agenda mas não é cobrado.</span></div>
+
+    <!-- ══════════ EM QUE DIAS ESTE SERVICO E' FEITO ══════════
+         O interruptor decide se a coluna ganha valor. Desligado, o servico
+         fica com nulo no banco e nada muda — que e' o estado de todo servico
+         que ja' existe hoje.
+
+         ⚠ NAO E' A FITA SEMPRE A' MOSTRA COM OS SETE MARCADOS. Os sete
+         marcados sao o MESMO comportamento do nulo, mas gravariam um valor em
+         todo servico que o dono abrisse — e a decisao de hoje ficaria
+         congelada la' dentro. Mesma licao dos recados do WhatsApp.
+         (Sem crase e sem acento em alguns pontos: comentario dentro de
+         template literal.) -->
+    <div class="campo"><label>Em que dias este serviço é feito</label>
+      <label class="check">
+        <input type="checkbox" id="sSoNosDias"
+               ${s && Array.isArray(s.dias) && s.dias.length ? 'checked' : ''}
+               onchange="virarDiasDoServico()">
+        <span>Só em certos dias da semana</span></label>
+      <div id="sDiasCampos" style="margin-top:9px;display:${
+        s && Array.isArray(s.dias) && s.dias.length ? '' : 'none'}">
+        <div class="regua" id="sDias" style="justify-content:flex-start">${
+          DIAS_CURTOS.map((d, i) => `<button type="button" data-dia="${i}"
+             class="${s && (s.dias||[]).includes(i) ? 'on' : ''}"
+             onclick="this.classList.toggle('on')">${d}</button>`).join('')}</div>
+        <p style="font-size:12.5px;color:var(--txt3);margin-top:5px">
+          Fora desses dias o link não oferece este serviço, e diz à cliente
+          quais são os dias — em vez de mostrar a agenda vazia.
+          <b>Você continua marcando por aqui em qualquer dia</b>: a peneira é
+          do link, não do balcão.</p>
+      </div>
+      <p style="font-size:12.5px;color:var(--txt3);margin-top:5px">
+        Desmarcado, o serviço é oferecido em todo dia de expediente — que é
+        como ele funciona hoje.</p>
+    </div>
+
     <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px">
       <input type="checkbox" id="sAtivo" ${!s || s.ativo ? 'checked' : ''}>
       <span class="i"><span class="n">Ativo</span>
@@ -6169,6 +6289,41 @@ function paresDoServico(s){
    — o `comissao_de()` só aceita o degrau que tem pct OU fixa preenchida,
    mas preço e duração nulos com a linha existindo continuariam sem efeito e
    só poluiriam. */
+/* ── OS DIAS DA SEMANA DO SERVIÇO ─────────────────────────────────────────
+   O interruptor mostra e esconde a fita. Nada é gravado aqui: quem lê é o
+   `diasDoServico()`, na hora de salvar. */
+function virarDiasDoServico(){
+  const campos = document.getElementById('sDiasCampos');
+  if(campos) campos.style.display =
+    document.getElementById('sSoNosDias').checked ? '' : 'none';
+}
+
+/* ⚠ TRÊS RESPOSTAS POSSÍVEIS, E DUAS DELAS SÃO A MESMA COISA NO BANCO.
+
+   · interruptor desligado  → nulo, "faça como sempre" (todo serviço de hoje);
+   · ligado com dias        → a lista;
+   · ligado e nenhum dia    → nulo TAMBÉM, e a tela avisa.
+
+   O terceiro caso é o perigoso. Lista vazia guardada no banco esconderia o
+   serviço do link para sempre, e o dono procuraria o defeito numa tela que
+   está funcionando — ele desmarcou os sete e não ligou uma coisa à outra.
+   Serviço que não deve ser marcado em dia nenhum já tem nome: desligado, no
+   `Ativo` aqui embaixo, que é onde ele vai procurar. */
+function diasDoServico(){
+  const chave = document.getElementById('sSoNosDias');
+  if(!chave || !chave.checked) return null;
+
+  const dias = [...document.querySelectorAll('#sDias button.on')]
+    .map(b => Number(b.dataset.dia)).sort((a, b) => a - b);
+  if(!dias.length){
+    alert('Você marcou "só em certos dias" e não escolheu nenhum.\n\n'
+        + 'Salvei como TODOS os dias. Para tirar o serviço do link, '
+        + 'desmarque o "Ativo".');
+    return null;
+  }
+  return dias;
+}
+
 function guardarParesDoServico(servicoId){
   const campos = [...document.querySelectorAll('.par-in')];
   if(!campos.length) return;
@@ -6246,6 +6401,12 @@ async function salvarServico(sid){
     comissaoPct: comTxt === '' ? null : parseFloat(comTxt),
     comissaoFixa: fixaTxt === '' ? null : parseFloat(fixaTxt),
     foto,
+    /* ⚠ NULO, E NÃO A LISTA DOS SETE. Interruptor desligado tem que devolver
+       a coluna ao estado "nunca escolhi": gravar `[0..6]` daria o mesmo
+       comportamento hoje e congelaria a decisão de hoje dentro do serviço.
+       E nulo é o único valor que a `vitrine()` e o `porque_nao_agenda()`
+       tratam como "não pergunte nada". */
+    dias: diasDoServico(),
     ativo: document.getElementById('sAtivo').checked,
   };
   if(sid) Object.assign(acharServico(sid), dados);

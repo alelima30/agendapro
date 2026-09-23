@@ -160,8 +160,8 @@ const svgZerado = await p.evaluate(() => {
   const a = document.querySelector('#dashCorpo .graf-area');
   return { linha: l ? l.getAttribute('d') : null,
            area:  a ? a.getAttribute('d') : null,
-           barras: document.querySelectorAll('#dashCorpo .barra').length,
-           tocos: [...document.querySelectorAll('#dashCorpo .barra')]
+           barras: document.querySelectorAll('#dashCorpo .barra-fatia').length,
+           tocos: [...document.querySelectorAll('#dashCorpo .barra-fatia')]
                     .filter(b => (b.style.height || '') !== '' && b.offsetHeight > 0).length };
 });
 console.log('      ' + JSON.stringify(svgZerado).slice(0, 180));
@@ -266,11 +266,66 @@ igual('a janela lista TODOS os cartões, ligados e desligados',
 igual('e só três estão marcados', naJanela.marcados, 3);
 igual('os mesmos três que estão na tela', naJanela.ligados, 3);
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ⚠ A LINHA NÃO PODE MUDAR DE LUGAR QUANDO A CAIXINHA É TOCADA
+
+   Esta é a verificação que faltava, e a falta custou caro: o dono relatou "o
+   dashboard não está filtrando para gravar", e a gravação nunca teve nada de
+   errado. A janela desenhava os ligados em cima e os desligados embaixo, e
+   REORDENAVA a cada toque.
+
+   Medido num celular de 412px, antes do conserto:
+
+     toque na 2ª linha  → "Faturamento anual" desmarca e PULA para a 4ª;
+                          "Faturamento semanal" sobe para a 2ª
+     toque na 2ª linha  → desmarca o "semanal", que ele nem tinha olhado
+       de novo
+
+   Dois toques no mesmo ponto — o gesto mais natural num celular — e ele
+   termina com uma escolha que nunca fez.
+
+   ⚠ E POR QUE A SUÍTE NÃO PEGOU. Tudo aqui chamava `virarCartaoDash('id')`
+   por nome. Por nome o alvo está sempre certo, aconteça o que acontecer com a
+   tela — o teste não conseguia errar de linha, que era justamente o defeito.
+   Daqui para baixo o toque é por POSIÇÃO, como o dedo faz.
+   ══════════════════════════════════════════════════════════════════════════ */
+const rotulos = () => p.evaluate(() =>
+  [...document.querySelectorAll('#dashConfig .dash-cfg')].map(r =>
+    (r.querySelector('input').checked ? 'x:' : ' :') +
+    r.querySelector('.dash-cfg-nome').textContent.trim()));
+
+const tocarLinha = async i => {
+  const caixas = await p.$$('#dashConfig .dash-cfg input');
+  await caixas[i].click();
+  await p.waitForTimeout(250);
+};
+
+const antesDoToque = await rotulos();
+await tocarLinha(1);
+const umToque = await rotulos();
+igual('tocar na caixinha não move nenhuma linha de lugar',
+  umToque.map(t => t.slice(2)), antesDoToque.map(t => t.slice(2)));
+verdade('e desmarca a linha que foi tocada', umToque[1].startsWith(' :'),
+  JSON.stringify(umToque));
+
+// O segundo toque no MESMO ponto tem que voltar a marcar a MESMA linha.
+await tocarLinha(1);
+const doisToques = await rotulos();
+igual('tocar de novo no mesmo ponto volta a marcar a mesma linha',
+  doisToques, antesDoToque);
+
 // Liga "o que mais vende" e desliga o faturamento semanal.
 await p.evaluate(() => { virarCartaoDash('topServicos'); virarCartaoDash('fatSemana'); });
 await p.waitForTimeout(300);
-// E sobe o novo até o topo, com as setas.
-await p.evaluate(() => { moverCartaoDash('topServicos', -1); moverCartaoDash('topServicos', -1); });
+/* E sobe o novo até o topo, com as setas — que passaram a ser o ÚNICO jeito
+   de uma linha mudar de lugar. A ordem da janela ao abrir é
+   [pendentes, fatAno, fatSemana, hoje, topServicos, topClientes, sumidas]:
+   os escolhidos na frente, o resto na ordem do catálogo. Marcar e desmarcar
+   não mexeu nela, então o `topServicos` continua na 5ª posição e precisa de
+   quatro subidas para chegar ao topo. */
+await p.evaluate(() => {
+  for(let i = 0; i < 4; i++) moverCartaoDash('topServicos', -1);
+});
 await p.waitForTimeout(300);
 await p.evaluate(() => gravarConfigDash());
 await p.waitForTimeout(1800);
@@ -302,7 +357,7 @@ verdade('o ranque traz o serviço vendido', /Corte/.test(depois.texto),
 await p.evaluate(() => abrirConfigDash());
 await p.waitForTimeout(400);
 await p.evaluate(() => {
-  for(const id of dashRascunho.slice()) virarCartaoDash(id);
+  for(const id of [...dashMarcados]) virarCartaoDash(id);
 });
 await p.waitForTimeout(300);
 await p.evaluate(() => gravarConfigDash());

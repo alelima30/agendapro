@@ -1118,6 +1118,8 @@ revoke all on public.profissionais_publicos from anon, authenticated;
 revoke all on function public.vitrine(text) from public;
 grant execute on function public.vitrine(text) to anon, authenticated;
 
+alter table public.servicos
+  add column if not exists dias smallint[];
 create or replace function public.vitrine(p_slug text)
 returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -1163,7 +1165,9 @@ language sql stable security definer set search_path = public as $$
       select jsonb_agg(jsonb_build_object(
                'id', v.id, 'nome', v.nome, 'categoria', v.categoria,
                'descricao', v.descricao, 'duracaoMin', v.duracao_min,
-               'preco', v.preco, 'foto', v.foto)
+               'preco', v.preco, 'foto', v.foto,
+               'dias', case when v.dias is null or cardinality(v.dias) = 0
+                            then null else to_jsonb(v.dias) end)
              order by v.categoria nulls last, v.nome)
         from public.servicos v
        where v.salao_id = s.id and v.ativo and v.aceita_online), '[]'::jsonb),

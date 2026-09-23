@@ -236,6 +236,18 @@ const VAZIO_E_NULO = new Set([
      não sobre quem a preenche agora: no dia em que alguém puser um campo de
      data no painel de assinatura, o defeito já vem consertado. */
   'cartao_desde',
+  /* A do 31_dias_servico.sql. `dias` é `smallint[]`, e array é o tipo em que o
+     `''` é mais fácil de produzir sem querer: basta a tela mandar o campo
+     vazio em vez de omiti-lo, e o Postgres derruba a gravação INTEIRA do
+     serviço com `malformed array literal: ""`. O dono perderia o nome, o
+     preço e a duração que acabou de digitar por causa de uma lista de dias
+     que ele nem abriu.
+
+     A tela já manda `null` de propósito quando o interruptor está desligado
+     (ver `diasDoServico()` no app.html). Esta linha é a segunda tranca, para
+     o dia em que outro caminho gravar o mesmo campo — que é exatamente o que
+     aconteceu com `marketing_saiu_em` e `encaixe_por`. */
+  'dias',
 ]);
 
 function paraBanco(tabela, obj){

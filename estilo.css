@@ -1708,13 +1708,17 @@ body.sem-brilho .marca-selo{ animation:none }
   flex:1; min-width:0; height:100%;
   display:flex; flex-direction:column; justify-content:flex-end; gap:6px;
 }
-.barra{
+/* ⚠ `barra-fatia`, e NUNCA `barra`: `.barra` é a faixa do topo de toda tela
+   do painel, declarada no <style> do app.html. Esta regra chamava-se `.barra`
+   e venceu aquela — a faixa do topo de todas as telas ficou azul, com a data
+   escura em cima. Ver o comentário no `dashFatSemana()`. */
+.barra-fatia{
   background:var(--ac-600); border-radius:var(--r-sm) var(--r-sm) 4px 4px;
   transition:.2s;
 }
 /* O dia sem venda continua visível, em cinza. Sumindo, a semana pareceria
    ter menos dias do que tem — e "não vendi na terça" é informação. */
-.barra.zero{ background:var(--borda) }
+.barra-fatia.zero{ background:var(--borda) }
 .barra-col span{ font-size:11px; color:var(--txt3); text-align:center }
 
 /* ── OS RANQUES ───────────────────────────────────────────────────────── */

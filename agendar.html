@@ -1065,6 +1065,11 @@ function bdDaVitrine(v){
       id: x.id, salaoId, nome: x.nome, categoria: x.categoria,
       descricao: x.descricao, duracaoMin: x.duracaoMin, intervaloMin: 0,
       preco: Number(x.preco), foto: x.foto, ativo: true, aceitaOnline: true,
+      /* Os dias em que o serviço é feito. Nulo = todos, que é o que a
+         `vitrine()` manda para todo serviço nunca configurado. Aqui serve só
+         para a faixa de dias escrever "não atende" em vez de "cheio" — quem
+         recusa continua sendo o banco. */
+      dias: Array.isArray(x.dias) ? x.dias : null,
     })),
     /* ⚠ O QUE NÃO VEM, E É O PONTO: `custo` e `comissaoPct`.
 
@@ -1275,6 +1280,28 @@ function destaquesDaCapa(todos){
 const profsDoSalao = () => bd.profissionais.filter(p =>
   p.salaoId === salao.id && p.ativo);
 const acharServico = i => bd.servicos.find(s => s.id === i);
+
+/* ── ALGUM SERVIÇO ESCOLHIDO NÃO É FEITO NESTE DIA DA SEMANA? ─────────────
+   Serve só para a tela ESCREVER a razão certa. Quem RECUSA é o banco, na
+   `porque_nao_agenda()` — esta função não decide nada, e não poderia: o que
+   está aqui é o retrato que a vitrine entregou, e a agenda de verdade muda
+   enquanto a cliente escolhe.
+
+   `dias` nulo ou vazio quer dizer "todos os dias", igual ao banco e igual à
+   `vitrine()`. Salão que nunca abriu essa parte não tem a chave, esta função
+   devolve falso sempre, e nada na tela muda.
+
+   Basta UM serviço do pedido estar fora: ela pediu corte + escova para o
+   mesmo horário, e se a escova não é feita na segunda, o par não cabe na
+   segunda. É a mesma regra do banco, escrita do mesmo jeito. */
+function foraDoDia(data){
+  const dia = diaDaSemana(data);
+  return (escolha.servicos || []).some(id => {
+    const sv = acharServico(id);
+    const dd = sv && sv.dias;
+    return Array.isArray(dd) && dd.length && !dd.includes(dia);
+  });
+}
 const acharProf = i => bd.profissionais.find(p => p.id === i);
 const acharSalao = i => bd.saloes.find(s => s.id === i);
 
@@ -2226,14 +2253,22 @@ function desenharQuando(){
   document.getElementById('listaDias').innerHTML = dias.map(d => {
     const [a,m,dd] = d.data.split('-').map(Number);
     const sem = DIAS_CURTOS[new Date(a,m-1,dd).getDay()];
-    // Dia cheio continua CLICÁVEL, e isso é de propósito. Desabilitar parece
-    // mais limpo e esconde a saída: é justamente ao abrir um dia lotado que a
-    // pessoa recebe a oferta da lista de espera. Dia sem vaga desabilitado
-    // deixa o cliente sem nada para fazer a não ser fechar a página.
+    /* ⚠ "CHEIO" E "NÃO ATENDE" SÃO COISAS DIFERENTES, e dizer uma pela outra
+       manda a cliente esperar uma vaga que nunca vai abrir.
+
+       Serviço com dia marcado (`servicos.dias`) faz o banco recusar o dia
+       inteiro — a `porque_nao_agenda()` responde antes de a agenda ser
+       consultada, e a lista de vagas volta vazia. Sem esta linha o dia
+       apareceria como "cheio", que é falso: o salão está livre, o serviço é
+       que não é feito naquele dia.
+
+       Para todo salão que não usar dias por serviço, `foraDoDia()` devolve
+       falso e nada aqui muda. */
+    const fora = !d.qtd && foraDoDia(d.data);
     return `<button class="dia ${d.data===escolha.data?'sel':''} ${d.qtd?'':'sem'}"
               onclick="escolherDia('${d.data}')">
       <small>${sem}</small><b>${String(dd).padStart(2,'0')}</b>
-      <i>${d.qtd ? d.qtd + ' vagas' : 'cheio'}</i></button>`;
+      <i>${d.qtd ? d.qtd + ' vagas' : fora ? 'não atende' : 'cheio'}</i></button>`;
   }).join('');
 
   /* ── O DIA QUE O PACOTE DELA NÃO DEIXA ────────────────────────────────

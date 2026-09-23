@@ -3282,6 +3282,8 @@ revoke all on function public.uso_do_plano(uuid) from public, anon;
 grant execute on function public.uso_do_plano(uuid) to authenticated;
 revoke all on function public.checar_limite_produtos() from public, anon, authenticated;
 
+alter table public.servicos
+  add column if not exists dias smallint[];
 create or replace function public.vitrine(p_slug text)
 returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -3327,7 +3329,9 @@ language sql stable security definer set search_path = public as $$
       select jsonb_agg(jsonb_build_object(
                'id', v.id, 'nome', v.nome, 'categoria', v.categoria,
                'descricao', v.descricao, 'duracaoMin', v.duracao_min,
-               'preco', v.preco, 'foto', v.foto)
+               'preco', v.preco, 'foto', v.foto,
+               'dias', case when v.dias is null or cardinality(v.dias) = 0
+                            then null else to_jsonb(v.dias) end)
              order by v.categoria nulls last, v.nome)
         from public.servicos v
        where v.salao_id = s.id and v.ativo and v.aceita_online), '[]'::jsonb),
@@ -3832,6 +3836,108 @@ begin
 end $$;
 revoke all on function public.painel_grafico(uuid) from public, anon;
 grant execute on function public.painel_grafico(uuid) to authenticated;
+
+comment on column public.servicos.dias is
+  'Dias da semana em que o LINK oferece este serviço (0=domingo). NULL ou vazio = todos os dias. A recepção nunca é limitada por isto.';
+create or replace function public.servico_fora_do_dia(
+  p_servicos uuid[], p_data date)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  v_dia   smallint;
+  v_nome  text;
+  v_dias  smallint[];
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0 or p_data is null then
+    return null;
+  end if;
+  v_dia := extract(dow from p_data)::smallint;
+  select s.nome, s.dias into v_nome, v_dias
+    from public.servicos s
+   where s.id = any(p_servicos)
+     and s.dias is not null
+     and cardinality(s.dias) > 0
+     and not (v_dia = any(s.dias))
+   order by s.nome
+   limit 1;
+  if v_nome is null then return null; end if;
+  return format(
+    '%s é feito só %s. Escolha um desses dias, tire este serviço do pedido, '
+    || 'ou chame o salão no WhatsApp.',
+    v_nome, public.dias_por_extenso(v_dias));
+end $$;
+comment on function public.servico_fora_do_dia(uuid[], date) is
+  'Frase de recusa quando algum serviço do pedido não é feito no dia da semana pedido. NULL quando não há nada a barrar. Só o link usa: a recepção marca por fora.';
+revoke all on function public.servico_fora_do_dia(uuid[], date) from public;
+grant execute on function public.servico_fora_do_dia(uuid[], date)
+  to anon, authenticated;
+create or replace function public.porque_nao_agenda(
+  p_profissional uuid, p_data date, p_servicos uuid[])
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  v_salao   uuid;
+  v_hoje    date;
+  v_jornada int;
+  v_online  int;
+  v_pedido  int;
+  v_motivo  text;
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0 then
+    return 'Escolha pelo menos um serviço.';
+  end if;
+  select p.salao_id into v_salao
+    from public.profissionais p
+    join public.saloes sa on sa.id = p.salao_id
+   where p.id = p_profissional
+     and p.ativo and p.aceita_online
+     and sa.status = 'ativo';
+  if v_salao is null then
+    return 'Este profissional não está atendendo pela agenda online.';
+  end if;
+  if not public.profissional_na_cota(p_profissional) then
+    return 'Este profissional não está atendendo pela agenda online.';
+  end if;
+  if not public.recurso_bool(v_salao, 'agenda_online') then
+    return 'Este salão não está aceitando marcação pela internet.';
+  end if;
+  if exists (
+    select 1 from unnest(p_servicos) as pedido(id)
+     where not exists (
+       select 1 from public.servicos s
+        where s.id = pedido.id and s.salao_id = v_salao
+          and s.ativo and s.aceita_online))
+  then
+    return 'Um dos serviços escolhidos não está disponível.';
+  end if;
+  if not public.profissional_faz(p_profissional, p_servicos) then
+    return 'Este profissional não faz todos os serviços escolhidos.';
+  end if;
+  v_hoje := public.hoje_no_salao(v_salao);
+  if p_data < v_hoje then
+    return 'Essa data já passou.';
+  end if;
+  if p_data > v_hoje + public.dias_liberados(v_salao) then
+    return format('A agenda está liberada até %s.',
+                  to_char(v_hoje + public.dias_liberados(v_salao), 'DD/MM/YYYY'));
+  end if;
+  v_motivo := public.servico_fora_do_dia(p_servicos, p_data);
+  if v_motivo is not null then
+    return v_motivo;
+  end if;
+  v_jornada := public.minutos_de_jornada(p_profissional, p_data);
+  if v_jornada > 0 then
+    v_online := public.minutos_online_no_dia(p_profissional, p_data);
+    v_pedido := public.duracao_dos_servicos(p_profissional, p_servicos);
+    if (v_online + v_pedido) * 100 > v_jornada * public.teto_online_pct(v_salao) then
+      return 'Este dia já está quase todo marcado. '
+          || 'Chame o salão no WhatsApp que a gente encaixa você.';
+    end if;
+  end if;
+  if public.rajada_online(v_salao) >= public.teto_online_rajada(v_salao) then
+    return 'A marcação pela internet está congestionada agora. '
+        || 'Tente daqui a pouco, ou chame o salão no WhatsApp.';
+  end if;
+  return null;
+end $$;
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();
