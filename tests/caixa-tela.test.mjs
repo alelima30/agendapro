@@ -410,9 +410,40 @@ const hoje = await p.textContent('#hojeCorpo');
 
 verdade('o painel abre sem erro', !/Não consegui montar/.test(hoje),
   hoje.slice(0, 180));
-verdade('mostra o faturamento do dia', /faturamento de hoje/.test(hoje));
+
+/* ⚠ ESTA LINHA COBRAVA "faturamento de hoje" AQUI, E AGORA COBRA O
+   CONTRÁRIO.
+
+   O sistema tinha três faixas somando o mesmo dia — esta, a da grade da
+   agenda e a do Caixa —, cada uma com a sua conta, e o dono somando de
+   cabeça para entender por que não batiam. O dinheiro do dia passou a morar
+   num lugar só: o Caixa, que é a tela cujo assunto É dinheiro e a única que
+   anda no tempo (dá para conferir ontem, o sábado passado).
+
+   O "na agenda" fica: é contagem de gente, não de dinheiro, e é o que
+   responde a pergunta que faz alguém abrir esta tela de manhã.
+
+   ⚠ E ISSO VALE PORQUE ESTE SALÃO USA COMANDA. Num salão que desligou a
+   comanda a aba Caixa some do menu, e aí o dinheiro volta a ficar aqui —
+   senão não teria onde aparecer. Quem mede esse outro caso é o
+   `sem-comanda-tela.test.mjs`. */
+verdade('o dinheiro NÃO se repete aqui — ele mora no Caixa',
+  !/faturamento de hoje/.test(hoje) && !/ticket médio/.test(hoje),
+  hoje.slice(0, 200));
+verdade('mas quantos vêm hoje continua, que é a pergunta desta tela',
+  /na agenda/.test(hoje), hoje.slice(0, 200));
 verdade('e diz que o caixa foi fechado', /não está aberto/.test(hoje),
   hoje.slice(0, 200));
+
+/* O faturamento tem que estar do outro lado — senão esta suíte estaria
+   comemorando um número que sumiu do sistema em vez de um número que mudou
+   de lugar. */
+await irPara('caixa');
+const noCaixa = await p.textContent('#tela-caixa');
+verdade('e o Caixa é quem mostra o faturamento, o ticket e o previsto',
+  /faturamento/i.test(noCaixa) && /ticket médio/i.test(noCaixa)
+  && /previsto na agenda/i.test(noCaixa),
+  noCaixa.slice(0, 260));
 
 /* ═══════════════════════════════════════════════════════════════════════════
    7) AS REGRAS NOVAS DE COMISSÃO TÊM ONDE SER CADASTRADAS

@@ -168,9 +168,25 @@ const depois = await p.evaluate(() => ({
 e('continua no mês — não pula para a grade de horas', depois.vista === 'mes',
   depois.vista);
 e('o dia clicado passa a ser o escolhido', depois.sel.includes(outro), depois.sel);
+/* ⚠ OS DOIS NÚMEROS QUE O MÊS PRECISA TER, E ELE É O ÚNICO LUGAR DA AGENDA
+   QUE AINDA TEM DINHEIRO.
+
+   Na grade — dia, 3 dias, semana — o valor do dia saiu: aquela é a tela do
+   balcão, aberta o dia inteiro com a equipe e a cliente enxergando junto, e o
+   faturamento passou a morar no Caixa.
+
+   No mês é outra coisa. Ali não há grade nem balcão: é o dono clicando num
+   dia do calendário para saber o que aquele dia tem — quantos vêm e quanto
+   promete. Separar as duas perguntas deixaria metade da resposta noutra tela,
+   e a vista de mês perderia a razão de existir.
+
+   O rótulo é cobrado ao pé da letra porque foi pedido assim, olhando uma tela
+   de referência: "agendamentos no dia" e "faturamento previsto no dia". */
 e('o resumo em cima mostra os números do dia',
-  /atendimentos/i.test(depois.kpis) && /previsto no dia/i.test(depois.kpis),
-  depois.kpis.slice(0, 120));
+  /agendamentos no dia/i.test(depois.kpis)
+  && /faturamento previsto no dia/i.test(depois.kpis)
+  && /R\$/.test(depois.kpis),
+  depois.kpis.slice(0, 160));
 e('e a lista embaixo traz os atendimentos daquele dia',
   depois.lista.length > 20, depois.lista.slice(0, 150));
 

@@ -661,6 +661,18 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   background:var(--painel2); border-color:var(--borda-forte);
 }
 
+/* ── O BOTÃO QUE TIRA ALGUÉM ──────────────────────────────────────────────
+   Letra vermelha e contorno de sempre, e NÃO um botão vermelho chapado.
+
+   Chapado, ele vira a coisa mais pesada do cartão — mais que "Editar", que é
+   o que o dono faz toda semana. Um cartão de equipe não é uma tela de
+   confirmação de exclusão: o gesto raro não pode gritar mais alto que o
+   comum. A cor diz "cuidado" sem disputar a atenção. */
+.btn.btn-perigo{ color:var(--erro) }
+.btn.btn-perigo:hover{
+  background:var(--er-soft); border-color:var(--erro); color:var(--erro);
+}
+
 /* Desligado: chapado e sem peso. Baixar a opacidade de um botão colorido
    deixa um bloco lavado que continua chamando mais atenção que o conteúdo. */
 .grande:disabled, .b:disabled, .btn-p:disabled, .btn-primary:disabled{
@@ -1581,6 +1593,89 @@ body.sem-brilho .marca-selo{ animation:none }
 }
 .sv-mini img{ width:100%; height:100%; object-fit:cover; display:block }
 .sv-mini .ic-svg{ width:14px; height:14px }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O DASHBOARD
+   ═══════════════════════════════════════════════════════════════════════════ */
+.dash-card{ margin-bottom:14px }
+.dash-card h3{ margin:0 0 12px; font-size:15.5px }
+
+/* O número grande É o conteúdo do cartão, não um enfeite: quem abre o
+   dashboard está com o celular a um braço de distância, conferindo de
+   relance antes de abrir a porta do salão. */
+.dash-num{ font-size:38px; font-weight:700; line-height:1.05; letter-spacing:-.02em }
+.dash-num.alerta{ color:var(--alerta) }
+.dash-sub{ margin:2px 0 12px; color:var(--txt2); font-size:13.5px }
+
+/* ── O GRÁFICO DE LINHA ───────────────────────────────────────────────────
+   `preserveAspectRatio="none"` estica o desenho na largura que houver: o
+   gráfico ocupa o cartão inteiro em qualquer tela sem ninguém medir nada em
+   JavaScript.
+
+   ⚠ E POR ISSO O TRAÇO PRECISA DO `vector-effect`. Sem ele a linha engorda
+   junto com o esticão horizontal e vira um borrão num celular estreito —
+   que é onde esta tela mais vai ser vista. */
+.graf{ width:100%; height:110px; display:block }
+.graf-linha{
+  fill:none; stroke:var(--ac-600); stroke-width:2.5;
+  stroke-linecap:round; stroke-linejoin:round;
+  vector-effect:non-scaling-stroke;
+}
+.graf-area{ fill:var(--ac-soft); stroke:none }
+.graf-eixo{
+  display:flex; justify-content:space-between; gap:2px; margin-top:6px;
+  font-size:11px; color:var(--txt3);
+}
+.graf-eixo span{ flex:1; text-align:center; min-width:0 }
+.graf-pe{
+  display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;
+  margin-top:12px; padding-top:11px; border-top:1px solid var(--borda);
+}
+.graf-pe b{ font-size:19px; font-weight:700 }
+.graf-pe span{ font-size:13px; color:var(--txt2) }
+
+/* ── AS BARRAS DA SEMANA ──────────────────────────────────────────────── */
+.barras{ display:flex; align-items:flex-end; gap:7px; height:120px }
+.barra-col{
+  flex:1; min-width:0; height:100%;
+  display:flex; flex-direction:column; justify-content:flex-end; gap:6px;
+}
+.barra{
+  background:var(--ac-600); border-radius:var(--r-sm) var(--r-sm) 4px 4px;
+  transition:.2s;
+}
+/* O dia sem venda continua visível, em cinza. Sumindo, a semana pareceria
+   ter menos dias do que tem — e "não vendi na terça" é informação. */
+.barra.zero{ background:var(--borda) }
+.barra-col span{ font-size:11px; color:var(--txt3); text-align:center }
+
+/* ── OS RANQUES ───────────────────────────────────────────────────────── */
+.ranque-linha{ margin-bottom:13px }
+.ranque-linha:last-child{ margin-bottom:0 }
+.ranque-topo{ display:flex; gap:10px; align-items:baseline }
+.ranque-topo b{ flex:1; font-size:14.5px; font-weight:600; min-width:0 }
+.ranque-topo span{ font-size:14px; font-weight:650; white-space:nowrap }
+.ranque-trilho{
+  height:6px; border-radius:99px; background:var(--painel2);
+  margin:6px 0 4px; overflow:hidden;
+}
+.ranque-barra{ height:100%; background:var(--ac-600); border-radius:99px }
+.ranque-qtd{ font-size:12px; color:var(--txt3) }
+
+/* ── A JANELA DE CONFIGURAÇÃO ─────────────────────────────────────────────
+   Linha alta de propósito: as duas setas são alvo de toque, e num modal de
+   celular elas ficam a um polegar uma da outra. */
+.dash-cfg{
+  display:flex; align-items:center; gap:8px;
+  padding:6px 0; border-bottom:1px solid var(--borda);
+}
+.dash-cfg:last-child{ border-bottom:0 }
+.dash-cfg > .btn{ min-width:40px; height:40px; padding:0; font-size:15px }
+.dash-cfg-nome{ flex:1; min-width:0; font-size:14.5px; margin:0 }
+/* Desligado fica APAGADO, e não escondido: a pessoa precisa ver o que existe
+   para poder querer. Lista que só mostra o que já está ligado não ensina o
+   que mais há. */
+.dash-cfg:not(.on) .dash-cfg-nome{ color:var(--txt3) }
 
 /* ── A ESTRELA QUE PÕE O SERVIÇO NA CAPA ─────────────────────────────────
    44px de lado porque é um botão de toque numa tabela que, no celular, vira

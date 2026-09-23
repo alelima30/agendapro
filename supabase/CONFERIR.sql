@@ -112,6 +112,16 @@ with conferencia(ordem, item, veredito, detalhe) as (
                    like '%''destaques''%' then ''
               else 'a vitrine() é de antes: o painel grava a escolha e a '
                 || 'página da cliente nunca fica sabendo' end
+
+  union all
+  -- Os números do dashboard. Sem esta função a aba abre e explica o que
+  -- fazer, em vez de dar erro em inglês — mas não desenha nada.
+  select 10, 'os números do dashboard',
+         case when to_regprocedure('public.painel_grafico(uuid)') is null
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.painel_grafico(uuid)') is null
+              then 'o dashboard vai abrir vazio, pedindo esta atualização'
+              else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

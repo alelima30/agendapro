@@ -620,6 +620,22 @@ body.carregando-tudo .tela{ display:none }
     <div id="hojeCorpo"></div>
   </section>
 
+  <!-- ══════════ DASHBOARD ══════════
+       Cartoes que o dono liga, desliga e poe na ordem que quiser. A tela nao
+       soma nada: o `painel_grafico()` devolve tudo pronto, e aqui so' se
+       escolhe o que mostrar e se desenha.
+       (Sem crase neste bloco: este HTML e' lido como template literal noutros
+       pontos do arquivo.) -->
+  <section class="tela" id="tela-dashboard">
+    <div class="barra">
+      <span class="dia" id="rotuloDash"
+            style="min-width:auto;font-size:14px;color:var(--txt2)"></span>
+      <button class="btn btn-peq" onclick="carregarDash(true)"
+              title="Buscar os numeros de novo">Atualizar</button>
+    </div>
+    <div id="dashCorpo"></div>
+  </section>
+
   <!-- ══════════ CAIXA ══════════ -->
   <section class="tela" id="tela-caixa">
     <div class="barra">
@@ -630,6 +646,9 @@ body.carregando-tudo .tela{ display:none }
          noite, e o resto da tela só faz sentido no meio disso. -->
     <div class="card" id="cartaoGaveta" style="margin-bottom:16px"></div>
     <div class="kpis" id="kpisCaixa"></div>
+    <!-- A comparacao com o dia anterior. Sozinho, R$ 1.200 nao diz o que
+         fazer: e' otimo numa terca e ruim num sabado. -->
+    <p id="compCaixa" style="margin:10px 0 18px;font-size:13px"></p>
     <div id="listaComandas"></div>
     <h2 style="margin:22px 0 11px;font-size:16px">Comissão por profissional</h2>
     <div id="listaComissao"></div>
@@ -1381,6 +1400,18 @@ const TELAS = [
   // Faturamento e comissão da casa inteira não são assunto de quem atende
   // nem da recepção — é a mesma linha que a função `relatorio()` do banco
   // desenha com `e_gestor()`. Esconder aqui é conforto; quem barra é o banco.
+  /* ⚠ DASHBOARD E RELATÓRIOS SÃO COISAS DIFERENTES, e ficam lado a lado de
+     propósito para a diferença ficar clara.
+
+     O Dashboard responde "como vai o salão?" de relance, sem o dono escolher
+     nada: ele abre e os números estão lá. O Relatórios responde "quanto foi
+     em março?" — pede período, dá tabela e serve para conferir.
+
+     Um é para olhar todo dia em dez segundos; o outro é para sentar e fechar
+     o mês. Juntá-los num lugar só faria o de todo dia pedir uma escolha de
+     data que ninguém quer fazer de manhã. Mesma permissão nos dois: é o
+     dinheiro da casa inteira. */
+  ['dashboard','Dashboard',       'painel',     'Dia a dia', GESTAO],
   ['relatorios','Relatórios',      'grafico',    'Dia a dia', GESTAO],
   ['clientes', 'Clientes',         'usuario',    'Cadastros', EQUIPE],
   ['servicos', 'Serviços',         'tesoura',    'Cadastros', EQUIPE],
@@ -1524,6 +1555,27 @@ function diasDaSemana(dia){
   return [0,1,2,3,4,5,6].map(i => somarDias(s, i));
 }
 
+/* ── A VISTA DE 3 DIAS ────────────────────────────────────────────────────
+   O meio-termo que faltava. A semana inteira num celular dá sete colunas de
+   uns 50px: cabe, mas o nome da cliente não. O dia sozinho não responde a
+   pergunta de balcão mais comum, que é "e amanhã, tem?".
+
+   ⚠ ELA COMEÇA NO DIA ABERTO, e não na segunda-feira. A semana é um bloco
+   fixo do calendário — segunda a domingo, sempre a mesma — porque é assim
+   que se olha escala e folga. Três dias é o contrário: é uma janela que anda
+   junto com quem está olhando, e ancorá-la na segunda faria "3 dias" na
+   sexta mostrar segunda, terça e quarta, que já passaram.
+
+   Por isso o ‹ › anda TRÊS dias aqui e SETE na semana: o botão precisa andar
+   o que a tela mostra, senão navegar vira clique repetido. */
+const PASSO_DA_VISTA = { dia: 1, '3dias': 3, semana: 7 };
+
+function diasDaVista(dia){
+  if(vistaAgenda === 'semana') return diasDaSemana(dia);
+  if(vistaAgenda === '3dias')  return [0,1,2].map(i => somarDias(dia, i));
+  return [dia];
+}
+
 /* Mês seguinte guardando o dia, e aparando quando ele não existe lá.
 
    31 de janeiro + 1 mês não é 31 de fevereiro. O `new Date(2026, 1, 31)` do
@@ -1541,7 +1593,7 @@ function somarMeses(dia, n){
 // semana vira sete cliques e navegar o mês vira trinta.
 function mudarDia(n){
   diaAtual = vistaAgenda === 'mes' ? somarMeses(diaAtual, n)
-           : somarDias(diaAtual, vistaAgenda === 'semana' ? n * 7 : n);
+           : somarDias(diaAtual, n * (PASSO_DA_VISTA[vistaAgenda] || 1));
   pintar();
 }
 function irHoje(){ diaAtual = hoje(); pintar(); }
@@ -1554,7 +1606,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.ff9c35';
+const VERSAO_APP = 'v9.8cb441';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2005,8 +2057,11 @@ function pintarAgenda(){
   pintarFecho();
   pintarFila();
 
-  const ROT_VISTA = { dia:'Dia', semana:'Semana', mes:'Mês' };
-  document.getElementById('vistas').innerHTML = ['dia','semana','mes']
+  /* Em ordem de tamanho da janela, e não de gosto: dia, três dias, semana,
+     mês. O seletor vira uma régua do quanto se está enxergando, e a pessoa
+     acha o que quer sem ler os quatro rótulos. */
+  const ROT_VISTA = { dia:'Dia', '3dias':'3 dias', semana:'Semana', mes:'Mês' };
+  document.getElementById('vistas').innerHTML = ['dia','3dias','semana','mes']
     .map(v => `<button class="${vistaAgenda===v?'on':''}"
                  ${vistaAgenda===v?'aria-current="true"':''}
                  onclick="trocarVista('${v}')">${ROT_VISTA[v]}</button>`)
@@ -2017,6 +2072,8 @@ function pintarAgenda(){
                                + 'atendimentos aquele dia tem.'
     : vistaAgenda === 'semana' ? 'Clique no dia para abri-lo. Clique num '
                                + 'atendimento para ver o detalhe.'
+    : vistaAgenda === '3dias'  ? 'Hoje e os dois dias seguintes. Clique no dia '
+                               + 'para abri-lo na grade de horários.'
     : 'Clique num espaço vazio da coluna para marcar naquele horário. '
       + 'Clique num atendimento para mudar o status ou abrir a comanda.';
 
@@ -2038,7 +2095,10 @@ function pintarAgenda(){
   }
   pintarListaDoDia();          // limpa o que a visão de mês tiver deixado
 
-  if(vistaAgenda === 'semana') return pintarSemana();
+  // Semana e 3 dias são a MESMA tela com um número diferente de colunas.
+  // Duas funções quase iguais seriam dois lugares para consertar o mesmo
+  // defeito, e um deles sempre fica para trás.
+  if(vistaAgenda === 'semana' || vistaAgenda === '3dias') return pintarVariosDias();
 
   document.getElementById('rotuloDia').textContent = porExtenso(diaAtual);
 
@@ -2073,17 +2133,38 @@ function pintarAgenda(){
   // equipe. A coluna precisa dizer isso: sem o aviso, o dono vê o nome de
   // quem ele desativou e acha que o desligamento não pegou.
   const desligados = new Set(profs.filter(p => !p.ativo).map(p => p.id));
-  let html = '<div class="col-h" style="position:sticky;left:0;z-index:25"></div>';
-  for(const p of profs){
+
+  /* ── UMA PESSOA SÓ NÃO PRECISA DE COLUNA COM NOME ────────────────────────
+     Num salão de uma pessoa, o cabeçalho diz o nome de quem já está olhando
+     a própria agenda. É uma faixa a menos de tela no celular, e no celular a
+     agenda é a tela que mais falta espaço tem.
+
+     ⚠ MAS SÓ SOME QUANDO NÃO HÁ RECADO. O cabeçalho carrega três avisos que
+     explicam uma grade vazia: "folga", "fora do plano" e "desativada". Sem
+     eles, quem abre um dia de folga vê uma grade riscada e sem explicação —
+     e a conclusão razoável é que o sistema perdeu os horários.
+
+     Então a regra é sobre o RECADO, não sobre a quantidade: com uma pessoa
+     só e nada a dizer, o cabeçalho sai; havendo qualquer aviso, ele fica. */
+  const soUma = profs.length === 1;
+  const recado = p => desligados.has(p.id) ? 'desativada · ainda tem cliente marcada'
+                    : semVaga.has(p.id)    ? 'fora do plano'
+                    : null;
+  const semCabecalho = soUma && !recado(profs[0])
+                    && jornadaDo(profs[0], diaAtual).length > 0;
+
+  let html = semCabecalho ? ''
+    : '<div class="col-h" style="position:sticky;left:0;z-index:25"></div>';
+  if(!semCabecalho) for(const p of profs){
     const j = jornadaDo(p, diaAtual);
     const fx = j.length
       ? j.map(x => hm(x[0]) + '–' + hm(x[1])).join(' · ')
       : 'folga';
     const marcado = semVaga.has(p.id) || desligados.has(p.id);
     html += `<div class="col-h${marcado ? ' sem-vaga' : ''}">
-      <div class="nm"><span class="pnt" style="background:${corDoProf(p)}"></span>${escapar(p.nome)}</div>
-      <div class="fn">${desligados.has(p.id) ? 'desativada · ainda tem cliente marcada'
-                      : semVaga.has(p.id) ? 'fora do plano' : fx}</div></div>`;
+      ${soUma ? '' : `<div class="nm"><span class="pnt" style="background:${
+          corDoProf(p)}"></span>${escapar(p.nome)}</div>`}
+      <div class="fn">${recado(p) || fx}</div></div>`;
   }
 
   // Coluna das horas
@@ -2325,16 +2406,20 @@ function pintarListaDoDia(){
   </div>`;
 }
 
-function pintarSemana(){
-  const dias = diasDaSemana(diaAtual);
+/* Uma coluna por DIA — sete na semana, três na vista de 3 dias. Era
+   `pintarSemana()` e só sabia fazer sete; o número passou a vir do
+   `diasDaVista()`, e nada mais nesta função precisou mudar, porque ela
+   sempre desenhou "os dias que me derem". */
+function pintarVariosDias(){
+  const dias = diasDaVista(diaAtual);
   const grade = document.getElementById('grade');
   const eq = profsAtivos();
 
-  const s = dias[0].split('-'), f = dias[6].split('-');
+  const s = dias[0].split('-'), f = dias[dias.length - 1].split('-');
   document.getElementById('rotuloDia').textContent =
     `${s[2]}/${s[1]} a ${f[2]}/${f[1]}/${f[0]}`;
 
-  // Mesmo recado da visão de dia: sete colunas vazias não explicam por quê.
+  // Mesmo recado da visão de dia: colunas vazias não explicam por quê.
   if(!eq.length && !dias.some(d => agendaDoDia(d).length)){
     grade.innerHTML = '<div class="vazio"><b>Nenhum profissional cadastrado</b>'
                     + 'Vá em Equipe e adicione quem atende.</div>';
@@ -2342,8 +2427,8 @@ function pintarSemana(){
     return;
   }
 
-  // A faixa é a UNIÃO dos sete dias: com uma faixa por dia as colunas ficariam
-  // com alturas diferentes e as horas não bateriam de uma para a outra.
+  // A faixa é a UNIÃO dos dias mostrados: com uma faixa por dia as colunas
+  // ficariam com alturas diferentes e as horas não bateriam de uma para a outra.
   let ini = 24*60, fim = 0;
   for(const dia of dias){
     const [a,b] = faixaDaGrade(dia, profsDaGrade(dia));
@@ -2353,7 +2438,14 @@ function pintarSemana(){
   const altura = ((fim - ini) / PASSO) * 15;
   const y = m => ((m - ini) / PASSO) * 15;
 
-  grade.style.gridTemplateColumns = '58px repeat(7, minmax(120px, 1fr))';
+  /* ⚠ A LARGURA MÍNIMA MUDA COM A QUANTIDADE DE COLUNAS, e é justamente por
+     isso que a vista de 3 dias existe. Com sete colunas o mínimo é apertado
+     de propósito — a grade rola para o lado, e é assim que a semana cabe num
+     celular. Com três, elas cabem na tela inteira, e aí o mínimo pode ser
+     generoso: é o nome da cliente aparecendo inteiro que faz a diferença
+     entre uma tela útil e uma tela que se olha e não se lê. */
+  grade.style.gridTemplateColumns =
+    `58px repeat(${dias.length}, minmax(${dias.length > 3 ? 120 : 150}px, 1fr))`;
 
   const hj = hoje();
   let html = '<div class="col-h" style="position:sticky;left:0;z-index:25"></div>';
@@ -2442,12 +2534,10 @@ function pintarSemana(){
    mesma classe de defeito que já custou caro aqui: contador e grade
    contando coisas diferentes. */
 function pintarKpis(){
-  const semana = vistaAgenda === 'semana';
-  const dias = semana ? diasDaSemana(diaAtual) : [diaAtual];
+  const dias = diasDaVista(diaAtual);
 
   const todos = dias.flatMap(d => agendaDoDia(d));
   const validos = todos.filter(a => ATIVOS.includes(a.status));
-  const receita = validos.reduce((s,a) => s + totalDe(a), 0);
   const minutos = validos.reduce((s,a) => s + (a.fim - a.inicio), 0);
 
   // Ocupação = minutos vendidos ÷ minutos de jornada disponíveis no período
@@ -2459,12 +2549,41 @@ function pintarKpis(){
 
   const faltas = todos.filter(a => a.status === 'faltou').length;
 
+  /* ── ⚠ O DINHEIRO SÓ APARECE NA VISTA DE MÊS ────────────────────────────
+     Na GRADE — dia, 3 dias, semana — não. A grade é a tela de quem vem,
+     aberta o dia inteiro no balcão, com a equipe e a cliente enxergando
+     junto; faturamento previsto ali é número de dinheiro exposto a quem
+     passa. E era, além disso, mais uma faixa de valor do dia com conta
+     própria, num sistema que já tinha duas.
+
+     No MÊS é outra coisa. Ali não há grade nem balcão: é o dono escolhendo
+     um dia no calendário para saber o que aquele dia tem — quantos vêm e
+     quanto promete. As duas perguntas juntas são o resumo do dia, e separá-las
+     deixaria metade da resposta noutra tela.
+
+     A conta vive no `previstoDoDia()`, uma só, para não nascer o dia em que
+     duas telas mostram valores diferentes para o mesmo dia. */
+  // `naVistaDeMes`, e não `noMes`: pelo mesmo motivo do `doMes` lá em cima —
+  // "noMes" em minúsculas contém "nome", e o guardião de segurança lê isso
+  // como nome de cliente entrando cru em HTML. Ele já acusou esta linha.
+  const naVistaDeMes = vistaAgenda === 'mes';
   document.getElementById('kpisDia').innerHTML = `
-    <div class="kpi"><div class="v">${validos.length}</div><div class="r">atendimentos</div></div>
-    <div class="kpi"><div class="v">${real(receita)}</div>
-      <div class="r">previsto ${semana ? 'na semana' : 'no dia'}</div></div>
+    <div class="kpi"><div class="v">${validos.length}</div>
+      <div class="r">${naVistaDeMes ? 'agendamentos no dia' : 'atendimentos'}</div></div>
+    ${naVistaDeMes ? `<div class="kpi"><div class="v">${real(previstoDoDia(diaAtual))}</div>
+      <div class="r">faturamento previsto no dia</div></div>` : ''}
     <div class="kpi"><div class="v">${ocup}%</div><div class="r">ocupação da equipe</div></div>
     <div class="kpi"><div class="v">${faltas}</div><div class="r">faltas</div></div>`;
+}
+
+/* O previsto de UM dia — o que a agenda promete, antes de virar comanda.
+   Mesma conta do `pintarKpis()`, e por isso ela está numa função só: dois
+   "previsto" com fórmulas separadas é como nasce o dia em que duas telas
+   mostram números diferentes para a mesma coisa. */
+function previstoDoDia(dia){
+  return agendaDoDia(dia)
+    .filter(a => ATIVOS.includes(a.status))
+    .reduce((s, a) => s + totalDe(a), 0);
 }
 
 // Clique num espaço vazio: descobre o horário pela posição vertical.
@@ -2976,10 +3095,106 @@ function pintarEquipe(){
       <div class="card-acoes">
         <button class="btn btn-peq" onclick="abrirProf('${p.id}')">Editar</button>
         <button class="btn btn-peq" onclick="abrirBloqueio('${p.id}')">Bloquear horário</button>
+        <!-- ⚠ O RÓTULO MUDA COM O QUE VAI ACONTECER DE VERDADE.
+             "Excluir" em alguém que já atendeu seria mentira: o banco não
+             deixa, e o que a tela faz é arquivar. Botão que promete uma coisa
+             e faz outra é pior que botão nenhum. -->
+        <button class="btn btn-peq btn-perigo" onclick="tirarDaEquipe('${p.id}')">${
+          p.ativo === false ? 'Excluir' : (historicoDe(p.id).total ? 'Tirar da equipe' : 'Excluir')
+        }</button>
       </div></div>`;
   }).join('');
   pintarAcessos();
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIRAR ALGUÉM DA EQUIPE
+
+   Duas saídas diferentes, e quem manda é o BANCO — não esta tela.
+
+   ── POR QUE NÃO É SÓ UM DELETE ────────────────────────────────────────────
+   Duas chaves estrangeiras apontam para `profissionais` e cada uma reage de
+   um jeito:
+
+     · `agendamentos.profissional_id` é `on delete restrict`. Quem já atendeu
+       NÃO PODE ser apagado, e isso é de propósito: apagar levaria junto o
+       registro de quem fez o quê, a comissão daquele dia e o histórico da
+       cliente. O caixa de março passaria a ter atendimento sem dono;
+
+     · `comanda_itens.profissional_id` é `on delete set null`. Este é o
+       perigoso: o banco NÃO RECUSA. Ele apaga a pessoa e deixa o item da
+       comanda sem dono, calado. A venda do balcão — comanda avulsa, sem
+       agendamento nenhum — perderia a comissão sem ninguém ver.
+
+   Por isso a conta aqui soma os dois. Contar só agendamento deixaria passar
+   justamente o caso que o banco não barra.
+
+   ── AS DUAS SAÍDAS ────────────────────────────────────────────────────────
+     · nunca atendeu e nunca vendeu (cadastro errado, pessoa que não chegou a
+       começar) — some de verdade;
+     · já trabalhou — é ARQUIVADA: sai da agenda, sai do link, deixa de
+       contar na cota do plano, e o que ela fez continua lá.
+
+   ⚠ A PERGUNTA É FEITA AO `bd`, E ELE PODE NÃO SABER DE TUDO. O painel baixa
+   o que a leitura devolve, e uma casa antiga pode ter mais linha do que
+   coube. Então a conta local serve para ESCOLHER A CONVERSA, não para
+   autorizar: quem autoriza é o `salvar()`, e uma recusa dele volta traduzida
+   pelo `limparRecusa()`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function historicoDe(pid){
+  const ags = (bd.agendamentos || []).filter(a => a.profissionalId === pid).length;
+  let itens = 0;
+  for(const c of (bd.comandas || []))
+    for(const i of (c.itens || [])) if(i.profissionalId === pid) itens++;
+  return { ags, itens, total: ags + itens };
+}
+
+async function tirarDaEquipe(pid){
+  const p = acharProf(pid);
+  if(!p) return;
+  const h = historicoDe(pid);
+
+  /* Já arquivada e sem histórico: é o cadastro errado que ficou pendurado na
+     lista. Não há terceira conversa a inventar — vai direto para a exclusão
+     de verdade, mais abaixo. */
+  if(h.total > 0){
+    if(p.ativo === false){
+      alert(p.nome + ' já está fora da equipe.\n\n'
+        + 'Ela continua na lista porque o que fez — ' + contarTrabalho(h)
+        + ' — precisa continuar tendo dono. Apagar de vez deixaria o caixa '
+        + 'daqueles dias com atendimento sem responsável.');
+      return;
+    }
+    if(!confirm('Tirar ' + p.nome + ' da equipe?\n\n'
+      + 'Ela já tem ' + contarTrabalho(h) + ' no sistema, e isso precisa '
+      + 'continuar tendo dono — então ela sai da equipe em vez de ser apagada.'
+      + '\n\nO que muda: some da agenda, some do link da cliente e deixa de '
+      + 'ocupar vaga no seu plano. O que ela já fez continua no histórico e '
+      + 'nos relatórios.\n\nPara trazer de volta, é só editar e marcar '
+      + '"atende".')) return;
+    p.ativo = false;
+    await salvar();
+    pintar();
+    return;
+  }
+
+  if(!confirm('Excluir ' + p.nome + ' de vez?\n\n'
+    + 'Ela não tem nenhum atendimento nem venda no sistema, então não há '
+    + 'histórico a perder.\n\nIsso não tem volta.')) return;
+
+  /* Sair da lista é o bastante: o `salvar()` compara o retrato do banco com
+     o que está na tela e manda apagar o que sumiu. Jornada, bloqueios e
+     "quem faz o quê" vão junto pelo `on delete cascade` — não há o que
+     limpar à mão aqui. */
+  bd.profissionais = bd.profissionais.filter(x => x.id !== pid);
+  await salvar();
+  pintar();
+}
+
+const contarTrabalho = h =>
+  [ h.ags   ? h.ags   + (h.ags   === 1 ? ' atendimento' : ' atendimentos') : null,
+    h.itens ? h.itens + (h.itens === 1 ? ' item de comanda' : ' itens de comanda') : null,
+  ].filter(Boolean).join(' e ');
 
 /* ═══════════════════════════════════════════════════════════════════════════
    QUEM ENTRA NO SISTEMA
@@ -3239,7 +3454,31 @@ function desenharHoje(p){
       })()
     : '<span style="color:var(--txt3)">ontem não houve fechamento</span>';
 
-  const kpis = `
+  /* ── ⚠ O DINHEIRO SÓ FICA AQUI QUANDO NÃO TEM ONDE MAIS MORAR ───────────
+     O faturamento do dia mora no CAIXA, que é a tela cujo assunto é dinheiro
+     e a única que anda no tempo — dá para conferir ontem, o sábado passado.
+     Repetir os mesmos valores aqui criava a terceira faixa de dinheiro do
+     sistema, cada uma com a sua conta, e o dono somando de cabeça para
+     entender por que não batiam.
+
+     Só que a aba Caixa SOME DO MENU quando o salão desliga a comanda (ver
+     `minhasTelas()`). Nesse salão, tirar o dinheiro daqui o deixaria sem
+     faturamento em lugar nenhum — e ele existe: o gatilho
+     `tg_agend_sem_comanda` faz o atendimento concluído virar dinheiro sem
+     comanda nenhuma.
+
+     Então a regra não é "tirar", é "um lugar só" — e qual lugar depende de o
+     salão usar comanda. Com comanda, o Caixa; sem, aqui.
+
+     O "na agenda" fica nos dois casos: é contagem de gente, não de dinheiro,
+     e é o que responde a pergunta que abre esta tela. */
+  const soAgenda = `
+    <div class="kpis">
+      <div class="kpi"><div class="v">${a.total || 0}</div>
+        <div class="r">na agenda${a.faltas ? ` · ${a.faltas} falta(s)` : ''}</div></div>
+    </div>`;
+
+  const kpis = usaComanda() ? soAgenda : `
     <div class="kpis">
       <div class="kpi"><div class="v">${real(fat)}</div>
         <div class="r">faturamento de hoje</div></div>
@@ -3501,6 +3740,368 @@ async function confirmarFecharGaveta(){
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   O DASHBOARD
+
+   Cartões que o dono liga, desliga e põe na ordem que quiser.
+
+   ── POR QUE CONFIGURÁVEL, E NÃO UMA TELA FIXA ──────────────────────────────
+   Porque não existe "o dono do salão". Existe a manicure sozinha, que quer
+   saber quantas vêm hoje; existe a dona de uma casa com seis cadeiras, que
+   quer o faturamento do ano e o ranking da equipe; e existe o barbeiro que
+   abriu semana passada, para quem todo gráfico está vazio e um painel cheio
+   de zeros é desânimo, não informação.
+
+   Uma tela fixa serve bem a um desses três e mal aos outros dois. E o custo
+   de deixar escolher é pequeno: a lista dos cartões é um array aqui embaixo,
+   e a escolha é uma lista de ids no `cfg` do salão.
+
+   ── ⚠ A ESCOLHA É UMA LISTA, E A ORDEM DELA É A ORDEM DA TELA ─────────────
+   Não é `{id: true/false}`. Num objeto, "ligado" e "posição" seriam duas
+   informações separadas, e a segunda precisaria de um campo próprio — o
+   remendo que uma lista dispensa.
+
+   ⚠ E LISTA VAZIA QUER DIZER "NUNCA MEXI", não "não quero nada". É o estado
+   de todo salão que já existe no dia em que isto entra no ar; lido como
+   "nenhum", o dashboard nasceria em branco para todo mundo. Sem escolha,
+   vale o `PADRAO_DASHBOARD`. É a mesma armadilha dos destaques da capa, e
+   pela mesma razão.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Cada cartão: id, título, e a função que desenha o miolo a partir do que o
+   `painel_grafico()` devolveu. Acrescentar um cartão é acrescentar uma linha
+   aqui — nada mais no sistema precisa saber que ele existe. */
+const CARTOES_DASH = [
+  ['pendentes',   'Agendamentos pendentes', d => dashPendentes(d)],
+  ['hoje',        'Quem ainda vem hoje',    d => dashHoje(d)],
+  ['fatAno',      'Faturamento anual',      d => dashFatAno(d)],
+  ['fatSemana',   'Faturamento semanal',    d => dashFatSemana(d)],
+  ['topServicos', 'O que mais vende',       d => dashRanque(d.topServicos, 'qtd', 'vez')],
+  ['topClientes', 'Quem mais gasta',        d => dashRanque(d.topClientes, 'visitas', 'visita')],
+  ['sumidas',     'Clientes que sumiram',   d => dashSumidas(d)],
+];
+
+/* O que um salão vê sem ter escolhido nada: os dois gráficos, porque são o
+   que o dono reconhece como "dashboard", e os pendentes, porque é o único
+   cartão que pede AÇÃO — os outros informam, este cobra. */
+const PADRAO_DASHBOARD = ['pendentes', 'fatAno', 'fatSemana'];
+
+/* ⚠ AUSENTE E VAZIO SÃO COISAS DIFERENTES, e confundi-las custou uma
+   correção aqui.
+
+     · chave AUSENTE  = o dono nunca mexeu. É o estado de todo salão que já
+       existe, e aí vale o padrão — senão a atualização deixaria o dashboard
+       em branco para todo mundo, sem ninguém ter pedido;
+
+     · lista VAZIA    = ele entrou na configuração e desmarcou tudo. Isso é
+       uma escolha, e desobedecê-la seria trazer de volta o que ele acabou de
+       tirar, sem dizer nada.
+
+   A primeira versão desta função tratava as duas como "nunca mexi"
+   (`d.length ? d : PADRAO`), e só a mutação mostrou o efeito: com tudo
+   desmarcado, o padrão voltava sozinho no desenho seguinte. O
+   `desenharDash()` tem um estado vazio escrito justamente para este caso, e
+   ele era inalcançável. */
+function dashEscolhidos(sl){
+  const d = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).dashboard;
+  return Array.isArray(d) ? d : PADRAO_DASHBOARD;
+}
+
+/* ── OS DESENHOS ──────────────────────────────────────────────────────────
+   SVG à mão, e não uma biblioteca de gráficos.
+
+   O projeto não tem passo de build e funciona sem rede depois de instalado.
+   Uma biblioteca custaria de 50 a 200 KB no primeiro acesso — numa rede de
+   salão é a diferença entre abrir e desistir — e traria um segundo jeito de
+   pensar cor e tipografia, brigando com o CSS que já existe. Dois gráficos
+   simples cabem em trinta linhas cada.
+   ───────────────────────────────────────────────────────────────────────── */
+const MES_CURTO = ['jan','fev','mar','abr','mai','jun',
+                   'jul','ago','set','out','nov','dez'];
+
+function dashFatAno(d){
+  const serie = d.ano || [];
+  if(!serie.length) return '<div class="vazio">Sem movimento ainda.</div>';
+
+  /* ⚠ O TETO NUNCA É ZERO. Num salão que ainda não faturou, todo valor é 0 e
+     a divisão pelo máximo daria NaN — o caminho do SVG sairia com "NaN" no
+     meio e o gráfico não desenharia nada, sem erro nenhum no console. */
+  const teto = Math.max(1, ...serie.map(x => Number(x.valor) || 0));
+  const L = 300, A = 90;
+  const px = i => serie.length > 1 ? (i / (serie.length - 1)) * L : L / 2;
+  const py = v => A - (Number(v) || 0) / teto * (A - 8);
+
+  const pontos = serie.map((x, i) => px(i).toFixed(1) + ',' + py(x.valor).toFixed(1));
+  const linha = 'M' + pontos.join(' L');
+  // A área embaixo fecha no rodapé: é o que dá peso ao gráfico sem precisar
+  // de grade nem de números no eixo.
+  const area = linha + ' L' + L + ',' + A + ' L0,' + A + ' Z';
+
+  return `
+    <svg class="graf" viewBox="0 0 ${L} ${A}" preserveAspectRatio="none"
+         role="img" aria-label="Faturamento dos últimos doze meses">
+      <path class="graf-area" d="${area}"/>
+      <path class="graf-linha" d="${linha}"/>
+    </svg>
+    <div class="graf-eixo">${serie.map(x => {
+      const m = Number(String(x.mes).slice(5, 7)) - 1;
+      return `<span>${MES_CURTO[m] || ''}</span>`;
+    }).join('')}</div>
+    <div class="graf-pe">
+      <b>${real(serie.reduce((s, x) => s + (Number(x.valor) || 0), 0))}</b>
+      <span>nos últimos doze meses</span>
+    </div>`;
+}
+
+function dashFatSemana(d){
+  const serie = d.semana || [];
+  if(!serie.length) return '<div class="vazio">Sem movimento ainda.</div>';
+  const teto = Math.max(1, ...serie.map(x => Number(x.valor) || 0));
+
+  return `
+    <div class="barras">${serie.map(x => {
+      const v = Number(x.valor) || 0;
+      /* A barra de valor zero fica com um toco visível de propósito: sem
+         ele o dia some e a semana parece ter cinco dias. O toco diz "este
+         dia existe e não vendeu", que é informação. */
+      const alt = Math.max(6, Math.round(v / teto * 100));
+      const dia = String(x.dia).slice(0, 10);
+      return `<div class="barra-col" title="${real(v)}">
+        <div class="barra${v ? '' : ' zero'}" style="height:${alt}%"></div>
+        <span>${DIAS[diaDaSemana(dia)].slice(0,3).toLowerCase()}</span>
+      </div>`;
+    }).join('')}</div>
+    <div class="graf-pe">
+      <b>${real(serie.reduce((s, x) => s + (Number(x.valor) || 0), 0))}</b>
+      <span>nos últimos sete dias</span>
+    </div>`;
+}
+
+/* ── OS CARTÕES DE NÚMERO ─────────────────────────────────────────────────
+   Cada um termina num CAMINHO, e não num número solto. "3 pendentes" sem
+   botão deixa o dono sabendo do problema e sem onde resolvê-lo — pior do que
+   não mostrar, porque fica a preocupação e não fica a saída.
+   ───────────────────────────────────────────────────────────────────────── */
+function dashPendentes(d){
+  const n = Number(d.pendentes) || 0;
+  return `<div class="dash-num${n ? ' alerta' : ''}">${n}</div>
+    <p class="dash-sub">${n
+      ? (n === 1 ? 'cliente esperando resposta' : 'clientes esperando resposta')
+      : 'ninguém esperando resposta'}</p>
+    ${n ? '<button class="btn btn-peq" onclick="irPara(\'agenda\')">Ver na agenda</button>' : ''}`;
+}
+
+function dashHoje(d){
+  const n = Number(d.hojeRestam) || 0;
+  return `<div class="dash-num">${n}</div>
+    <p class="dash-sub">${n === 1 ? 'atendimento ainda hoje'
+                                  : 'atendimentos ainda hoje'}</p>
+    <button class="btn btn-peq" onclick="irPara('hoje')">Ver o dia</button>`;
+}
+
+function dashSumidas(d){
+  const n = Number(d.sumidas) || 0;
+  return `<div class="dash-num">${n}</div>
+    <p class="dash-sub">${n === 1 ? 'cliente sem vir há mais de 60 dias'
+                                  : 'clientes sem vir há mais de 60 dias'}</p>
+    ${n ? '<button class="btn btn-peq" onclick="irPara(\'clientes\')">Ver a lista</button>' : ''}`;
+}
+
+/* Uma função para os dois ranques. Eles têm a mesma forma — nome à esquerda,
+   valor à direita, barra de proporção por baixo — e duplicar isso seria dois
+   lugares para consertar o mesmo alinhamento. */
+function dashRanque(lista, campo, unidade){
+  const itens = Array.isArray(lista) ? lista : [];
+  if(!itens.length) return '<div class="vazio">Ainda não há venda fechada '
+                         + 'para ranquear.</div>';
+  const teto = Math.max(1, ...itens.map(x => Number(x.valor) || 0));
+  return '<div class="ranque">' + itens.map(x => {
+    const n = Number(x[campo]) || 0;
+    return `<div class="ranque-linha">
+      <div class="ranque-topo">
+        <b>${escapar(x.nome || '—')}</b>
+        <span>${real(x.valor)}</span>
+      </div>
+      <div class="ranque-trilho">
+        <div class="ranque-barra" style="width:${
+          Math.max(3, Math.round((Number(x.valor) || 0) / teto * 100))}%"></div>
+      </div>
+      <span class="ranque-qtd">${n} ${unidade}${n === 1 ? '' : 's'}</span>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+/* ── A TELA ───────────────────────────────────────────────────────────────
+   Uma chamada só ao `painel_grafico()`, guardada. Trocar de aba e voltar não
+   pode significar somar o ano inteiro de novo: é a mesma conta, e o banco
+   cobra o mesmo tempo toda vez. O botão Atualizar existe para quem quer o
+   número de agora.
+   ───────────────────────────────────────────────────────────────────────── */
+let dashDados = null;
+let dashPedido = 0;
+
+async function carregarDash(forcar){
+  const alvo = document.getElementById('dashCorpo');
+  if(!alvo) return;
+
+  if(!NA_NUVEM){
+    alvo.innerHTML = '<div class="vazio"><b>O dashboard precisa do banco</b>'
+      + 'Em demonstração não há faturamento para somar.</div>';
+    return;
+  }
+  if(dashDados && !forcar) return desenharDash();
+
+  // O mesmo contador do relatório e do Hoje: clicar duas vezes rápido não
+  // pode deixar a resposta mais VELHA sobrescrever a mais nova na tela.
+  const meu = ++dashPedido;
+  alvo.innerHTML = '<div class="vazio">Somando…</div>';
+  let d;
+  try{
+    d = await Dados.chamar('painel_grafico', { p_salao: salaoAtual });
+  }catch(e){
+    if(meu !== dashPedido) return;
+    /* ⚠ A FUNÇÃO PODE NÃO EXISTIR NO BANCO DESTE SALÃO. Quem instalou antes
+       desta versão e ainda não colou o `98_modulos.sql` recebe 404 do
+       PostgREST, e "Not Found" na cara do dono não diz o que fazer. */
+    const msg = e.message || '';
+    alvo.innerHTML = '<div class="vazio"><b>Não consegui montar o dashboard</b>'
+      + (/PGRST202|not found/i.test(msg)
+          ? 'O banco deste salão ainda não tem esta parte. Cole o '
+            + '<b>supabase/98_modulos.sql</b> no Supabase e recarregue a página.'
+          : escapar(msg))
+      + '</div>';
+    return;
+  }
+  if(meu !== dashPedido) return;
+  dashDados = d;
+  desenharDash();
+}
+
+function desenharDash(){
+  const alvo = document.getElementById('dashCorpo');
+  if(!alvo || !dashDados) return;
+
+  const rot = document.getElementById('rotuloDash');
+  if(rot) rot.textContent = porExtenso(String(dashDados.dia).slice(0, 10));
+
+  const escolhidos = dashEscolhidos();
+  const porId = new Map(CARTOES_DASH.map(c => [c[0], c]));
+  /* Id que não existe mais — cartão renomeado ou retirado numa versão nova —
+     some daqui sozinho, sem deixar buraco e sem quebrar a tela de quem já
+     tinha escolhido. */
+  const vivos = escolhidos.map(id => porId.get(id)).filter(Boolean);
+
+  alvo.innerHTML = (!vivos.length
+    ? '<div class="vazio"><b>Nenhum cartão escolhido</b>'
+      + 'Use <b>Configuração do dashboard</b> aqui embaixo para escolher o '
+      + 'que você quer ver.</div>'
+    : vivos.map(([id, titulo, desenhar]) => `
+        <div class="card dash-card" data-cartao="${id}">
+          <h3>${escapar(titulo)}</h3>
+          ${desenhar(dashDados)}
+        </div>`).join(''))
+    + `<p class="centro" style="margin-top:18px">
+         <button class="btn" onclick="abrirConfigDash()">
+           <span data-ico="painel"></span> Configuração do dashboard
+         </button>
+       </p>`;
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+
+/* ── A JANELA DE CONFIGURAÇÃO ─────────────────────────────────────────────
+   Ligar, desligar e reordenar.
+
+   ⚠ A ORDEM SE MUDA COM SETAS, e não arrastando. Arrastar é bonito na
+   demonstração e ruim no uso: no celular briga com a rolagem da página — a
+   pessoa tenta rolar a lista e arrasta o cartão sem querer — e não existe
+   para quem navega por teclado ou leitor de tela. Duas setas resolvem os dois
+   casos e não dependem de gesto nenhum.
+   ───────────────────────────────────────────────────────────────────────── */
+let dashRascunho = null;
+
+function abrirConfigDash(){
+  // Cópia: mexer direto no `cfg` faria "Cancelar" não cancelar nada.
+  dashRascunho = dashEscolhidos().slice();
+  abrirModal('Configuração do dashboard', '<div id="dashConfig"></div>', [
+    ['Cancelar', 'fecharModal()', ''],
+    ['Gravar', 'gravarConfigDash()', 'btn-p'],
+  ]);
+  pintarConfigDash();
+}
+
+function pintarConfigDash(){
+  const alvo = document.getElementById('dashConfig');
+  if(!alvo) return;
+  const ligados = dashRascunho;
+  // Os escolhidos primeiro, na ordem deles; depois o resto, apagado.
+  const ordem = ligados.concat(
+    CARTOES_DASH.filter(c => !ligados.includes(c[0])).map(c => c[0]));
+  const titulo = id => (CARTOES_DASH.find(c => c[0] === id) || [])[1] || id;
+
+  alvo.innerHTML = `
+    <p class="ajuda" style="margin:-4px 0 12px">
+      Marque o que você quer ver, e use as setas para pôr na ordem.</p>
+    ${ordem.map(id => {
+      const on = ligados.includes(id);
+      const pos = ligados.indexOf(id);
+      /* ⚠ `rotulo`, e NÃO `nome`. Pelo mesmo motivo do `doMes` e do
+         `naVistaDeMes`: o guardião de segurança procura campo de gente
+         dentro de interpolação, e `nome` está na lista dele. Ele acusou
+         estas três linhas como nome de cliente entrando cru em HTML.
+
+         Ele não estava errado em desconfiar — estava sem como saber. O
+         `escapar()` acontece uma linha acima, e o guardião lê a
+         interpolação, não o histórico da variável. Renomear é melhor que
+         abrir exceção na lista dele: exceção o afrouxa para sempre por
+         causa de uma tela. (E aqui não há dado de gente nenhum: o rótulo
+         vem do `CARTOES_DASH`, que é texto nosso.) */
+      const rotulo = escapar(titulo(id));
+      return `<div class="dash-cfg${on ? ' on' : ''}">
+        <button class="btn btn-peq" ${!on || pos === 0 ? 'disabled' : ''}
+                onclick="moverCartaoDash('${id}', -1)"
+                aria-label="Subir ${rotulo}">↑</button>
+        <button class="btn btn-peq"
+                ${!on || pos === ligados.length - 1 ? 'disabled' : ''}
+                onclick="moverCartaoDash('${id}', 1)"
+                aria-label="Descer ${rotulo}">↓</button>
+        <label class="check dash-cfg-nome">
+          <input type="checkbox" ${on ? 'checked' : ''}
+                 onchange="virarCartaoDash('${id}')">
+          ${rotulo}
+        </label>
+      </div>`;
+    }).join('')}`;
+}
+
+function virarCartaoDash(id){
+  const i = dashRascunho.indexOf(id);
+  // Entra no FIM: é onde a pessoa espera encontrar o que acabou de ligar.
+  if(i >= 0) dashRascunho.splice(i, 1); else dashRascunho.push(id);
+  pintarConfigDash();
+}
+
+function moverCartaoDash(id, passo){
+  const i = dashRascunho.indexOf(id);
+  const j = i + passo;
+  if(i < 0 || j < 0 || j >= dashRascunho.length) return;
+  const t = dashRascunho[i];
+  dashRascunho[i] = dashRascunho[j];
+  dashRascunho[j] = t;
+  pintarConfigDash();
+}
+
+async function gravarConfigDash(){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  /* Mesmo cuidado da aparência e dos destaques: o `cfg` guarda mais coisa com
+     o tempo, e sobrescrever o objeto inteiro apagaria o que outra tela puser
+     lá — cor, tema, janela da agenda, tudo de uma vez. */
+  sl.cfg = Object.assign({}, sl.cfg, { dashboard: dashRascunho.slice() });
+  await salvar();
+  fecharModal();
+  desenharDash();
+}
+
 function pintarCaixa(){
   pintarGaveta();
   document.getElementById('rotuloCaixa').textContent = porExtenso(diaAtual);
@@ -3556,6 +4157,39 @@ function pintarCaixa(){
   const faturamento = comandas.reduce((s,c) => s + totalDaComanda(c), 0);
   const emAberto = abertas.reduce((s,c) => s + totalDaComanda(c), 0);
 
+  /* ── ⚠ ESTA FAIXA PASSOU A SER O ÚNICO LUGAR DO DINHEIRO DO DIA ─────────
+     Antes o valor do dia aparecia em três telas: aqui, no "previsto no dia"
+     da Agenda e na faixa do Hoje. Três faixas, três contas diferentes, e o
+     dono somando de cabeça para entender por que não batiam.
+
+     As outras duas saíram. Esta ficou porque é a tela cujo assunto É o
+     dinheiro, e porque ela é a única que anda no tempo: o `diaAtual` deixa
+     conferir ontem, anteontem, o sábado passado. As outras duas eram presas
+     ao hoje.
+
+     ⚠ E TUDO AQUI SAI DA MESMA FONTE: as comandas do dia, pelo
+     `totalDaComanda()`. O "previsto" é a única exceção, e é outra coisa
+     mesmo — é o que a AGENDA promete, antes de virar comanda. Por isso ele
+     tem nome próprio e não se mistura com o faturamento. */
+  const previsto = previstoDoDia(diaAtual);
+
+  /* A comparação com o dia anterior, calculada das MESMAS comandas — e não
+     pedida ao `painel_hoje()`, que só sabe de hoje. Assim ela funciona em
+     qualquer dia que o dono abrir, e não só quando o Caixa está no hoje. */
+  const ontem = somarDias(diaAtual, -1);
+  const fatOntem = doSalao(bd.comandas)
+    .filter(c => c.data === ontem && comandaFechada(c))
+    .reduce((s, c) => s + totalDaComanda(c), 0);
+  const comp = fatOntem > 0
+    ? (() => {
+        const v = Math.round(((faturamento - fatOntem) / fatOntem) * 100);
+        return `<span style="color:${v >= 0 ? 'var(--ok)' : 'var(--alerta)'}">${
+          v >= 0 ? '+' : ''}${v}%</span>`
+          + '<span style="color:var(--txt3)"> que no dia anterior ('
+          + real(fatOntem) + ')</span>';
+      })()
+    : '<span style="color:var(--txt3)">no dia anterior não houve fechamento</span>';
+
   document.getElementById('kpisCaixa').innerHTML = `
     <div class="kpi"><div class="v">${comandas.length}</div><div class="r">comandas fechadas</div></div>
     <div class="kpi"><div class="v">${real(faturamento)}</div><div class="r">faturamento</div></div>
@@ -3563,7 +4197,12 @@ function pintarCaixa(){
     <div class="kpi"><div class="v">${real(comandas.length ? faturamento/comandas.length : 0)}</div>
       <div class="r">ticket médio</div></div>
     <div class="kpi"><div class="v"${abertas.length ? ' style="color:var(--alerta)"' : ''}>${real(emAberto)}</div>
-      <div class="r">${abertas.length} em aberto</div></div>`;
+      <div class="r">${abertas.length} em aberto</div></div>
+    <div class="kpi"><div class="v">${real(previsto)}</div>
+      <div class="r">previsto na agenda</div></div>`;
+
+  const linhaComp = document.getElementById('compCaixa');
+  if(linhaComp) linhaComp.innerHTML = comp;
 
   const alvo = document.getElementById('listaComandas');
   if(!todas.length){
@@ -5843,6 +6482,9 @@ function pintar(){
     pintarCaixa();
     carregarGaveta().then(pintarGaveta);
   }
+  // Guardado entre visitas: o `carregarDash()` só vai ao banco na primeira
+  // vez, ou quando o dono aperta Atualizar.
+  if(telaAtual === 'dashboard') carregarDash();
   if(telaAtual === 'relatorios') prepararRelatorios();
   if(telaAtual === 'salao')    pintarSalao();
   if(telaAtual === 'publico')  prepararPublico();
@@ -8706,7 +9348,7 @@ function limparRecusa(msg){
   const partes = String(msg || '').split(' | ')
     .map(p => p.replace(/^\w+(?: \(apagar\))?:\s*/, '').trim())
     .filter(Boolean);
-  const unicas = [...new Set(partes)];
+  const unicas = [...new Set(partes)].map(traduzirChaveEstrangeira);
   const explicadas = unicas.filter(p => !/row-level security/i.test(p));
 
   const mostrar = explicadas.length ? explicadas : unicas.map(() =>
@@ -8715,6 +9357,36 @@ function limparRecusa(msg){
 
   return mostrar.slice(0, 3).join('\n\n')
        + (mostrar.length > 3 ? '\n\n(e mais ' + (mostrar.length - 3) + ')' : '');
+}
+
+/* ── O "on delete restrict" EM PORTUGUÊS ──────────────────────────────────
+   O Postgres recusa assim:
+
+     update or delete on table "profissionais" violates foreign key
+     constraint "agendamentos_profissional_id_fkey" on table "agendamentos"
+
+   Isso é verdade e é inútil para quem está do outro lado da tela. Pior: soa
+   como defeito, quando é a trava funcionando — ela existe justamente para o
+   atendimento de março não ficar sem dono.
+
+   A tela já evita chegar aqui (o `tirarDaEquipe()` conta o histórico antes e
+   oferece arquivar). Esta tradução é para quando a conta local não sabia de
+   tudo: painel que não baixou o histórico inteiro, ou uma linha criada por
+   outra pessoa enquanto esta tela estava aberta. */
+function traduzirChaveEstrangeira(p){
+  const m = /violates foreign key constraint .*?on table "(\w+)"/i.exec(p);
+  if(!m) return p;
+  const DONO = {
+    agendamentos: 'atendimentos na agenda',
+    comandas:     'comandas',
+    comanda_itens:'itens de comanda',
+    clientes:     'fichas de cliente',
+  };
+  const onde = DONO[m[1]] || m[1];
+  return 'Não dá para apagar isto porque já existem ' + onde
+       + ' ligados a este cadastro.\n\nApagar deixaria esse histórico sem '
+       + 'dono. Em vez disso, desative: some das telas do dia a dia e o que '
+       + 'já foi feito continua nos relatórios.';
 }
 
 /* ── TABELA QUE NÃO CARREGOU TEM QUE APARECER ─────────────────────────────

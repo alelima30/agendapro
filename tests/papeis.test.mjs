@@ -251,17 +251,37 @@ await pgProf.waitForTimeout(700);
 
 igual('e a grade dela tem UMA coluna: a dela',
   await pgProf.evaluate(() => document.querySelectorAll('.grade .col').length), 1);
-verdade('com o nome dela no cabeçalho',
-  await pgProf.evaluate(() => /Bia/.test(
-    document.querySelector('.col-h .nm').textContent)),
-  await pgProf.evaluate(() => document.querySelector('.col-h .nm').textContent));
 
-/* Este é o ponto: sem a filtragem, a coluna da colega apareceria VAZIA — o
-   RLS não entrega os atendimentos dela — e a agenda diria que a colega está
-   livre. */
-verdade('e nenhuma coluna de colega aparecendo vazia',
-  await pgProf.evaluate(() => ![...document.querySelectorAll('.col-h .nm')]
-    .some(n => /Ju Barbosa/.test(n.textContent))),
+/* ⚠ A PERGUNTA MUDOU DE LUGAR: DO CABEÇALHO PARA A COLUNA.
+
+   Antes daqui se cobrava o NOME "Bia" no `.col-h .nm`. Isso deixou de valer
+   quando a grade passou a esconder o cabeçalho num salão de uma pessoa só —
+   e para ela é uma pessoa só, porque a colega é filtrada. Dizer o nome de
+   quem está olhando a própria agenda é dizer o óbvio ocupando uma faixa de
+   tela, que no celular é o que mais falta.
+
+   Mas o ponto desta seção continua de pé, e ele é sério: sem a filtragem, a
+   coluna da colega apareceria VAZIA — o RLS não entrega os atendimentos dela
+   — e a agenda MENTIRIA dizendo que a colega está livre.
+
+   ⚠ E SE EU SÓ TIVESSE APAGADO A VERIFICAÇÃO DO NOME, a seguinte passaria
+   por engano: "nenhum `.col-h .nm` com Ju Barbosa" é verdade trivialmente
+   quando não existe cabeçalho nenhum. Teste verde sem testar nada é pior que
+   teste vermelho.
+
+   Então a identidade passa a sair da COLUNA, que a carrega no `data-prof` e
+   existe sempre, com cabeçalho ou sem. */
+const colunas = await pgProf.evaluate(() =>
+  [...document.querySelectorAll('.grade .col[data-prof]')]
+    .map(c => c.getAttribute('data-prof')));
+/* `join`, e não o array: o `igual` deste arquivo compara com `===`, e dois
+   arrays de conteúdo igual nunca são `===` um ao outro. Passei por isso: a
+   reprovação saiu com os dois lados idênticos na tela, que é o jeito mais
+   confuso possível de um teste falhar. */
+igual('e é a coluna DELA, pelo id — não a de uma colega',
+  colunas.join(','), P2.id);
+verdade('nenhuma coluna de colega aparecendo vazia',
+  !colunas.includes(P1.id),
   'coluna vazia de colega faz a agenda mentir sobre quem está livre');
 
 /* ══════════════════════════════════════════════════════════════════════════

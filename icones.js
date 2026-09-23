@@ -56,6 +56,10 @@ const D = {
   // reconhece como "relatório" sem legenda — pizza e linha, nesse tamanho,
   // viram borrão.
   grafico:    '<path d="M3.5 20.5h17"/><path d="M7 20.5v-5.5M12 20.5v-11M17 20.5v-7.5"/>',
+  /* Quatro blocos: é o desenho que o olho já lê como "painel de cartões", e
+     separa o Dashboard do Relatórios sem depender do rótulo — aquele é o das
+     barras, este é o da grade. */
+  painel:     '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
   tema:       '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor" stroke="none"/>',
   saida:      '<path d="M14 4.5h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-4"/><path d="M10 8.5 6 12l4 3.5M6 12h9"/>',
   seta:       '<path d="M5 12h13M13 6.5 18.5 12 13 17.5"/>',

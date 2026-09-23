@@ -163,6 +163,51 @@ const rotulo = await dono.evaluate(() =>
 verdade('o rótulo mostra o período, não um dia', /\d{2}\/\d{2} a \d{2}\/\d{2}/.test(rotulo),
   JSON.stringify(rotulo));
 
+/* ── A VISTA DE 3 DIAS ────────────────────────────────────────────────────
+   O meio-termo entre o dia e a semana. Sete colunas num celular dão uns 50px
+   cada: cabe, mas o nome da cliente não. Um dia só não responde a pergunta de
+   balcão mais comum, que é "e amanhã, tem?".
+
+   ⚠ ELA ANDA COM O DIA ABERTO, e não fica presa à segunda-feira. A semana é
+   um bloco fixo do calendário — é assim que se olha escala e folga. Três dias
+   é uma janela que acompanha quem está olhando: ancorada na segunda, "3 dias"
+   numa sexta mostraria segunda, terça e quarta, que já passaram. Por isso a
+   verificação é sobre o PRIMEIRO dia ser o dia aberto. */
+verdade('o seletor oferece 3 dias', rotulos.includes('3 dias'),
+  JSON.stringify(rotulos));
+
+// O mesmo formato que o `rotuloDia` monta: DD/MM a DD/MM/AAAA.
+const faixa = (a, b) => {
+  const [ , ma, da] = a.split('-'), [ab, mb, db] = b.split('-');
+  return `${da}/${ma} a ${db}/${mb}/${ab}`;
+};
+
+await dono.evaluate(d => { diaAtual = d; trocarVista('3dias'); }, QUA);
+await dono.waitForTimeout(400);
+igual('a grade passa a ter três colunas',
+  await dono.evaluate(() => document.querySelectorAll('.col').length), 3);
+/* ⚠ A JANELA COMEÇA NO DIA ABERTO — QUARTA, e não na segunda-feira da
+   semana. É a diferença entre as duas vistas: a semana é um bloco fixo do
+   calendário, porque é assim que se olha escala e folga; três dias é uma
+   janela que acompanha quem está olhando. Ancorada na segunda, "3 dias" numa
+   sexta mostraria segunda, terça e quarta — dias que já passaram. */
+igual('e a janela começa no dia aberto, não na segunda-feira',
+  await dono.evaluate(() => document.getElementById('rotuloDia').textContent.trim()),
+  faixa(QUA, diaMais(4)));
+
+/* O ‹ › tem que andar o que a tela mostra. Andando um dia, navegar três dias
+   viraria clique repetido; andando sete, pularia dois terços do que está na
+   tela sem a pessoa perceber. */
+await dono.evaluate(() => mudarDia(1));
+await dono.waitForTimeout(400);
+igual('o botão de avançar anda três dias, não um nem sete',
+  await dono.evaluate(() => document.getElementById('rotuloDia').textContent.trim()),
+  faixa(diaMais(5), diaMais(7)));
+
+// De volta à semana, que é o assunto do resto do arquivo.
+await dono.evaluate(d => { diaAtual = d; trocarVista('semana'); }, QUA);
+await dono.waitForTimeout(400);
+
 /* ══════════════════════════════════════════════════════════════════════════
    2. O TOPO TEM QUE SOMAR O QUE A GRADE MOSTRA
    ══════════════════════════════════════════════════════════════════════════ */
@@ -174,10 +219,28 @@ const cartoes = () => dono.evaluate(() => document.querySelectorAll('.ag').lengt
 
 igual('a semana mostra os quatro atendimentos', await cartoes(), 4);
 igual('e o topo conta os quatro', await contador(), 4);
-verdade('o rótulo do dinheiro diz "na semana"',
+/* ⚠ ESTA VERIFICAÇÃO VIROU O CONTRÁRIO DO QUE ERA, DE PROPÓSITO.
+
+   Ela cobrava que o rótulo do dinheiro dissesse "na semana" — porque havia um
+   "previsto" nesta faixa, e com sete dias na tela "previsto no dia" era
+   mentira. Estava certa enquanto o dinheiro morava aqui.
+
+   Ele não mora mais. A grade — dia, 3 dias, semana — é a tela de QUEM VEM,
+   aberta o dia inteiro no balcão, com a equipe e a cliente enxergando junto:
+   valor do dia ali é dinheiro à vista de quem passa. E era a terceira faixa
+   do sistema a somar o mesmo dia, cada uma com a sua conta. O faturamento foi
+   para o Caixa, e o previsto ficou no MÊS, que é onde o dono escolhe um dia
+   para saber o que aquele dia promete.
+
+   Então o que se cobra agora é a AUSÊNCIA, e não um rótulo novo: uma
+   verificação de rótulo deixaria o dinheiro voltar com outro nome. */
+verdade('não sobra valor em dinheiro na faixa da grade',
+  await dono.evaluate(() => {
+    const t = (document.getElementById('kpisDia') || {}).innerText || '';
+    return !/R\$/.test(t) && !/previsto/i.test(t) && !/faturamento/i.test(t);
+  }),
   await dono.evaluate(() =>
-    [...document.querySelectorAll('#kpisDia .r')].some(e => /na semana/.test(e.textContent))),
-  'com sete dias na tela, "previsto no dia" é mentira');
+    (document.getElementById('kpisDia') || {}).innerText || ''));
 
 /* ══════════════════════════════════════════════════════════════════════════
    3. DOIS AO MESMO TEMPO NÃO PODEM SE COBRIR
