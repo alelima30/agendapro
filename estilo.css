@@ -367,6 +367,18 @@
 }
 .lat-nav .aba:hover .aba-ic{ background:var(--lat-sel); color:var(--lat-sel-txt) }
 .lat-nav .aba.on .aba-ic{ background:var(--az-600); color:#FFFFFF }
+/* ── O GANCHO DA COR DOS ÍCONES ──────────────────────────────────────────
+   Sem `--ico` definida, `inherit` faz exatamente o que o ícone já fazia: ele
+   toma a cor do texto em volta, que é o comportamento do projeto inteiro
+   (ver `currentColor` no icones.js). Quer dizer: esta linha é um no-op em
+   todo salão que não escolheu cor de ícone — e a variável só é definida pelo
+   `aplicarCoresSoltas()` da página da cliente.
+
+   ⚠ Especificidade baixa de propósito (0,1,0). As regras que já pintam ícone
+   em lugar específico — a lateral, por exemplo — continuam ganhando, e a
+   escolha do dono não invade tela nenhuma que já tinha dono. */
+.ic-svg{ color:var(--ico, inherit) }
+
 .aba-ic .ic-svg{ width:16px; height:16px }
 
 /* ── O pé da lateral ─────────────────────────────────────────────────── */
@@ -1594,6 +1606,30 @@ body.sem-brilho .marca-selo{ animation:none }
 .sv-mini img{ width:100%; height:100%; object-fit:cover; display:block }
 .sv-mini .ic-svg{ width:14px; height:14px }
 
+/* ── UMA COR SOLTA POR LINHA ─────────────────────────────────────────────
+   Amostra à esquerda, nome e estado no meio, "herdar" à direita — e o
+   "herdar" só existe quando há o que desfazer. Linha alta porque o seletor
+   de cor é alvo de toque, e no celular esta tela é editada com o polegar. */
+.cor-linha{
+  display:flex; align-items:center; gap:12px;
+  padding:8px 0; border-bottom:1px solid var(--borda);
+}
+.cor-linha:last-child{ border-bottom:0 }
+.cor-linha .cor-livre{ flex:none; width:44px; height:44px }
+.cor-linha-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
+.cor-linha-txt b{ font-size:14px; font-weight:600 }
+/* O estado — "acompanha a cor da marca" ou a explicação — em corpo menor:
+   é o que a pessoa lê depois de achar a linha pelo nome. */
+.cor-linha-txt span{ font-size:12.5px; color:var(--txt3); line-height:1.35 }
+
+/* A bolinha do tema pronto: a cor principal dele, para a escolha ser pelo
+   olho e não pela leitura de dez nomes. */
+.bolinha-tema{
+  width:13px; height:13px; border-radius:50%; margin-right:8px;
+  display:inline-block; flex:none;
+  box-shadow:0 0 0 1px rgba(0,0,0,.12) inset;
+}
+
 /* ── AS FITAS QUE INSEREM UM PARÂMETRO NO RECADO ─────────────────────────
    Parecem as fitas de serviço, mas são ALVO DE TOQUE — por isso classe
    própria em vez de reaproveitar a `.fita-servico`, que é fita mesmo
@@ -2761,4 +2797,73 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 @media (max-width:520px){
   .pd-fundo{ padding:0 }
   .pd-caixa{ max-height:100vh; height:100vh; border-radius:0 }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A PERSONALIZAÇÃO POR ESTABELECIMENTO
+
+   ⚠ TUDO AQUI ESTÁ PRESO A UM ATRIBUTO NA RAIZ. Sem `data-modo` e sem
+   `data-logo`, nenhuma regra deste bloco casa — e a página é, byte a byte, a
+   de sempre. É o que faz o pedido "não quebre nada" ser verdade por
+   construção, e não por cuidado: o salão que nunca escolher não entra aqui.
+
+   O HTML da capa não mudou. Ele já tinha a estrutura da referência — foto,
+   logo sobreposto, nome, endereço — e o que muda é o peso de cada peça.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── O FORMATO DO LOGO ────────────────────────────────────────────────────
+   `circular` não aparece aqui de propósito: é o padrão, e o padrão é o que o
+   selo já faz (canto de 22px num quadrado de 104px). Escrever uma regra para
+   ele seria repetir o que o CSS já diz, e criar um segundo lugar para
+   consertar a mesma coisa. */
+[data-logo="arredondado"] .marca-selo{ border-radius:var(--r-lg) }
+[data-logo="quadrado"]    .marca-selo{ border-radius:4px }
+
+/* ── O MODO PREMIUM ───────────────────────────────────────────────────────
+   Mais capa, o logo mordendo a foto com folga, e o nome maior. É o gesto da
+   referência: a foto apresenta a casa, e o logo diz de quem ela é.
+
+   A proporção passa de 16/9 para 3/2 no celular — uma faixa mais alta, que é
+   o que faz a foto do salão parecer a capa de um perfil e não um banner. */
+[data-modo="premium"] .hero-foto{ aspect-ratio:3 / 2 }
+[data-modo="premium"] .marca-salao.com-foto .marca-selo{
+  margin-top:-60px;
+  width:116px; height:116px;
+  /* O anel mais grosso separa o logo da foto sem precisar de sombra pesada,
+     que sobre foto clara vira uma mancha cinza. */
+  box-shadow:0 0 0 5px var(--bg), var(--sombra-md);
+}
+[data-modo="premium"] .marca-salao h2{ font-size:26px; letter-spacing:-.02em }
+
+/* Os cartões ganham corpo, para se sustentarem sobre uma capa forte. Sem
+   isto, no premium eles somem dentro da própria página. */
+[data-modo="premium"] .sv-cartao,
+[data-modo="premium"] .opcao,
+[data-modo="premium"] .atalho{
+  border-radius:var(--r-lg);
+  box-shadow:var(--sombra-md);
+}
+
+/* ⚠ E NADA DISSO VALE NA TELA GRANDE COM MENOS DE 380px de largura: num
+   celular estreito a capa de 3/2 come a primeira dobra inteira, e a cliente
+   abre o link sem ver um serviço sequer. Aí ela volta a ser 16/9. */
+@media (max-width: 380px){
+  [data-modo="premium"] .hero-foto{ aspect-ratio:16 / 9 }
+  [data-modo="premium"] .marca-salao.com-foto .marca-selo{
+    width:104px; height:104px; margin-top:-52px;
+  }
+}
+
+/* ── O FUNDO EM GRADIENTE ─────────────────────────────────────────────────
+   Preso à classe, como todo o resto desta camada: sem `tem-gradiente` a
+   regra não casa e o papel continua sendo o `--bg` de sempre.
+
+   `fixed` porque a emenda das duas cores não pode andar com a rolagem — numa
+   página longa isso faz a tela mudar de cor enquanto a cliente desce, e o
+   efeito lê como defeito de carregamento. */
+body.tem-gradiente{
+  background-image:var(--bg-grad);
+  background-attachment:fixed;
+  background-repeat:no-repeat;
+  background-size:cover;
 }

@@ -122,6 +122,26 @@ with conferencia(ordem, item, veredito, detalhe) as (
          case when to_regprocedure('public.painel_grafico(uuid)') is null
               then 'o dashboard vai abrir vazio, pedindo esta atualização'
               else '' end
+
+  union all
+  /* A identidade visual do estabelecimento, pelo mesmo caminho silencioso do
+     item 9: a `vitrine()` de antes não conhece as chaves novas, o painel
+     grava a escolha do dono e a página da cliente nunca fica sabendo.
+
+     ⚠ Aqui ela some sem parecer defeito nenhum, que é o pior caso: a página
+     continua bonita, com as cores calculadas de sempre. O dono vai jurar que
+     escolheu e que não pegou — e está certo. */
+  select 11, 'as cores e o modo que o dono escolhe para o link',
+         case when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+              when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                   like '%''logoForma''%' then 'certo'
+              else 'FALTA' end,
+         case when to_regprocedure('public.vitrine(text)') is null
+              then 'a função vitrine() não existe'
+              when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                   like '%''logoForma''%' then ''
+              else 'a vitrine() é de antes: a tela de Aparência salva, e a '
+                || 'página da cliente continua com o visual calculado' end
 )
 select item                                as "o que",
        veredito                            as "está",

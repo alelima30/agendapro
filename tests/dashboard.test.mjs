@@ -101,7 +101,25 @@ const abrirDash = async (forcar) => {
   }
   await p.click('#abas .aba[data-chave="dashboard"]');
   if(forcar) await p.evaluate(() => carregarDash(true));
-  await p.waitForTimeout(1600);
+
+  /* ⚠ ESPERAR A CONDIÇÃO, E NÃO O RELÓGIO.
+
+     Aqui havia `waitForTimeout(1600)`, e 1600ms é um palpite correndo contra
+     uma ida ao banco. Rodando a suíte sozinha ele ganhava sempre; dentro do
+     `tudo.sh`, com a máquina ocupada, perdeu — e as cinco verificações do
+     primeiro bloco reprovaram todas juntas, dizendo "abriu sem cartão
+     nenhum". Parecia o defeito que elas existem para pegar (lista vazia lida
+     como "não quero nada"); era o teste olhando cedo demais.
+
+     O `carregarDash()` escreve "Somando…" enquanto espera o banco, então dá
+     para esperar o fim de verdade. Os dois estados de chegada — com cartão e
+     o "Nenhum cartão escolhido" — passam por aqui, e um erro de banco
+     também: nenhum deles diz Somando. */
+  await p.waitForFunction(() => {
+    const a = document.getElementById('dashCorpo');
+    return a && a.innerText && !/Somando/.test(a.innerText);
+  }, null, { timeout: 15000 }).catch(() => {});
+  await p.waitForTimeout(400);
 };
 const naTela = () => p.evaluate(() => ({
   cartoes: [...document.querySelectorAll('#dashCorpo .dash-card')]

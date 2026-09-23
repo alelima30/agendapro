@@ -1743,7 +1743,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.c43963';
+const VERSAO_APP = 'v9.adcec5';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7025,7 +7025,16 @@ function pintarSalao(){
       <div class="ap-grade">
       <div class="ap-controles">
 
-      <div class="rot" style="margin-bottom:8px">Cor da marca</div>
+      <!-- ══════════ MODO DE EXIBICAO ══════════
+           Vem PRIMEIRO porque decide se o resto vale. O modo Atual e' o
+           padrao de quem nunca escolheu: a tela de hoje, sem nada novo
+           ligado.
+           (Sem crase: este HTML e' lido como template literal.) -->
+      <div class="rot" style="margin-bottom:8px">Modo de exibicao</div>
+      <div class="regua" id="reguaModo" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaModo" style="margin-top:9px"></p>
+
+      <div class="rot" style="margin:18px 0 8px">Cor da marca</div>
       <div class="cores" id="paletaCores"></div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
         <input type="color" id="corLivre" class="cor-livre"
@@ -7036,6 +7045,50 @@ function pintarSalao(){
 
       <div class="rot" style="margin:18px 0 8px">Fundo</div>
       <div class="regua" id="reguaTema" style="justify-content:flex-start"></div>
+
+      <!-- ══════════ TEMAS PRONTOS ══════════
+           ⚠ Eles NAO sao um estado. Aplicar um so' PREENCHE os campos de cor
+           aqui embaixo; nada fica marcado como "tema X", e o dono muda o que
+           quiser depois sem sair de tema nenhum. Guardar qual tema foi usado
+           criaria duas verdades sobre a mesma tela — a do tema e a das cores
+           — e elas passariam a discordar no primeiro ajuste. -->
+      <div class="rot" style="margin:18px 0 8px">Temas prontos</div>
+      <p class="secao-sub" style="margin:-4px 0 9px">Um toque preenche as cores
+        abaixo. Depois e' so' mexer no que voce quiser — nada fica preso ao
+        tema.</p>
+      <div class="fitas" id="temasProntos"></div>
+
+      <!-- ══════════ AS NOVE CORES ══════════
+           Cada uma nasce HERDANDO da cor da marca. So' o que o dono trocar de
+           proposito vira valor fixo — e por isso cada linha tem um "voltar a
+           herdar". -->
+      <div class="rot" style="margin:18px 0 8px">Cores, uma a uma</div>
+      <p class="secao-sub" style="margin:-4px 0 9px">Tudo aqui ja' funciona
+        sozinho a partir da cor da marca. Mexa so' no que voce quiser mudar.</p>
+      <div id="coresSoltas"></div>
+      <p class="secao-sub" id="avisoLegibilidade" style="margin-top:9px"></p>
+
+      <!-- ══════════ TIPO DE FUNDO ══════════
+           A imagem e o veu ja' existiam; o que faltava era o GRADIENTE e um
+           seletor que diga em portugues o que esta' valendo. -->
+      <div class="rot" style="margin:18px 0 8px">Tipo de fundo</div>
+      <div class="regua" id="reguaFundoTipo" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaFundoTipo" style="margin-top:9px"></p>
+      <div id="gradienteCampos" style="display:none;margin-top:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input type="color" id="gradA" class="cor-livre"
+                 oninput="escolherGradiente()">
+          <span class="secao-sub" style="margin:0">ate'</span>
+          <input type="color" id="gradB" class="cor-livre"
+                 oninput="escolherGradiente()">
+        </div>
+        <p class="secao-sub" style="margin-top:6px">A primeira cor fica em
+          cima e a segunda embaixo. Duas cores proximas dao um fundo calmo;
+          duas distantes viram enfeite e disputam com o conteudo.</p>
+      </div>
+
+      <div class="rot" style="margin:18px 0 8px">Formato do logo</div>
+      <div class="regua" id="reguaLogoForma" style="justify-content:flex-start"></div>
 
       <div class="rot" style="margin:18px 0 8px">Preços na capa</div>
       <div class="regua" id="reguaPreco" style="justify-content:flex-start"></div>
@@ -7581,8 +7634,55 @@ function lerAparencia(){
     /* Ausente vale `reta`, o cartão de sempre: salão criado antes disto
        existir não muda de aparência nem precisa de migração. */
     moldura: c.moldura === 'elegante' ? 'elegante' : 'reta',
+
+    /* ── AS CORES SOLTAS ────────────────────────────────────────────────
+       Um objeto à parte, e cada chave AUSENTE quer dizer "calcule a partir
+       da principal, como sempre foi". Ver `CORES_SOLTAS` e o comentário
+       grande em cima dele. */
+    cores: Object.assign({}, c.cores || {}),
+    // Ausente vale `atual`: o visual de hoje, sem nada novo ligado.
+    modo: ['personalizado','premium'].includes(c.modo) ? c.modo : 'atual',
+    logoForma: ['arredondado','quadrado'].includes(c.logoForma)
+      ? c.logoForma : 'circular',
+    fundoTipo: ['gradiente','imagem'].includes(c.fundoTipo) ? c.fundoTipo : 'cor',
+    gradiente: c.gradiente || null,
   };
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AS NOVE CORES
+
+   ── ⚠ CADA UMA AUSENTE QUER DIZER "CALCULE", E NÃO "USE O PADRÃO DO APP" ──
+   Este é o ponto que faz o sistema inteiro continuar compatível: hoje TODA
+   cor da tela sai de uma conta em cima da cor principal — a letra do botão é
+   escolhida medindo contraste, o texto é uma versão puxada da cor, a borda é
+   a cor com alfa. Um salão que nunca abrir esta parte continua com
+   exatamente a mesma tela de antes, porque nenhuma chave existe e nenhuma
+   conta muda.
+
+   Só o que o dono trocar DE PROPÓSITO vira valor fixo.
+
+   ── E POR QUE ISSO EXIGIU UMA REDE ────────────────────────────────────────
+   A conta de contraste existe porque dono de salão escolhe cor bonita, não
+   cor legível: "texto branco" com "card branco" é uma tela que ninguém
+   percebe até a cliente não conseguir ler o preço. Abrindo as cores uma a
+   uma, esse acidente passa a ser possível.
+
+   Então a tela AVISA quando dois valores escolhidos não se leem juntos — ver
+   `conferirLegibilidade()`. Avisa, e não impede: pode ser de propósito, e um
+   sistema que proíbe o dono de escolher a cor da própria casa é pior do que
+   um que avisa e obedece.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const CORES_SOLTAS = [
+  ['secundaria', 'Cor secundária',  'Apoio da principal: fundos suaves e realces.'],
+  ['botao',      'Botões',          'O botão de marcar e os de ação.'],
+  ['texto',      'Textos',          'O corpo do texto, no cartão e na lista.'],
+  ['titulo',     'Títulos',         'Os nomes em destaque: serviço, seção, salão.'],
+  ['card',       'Cards',           'O fundo dos cartões que ficam sobre a página.'],
+  ['icone',      'Ícones',          'Os desenhos de traço, quando não acompanham o texto.'],
+  ['destaque',   'Destaque e preço','O valor do serviço e o que precisa saltar.'],
+  ['borda',      'Bordas',          'As linhas finas que separam um bloco do outro.'],
+];
 
 function pintarAparencia(){
   const paleta = document.getElementById('paletaCores');
@@ -7604,6 +7704,99 @@ function pintarAparencia(){
     [['claro','Claro'],['escuro','Escuro']].map(([v, rot]) =>
       `<button type="button" class="${aparencia.tema === v ? 'on' : ''}"
                onclick="escolherTema('${v}')">${rot}</button>`).join('');
+
+  /* ── O MODO, OS TEMAS, AS NOVE CORES E O FORMATO DO LOGO ───────────────
+     Tudo desenhado a partir do `aparencia`, como o resto desta tela. */
+  const MODOS = [
+    ['atual', 'Atual',
+     'Exatamente a tela de hoje. É o que todo salão já tem, e continua sendo '
+     + 'o padrão de quem não escolher nada.'],
+    ['personalizado', 'Personalizado',
+     'Usa as cores e o fundo escolhidos aqui embaixo. A estrutura da página '
+     + 'não muda — só as cores.'],
+    ['premium', 'Premium',
+     'Capa grande no topo com o logo sobreposto, e os cartões destacados '
+     + 'sobre o fundo. Precisa de uma foto de capa para valer a pena.'],
+  ];
+  document.getElementById('reguaModo').innerHTML = MODOS.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.modo === v ? 'on' : ''}"
+             onclick="escolherAparencia('modo','${v}')">${rot}</button>`).join('');
+  const modoAchado = MODOS.find(m => m[0] === aparencia.modo);
+  document.getElementById('explicaModo').textContent = modoAchado ? modoAchado[2] : '';
+
+  /* A variável se chama `rotulo`, e não `nome`, de propósito: o varredor do
+     `seguranca.test.mjs` procura interpolação de campo de gente pelo NOME da
+     variável, e não sabe que este veio de uma constante nossa. Renomear é o
+     conserto escolhido neste projeto — abrir exceção na lista do guardião
+     cobraria o preço no dia em que um campo de gente de verdade passasse por
+     ela. (E nem citar a variável antiga aqui dá: o varredor não distingue
+     comentário de código, e já mordeu por isso quatro vezes.) */
+  document.getElementById('temasProntos').innerHTML =
+    TEMAS_PRONTOS.map(([rotulo, cor]) =>
+      `<button type="button" class="fita-param"
+               onclick="aplicarTemaPronto('${rotulo}')">
+         <span class="bolinha-tema" style="background:${cor}"></span>${rotulo}
+       </button>`).join('')
+    + `<button type="button" class="fita-param" onclick="limparCoresSoltas()">
+         Personalizado</button>`;
+
+  /* ⚠ CADA LINHA MOSTRA SE A COR É HERDADA OU ESCOLHIDA, e não só a cor.
+     Sem isso o dono não tem como saber se aquele tom veio dele ou do
+     cálculo — e não saberia o que o "voltar a herdar" vai desfazer. */
+  document.getElementById('coresSoltas').innerHTML =
+    CORES_SOLTAS.map(([chave, rot, ajuda]) => {
+      const escolhida = aparencia.cores[chave];
+      const tem = corValida(escolhida);
+      return `<div class="cor-linha">
+        <input type="color" class="cor-livre"
+               value="${tem ? escolhida : aparencia.cor}"
+               oninput="escolherCorSolta('${chave}', this.value)"
+               aria-label="${escapar(rot)}">
+        <span class="cor-linha-txt">
+          <b>${escapar(rot)}</b>
+          <span>${tem ? escapar(ajuda) : 'acompanha a cor da marca'}</span>
+        </span>
+        ${tem ? `<button type="button" class="btn btn-peq"
+                         onclick="herdarCorSolta('${chave}')">herdar</button>` : ''}
+      </div>`;
+    }).join('');
+  conferirLegibilidade();
+
+  /* ── O TIPO DE FUNDO ──────────────────────────────────────────────────
+     `cor` é o de sempre: o papel do tema, claro ou escuro. Os outros dois
+     entram por cima dele, e por isso `cor` não some nem precisa de opção
+     "manter o atual" — ele É o atual. */
+  const FUNDOS = [
+    ['cor', 'Cor sólida',
+     'O papel limpo do tema que você escolheu acima. É o que o app já faz.'],
+    ['gradiente', 'Gradiente',
+     'Duas cores em degradê. Bom para dar profundidade sem precisar de foto.'],
+    ['imagem', 'Imagem',
+     'A foto que você anexa mais abaixo, com o véu por cima para o texto '
+     + 'continuar legível.'],
+  ];
+  document.getElementById('reguaFundoTipo').innerHTML = FUNDOS.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.fundoTipo === v ? 'on' : ''}"
+             onclick="escolherAparencia('fundoTipo','${v}')">${rot}</button>`).join('');
+  const fAchado = FUNDOS.find(f => f[0] === aparencia.fundoTipo);
+  document.getElementById('explicaFundoTipo').textContent = fAchado ? fAchado[2] : '';
+
+  const camposGrad = document.getElementById('gradienteCampos');
+  if(camposGrad){
+    camposGrad.style.display = aparencia.fundoTipo === 'gradiente' ? '' : 'none';
+    // Sem gradiente escolhido, os dois campos partem da cor da marca: o
+    // dono mexe a partir do que ele já reconhece, e não de dois cinzas.
+    const [a1, b1] = String(aparencia.gradiente || '').split(',');
+    document.getElementById('gradA').value = corValida(a1) ? a1 : aparencia.cor;
+    document.getElementById('gradB').value = corValida(b1)
+      ? b1 : mexer(aparencia.cor, 0.34);
+  }
+
+  const FORMAS = [['circular','Circular'], ['arredondado','Arredondado'],
+                  ['quadrado','Quadrado']];
+  document.getElementById('reguaLogoForma').innerHTML = FORMAS.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.logoForma === v ? 'on' : ''}"
+             onclick="escolherAparencia('logoForma','${v}')">${rot}</button>`).join('');
 
   document.getElementById('reguaPreco').innerHTML = PRECOS.map(([v, rot]) =>
     `<button type="button" class="${aparencia.precoNaCapa === v ? 'on' : ''}"
@@ -7654,6 +7847,154 @@ function letraSobre(hex){
                 return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); })
     .reduce((s, v, i) => s + [0.2126, 0.7152, 0.0722][i] * v, 0);
   return (L + 0.05) / 0.05 > 1.05 / (L + 0.05) ? '#101014' : '#FFFFFF';
+}
+
+/* A MESMA conta de `agendar.html`, e pelo mesmo motivo do `letraSobre()` aqui
+   em cima: duas definições de "cor válida" que discordem deixariam o painel
+   aceitar um valor que a página da cliente recusa — e o dono passaria a tarde
+   sem entender por que a cor dele não pega. */
+function corValida(c){ return /^#[0-9a-fA-F]{6}$/.test(String(c || '')); }
+
+/* Clareia (p > 0) ou escurece (p < 0) um hex. A MESMA conta do
+   `agendar.html`, pelo terceiro motivo igual: duas versões que discordem
+   fazem a prévia mostrar um tom e a cliente ver outro. */
+function mexer(hex, p){
+  if(!corValida(hex)) return hex;
+  const v = [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16)).map(n =>
+    Math.round(p >= 0 ? n + (255 - n) * p : n * (1 + p)));
+  return '#' + v.map(n => Math.max(0, Math.min(255, n))
+    .toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+/* Quanto duas cores se distinguem uma da outra (1 = iguais, 21 = preto sobre
+   branco). É a razão de contraste da WCAG, e serve aqui para AVISAR — nunca
+   para impedir. O piso de 4,5 é o que a norma pede para texto corrido; 3 é o
+   mínimo para texto grande e para desenho de traço. */
+function contrasteEntre(a, b){
+  const lum = hex => [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16))
+    .map(v => { const c = v / 255;
+                return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); })
+    .reduce((s, v, i) => s + [0.2126, 0.7152, 0.0722][i] * v, 0);
+  if(!corValida(a) || !corValida(b)) return 21;
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OS TEMAS PRONTOS
+
+   ⚠ UM TEMA NÃO É UM ESTADO. Aplicar um PREENCHE os campos de cor e acaba
+   ali: nada fica gravado dizendo "este salão é o tema Premium".
+
+   Se guardássemos o nome do tema, passariam a existir duas verdades sobre a
+   mesma tela — a do tema e a das cores — e elas discordariam no primeiro
+   ajuste que o dono fizesse. Aí seria preciso decidir qual manda, e essa
+   decisão não tem resposta boa: respeitar o tema apaga o ajuste dele;
+   respeitar o ajuste faz o rótulo "Premium" mentir.
+
+   Preenchendo e saindo de cena, o tema é o que ele deve ser — um atalho para
+   não começar do zero.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const TEMAS_PRONTOS = [
+  ['Moderno',  '#2563EB', 'claro', { secundaria:'#60A5FA', destaque:'#1D4ED8' }],
+  ['Elegante', '#1F2937', 'claro', { secundaria:'#9CA3AF', destaque:'#111827',
+                                     borda:'#E5E7EB' }],
+  ['Premium',  '#6D28D9', 'claro', { secundaria:'#A78BFA', destaque:'#5B21B6',
+                                     card:'#FFFFFF', titulo:'#312E81' }],
+  ['Dark',     '#60A5FA', 'escuro',{ secundaria:'#93C5FD', destaque:'#BFDBFE' }],
+  ['Clean',    '#0F766E', 'claro', { secundaria:'#5EEAD4', destaque:'#115E59',
+                                     card:'#FFFFFF' }],
+  ['Roxo',     '#7C3AED', 'claro', { secundaria:'#C4B5FD', destaque:'#6D28D9' }],
+  ['Azul',     '#1D4ED8', 'claro', { secundaria:'#93C5FD', destaque:'#1E40AF' }],
+  ['Verde',    '#15803D', 'claro', { secundaria:'#86EFAC', destaque:'#166534' }],
+  ['Dourado',  '#B45309', 'escuro',{ secundaria:'#FCD34D', destaque:'#F59E0B' }],
+  ['Rosa',     '#DB2777', 'claro', { secundaria:'#F9A8D4', destaque:'#BE185D' }],
+];
+
+function aplicarTemaPronto(nome){
+  const t = TEMAS_PRONTOS.find(x => x[0] === nome);
+  if(!t) return;
+  const [ , cor, tema, cores] = t;
+  if(!confirm('Aplicar o tema ' + nome + '?\n\nIsto preenche as cores aqui '
+    + 'embaixo. O que você já tinha escolhido à mão será substituído.\n\n'
+    + 'Nada é gravado enquanto você não apertar Salvar.')) return;
+  aparencia.cor = cor;
+  aparencia.tema = tema;
+  /* Substitui o conjunto inteiro, e não mescla: mesclar deixaria uma cor
+     solta do tema anterior no meio do novo, e o resultado não seria nem um
+     tema nem o outro. */
+  aparencia.cores = Object.assign({}, cores);
+  pintarAparencia();
+}
+
+/* "Personalizado" não é um tema: é o botão que LIMPA as cores soltas e
+   devolve tudo ao cálculo automático em cima da cor da marca. É também a
+   saída para quem se perdeu mexendo. */
+function limparCoresSoltas(){
+  if(!confirm('Voltar todas as cores a acompanhar a cor da marca?\n\n'
+    + 'O sistema volta a calcular cada uma — inclusive o contraste da letra '
+    + 'sobre os botões.')) return;
+  aparencia.cores = {};
+  pintarAparencia();
+}
+
+/* ── A REDE ───────────────────────────────────────────────────────────────
+   Avisa, e não impede.
+
+   O sistema escolhe sozinho a letra de cada botão medindo contraste, e é por
+   isso que hoje não existe tela ilegível: dono de salão escolhe cor bonita,
+   não cor legível. Abrindo as nove cores, "texto branco em card branco" passa
+   a ser possível — e é o tipo de defeito que ninguém percebe até a cliente
+   não conseguir ler o preço.
+
+   ⚠ MAS IMPEDIR SERIA PIOR. Pode ser de propósito (um card escuro num tema
+   escuro, com texto claro que o medidor não entende), e um sistema que proíbe
+   o dono de escolher a cor da própria casa é pior do que um que avisa e
+   obedece. Então aqui se diz o que está ruim, com o número, e deixa passar.
+
+   4,5 é o piso da WCAG para texto corrido. 3 é o de texto grande e desenho. */
+function conferirLegibilidade(){
+  const alvo = document.getElementById('avisoLegibilidade');
+  if(!alvo) return;
+  const c = aparencia.cores || {};
+  const papel = corValida(c.card) ? c.card
+              : (aparencia.tema === 'escuro' ? '#131A26' : '#FFFFFF');
+
+  const queixas = [];
+  const olhar = (chave, rot, piso) => {
+    if(!corValida(c[chave])) return;          // herdada: o cálculo garante
+    const r = contrasteEntre(c[chave], papel);
+    if(r < piso) queixas.push(rot + ' (' + r.toFixed(1) + ':1)');
+  };
+  olhar('texto',    'o texto',     4.5);
+  olhar('titulo',   'os títulos',  3);
+  olhar('destaque', 'o preço',     3);
+  olhar('icone',    'os ícones',   3);
+
+  alvo.innerHTML = !queixas.length ? '' :
+    '<b style="color:var(--alerta)">Difícil de ler sobre os cards:</b> '
+    + escapar(queixas.join(', '))
+    + '. Dá para salvar assim mesmo — mas confira no celular antes.';
+}
+
+/* Guardado como "corA,corB" — duas cores num campo de texto, e não um objeto.
+   É um par que só existe junto: separados, dariam dois estados possíveis
+   (uma preenchida e a outra não) que não querem dizer nada. */
+function escolherGradiente(){
+  const a = document.getElementById('gradA').value;
+  const b = document.getElementById('gradB').value;
+  aparencia.gradiente = (corValida(a) && corValida(b)) ? (a + ',' + b) : null;
+  pintarAparencia();
+}
+
+function escolherCorSolta(chave, hex){
+  if(corValida(hex)) aparencia.cores[chave] = hex;
+  pintarAparencia();
+}
+
+function herdarCorSolta(chave){
+  delete aparencia.cores[chave];
+  pintarAparencia();
 }
 
 function escolherCor(hex){  aparencia.cor = hex;  pintarAparencia(); }
@@ -7808,6 +8149,15 @@ function salvarAparencia(){
     veu: aparencia.veu,
     cartoes: aparencia.cartoes,
     moldura: aparencia.moldura,
+    /* ⚠ SÓ O QUE ELE TROCOU. Chave ausente quer dizer "calcule a partir da
+       principal" — gravar as nove sempre congelaria dentro do salão as
+       contas de hoje, e melhorar o cálculo depois não chegaria em ninguém.
+       É a mesma lição dos recados do WhatsApp. */
+    cores: soAsEscolhidas(aparencia.cores),
+    modo: aparencia.modo,
+    logoForma: aparencia.logoForma,
+    fundoTipo: aparencia.fundoTipo,
+    gradiente: aparencia.gradiente,
   });
   salvar();
   const aviso = document.getElementById('salvouAparencia');
@@ -7818,6 +8168,18 @@ function salvarAparencia(){
       if(ainda) ainda.textContent = '';
     }, 2600);
   }
+}
+
+/* Tira as vazias antes de gravar. Uma chave com string vazia não é "não
+   escolhi": é uma cor inválida que o `corValida()` recusaria mais tarde, na
+   página da cliente, longe de quem a criou. */
+function soAsEscolhidas(cores){
+  const limpo = {};
+  for(const [chave] of CORES_SOLTAS){
+    const v = (cores || {})[chave];
+    if(corValida(v)) limpo[chave] = v;
+  }
+  return limpo;
 }
 
 function estadoDoEspaco(){

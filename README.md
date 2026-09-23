@@ -293,6 +293,15 @@ Quem identifica a casa é o nome, o monograma e a lista de serviços, que é com
 Fresha, Booksy e Square resolvem. O vocabulário continua mudando com o tipo do
 salão ("quem corta" x "quem atende"); o que saiu foi a segunda paleta.
 
+⚠ **Este parágrafo envelheceu, e a parte que envelheceu foi só uma.** A
+segunda paleta voltou — o dono escolhe cores, gradiente e formato do logo para
+o link da cliente (ver *identidade visual*). O que continua valendo é a razão
+de ter saído: não existe uma paleta fixa "de barbearia" embutida no produto, e
+o painel não muda de cara. O que mudou é de quem é a decisão. E o contraste
+pequeno, que era a objeção técnica, virou um aviso medido na tela de
+Aparência, com a razão em N:1 — ele avisa e obedece, porque proibir o dono de
+escolher a cor da própria casa é pior do que avisar.
+
 **A página de cadastro preta.** Mesma história: o dono assinava numa tela preta
 e caía num sistema claro no minuto seguinte.
 
@@ -363,6 +372,14 @@ for conferir e desmoraliza a lista toda.
 
 ### O que deixou de faltar
 
+- **Identidade visual por estabelecimento** no link da cliente: modo de
+  exibição, nove cores uma a uma, onze temas prontos, gradiente e formato do
+  logo. ⚠ Construída ao contrário do jeito óbvio: cada chave AUSENTE quer
+  dizer "calcule a partir da cor da marca, como sempre", e não "use o padrão
+  novo". Salão que nunca abrir a tela não tem chave nenhuma e continua com a
+  página de antes, byte a byte. Metade do `identidade-visual.test.mjs` mede só
+  isso — personalização que não funciona o dono reclama no mesmo dia, a que
+  vaza chega calada em quem não pediu nada.
 - **O dashboard**, com sete cartões que o dono liga, desliga e ordena
   (`30_painel.sql` + a aba). Faturamento anual e semanal em SVG desenhado à
   mão — sem biblioteca, porque o projeto não tem passo de build e funciona

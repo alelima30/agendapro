@@ -1082,7 +1082,12 @@ language sql stable security definer set search_path = public as $$
       'capaFoco', (s.cfg->>'capaFoco')::int,
       'veu', (s.cfg->>'veu')::int,
       'cartoes', s.cfg->>'cartoes',
-      'moldura', coalesce(s.cfg->>'moldura', 'reta')
+      'moldura', coalesce(s.cfg->>'moldura', 'reta'),
+      'cores',     coalesce(s.cfg->'cores', '{}'::jsonb),
+      'modo',      coalesce(s.cfg->>'modo', 'atual'),
+      'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
+      'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
+      'gradiente', s.cfg->>'gradiente'
     ),
     'servicos', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1139,7 +1144,12 @@ language sql stable security definer set search_path = public as $$
       'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb),
       'passoHorarios', case
         when s.cfg->>'passoHorarios' in ('15','30','60')
-          then (s.cfg->>'passoHorarios')::int else 15 end
+          then (s.cfg->>'passoHorarios')::int else 15 end,
+      'cores',     coalesce(s.cfg->'cores', '{}'::jsonb),
+      'modo',      coalesce(s.cfg->>'modo', 'atual'),
+      'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
+      'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
+      'gradiente', s.cfg->>'gradiente'
     ),
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(

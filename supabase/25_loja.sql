@@ -140,7 +140,26 @@ language sql stable security definer set search_path = public as $$
          sempre a mesma — comparar como texto antes de converter. */
       'passoHorarios', case
         when s.cfg->>'passoHorarios' in ('15','30','60')
-          then (s.cfg->>'passoHorarios')::int else 15 end
+          then (s.cfg->>'passoHorarios')::int else 15 end,
+
+      /* ── A CAMADA DE PERSONALIZAÇÃO POR ESTABELECIMENTO ────────────────
+         Cinco chaves, e as cinco AUSENTES no salão que nunca mexeu — que é
+         o estado de todo salão que já existe. Ausente aqui não é "vazio": é
+         "faça como sempre fez", e a página da cliente trata assim.
+
+         ⚠ `cores` É UM OBJETO COM BURACOS, DE PROPÓSITO. Cada cor que o dono
+         NÃO escolheu fica de fora, e a tela a calcula a partir da principal,
+         como faz desde sempre — medindo contraste para decidir a letra. Se
+         gravássemos as nove sempre, a conta de hoje congelaria dentro do
+         salão, e melhorar o cálculo depois não chegaria em ninguém.
+
+         `modo` ausente vale `atual`: o visual de hoje, sem nada novo ligado.
+         É o que garante que ninguém acorde com a página diferente. */
+      'cores',     coalesce(s.cfg->'cores', '{}'::jsonb),
+      'modo',      coalesce(s.cfg->>'modo', 'atual'),
+      'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
+      'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
+      'gradiente', s.cfg->>'gradiente'
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────

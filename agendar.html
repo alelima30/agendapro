@@ -1049,6 +1049,16 @@ function bdDaVitrine(v){
       // De quanto em quanto tempo esta página oferece horário. Ver
       // `passoDoLink()`: é peneira de exibição, não de disponibilidade.
       passoHorarios: s.passoHorarios,
+      /* ── A PERSONALIZAÇÃO POR ESTABELECIMENTO ──────────────────────────
+         As cinco chaves chegam soltas, e as cinco podem vir vazias — que é o
+         estado de todo salão que nunca abriu essa parte. Vazio aqui quer
+         dizer "faça como sempre fez": o `aplicarAparencia()` calcula tudo a
+         partir da cor principal, e a tela sai idêntica à de antes. */
+      cores: (s.cores && typeof s.cores === 'object') ? s.cores : {},
+      modo: s.modo || 'atual',
+      logoForma: s.logoForma || 'circular',
+      fundoTipo: s.fundoTipo || 'cor',
+      gradiente: s.gradiente || null,
       cfg: { diasLiberados: s.diasLiberados },
     }],
     servicos: (v.servicos || []).map(x => ({
@@ -3904,6 +3914,26 @@ function mexer(hex, p){
 
    As camadas são criadas só quando há foto. Salão sem fundo não carrega nem
    dois `<div>` a mais. */
+/* O gradiente vive numa variável do CSS, e não num elemento novo: a página
+   já tem `--bg` como papel, e trocar o valor dele é a mudança mais barata
+   possível. Nada é criado, nada é removido, e voltar para a cor sólida é
+   apagar a propriedade.
+
+   ⚠ E ELE É `fixed`: sem isso a emenda das duas cores anda com a rolagem, e
+   numa página longa a cliente vê a tela mudando de cor enquanto desce. */
+function aplicarGradiente(par){
+  const raiz = document.documentElement;
+  if(!par){ raiz.style.removeProperty('--bg-grad');
+            document.body.classList.remove('tem-gradiente'); return; }
+  const [a, b] = String(par).split(',');
+  if(!corValida(a) || !corValida(b)){
+    raiz.style.removeProperty('--bg-grad');
+    document.body.classList.remove('tem-gradiente'); return;
+  }
+  raiz.style.setProperty('--bg-grad', `linear-gradient(180deg, ${a} 0%, ${b} 100%)`);
+  document.body.classList.add('tem-gradiente');
+}
+
 function aplicarFundo(url){
   const tinha = document.getElementById('fundoImagem');
   if(!url){
@@ -3981,7 +4011,25 @@ function aplicarAparencia(s){
               || (cartoes !== 'vidro' && veu < 35);
   document.body.classList.toggle('fundo-forte', !!fundo && fechar);
 
-  aplicarFundo(fundo);
+  aplicarModo(s);
+
+  /* ── ⚠ O TIPO DE FUNDO DECIDE SE A FOTO ENTRA ────────────────────────────
+     `fundoTipo` ausente vale `cor`, e `cor` é o papel do tema — o que a
+     página sempre fez. Mas a foto (`cfg.fundo`) pode já estar anexada de
+     antes, e ela continuava entrando sozinha.
+
+     Quem tem foto anexada e nunca viu este seletor está, por definição,
+     querendo a foto: foi ele quem a anexou. Por isso a foto continua valendo
+     quando o tipo é `cor` E existe foto — ausência de escolha não pode
+     desligar o que já estava ligado.
+
+     O tipo só MANDA quando o dono escolheu de propósito: pedir `gradiente`
+     tira a foto, pedir `imagem` a traz de volta. */
+  const c2 = s.cfg || {};
+  const tipo = s.fundoTipo || c2.fundoTipo || 'cor';
+  const grad = s.gradiente || c2.gradiente || null;
+  aplicarGradiente(tipo === 'gradiente' ? grad : null);
+  aplicarFundo(tipo === 'gradiente' ? null : fundo);
   // O brilho do botão é escolha do salão. Vem ligado por padrão porque é o
   // que o dono espera ao ver a prévia; quem achar demais desliga na tela de
   // Aparência, e aí a classe some junto com a animação.
@@ -4032,6 +4080,99 @@ function aplicarAparencia(s){
   // parecer do salão e não uma página genérica com a logo dele.
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', escuro ? '#0B1220' : cor);
+
+  /* ⚠ AS CORES SOLTAS ENTRAM POR ÚLTIMO, E É DE PROPÓSITO.
+
+     Tudo acima é CÁLCULO: a partir da cor principal o sistema deduz a letra
+     do botão (medindo contraste), o tom do texto, a borda com alfa. Um salão
+     que nunca abriu a personalização não tem nenhuma chave em `cores`, este
+     bloco não faz nada, e a tela sai exatamente como saía antes.
+
+     O que o dono escolheu DE PROPÓSITO sobrescreve o cálculo — e só isso.
+     Vindo depois, ele ganha de quem calculou, que é a ordem certa: escolha
+     explícita manda em dedução. */
+  aplicarCoresSoltas(s, p, escuro);
+}
+
+/* ── O MODO E O FORMATO DO LOGO ───────────────────────────────────────────
+   Dois atributos na raiz, e mais nada. O HTML da capa NÃO muda: ele já tem
+   exatamente a estrutura da referência — foto de capa, logo sobreposto,
+   nome, endereço —, e quem decide o peso de cada peça é o CSS.
+
+   ⚠ FAZER ISSO POR ATRIBUTO, E NÃO POR HTML DIFERENTE, é o que garante o
+   pedido de não quebrar nada: sem atributo nenhum, nenhuma regra nova casa,
+   e a página é byte a byte a de hoje. `modo=atual` chega a remover os
+   atributos, então nem um seletor a mais entra em jogo.
+
+   É a mesma decisão do `data-moldura`, que já existia e funcionou. */
+function aplicarModo(s){
+  const raiz = document.documentElement;
+  const c = s.cfg || {};
+  const modo = s.modo || c.modo || 'atual';
+  const forma = s.logoForma || c.logoForma || 'circular';
+
+  if(modo === 'personalizado' || modo === 'premium')
+    raiz.setAttribute('data-modo', modo);
+  else raiz.removeAttribute('data-modo');
+
+  // `circular` é o que o selo já parece hoje (canto 22px num quadrado de
+  // 104px lê como arredondado); só as duas outras formas marcam o atributo.
+  if(forma === 'arredondado' || forma === 'quadrado')
+    raiz.setAttribute('data-logo', forma);
+  else raiz.removeAttribute('data-logo');
+}
+
+/* As nove, e o que cada uma pinta. A chave AUSENTE não aparece aqui: o laço
+   pula, e a variável do CSS continua com o valor que o cálculo acima pôs.
+
+   ⚠ Nenhuma cor escolhida derruba o contraste calculado do BOTÃO. `--acao-txt`
+   continua saindo do `letraSobre()` a menos que o dono troque a cor do botão
+   — e aí ela é recalculada em cima da cor NOVA, não fixada. Sem isso, dourado
+   com letra branca voltaria pela porta dos fundos. */
+function aplicarCoresSoltas(s, p, escuro){
+  const c = s.cores || (s.cfg || {}).cores || {};
+  if(!c || typeof c !== 'object') return;
+  const vale = k => corValida(c[k]) ? c[k] : null;
+
+  const botao = vale('botao');
+  if(botao){
+    const [r, g, b] = rgbDe(botao);
+    p('--acao', botao);
+    p('--acao-hover', mexer(botao, escuro ? 0.14 : -0.14));
+    p('--acao-txt', letraSobre(botao));
+    p('--acao-soft', `rgba(${r},${g},${b},.12)`);
+  }
+  const secundaria = vale('secundaria');
+  if(secundaria){
+    const [r, g, b] = rgbDe(secundaria);
+    p('--ac-soft', `rgba(${r},${g},${b},${escuro ? '.18' : '.12'})`);
+  }
+  const texto = vale('texto');
+  if(texto){
+    p('--txt2', texto);
+    // O secundário sai do escolhido, e não de um cinza fixo: um texto
+    // marrom com apoio cinza fica com duas famílias de cor na mesma frase.
+    p('--txt3', mexer(texto, escuro ? -0.25 : 0.30));
+  }
+  const titulo = vale('titulo');
+  if(titulo) p('--txt', titulo);
+  const card = vale('card');
+  if(card){
+    p('--painel', card);
+    p('--painel2', mexer(card, escuro ? 0.06 : -0.04));
+  }
+  const icone = vale('icone');
+  if(icone) p('--ico', icone);
+  const destaque = vale('destaque');
+  if(destaque){
+    p('--ac-600', destaque);
+    p('--ac-700', mexer(destaque, escuro ? 0.14 : -0.14));
+  }
+  const borda = vale('borda');
+  if(borda){
+    p('--borda', borda);
+    p('--borda-forte', mexer(borda, escuro ? 0.16 : -0.16));
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
