@@ -1594,6 +1594,38 @@ body.sem-brilho .marca-selo{ animation:none }
 .sv-mini img{ width:100%; height:100%; object-fit:cover; display:block }
 .sv-mini .ic-svg{ width:14px; height:14px }
 
+/* ── AS FITAS QUE INSEREM UM PARÂMETRO NO RECADO ─────────────────────────
+   Parecem as fitas de serviço, mas são ALVO DE TOQUE — por isso classe
+   própria em vez de reaproveitar a `.fita-servico`, que é fita mesmo
+   (rótulo, não botão) e é usada noutras telas onde encolher faz sentido.
+
+   40px é o piso do projeto, e o `celular.test.mjs` cobra. Aqui ele cobrou:
+   a primeira versão usou a fita de serviço e reprovou a aba inteira. */
+.fita-param{
+  display:inline-flex; align-items:center; min-height:40px;
+  padding:0 14px; border-radius:99px;
+  border:1px solid var(--borda); background:var(--painel);
+  font-size:13.5px; font-weight:520; color:var(--txt);
+  cursor:pointer; transition:.15s;
+}
+.fita-param:hover{ border-color:var(--ac-600); color:var(--ac-600) }
+
+/* ── ESCOLHER O RECADO ANTES DE ABRIR O WHATSAPP ─────────────────────────
+   Cada opção mostra a PRÉVIA já preenchida, com o nome da cliente e o
+   horário dela. Sem a prévia, escolher entre "Confirmar" e "Falar" é
+   escolher no escuro — e o dono descobriria o que mandou depois de mandar. */
+.opcao-recado{
+  display:block; width:100%; text-align:left;
+  padding:12px 14px; margin-bottom:9px;
+  border:1px solid var(--borda); border-radius:var(--r);
+  background:var(--painel); cursor:pointer; transition:.15s;
+}
+.opcao-recado:hover{ border-color:var(--ac-600); background:var(--ac-soft) }
+.opcao-recado b{ display:block; font-size:14.5px; font-weight:650; margin-bottom:3px }
+.opcao-recado span{
+  display:block; font-size:13px; color:var(--txt2); line-height:1.4;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    O DASHBOARD
    ═══════════════════════════════════════════════════════════════════════════ */

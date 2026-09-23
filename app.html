@@ -1226,11 +1226,147 @@ function falarNoWhatsapp(agId){
      varredor de tests/seguranca.test.mjs procura campo de gente indo para
      HTML, e um `nome` aqui acendia a luz dele à toa. Luz que acende à toa é
      luz que alguém acaba desligando. */
-  const sl = acharSalao(salaoAtual) || {};
-  const chamarDe = (nomeCliente(a.clienteId) || '').split(' ')[0];
-  const casa = sl.nome || 'salão';
-  const texto = `Oi ${chamarDe}! Aqui é do ${casa}, sobre seu `
-    + `horário de ${porExtenso(a.data)} às ${hm(a.inicio)}.`;
+  /* ⚠ ESCOLHER O RECADO, e não abrir um só.
+
+     Antes saía sempre a mesma abertura genérica, e o dono apagava tudo para
+     escrever "seu horário está confirmado" pela vigésima vez no dia. Os três
+     recados que ele repete — confirmar, avisar que não tem mais, e dar
+     parabéns — passaram a ser modelos que ELE escreve uma vez, em Meu salão,
+     e escolhe aqui. */
+  escolherRecado(num, {
+    cliente: (nomeCliente(a.clienteId) || '').split(' ')[0],
+    horario: porExtenso(a.data) + ' às ' + hm(a.inicio),
+    empresa: (acharSalao(salaoAtual) || {}).nome || 'salão',
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OS RECADOS QUE O DONO ESCREVE UMA VEZ
+
+   Quatro modelos, editáveis em Meu salão, com três parâmetros: ${cliente},
+   ${horario} e ${empresa}.
+
+   ── POR QUE MODELO, E NÃO TEXTO PRONTO NOSSO ──────────────────────────────
+   Porque o jeito de falar é do salão, não nosso. Uma barbearia escreve "e
+   aí, tranquilo?"; uma clínica de estética escreve "prezada". Texto pronto
+   que não se parece com a casa é texto que o dono apaga — e apagar vinte
+   vezes por dia é o que faz ele parar de usar o botão.
+
+   ── ⚠ E POR QUE ELES NÃO VÃO PELA NOSSA API DO WHATSAPP ───────────────────
+   Estes são MANUAIS: abrem a conversa no WhatsApp do próprio dono, pelo
+   `wa.me`, com o texto já escrito. Ele lê, ajusta se quiser, e manda.
+
+   Isso é diferente dos modelos aprovados da Meta (ver MODELOS.md), que são
+   disparos automáticos e custam por envio. Aqui não há custo, não há
+   aprovação, não há espera — e o dono pode responder pela mesma janela,
+   porque quem abriu a conversa foi ele.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const MODELOS_MANUAIS = [
+  ['contato', 'Falar com a cliente',
+   'Oi ${cliente}! Aqui é do ${empresa}, sobre seu horário de ${horario}.',
+   'O começo de conversa genérico: é o que abre quando você clica no '
+   + 'WhatsApp de um horário.'],
+  ['confirmacao', 'Confirmar o horário',
+   'Oi ${cliente}, tudo bem? Seu horário de ${horario} está confirmado! '
+   + 'Te esperamos aqui no ${empresa}.',
+   'Para responder quem pediu horário pelo link e está esperando resposta.'],
+  ['indisponivel', 'Avisar que não tem mais',
+   'Oi ${cliente}, tudo bem? Infelizmente o horário de ${horario} não está '
+   + 'mais disponível. Consegue outro dia ou outra hora?',
+   'A recusa. Terminar com uma pergunta é o que mantém a conversa viva — '
+   + 'sem ela, a cliente some e procura outro salão.'],
+  ['aniversario', 'Dar os parabéns',
+   'Oi ${cliente}, hoje é um dia especial! Nós do ${empresa} queremos te '
+   + 'desejar um feliz aniversário.',
+   'O ${horario} não faz sentido aqui, então ele sai sozinho se você usá-lo.'],
+];
+
+const PARAMETROS_RECADO = [
+  ['cliente', 'o primeiro nome dela'],
+  ['horario', 'o dia e a hora do atendimento'],
+  ['empresa', 'o nome do seu salão'],
+];
+
+/* ⚠ O CAMPO NASCE VAZIO, COM O PADRÃO COMO DICA — e não preenchido com ele.
+
+   Preenchido, dois problemas nasciam juntos:
+
+     · "em branco" virava um estado inalcançável. O `modeloDoSalao()` sabe
+       voltar ao padrão quando o dono apaga tudo, e essa volta nunca
+       acontecia porque o campo nunca ficava vazio;
+
+     · o NOSSO texto era copiado para dentro do salão na primeira gravação, e
+       congelava ali. Melhorar a redação do padrão depois — uma vírgula, um
+       "tudo bem?" — não chegaria em ninguém que já tivesse salvado a tela uma
+       vez, que é todo mundo.
+
+   Vazio quer dizer "use o seu". Escrito quer dizer "use o meu". */
+function meuModelo(chave){
+  const guardados = ((acharSalao(salaoAtual) || {}).cfg || {}).mensagens || {};
+  const meu = guardados[chave];
+  return typeof meu === 'string' ? meu : '';
+}
+
+function modeloDoSalao(chave){
+  const guardados = ((acharSalao(salaoAtual) || {}).cfg || {}).mensagens || {};
+  const meu = guardados[chave];
+  const padrao = (MODELOS_MANUAIS.find(m => m[0] === chave) || [])[2] || '';
+  // Texto em branco volta ao padrão: um modelo vazio abriria o WhatsApp sem
+  // nada escrito, que é pior do que não ter modelo nenhum.
+  return (typeof meu === 'string' && meu.trim()) ? meu : padrao;
+}
+
+/* ⚠ A SUBSTITUIÇÃO É POR NOME, E O QUE NÃO FOR RECONHECIDO SAI.
+
+   Uma chave que o dono tenha digitado errado — escrevendo "data" ou "nome"
+   onde o certo era "horario" ou "cliente" — vira VAZIO, em vez de ir literal
+   para a mensagem. A cliente receber a chave crua entre chaves, com o cifrão
+   e tudo, é o tipo de erro que estraga exatamente a impressão de
+   profissionalismo que a mensagem existe para criar.
+
+   (Os exemplos acima estão escritos por extenso, sem as chaves, de
+   propósito: o varredor do `seguranca.test.mjs` procura campo de gente
+   dentro de interpolação e não sabe distinguir código de comentário. Ele já
+   acusou estas linhas. Ver o mesmo cuidado no `doMes` e no `naVistaDeMes`.)
+
+   E o `${horario}` sem horário nenhum (o caso do aniversário, ou de falar
+   pela ficha) também sai limpo, junto com o "de" que o antecederia. */
+function preencherRecado(modelo, dados){
+  return String(modelo || '')
+    .replace(/\$\{(\w+)\}/g, (todo, chave) =>
+      Object.prototype.hasOwnProperty.call(dados, chave) ? (dados[chave] || '') : '')
+    // Sobrou "de " ou "  " de um parâmetro que saiu vazio: limpa.
+    .replace(/\s+de\s*([.,!?]|$)/gm, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+function escolherRecado(num, dados){
+  abrirModal('Qual recado?',
+    MODELOS_MANUAIS.map(([chave, titulo]) => {
+      const previa = preencherRecado(modeloDoSalao(chave), dados);
+      return `<button type="button" class="opcao-recado"
+                      onclick="mandarRecado('${num}', '${chave}', ${
+                        escapar(JSON.stringify(JSON.stringify(dados)))})">
+        <b>${escapar(titulo)}</b>
+        <span>${escapar(previa)}</span>
+      </button>`;
+    }).join('')
+    + '<p class="ajuda" style="margin-top:12px">Você escreve estes textos em '
+    + '<b>Meu salão</b>. O WhatsApp abre com o recado pronto — dá para mudar '
+    + 'antes de enviar.</p>',
+    [['Fechar', 'fecharModal()', '']]);
+}
+
+function mandarRecado(num, chave, dadosJson){
+  const dados = JSON.parse(dadosJson);
+  /* ⚠ AQUI NÃO SE ESCAPA HTML, E É DE PROPÓSITO. Este texto não vai para a
+     tela: vai para dentro de um endereço, pelo `encodeURIComponent`, e de lá
+     para a caixa de mensagem do WhatsApp. Passá-lo pelo `escapar()` faria a
+     dona da "Tesoura & Cia" receber uma mensagem escrita "Tesoura &amp;
+     Cia". */
+  const texto = preencherRecado(modeloDoSalao(chave), dados);
+  fecharModal();
   window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(texto),
               '_blank', 'noopener');
 }
@@ -1246,12 +1382,13 @@ function falarComCliente(clienteId){
         + 'WhatsApp dela.');
     return;
   }
-  const sl = acharSalao(salaoAtual) || {};
-  const chamarDe = (nomeCliente(clienteId) || '').split(' ')[0];
-  const casa = sl.nome || 'salão';
-  const texto = `Oi ${chamarDe}! Aqui é do ${casa}.`;
-  window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(texto),
-              '_blank', 'noopener');
+  /* Sem horário nenhum: aqui o dono quer falar com a pessoa por qualquer
+     motivo. O `${horario}` dos modelos sai limpo — ver `preencherRecado()`. */
+  escolherRecado(num, {
+    cliente: (nomeCliente(clienteId) || '').split(' ')[0],
+    horario: '',
+    empresa: (acharSalao(salaoAtual) || {}).nome || 'salão',
+  });
 }
 
 function nomeCliente(i){ const c = acharCliente(i); return c ? c.nome : '—'; }
@@ -1606,7 +1743,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.8cb441';
+const VERSAO_APP = 'v9.c43963';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3067,10 +3204,76 @@ function pintarProdutos(){
           ? '<span class="tag t-ok">à venda</span>'
           : '<span style="color:var(--txt3)">só no balcão</span>'}</td>
       <td style="text-align:right">${souGestor()
-        ? `<button class="btn btn-peq" onclick="abrirProduto('${p.id}')">Editar</button>`
+        ? `<button class="btn btn-peq" onclick="abrirProduto('${p.id}')">Editar</button>
+           <button class="btn btn-peq btn-perigo"
+                   onclick="tirarProduto('${p.id}')">${
+             p.ativo === false || vendasDe(p.id) ? 'Tirar da lista' : 'Excluir'
+           }</button>`
         : ''}</td>
     </tr>`).join('') + '</tbody></table>';
   if(window.aplicarIcones) aplicarIcones(alvo);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIRAR UM PRODUTO DA LISTA
+
+   A mesma conversa da equipe, e pela mesma razão de banco.
+
+   ⚠ `comanda_itens.produto_id` É `on delete set null`. Quer dizer: o banco
+   NÃO RECUSA apagar um produto já vendido. Ele apaga e deixa o item da
+   comanda sem produto — calado. A venda continua no faturamento, mas ninguém
+   mais sabe o que foi vendido, e o relatório de "o que mais vende" perde
+   aquelas linhas sem explicação.
+
+   Diferente da equipe, aqui não existe nenhuma chave `restrict` para servir
+   de rede: se a tela não barrar, nada barra. Por isso a pergunta é feita
+   ANTES, e não depois de tentar.
+
+   Então:
+     · nunca foi vendido (cadastro errado, produto que não chegou a entrar) —
+       some de verdade;
+     · já foi vendido — sai da lista: some da comanda e da loja do link, e o
+       histórico continua sabendo o que era.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function vendasDe(pid){
+  let n = 0;
+  for(const c of (bd.comandas || []))
+    for(const i of (c.itens || [])) if(i.produtoId === pid) n++;
+  return n;
+}
+
+async function tirarProduto(pid){
+  const p = acharProduto(pid);
+  if(!p) return;
+  const n = vendasDe(pid);
+
+  if(n > 0){
+    if(p.ativo === false){
+      alert(p.nome + ' já está fora da lista.\n\n'
+        + 'Ele continua cadastrado porque aparece em ' + n
+        + (n === 1 ? ' venda já feita' : ' vendas já feitas')
+        + '. Apagar de vez deixaria essas comandas sem saber o que foi '
+        + 'vendido.');
+      return;
+    }
+    if(!confirm('Tirar ' + p.nome + ' da lista?\n\n'
+      + 'Ele já aparece em ' + n + (n === 1 ? ' venda' : ' vendas')
+      + ', e isso precisa continuar fazendo sentido — então ele sai da lista '
+      + 'em vez de ser apagado.\n\nO que muda: some da comanda e da loja do '
+      + 'link. O que já foi vendido continua no histórico e nos relatórios.'
+      + '\n\nPara trazer de volta, é só editar e marcar "à venda".')) return;
+    p.ativo = false;
+    await salvar();
+    pintar();
+    return;
+  }
+
+  if(!confirm('Excluir ' + p.nome + ' de vez?\n\n'
+    + 'Ele nunca foi vendido, então não há histórico a perder.'
+    + '\n\nIsso não tem volta.')) return;
+  bd.produtos = bd.produtos.filter(x => x.id !== pid);
+  await salvar();
+  pintar();
 }
 
 function pintarEquipe(){
@@ -6718,6 +6921,32 @@ function pintarSalao(){
       <div class="regua" id="reguaDias" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaDias" style="margin-top:9px"></p>
 
+      <!-- ══════════ DE QUANTO EM QUANTO TEMPO O LINK OFERECE ══════════
+           Fica junto das outras duas porque e' a mesma pergunta — "que
+           horarios a cliente ve" — vista por um terceiro lado: aquelas dizem
+           ATE' QUANDO e A PARTIR DE QUANDO; esta diz DE QUANTO EM QUANTO.
+           (Sem crase: este bloco mora dentro de um template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">De quanto em quanto tempo o link oferece</h3>
+      <p class="secao-sub">So' muda o que a cliente ve na lista de horarios.
+        A agenda por dentro continua fina, entao um encaixe de 08:15 lancado
+        no balcao continua valendo — o que muda e' o link parar de oferecer
+        08:15 sozinho.</p>
+      <div class="regua" id="reguaPasso" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaPasso" style="margin-top:9px"></p>
+
+      <!-- ══════════ OS RECADOS QUE VOCE MANDA A MAO ══════════
+           Editaveis, com tres parametros. Sao MANUAIS: abrem no WhatsApp do
+           proprio dono, pelo wa.me, com o texto pronto — diferente dos
+           modelos aprovados da Meta, que sao disparo automatico e custam por
+           envio. (Sem crase: este bloco mora num template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Os recados que voce manda a mao</h3>
+      <p class="secao-sub">Quando voce clica no WhatsApp de um horario ou de
+        uma ficha, o app abre a conversa com um destes textos ja' escrito.
+        Voce ainda le e ajusta antes de enviar.</p>
+      <div id="listaRecados"></div>
+
       <!-- O OUTRO EXTREMO DO MESMO EIXO. A janela acima diz ate onde a agenda
            abre para a frente; esta diz quanto ela fecha perto de agora. Ficam
            juntas de proposito: sao a mesma pergunta, "de quando ate quando a
@@ -7011,6 +7240,8 @@ function pintarSalao(){
 
   // Depois do innerHTML: os botões da janela só existem agora.
   pintarJanelaAgenda();
+  pintarPassoLink();
+  pintarRecados();
   pintarAntecedencia();
   pintarComanda();
   pintarConfirma();
@@ -7640,6 +7871,123 @@ function pintarJanelaAgenda(){
 
 function escolherJanela(n){ diasEscolhidos = n; pintarJanelaAgenda(); }
 
+/* ── DE QUANTO EM QUANTO TEMPO O LINK OFERECE ─────────────────────────────
+   A agenda por dentro continua de 15 em 15 minutos, e isso é de propósito.
+
+   ⚠ ESTE AJUSTE É SOBRE O QUE A CLIENTE VÊ, NÃO SOBRE O QUE EXISTE. Ele
+   RALEIA a lista de horários do link; não fecha a agenda. Um encaixe de
+   08:15 lançado no balcão continua válido, a recepção continua podendo
+   marcar em qualquer minuto, e o banco continua conferindo tudo na hora de
+   gravar.
+
+   Por isso ele mora na tela e não na `horarios_livres()`: mudar o passo lá
+   dentro mudaria a DISPONIBILIDADE — o horário deixaria de existir para
+   todo mundo, inclusive para a recepção que quer encaixar. Aqui ele só
+   deixa de ser oferecido sozinho.
+
+   E é uma peneira, não uma permissão: mostrar MENOS opções do que existem
+   nunca abre nada. Quem forjasse um horário de 15 em 15 estaria marcando um
+   horário que de fato está livre.
+
+   ⚠ 30 é o mais comum, mas o padrão continua 15 — quem já usa o sistema não
+   pode acordar com a agenda diferente sem ter pedido. */
+const PASSOS_LINK = [
+  [15, 'de 15 em 15', 'Toda folga aparece. Bom para serviço curto e para '
+                    + 'quem quer encher a agenda até o último buraco.'],
+  [30, 'de 30 em 30', 'O mais comum. A lista fica curta e a cliente escolhe '
+                    + 'rápido, sem rolar dezenas de horários quase iguais.'],
+  [60, 'de hora em hora', 'Para serviço longo. Cuidado: some muita folga '
+                        + 'boa, e o dia pode parecer mais cheio do que está.'],
+];
+let passoEscolhido = null;
+// De qual salão é o valor em cache — mesmo cuidado da janela acima: trocar de
+// estabelecimento não pode gravar o número de um salão no outro.
+let passoDoSalao = null;
+
+function pintarPassoLink(){
+  const alvo = document.getElementById('reguaPasso');
+  if(!alvo) return;
+  const sl = acharSalao(salaoAtual) || {};
+  if(passoEscolhido === null || passoDoSalao !== salaoAtual){
+    const n = sl.cfg && Number(sl.cfg.passoHorarios);
+    passoEscolhido = PASSOS_LINK.some(p => p[0] === n) ? n : 15;
+    passoDoSalao = salaoAtual;
+  }
+  alvo.innerHTML = PASSOS_LINK.map(([n, rot]) =>
+    `<button type="button" class="${n === passoEscolhido ? 'on' : ''}"
+             onclick="escolherPassoLink(${n})">${
+      n === 60 ? '1 hora' : n + ' min'}</button>`).join('');
+  const achado = PASSOS_LINK.find(p => p[0] === passoEscolhido);
+  document.getElementById('explicaPasso').textContent = achado
+    ? achado[1].charAt(0).toUpperCase() + achado[1].slice(1) + ' — ' + achado[2]
+    : '';
+}
+
+function escolherPassoLink(n){ passoEscolhido = n; pintarPassoLink(); }
+
+/* ── ONDE O DONO ESCREVE OS RECADOS ───────────────────────────────────────
+   Um campo por modelo, com os parâmetros a um toque.
+
+   ⚠ OS BOTÕES DE PARÂMETRO EXISTEM PORQUE `${cliente}` NÃO SE ADIVINHA.
+   Sem eles o dono lê "use ${cliente}" numa ajuda, digita `{cliente}` ou
+   `$cliente`, e a mensagem sai com a chave literal na cara da cliente. Um
+   botão que insere no lugar do cursor tira a chance de errar. */
+function pintarRecados(){
+  const alvo = document.getElementById('listaRecados');
+  if(!alvo) return;
+  alvo.innerHTML = MODELOS_MANUAIS.map(([chave, titulo, padrao, ajuda]) => `
+    <div class="campo" style="margin-top:14px">
+      <label>${escapar(titulo)}</label>
+      <textarea id="msg-${chave}" rows="3"
+                placeholder="${escapar(padrao)}">${
+        escapar(meuModelo(chave))}</textarea>
+      <p class="ajuda">${escapar(ajuda)}</p>
+      <div class="fitas" style="margin-top:6px">
+        ${PARAMETROS_RECADO.map(([k, oque]) =>
+          `<button type="button" class="fita-param"
+                   title="${escapar(oque)}"
+                   onclick="porParametro('${chave}', '${k}')">${k}</button>`).join('')}
+        <button type="button" class="fita-param"
+                onclick="voltarAoPadrao('${chave}')">voltar ao padrão</button>
+      </div>
+    </div>`).join('');
+}
+
+function porParametro(chave, parametro){
+  const campo = document.getElementById('msg-' + chave);
+  if(!campo) return;
+  const marca = '${' + parametro + '}';
+  /* No lugar do CURSOR, e não no fim. O dono posiciona onde quer que o nome
+     apareça; jogar no fim faria ele ter que recortar e colar toda vez. */
+  const i = campo.selectionStart != null ? campo.selectionStart : campo.value.length;
+  const f = campo.selectionEnd != null ? campo.selectionEnd : i;
+  campo.value = campo.value.slice(0, i) + marca + campo.value.slice(f);
+  campo.focus();
+  campo.selectionStart = campo.selectionEnd = i + marca.length;
+}
+
+/* Limpa o campo, em vez de escrever o padrão dentro dele — porque vazio JÁ
+   quer dizer "use o seu", e a dica cinza mostra qual é. Escrever o texto
+   dentro faria o dono adotar a nossa redação de hoje e nunca mais receber a
+   de amanhã. */
+function voltarAoPadrao(chave){
+  const campo = document.getElementById('msg-' + chave);
+  if(campo){ campo.value = ''; campo.focus(); }
+}
+
+/* O que vai para o `cfg`. Campo em branco NÃO é gravado: em branco quer
+   dizer "use o seu", e guardar uma string vazia faria o `modeloDoSalao()`
+   ter que adivinhar a diferença entre "apaguei" e "nunca escrevi". */
+function recadosDaTela(){
+  const m = {};
+  for(const [chave] of MODELOS_MANUAIS){
+    const campo = document.getElementById('msg-' + chave);
+    const txt = campo ? (campo.value || '').trim() : '';
+    if(txt) m[chave] = txt;
+  }
+  return m;
+}
+
 /* ── A ANTECEDÊNCIA MÍNIMA ────────────────────────────────────────────────
    O outro extremo da janela acima: aquela diz até onde a agenda abre para a
    frente, esta diz quanto ela fecha perto de agora. Horário que começa antes
@@ -7881,6 +8229,8 @@ function escolherJanelaOutro(){
   }
   diasEscolhidos = n;
   pintarJanelaAgenda();
+  pintarPassoLink();
+  pintarRecados();
 }
 
 function salvarCadastroSalao(){
@@ -7910,6 +8260,11 @@ function salvarCadastroSalao(){
   sl.comissaoRegraDesde = v('cComDesde') || null;
   sl.cfg = Object.assign({}, sl.cfg, {
     diasLiberados: diasEscolhidos || 30,
+    // Só o que o seletor oferece entra: valor de fora da lista faria a
+    // página da cliente cair no padrão sem nada explicar por quê.
+    passoHorarios: PASSOS_LINK.some(x => x[0] === passoEscolhido)
+      ? passoEscolhido : 15,
+    mensagens: recadosDaTela(),
     /* ⚠ `?? 30` e não `|| 30`: a antecedência pode ser ZERO de propósito, e
        `0 || 30` é 30. Com o `||`, desligar o limite gravaria meia hora — o
        dono escolheria "Sem limite", salvaria, e a agenda continuaria fechada

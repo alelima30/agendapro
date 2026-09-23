@@ -4,6 +4,25 @@
 #
 #   bash tests/bancada/subir.sh
 #   node tests/nuvem.test.mjs
+#
+# ── ⚠ NUNCA REINSTALE UM MÓDULO SOZINHO NESTA BANCADA ─────────────────────
+# Tentador, e errado:
+#
+#     psql -d app -f supabase/14_motor.sql      # ← NÃO
+#
+# Neste projeto uma função pode ser definida em mais de um módulo, e QUEM
+# VALE É O DE NÚMERO MAIOR. Reinstalar o 14 sozinho por cima de um banco
+# montado traz de volta a versão dele e apaga o que o 20 tinha corrigido —
+# sem erro nenhum, porque é tudo `create or replace`.
+#
+# Aconteceu, e o prejuízo foi uma hora: o `corrida.test.mjs` passou a acusar
+# que a recusa de horário vazava o motivo do bloqueio ("almoço") para a
+# cliente. Parecia defeito de segurança recém-introduzido. Era a bancada,
+# rodando uma versão de trigger que o próprio repositório já tinha
+# substituído.
+#
+# Para testar uma mudança de SQL, rode este script de novo — ele monta do
+# zero, na ordem certa. É alguns segundos mais lento e não mente.
 set -euo pipefail
 AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RAIZ="$(dirname "$(dirname "$AQUI")")"

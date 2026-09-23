@@ -3300,7 +3300,10 @@ language sql stable security definer set search_path = public as $$
       'cartoes', s.cfg->>'cartoes',
       'moldura', coalesce(s.cfg->>'moldura', 'reta'),
       'loja', coalesce((s.cfg->>'loja')::boolean, true),
-      'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb)
+      'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb),
+      'passoHorarios', case
+        when s.cfg->>'passoHorarios' in ('15','30','60')
+          then (s.cfg->>'passoHorarios')::int else 15 end
     ),
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(

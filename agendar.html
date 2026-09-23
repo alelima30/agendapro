@@ -937,9 +937,9 @@ function horariosLivres(profId, data, duracao){
     // cliente.
     if(duracao > unit){
       const tem = new Set(lista);
-      return lista.filter(t => tem.has(t + unit));
+      return peneirarPasso(lista.filter(t => tem.has(t + unit)));
     }
-    return lista;
+    return peneirarPasso(lista);
   }
 
   const prof = bd.profissionais.find(p => p.id === profId);
@@ -956,7 +956,39 @@ function horariosLivres(profId, data, duracao){
       livres.push(t);
     }
   }
-  return livres;
+  return peneirarPasso(livres);
+}
+
+/* ── DE QUANTO EM QUANTO TEMPO ESTA PÁGINA OFERECE ────────────────────────
+   O dono escolhe 15, 30 ou 60 em Meu salão. Ausente vale 15, que é o que a
+   agenda sempre fez.
+
+   ⚠ ISTO É PENEIRA DE EXIBIÇÃO, NÃO DE DISPONIBILIDADE. O horário de 08:15
+   continua existindo: a recepção marca nele, um encaixe lançado no balcão
+   vale, e o banco continua conferindo tudo na hora de gravar. O que muda é
+   esta página parar de OFERECER 08:15 sozinha.
+
+   Mostrar menos opções do que existem nunca abre nada — por isso está certo
+   fazer isto na tela. Fosse o contrário (mostrar mais do que existe), o
+   lugar seria o banco.
+
+   ⚠ E MORA DENTRO DO `horariosLivres()`, de propósito. Esta é a única porta
+   por onde horário sai, e tudo o que conta horário passa por aqui: a lista
+   de escolher, o "primeiro livre" de cada profissional, o número de vagas do
+   dia no calendário. Peneirando só na hora de desenhar a lista, o calendário
+   diria "5 horários" e a tela mostraria 2 — e o defeito apareceria como
+   "sumiu horário", sem ninguém ligar uma coisa à outra.
+
+   A âncora é a meia-noite: com 30, sobram :00 e :30; com 60, só as horas
+   cheias. É o que a pessoa espera ao ler "de 30 em 30". */
+function passoDoLink(){
+  const n = Number(salao && salao.passoHorarios);
+  return n === 30 || n === 60 ? n : 15;
+}
+
+function peneirarPasso(lista){
+  const passo = passoDoLink();
+  return passo === 15 ? lista : lista.filter(t => t % passo === 0);
 }
 
 /* ===========================================================================
@@ -1014,6 +1046,9 @@ function bdDaVitrine(v){
       // Os serviços que o dono pôs na capa. Lista vazia quer dizer "não
       // escolhi" — e aí a capa decide sozinha. Ver `destaquesDaCapa()`.
       destaques: Array.isArray(s.destaques) ? s.destaques : [],
+      // De quanto em quanto tempo esta página oferece horário. Ver
+      // `passoDoLink()`: é peneira de exibição, não de disponibilidade.
+      passoHorarios: s.passoHorarios,
       cfg: { diasLiberados: s.diasLiberados },
     }],
     servicos: (v.servicos || []).map(x => ({

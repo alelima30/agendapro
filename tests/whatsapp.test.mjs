@@ -130,21 +130,43 @@ verdade('quem tem WhatsApp ganha o atalho no cartão', daMaria && daMaria.tem,
 verdade('e quem NÃO tem telefone não ganha botão nenhum', semNum && !semNum.tem,
   'botão que avisa do problema depois do clique é pior que botão ausente');
 
-// O clique não pode abrir o detalhe junto: são duas ações diferentes.
-const abriuDetalhe = await dono.evaluate(() => {
+/* ⚠ O CLIQUE PASSOU A TER DOIS PASSOS, E ISTO AQUI MUDOU COM ELE.
+
+   Antes o botão abria a conversa direto, sempre com a mesma abertura
+   genérica — e o dono apagava tudo para escrever "seu horário está
+   confirmado" pela vigésima vez no dia. Agora ele abre uma escolha de
+   recados, que o próprio dono escreve em Meu salão.
+
+   O que esta seção protege continua igual: o clique no atalho do cartão não
+   pode abrir o DETALHE do agendamento por baixo — são duas ações
+   diferentes, e a pessoa acabaria com duas coisas abertas. */
+const aoClicar = await dono.evaluate(() => {
   const b = document.querySelector('.ag-zap');
   if(!b) return 'sem botão';
-  let abriu = false;
+  let abriuJanelaExterna = false;
   const original = window.open;
-  window.open = () => { abriu = true; return null; };
+  window.open = () => { abriuJanelaExterna = true; return null; };
   b.click();
   window.open = original;
-  const veu = document.getElementById('fundo');
-  return { abriuZap: abriu, abriuJanela: veu.classList.contains('on') };
+  return {
+    abriuJanelaExterna,
+    // O modal de escolha de recado, e não o detalhe do agendamento.
+    escolhas: document.querySelectorAll('.opcao-recado').length,
+    titulo: (document.querySelector('.modal h2, .modal h3') || {}).textContent || '',
+    temFormularioDeAgendamento: !!document.getElementById('aStatus'),
+  };
 });
-verdade('clicar nele abre a conversa', abriuDetalhe.abriuZap, JSON.stringify(abriuDetalhe));
-verdade('e NÃO abre o detalhe do agendamento por baixo', !abriuDetalhe.abriuJanela,
+verdade('clicar nele abre a escolha de recado', aoClicar.escolhas > 0,
+  JSON.stringify(aoClicar));
+verdade('e NÃO abre o detalhe do agendamento por baixo',
+  !aoClicar.temFormularioDeAgendamento,
   'o clique vazaria para o cartão e a pessoa acabaria com duas coisas abertas');
+/* ⚠ E NÃO ABRE O WHATSAPP SOZINHO. O dono ainda escolhe qual recado. Sem
+   esta linha, um atalho que pulasse a escolha e mandasse o genérico passaria
+   despercebido — e era justamente o comportamento que a escolha veio
+   substituir. */
+verdade('e não dispara o WhatsApp antes de ele escolher',
+  !aoClicar.abriuJanelaExterna, JSON.stringify(aoClicar));
 
 // O endereço montado: é isto que decide se a conversa abre com alguém.
 const url = await dono.evaluate(() => {
@@ -152,7 +174,10 @@ const url = await dono.evaluate(() => {
   let capturado = null;
   const original = window.open;
   window.open = (u) => { capturado = u; return null; };
+  // Passo 1: a escolha. Passo 2: o recado escolhido.
   falarNoWhatsapp(a.id);
+  const primeiro = document.querySelector('.opcao-recado');
+  if(primeiro) primeiro.click();
   window.open = original;
   return capturado;
 });

@@ -191,6 +191,7 @@ rodar "capa da cliente"      node "$AQUI/capa-servicos.test.mjs"
 rodar "destaques da capa"    node "$AQUI/capa-destaques.test.mjs"
 rodar "sair da equipe"       node "$AQUI/equipe-sair.test.mjs"
 rodar "dashboard"            node "$AQUI/dashboard.test.mjs"
+rodar "ajustes do salão"     node "$AQUI/salao-ajustes.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

@@ -118,7 +118,29 @@ language sql stable security definer set search_path = public as $$
          viraria uma propriedade do serviço, e a mesma pergunta voltaria no
          dia em que a capa quisesse ORDEM — que o id numa lista já dá de
          graça, e uma coluna booleana não dá. */
-      'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb)
+      'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb),
+
+      /* ── DE QUANTO EM QUANTO TEMPO O LINK OFERECE HORÁRIO ─────────────
+         15, 30 ou 60 minutos. Ausente vale 15, que é o que a agenda sempre
+         fez — salão que já usa o sistema não pode acordar com a lista de
+         horários diferente sem ter pedido.
+
+         ⚠ ISTO É APARÊNCIA, NÃO DISPONIBILIDADE. A `horarios_livres()`
+         continua calculando de 15 em 15, e é ela que decide o que EXISTE.
+         Este número só RALEIA a lista que a cliente vê: um encaixe de 08:15
+         lançado no balcão continua valendo, e a recepção continua podendo
+         marcar em qualquer minuto.
+
+         ⚠ E O CAST PASSA POR UMA PENEIRA DE TEXTO, de propósito.
+         `(s.cfg->>'passoHorarios')::int` com lixo dentro — "abc", ou uma
+         string vazia gravada por engano — não devolve nulo: ele LEVANTA
+         ERRO, e a `vitrine()` inteira morre junto. Quer dizer: a página da
+         cliente deixaria de abrir por causa de um valor torto numa chave de
+         aparência. É armadilha velha conhecida deste projeto, e a saída é
+         sempre a mesma — comparar como texto antes de converter. */
+      'passoHorarios', case
+        when s.cfg->>'passoHorarios' in ('15','30','60')
+          then (s.cfg->>'passoHorarios')::int else 15 end
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────
