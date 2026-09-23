@@ -1554,7 +1554,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.88b9d8';
+const VERSAO_APP = 'v9.ff9c35';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2541,13 +2541,34 @@ function pintarServicos(){
     alvo.innerHTML = '<div class="vazio"><b>Nenhum serviço</b>É a duração daqui que monta a agenda.</div>';
     return;
   }
-  alvo.innerHTML = `<table class="tabela"><thead><tr>
-      <th>Serviço</th><th>Categoria</th><th>Duração</th><th>Preço</th><th>Comissão</th><th></th>
+  const naCapa = destaquesDoSalao();
+  alvo.innerHTML = `
+    <!-- ⚠ O AVISO EXPLICA O ESTADO VAZIO, e ele e' o estado de todo salao
+         no primeiro dia. Sem esta linha, uma coluna de estrelas todas
+         apagadas parece defeito — o dono conclui que a capa esta' sem
+         vitrine, quando na verdade ela esta' se virando sozinha. -->
+    <p class="ajuda" style="margin:-4px 0 12px">
+      A <b>estrela</b> escolhe o que aparece na capa do link.
+      ${naCapa.length
+        ? `${naCapa.length} ${naCapa.length === 1 ? 'marcado' : 'marcados'}
+           — o resto fica em "Ver todos os serviços".`
+        : `Sem nenhuma marcada, a capa mostra os primeiros sozinha.`}
+    </p>
+    <table class="tabela"><thead><tr>
+      <th>Serviço</th><th>Na capa</th><th>Categoria</th><th>Duração</th><th>Preço</th><th>Comissão</th><th></th>
     </tr></thead><tbody>` + lista.map(s => `<tr>
       <td><span class="sv-mini">${s.foto
           ? `<img src="${escapar(s.foto)}" alt="" loading="lazy">`
           : `<span data-ico="tesoura"></span>`}</span
         ><b>${escapar(s.nome)}</b>${s.ativo ? '' : ' <span class="tag t-canc">inativo</span>'}</td>
+      <td>${souGestor()
+        ? `<button class="estrela${naCapa.includes(s.id) ? ' on' : ''}"
+                   onclick="virarDestaque('${s.id}')"
+                   aria-pressed="${naCapa.includes(s.id)}"
+                   title="${naCapa.includes(s.id)
+                     ? 'Aparece na capa — toque para tirar'
+                     : 'Não aparece na capa — toque para pôr'}">★</button>`
+        : (naCapa.includes(s.id) ? '★' : '')}</td>
       <td>${escapar(s.categoria || '—')}</td>
       <td>${s.duracaoMin} min</td>
       <td>${real(s.preco)}</td>
@@ -2556,6 +2577,42 @@ function pintarServicos(){
         ? `<button class="btn btn-peq" onclick="abrirServico('${s.id}')">Editar</button>`
         : ''}</td>
     </tr>`).join('') + '</tbody></table>';
+}
+
+/* ── OS SERVIÇOS QUE APARECEM NA CAPA DO LINK ─────────────────────────────
+   Mora em `saloes.cfg.destaques`, como lista de ids, e não numa coluna
+   `servicos.destaque`. Dois motivos:
+
+     · é decisão da CAPA — qual é a vitrine desta casa —, não propriedade do
+       serviço. Numa coluna do serviço, a mesma pergunta voltaria no dia em
+       que a capa quisesse ORDEM, que uma lista de ids já dá de graça e um
+       booleano não dá;
+
+     · nenhuma tabela muda, então quem já tem banco instalado não precisa de
+       migração para isto funcionar.
+
+   ⚠ LISTA VAZIA QUER DIZER "NÃO ESCOLHI", nunca "esconda tudo". É o estado
+   de todo salão que já existe, e tratá-la como "nenhum" deixaria essas casas
+   com a capa em branco no dia da atualização. Sem escolha, a capa se vira —
+   ver `destaquesDaCapa()` no agendar.html. */
+function destaquesDoSalao(sl){
+  const d = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).destaques;
+  return Array.isArray(d) ? d : [];
+}
+
+async function virarDestaque(sid){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  const atual = destaquesDoSalao(sl);
+  /* A ORDEM DE MARCAÇÃO É A ORDEM DA CAPA: quem o dono marcar primeiro
+     aparece primeiro. Por isso entra no FIM da lista, e não num `sort`
+     qualquer — reordenar por conta própria seria desfazer a escolha dele
+     sem avisar. */
+  const novo = atual.includes(sid) ? atual.filter(x => x !== sid)
+                                   : atual.concat(sid);
+  sl.cfg = Object.assign({}, sl.cfg, { destaques: novo });
+  await salvar();
+  pintar();
 }
 
 /* ── Desenho: equipe ─────────────────────────────────────────────────── */

@@ -100,7 +100,25 @@ language sql stable security definer set search_path = public as $$
          nascem fechados um a um, e exigir dois "sim" faria o dono marcar o
          produto e não entender por que nada apareceu. Serve para pausar a
          loja sem desmarcar vinte produtos. */
-      'loja', coalesce((s.cfg->>'loja')::boolean, true)
+      'loja', coalesce((s.cfg->>'loja')::boolean, true),
+
+      /* ── OS SERVIÇOS QUE APARECEM NA CAPA ─────────────────────────────
+         Lista de ids que o dono marcou como destaque. Um salão com vinte
+         serviços não cabe numa primeira dobra de celular: sem escolha, a
+         capa vira um catálogo que ninguém rola até o fim, e o serviço que
+         paga a conta fica embaixo do que ninguém pede.
+
+         ⚠ VAZIO NÃO QUER DIZER "NENHUM", quer dizer "não escolhi" — e aí a
+         capa decide sozinha (os primeiros, com foto na frente). Tratar vazio
+         como "esconda tudo" deixaria sem vitrine todo salão que já existe, no
+         dia da atualização, sem ninguém ter pedido.
+
+         Fica no `cfg`, e não numa coluna de `servicos`, porque é uma decisão
+         da CAPA: qual é a vitrine desta casa. Em `servicos.destaque` ela
+         viraria uma propriedade do serviço, e a mesma pergunta voltaria no
+         dia em que a capa quisesse ORDEM — que o id numa lista já dá de
+         graça, e uma coluna booleana não dá. */
+      'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb)
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────

@@ -341,34 +341,83 @@ await f.close();
 /* ══════════════════════════════════════════════════════════════════════════
    5 — SERVIÇO SEM FOTO NÃO VIRA CARTÃO QUEBRADO
 
-   Não há foto para recortar, e portanto não há onda nem margem negativa. O
-   que sobra é o `padding-top:2px` do texto, que só existe para ele encostar
-   numa foto que aqui não existe.
+   ── ⚠ ESTA SEÇÃO MEDIA UM CASO SÓ, E AGORA SÃO DOIS ───────────────────────
+   Ela dizia, de uma vez: serviço sem foto não tem foto para recortar, logo o
+   `padding-top:2px` do texto — que só serve para encostar numa foto — tem que
+   sumir. Estava certo enquanto "sem foto" queria dizer uma coisa só.
+
+   Não quer mais. A capa passou a decidir a forma PELO CONJUNTO, e não por
+   cartão, porque o meio do caminho (alguns serviços com foto, outros sem)
+   produzia uma escada — faixa inteira, duas colunas, faixa inteira — e a
+   primeira tela da cliente parecia quebrada. Então:
+
+     · salão com foto em ALGUNS: quem não tem ganha uma capa com a inicial do
+       serviço, que é um `.sv-cartao-foto` de verdade. Aí o texto ENCOSTA
+       nela, e os 2px são o certo — tirá-los abriria um vão branco no meio do
+       cartão;
+
+     · salão SEM FOTO NENHUMA: não há capa com que encostar, e aí vale a
+       regra antiga inteira — nenhum `.sv-cartao-foto`, e o nome longe do topo.
+
+   As duas cenas estão aqui porque consertar uma quebrando a outra é trocar de
+   reclamação, não resolver — e foi exatamente isso que aconteceu da primeira
+   vez: a cena nova entrou e esta seção continuou cobrando a regra velha.
    ══════════════════════════════════════════════════════════════════════════ */
 secao('Serviço sem foto, na moldura elegante');
 
-await d.inserir('servicos', { salaoId, nome:'Hidratação', preco:70,
-  duracaoMin:45, intervaloMin:0, ativo:true, aceitaOnline:true });
+const semFotoAqui = await d.inserir('servicos', { salaoId, nome:'Hidratação',
+  preco:70, duracaoMin:45, intervaloMin:0, ativo:true, aceitaOnline:true });
 await cfg({ moldura:'elegante' });
-const g = await abrir();
-const semFoto = await g.evaluate(() => {
+
+const medirSemFoto = (p) => p.evaluate(() => {
   const c = document.querySelector('.sv-cartao.sem-foto');
   if(!c) return null;
   const txt = getComputedStyle(c.querySelector('.sv-cartao-txt'));
   return { topo: parseFloat(txt.paddingTop),
            fotos: c.querySelectorAll('.sv-cartao-foto').length,
+           iniciais: c.querySelectorAll('.sv-cartao-inicial').length,
            seta: c.querySelectorAll('.sv-cartao-ir').length };
 });
-verdade('o cartão sem foto existe', semFoto !== null,
+
+// ── 5a · o meio do caminho: os outros dois têm foto, este não ──────────────
+const g = await abrir();
+const misturado = await medirSemFoto(g);
+verdade('o cartão sem foto existe', misturado !== null,
   'o serviço sem foto não virou cartão — mudou a regra do `sem-foto`');
-igual('e não tem foto nenhuma para recortar', semFoto && semFoto.fotos, 0);
-verdade('o nome não fica colado no topo — ' + (semFoto && semFoto.topo) + 'px',
-  semFoto && semFoto.topo >= 10,
-  'ficou ' + (semFoto && semFoto.topo) + 'px: o padding de 2px, que só serve '
-  + 'para encostar numa foto, sobrou num cartão que não tem foto');
-igual('e ele ganha a seta como os outros', semFoto && semFoto.seta, 1);
+igual('num salão que TEM fotos, ele ganha a capa com a inicial',
+  misturado && misturado.iniciais, 1);
+verdade('e o nome encosta nela, sem vão branco — '
+        + (misturado && misturado.topo) + 'px',
+  misturado && misturado.topo <= 4,
+  'a capa da inicial é foto para todos os efeitos: o texto encosta como '
+  + 'encosta numa foto de verdade');
+igual('e ele ganha a seta como os outros', misturado && misturado.seta, 1);
 igual('sem erro de JavaScript', g.erros.length ? g.erros.join(' | ') : 0, 0);
 await g.close();
+
+// ── 5b · o salão que ainda não subiu foto nenhuma ─────────────────────────
+// É a regra antiga, e ela continua valendo inteira.
+for(const s of await d.lista('servicos', { salaoId })){
+  if(s.foto) await d.atualizar('servicos', s.id, { foto: null });
+}
+const h = await abrir();
+const nenhuma = await medirSemFoto(h);
+verdade('sem foto nenhuma no salão, o cartão continua existindo',
+  nenhuma !== null);
+igual('e aí não há foto nenhuma para recortar', nenhuma && nenhuma.fotos, 0);
+verdade('o nome não fica colado no topo — ' + (nenhuma && nenhuma.topo) + 'px',
+  nenhuma && nenhuma.topo >= 10,
+  'ficou ' + (nenhuma && nenhuma.topo) + 'px: o padding de 2px, que só serve '
+  + 'para encostar numa foto, sobrou num cartão que não tem foto');
+igual('e a seta continua lá', nenhuma && nenhuma.seta, 1);
+igual('sem erro de JavaScript', h.erros.length ? h.erros.join(' | ') : 0, 0);
+await h.close();
+
+// As fotos voltam: as seções de baixo medem a prévia do painel, e um salão
+// sem foto nenhuma mudaria a forma do cartão lá também.
+for(const s of await d.lista('servicos', { salaoId })){
+  if(s.id !== semFotoAqui.id) await d.atualizar('servicos', s.id, { foto: FOTO });
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    6 — A PRÉVIA DO PAINEL OBEDECE

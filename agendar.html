@@ -389,6 +389,10 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
            lista. Estava aqui fixo E lá dentro de novo, então a tela mostrava
            "O QUE OFERECEMOS" e "SERVIÇOS" um debaixo do outro. -->
       <div id="capaServicos"></div>
+      <!-- Os atalhos de quem ja' e' cliente, DEPOIS da vitrine: quem chega
+           pela primeira vez tem que ver o que a casa faz antes de qualquer
+           outra coisa, e quem ja' e' cliente rola dois dedos e acha. -->
+      <div id="capaAtalhos"></div>
       <div class="cat" id="rotuloEquipe">Quem atende</div>
       <div id="capaEquipe"></div>
       <!-- A loja entra DEPOIS da equipe, e não antes: quem chegou por um link
@@ -627,6 +631,18 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
     </section>
 
     <!-- ══════ MEUS AGENDAMENTOS ══════ -->
+    <!-- ══════ MEUS PACOTES ══════
+         O que ela ja' comprou e ainda tem para usar. Os pacotes existiam so'
+         como desconto invisivel: o R$ 0,00 aparecia na hora de confirmar e
+         nada na pagina dizia quantas sessoes sobravam. Quem pagou por cinco
+         escovas nao tinha onde conferir que ainda tem duas.
+         (Sem crase: este HTML e' lido como template literal noutros pontos.) -->
+    <section class="passo" id="p-pacotes">
+      <h2>Meus pacotes</h2>
+      <p class="sub" id="subPacotes">—</p>
+      <div id="listaPacotes"></div>
+    </section>
+
     <section class="passo" id="p-meus">
       <h2>Meus horários</h2>
       <p class="sub" id="subMeus">—</p>
@@ -995,6 +1011,9 @@ function bdDaVitrine(v){
       cartoes: s.cartoes || null,
       // A forma do cartão de serviço. Ausente = `reta`, o de sempre.
       moldura: s.moldura || 'reta',
+      // Os serviços que o dono pôs na capa. Lista vazia quer dizer "não
+      // escolhi" — e aí a capa decide sozinha. Ver `destaquesDaCapa()`.
+      destaques: Array.isArray(s.destaques) ? s.destaques : [],
       cfg: { diasLiberados: s.diasLiberados },
     }],
     servicos: (v.servicos || []).map(x => ({
@@ -1174,6 +1193,40 @@ function ultimoDiaLiberado(){ return somarDias(hoje(), diasLiberados()); }
 /* ── Consultas ───────────────────────────────────────────────────────── */
 const servicosDoSalao = () => bd.servicos.filter(s =>
   s.salaoId === salao.id && s.ativo);
+
+/* ── O QUE APARECE NA CAPA ────────────────────────────────────────────────
+   A capa mostrava TUDO. Num salão com vinte serviços isso é um catálogo que
+   ninguém rola até o fim — e o serviço que paga a conta fica embaixo do que
+   quase ninguém pede, por acidente de ordem alfabética.
+
+   ⚠ E A LISTA VAZIA NÃO QUER DIZER "NENHUM".
+
+   Quer dizer "o dono não escolheu ainda" — que é o estado de todo salão que
+   já existe no dia em que isto entra no ar. Tratar vazio como "esconda tudo"
+   deixaria essas casas com a capa em branco, sem ninguém ter pedido. Sem
+   escolha, a capa decide sozinha: os SEIS primeiros, com quem tem foto na
+   frente, porque foto é o que faz a vitrine funcionar como vitrine.
+
+   Nada fica inalcançável: o que não coube está a um toque em "Ver todos os
+   serviços", e a tela de escolher sempre mostrou a lista inteira. */
+const TETO_DA_CAPA = 6;
+
+function destaquesDaCapa(todos){
+  const escolhidos = Array.isArray(salao.destaques) ? salao.destaques : [];
+  if(escolhidos.length){
+    /* A ORDEM É A QUE O DONO MARCOU, e não a da lista de serviços: ele
+       escolheu o que vem primeiro, e reordenar por conta própria seria
+       desfazer a escolha em silêncio. Ids que não existem mais — serviço
+       apagado ou desativado — somem daqui sozinhos, sem deixar buraco. */
+    const porId = new Map(todos.map(s => [s.id, s]));
+    const lista = escolhidos.map(id => porId.get(id)).filter(Boolean);
+    if(lista.length) return lista;
+    // Todos os marcados sumiram: melhor a capa automática que a capa vazia.
+  }
+  return todos.slice()
+    .sort((a, b) => (b.foto ? 1 : 0) - (a.foto ? 1 : 0))
+    .slice(0, TETO_DA_CAPA);
+}
 const profsDoSalao = () => bd.profissionais.filter(p =>
   p.salaoId === salao.id && p.ativo);
 const acharServico = i => bd.servicos.find(s => s.id === i);
@@ -1443,6 +1496,7 @@ function desenhar(){
   if(tela === 'pronto')      { bp.textContent='Ver meus horários'; trilhaAte(0);
                                bs.style.display=''; bs.textContent='Marcar outro'; }
   if(tela === 'meus')        { desenharMeus();      bp.textContent='Agendar novo horário'; trilhaAte(0); }
+  if(tela === 'pacotes')     { desenharPacotes();   bp.textContent='Usar meu pacote'; trilhaAte(0); }
 }
 
 function desenharSaloes(){
@@ -1530,9 +1584,44 @@ function desenharCapa(){
       <div class="boas-oi">Bem-vindo!</div>
       <button class="boas-cta" onclick="irPara('servico')">
         <span data-ico="calendario"></span> Agendar horário</button>
-      ${sessao ? `<button class="boas-b2" onclick="irPara('meus')">
-        <span data-ico="relogio"></span> Meus horários</button>` : ''}
     </div>`;
+
+  /* ── OS ATALHOS DE QUEM JÁ É CLIENTE ────────────────────────────────────
+     Marcar é o caminho principal e fica lá em cima. Estes dois são o outro
+     motivo de abrir o link: conferir o que já está marcado, e ver o que já
+     foi pago.
+
+     ⚠ SÓ APARECEM QUANDO TÊM O QUE MOSTRAR. Um atalho para uma lista vazia
+     é pior que atalho nenhum: a pessoa toca, não encontra nada e passa a
+     desconfiar do resto da página. "Meus horários" precisa de aparelho que
+     já marcou aqui; "Meus pacotes" precisa de pacote vivo.
+
+     Os pacotes existiam só como desconto invisível — o R$ 0,00 aparecia na
+     hora de confirmar e nada dizia quantas sessões sobravam. Quem pagou por
+     cinco escovas não tinha onde conferir que ainda tem duas. */
+  const atalhos = [];
+  if(sessao){
+    atalhos.push([ 'meus', 'calendario', 'Meus horários',
+                   'Consulte ou cancele o que já está marcado', 'a-agenda' ]);
+  }
+  if(meusPacotes.length){
+    const n = meusPacotes.reduce((s, p) => s + (Number(p.restantes) || 0), 0);
+    // `presente` e não um ícone de caixa: não existe "pacote" no conjunto, e
+    // o presente diz a coisa certa — já está pago, é seu, está esperando.
+    atalhos.push([ 'pacotes', 'presente', 'Meus pacotes',
+                   n + (n === 1 ? ' sessão já paga, esperando você'
+                                : ' sessões já pagas, esperando você'),
+                   'a-pacote' ]);
+  }
+  document.getElementById('capaAtalhos').innerHTML = !atalhos.length ? '' :
+    atalhos.map(([tela, ico, titulo, sub, cor]) => `
+      <button class="atalho ${cor}" onclick="irPara('${tela}')">
+        <span class="atalho-ic" data-ico="${ico}"></span>
+        <span class="atalho-txt">
+          <b>${escapar(titulo)}</b>
+          <span>${escapar(sub)}</span>
+        </span>
+      </button>`).join('');
 
   /* ── A VITRINE ──────────────────────────────────────────────────────────
      Cada serviço num cartão com a foto, como a vitrine de uma loja mostra o
@@ -1547,7 +1636,9 @@ function desenharCapa(){
      Serviço sem foto não fica de fora nem ganha um buraco cinza: o cartão
      encolhe para uma linha com o nome. Salão que ainda não subiu foto
      nenhuma continua com uma capa apresentável. */
-  const svs = servicosDoSalao();
+  const todos = servicosDoSalao();
+  const svs = destaquesDaCapa(todos);
+  const sobram = todos.length - svs.length;
   const comPreco = salao.precoNaCapa === true;
   /* ⚠ OS TRÊS ELEMENTOS A MAIS SÓ EXISTEM NA MOLDURA ELEGANTE.
 
@@ -1566,17 +1657,39 @@ function desenharCapa(){
      função de desenho só, sem lógica duplicada. O que muda é a forma, e quem
      decide a forma é o CSS pelo `data-moldura` na raiz. */
   const elegante = (salao.moldura || (salao.cfg||{}).moldura) === 'elegante';
-  const grupos = agruparPorCategoria(svs);
+  const grupos = agruparPorCategoria(svs, 'Outros');
+
+  /* ⚠ A FORMA DO CARTÃO É DECIDIDA PELO CONJUNTO, NUNCA POR CARTÃO.
+
+     Havia uma regra sozinha no CSS: serviço sem foto vira uma LINHA de
+     largura inteira. Ela está certa — para o salão que ainda não subiu foto
+     nenhuma, a capa fica uma lista limpa em vez de uma grade de retângulos
+     cinzas.
+
+     O que ninguém tinha olhado é o meio do caminho, que é onde todo salão
+     vive: ALGUNS serviços com foto e outros sem. Aí a mesma regra produz uma
+     escada — duas colunas, uma faixa inteira, duas colunas, outra faixa —
+     e a capa, que é a primeira coisa que a cliente vê, parece quebrada.
+
+     Então a pergunta passa a ser feita uma vez, sobre a lista toda: se
+     EXISTE foto no salão, a grade é de fotos e quem não tem ganha uma capa
+     com a inicial do serviço; se não existe nenhuma, todo mundo é linha. Uma
+     forma só por tela, dos dois jeitos. */
+  const temAlgumaFoto = svs.some(s => s.foto);
 
   document.getElementById('capaServicos').innerHTML = !svs.length ? '' : `
     <div class="cat">${voc('oferecemos')}</div>
     ${grupos.map(({ rotulo, lista }) => `
       ${grupos.length > 1 && rotulo ? `<div class="cat-sub">${escapar(rotulo)}</div>` : ''}
-      <div class="sv-grade">${lista.map(s => `
-        <button class="sv-cartao${s.foto ? '' : ' sem-foto'}"
-                onclick="irPara('servico')">
+      <div class="sv-grade${temAlgumaFoto ? ' com-foto' : ''}">${lista.map(s => `
+        <button class="sv-cartao${s.foto ? '' : ' sem-foto'}${
+                  escolha.servicos.includes(s.id) ? ' sel' : ''}"
+                onclick="escolherDaCapa('${s.id}')">
           ${s.foto ? `<span class="sv-cartao-foto"
-                        style="background-image:url('${escapar(s.foto)}')"></span>` : ''}
+                        style="background-image:url('${escapar(s.foto)}')"></span>`
+           : temAlgumaFoto ? `<span class="sv-cartao-foto sv-cartao-inicial"
+                        >${escapar((s.nome || '?').trim().charAt(0).toUpperCase())}</span>`
+           : ''}
           <span class="sv-cartao-txt">
             <b>${escapar(s.nome)}</b>
             ${elegante && s.descricao
@@ -1594,7 +1707,13 @@ function desenharCapa(){
             </span>
           </span>
           ${elegante ? `<span class="sv-cartao-ir" data-ico="direita"></span>` : ''}
-        </button>`).join('')}</div>`).join('')}`;
+        </button>`).join('')}</div>`).join('')}
+    ${sobram > 0 ? `
+      <button class="ver-todos" onclick="irPara('servico')">
+        <span data-ico="tesoura"></span>
+        Ver todos os serviços
+        <span class="ver-todos-n">${todos.length}</span>
+      </button>` : ''}`;
 
   /* O `data-ico` não vira desenho sozinho: quem troca o span pelo SVG é o
      `aplicarIcones()`. E quem o chama é o `irPara()`, DEPOIS do `desenhar()` —
@@ -1783,12 +1902,34 @@ function semAcento(t){
 function agruparPorCategoria(svs, padrao){
   const grupos = new Map();
   for(const s of svs){
-    const rotulo = (s.categoria || '').trim() || padrao || '';
+    const bruto = (s.categoria || '').trim();
+    const rotulo = bruto || padrao || '';
     const chave = semAcento(rotulo);
-    if(!grupos.has(chave)) grupos.set(chave, { rotulo, lista: [] });
-    grupos.get(chave).lista.push(s);
+    if(!grupos.has(chave)) grupos.set(chave, { rotulo, lista: [], semCategoria: false });
+    const g = grupos.get(chave);
+    g.lista.push(s);
+    // Sem categoria mesmo, e não um grupo que por acaso se chama "Outros".
+    if(!bruto) g.semCategoria = true;
   }
-  return [...grupos.values()];
+
+  /* ⚠ A ORDEM ERA A DE CADASTRO, QUE NÃO QUER DIZER NADA PARA A CLIENTE.
+
+     Os grupos saíam na ordem em que os serviços entraram no banco — quer
+     dizer, na ordem em que o dono foi cadastrando, meses atrás. Para quem
+     abre a página isso é sorteio: "Cabelo" no meio, "Unhas" no fim, e o
+     bloco SEM categoria em primeiro lugar, antes de qualquer título.
+
+     Alfabética não é escolha de gosto, é a única ordem que a cliente
+     consegue prever — e é a mesma nas duas telas, a capa e a lista de
+     escolher, que antes podiam discordar entre si.
+
+     E o grupo sem categoria vai para o FIM, sempre. Ele é o "o que sobrou":
+     abrir a página por ele é começar a conversa pelo que não se soube
+     classificar. */
+  const sobra = [], nomeados = [];
+  for(const g of grupos.values()) (g.semCategoria ? sobra : nomeados).push(g);
+  nomeados.sort((a, b) => a.rotulo.localeCompare(b.rotulo, 'pt-BR'));
+  return nomeados.concat(sobra);
 }
 
 
@@ -1884,6 +2025,32 @@ function alternarServico(id){
   escolha.profissionalId = null;
   escolha.data = null; escolha.inicio = null;
   desenhar();
+}
+
+/* ⚠ O CARTÃO DA CAPA PASSA A ESCOLHER O SERVIÇO, e não só abrir a lista.
+
+   Ele fazia `irPara('servico')` e mais nada. Quer dizer: a pessoa via a foto
+   do corte, tocava nela com a intenção clara de marcar AQUELE corte, caía
+   numa lista com tudo desmarcado e tinha que procurar o mesmo serviço de
+   novo — agora em texto, no meio dos outros. O toque não valia nada, e pior:
+   parecia ter valido, porque a tela mudou.
+
+   Aqui ele vale. O serviço entra escolhido, e a lista abre com ele já
+   marcado — ela continua aberta de propósito, porque somar um segundo
+   serviço é comum ("corte + barba") e mandar direto para os horários tiraria
+   essa chance sem avisar.
+
+   `ja` existe porque a capa pode ser revisitada pelo voltar: tocar de novo
+   no mesmo cartão não pode desmarcar o que a pessoa acabou de escolher, que
+   é o que o `alternarServico` faria. */
+function escolherDaCapa(id){
+  const ja = escolha.servicos.includes(id);
+  if(!ja){
+    escolha.servicos.push(id);
+    escolha.profissionalId = null;
+    escolha.data = null; escolha.inicio = null;
+  }
+  irPara('servico');
 }
 
 function desenharProfs(){
@@ -2711,6 +2878,51 @@ async function sairDaFilaNaNuvem(token){
   recarregarMeus();
 }
 
+/* ── A TELA DOS PACOTES ───────────────────────────────────────────────────
+   Os pacotes existiam só como desconto invisível: o R$ 0,00 aparecia na hora
+   de confirmar e nada na página dizia quantas sessões sobravam. Quem pagou
+   por cinco escovas não tinha onde conferir que ainda tem duas — e quem não
+   consegue conferir o que comprou acaba ligando para o salão perguntar, ou
+   pior, deixa de usar.
+
+   O que o banco devolve em `meus_pacotes` já basta: nome, quantas restam,
+   quando vence, e quais serviços cobre. A tela não calcula nada — a conta de
+   sessões restantes é do `pacote_sessoes_restantes()`, e repeti-la aqui
+   criaria duas verdades sobre o que a cliente ainda tem direito. */
+function desenharPacotes(){
+  const alvo = document.getElementById('listaPacotes');
+  document.getElementById('subPacotes').textContent = salao.nome;
+
+  if(!meusPacotes.length){
+    alvo.innerHTML = `<div class="recado">Você ainda não tem pacote aqui.
+      Pergunte no salão — sai mais em conta que avulso.</div>`;
+    return;
+  }
+
+  const nomes = ids => (ids || []).map(i => {
+    const s = acharServico(i);
+    return s ? s.nome : null;
+  }).filter(Boolean).join(', ');
+
+  alvo.innerHTML = meusPacotes.map(p => {
+    const n = Number(p.restantes) || 0;
+    const cobre = nomes(p.servicos);
+    return `
+      <div class="pacote-cartao">
+        <div class="pacote-topo">
+          <b>${escapar(p.nome)}</b>
+          <span class="pacote-n">${n}</span>
+        </div>
+        <div class="pacote-sub">${n === 1 ? 'sessão restante' : 'sessões restantes'}</div>
+        ${cobre ? `<div class="pacote-linha">Vale em: ${escapar(cobre)}</div>` : ''}
+        ${p.so_nos_dias && p.dias && p.dias.length
+          ? `<div class="pacote-linha">Só ${diasPorExtenso(p.dias)}</div>` : ''}
+        ${p.vence_em
+          ? `<div class="pacote-linha">Vale até ${dataCurta(p.vence_em)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
 function desenharMeus(){
   const ficha = minhaFicha();
   document.getElementById('subMeus').textContent =
@@ -3017,6 +3229,19 @@ function acaoPrincipal(){
   if(tela === 'meus')      { escolha = {servicos:[], profissionalId:null, data:null,
                                         inicio:null, para:'mim', filhoNome:''};
                              return irPara('servico'); }
+  /* "Usar meu pacote" leva à escolha de serviço com os do pacote JÁ marcados
+     — que é o gesto que ela veio fazer. Com mais de um pacote vivo, marcar os
+     de todos misturaria coisas que ela não pediu junto, então aí só abre a
+     lista e ela escolhe. */
+  if(tela === 'pacotes'){
+    escolha = { servicos:[], profissionalId:null, data:null,
+                inicio:null, para:'mim', filhoNome:'' };
+    if(meusPacotes.length === 1){
+      const ids = meusPacotes[0].servicos || [];
+      escolha.servicos = ids.filter(i => servicosDoSalao().some(s => s.id === i));
+    }
+    return irPara('servico');
+  }
 }
 
 // Ver a própria agenda exige o código. Marcar não exigiu — e é justamente

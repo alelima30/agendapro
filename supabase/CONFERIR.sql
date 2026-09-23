@@ -88,6 +88,30 @@ with conferencia(ordem, item, veredito, detalhe) as (
                             where table_schema='public' and table_name='agendamentos'
                               and column_name='gerenciar_token')
               then 'certo' else 'FALTA' end, ''
+
+  union all
+  /* ⚠ ESTE FALHA CALADO, e é por isso que ele está aqui.
+
+     Os destaques da capa não precisaram de tabela nova: eles moram no `cfg`,
+     que já existe. Quer dizer que o painel GRAVA a escolha mesmo num banco
+     desatualizado — a estrela acende, o dono vê que funcionou — e a
+     `vitrine()` velha simplesmente não devolve a chave. A capa da cliente
+     continua se virando sozinha, que é o comportamento antigo e não parece
+     defeito nenhum.
+
+     Do lado de cá não há erro para ler. Só perguntando à função dá para
+     saber, e é o que esta linha faz. */
+  select 9, 'os destaques da capa — o que o dono põe na frente',
+         case when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+              when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                   like '%''destaques''%' then 'certo'
+              else 'FALTA' end,
+         case when to_regprocedure('public.vitrine(text)') is null
+              then 'a função vitrine() não existe'
+              when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                   like '%''destaques''%' then ''
+              else 'a vitrine() é de antes: o painel grava a escolha e a '
+                || 'página da cliente nunca fica sabendo' end
 )
 select item                                as "o que",
        veredito                            as "está",

@@ -187,6 +187,8 @@ rodar "QR"                   node "$AQUI/qr.test.js"
 rodar "QR na tela"           node "$AQUI/qr-tela.test.mjs"
 rodar "o primeiro dia"       node "$AQUI/primeiro-dia.test.mjs"
 rodar "cadastro da cliente"  node "$AQUI/cadastro-cliente.test.mjs"
+rodar "capa da cliente"      node "$AQUI/capa-servicos.test.mjs"
+rodar "destaques da capa"    node "$AQUI/capa-destaques.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

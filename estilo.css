@@ -1582,6 +1582,24 @@ body.sem-brilho .marca-selo{ animation:none }
 .sv-mini img{ width:100%; height:100%; object-fit:cover; display:block }
 .sv-mini .ic-svg{ width:14px; height:14px }
 
+/* ── A ESTRELA QUE PÕE O SERVIÇO NA CAPA ─────────────────────────────────
+   44px de lado porque é um botão de toque numa tabela que, no celular, vira
+   cartão — e um ícone de 16px não se acerta com o polegar.
+
+   ⚠ A APAGADA PRECISA SER VISÍVEL. Estrela vazada de contorno some no fundo
+   claro, e o dono não descobre que existe: ele não vai procurar um botão que
+   não vê. Por isso a apagada é cinza CHEIA, não fantasma — a diferença entre
+   ligada e desligada é a cor, não a presença. */
+.estrela{
+  width:44px; height:44px; padding:0; line-height:1;
+  display:grid; place-items:center;
+  border:1px solid transparent; border-radius:var(--r-sm);
+  background:none; color:var(--txt3); font-size:22px;
+  cursor:pointer; transition:.15s;
+}
+.estrela:hover{ background:var(--painel2); border-color:var(--borda) }
+.estrela.on{ color:var(--alerta) }
+
 .fitas{ display:flex; flex-wrap:wrap; gap:7px; margin-top:4px }
 .fita-servico{
   display:inline-block; padding:7px 13px; border-radius:99px;
@@ -1719,6 +1737,102 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 .sv-cartao.sem-foto{ grid-column:1 / -1 }
 .sv-cartao.sem-foto .sv-cartao-txt{ padding:13px 14px }
 
+/* ⚠ MAS SÓ ENQUANTO NÃO HOUVER FOTO NENHUMA.
+   A regra de cima sozinha resolvia as duas pontas e estragava o meio — que é
+   onde todo salão vive. Com ALGUNS serviços com foto e outros sem, ela fazia
+   uma escada: duas colunas, uma faixa inteira, duas colunas, outra faixa. Na
+   capa, que é a primeira coisa que a cliente vê, isso lê como página
+   quebrada.
+   O `com-foto` é posto pelo `agendar.html` quando existe pelo menos uma foto
+   no salão. A partir daí a grade é uma só, e quem não tem foto ganha uma capa
+   com a inicial em vez de um retângulo vazio. */
+.sv-grade.com-foto .sv-cartao.sem-foto{ grid-column:auto }
+.sv-grade.com-foto .sv-cartao.sem-foto .sv-cartao-txt{ padding:11px 12px 12px }
+/* ⚠ A INICIAL É TEXTURA, NÃO CONTEÚDO.
+   Ela existe para o cartão ter a mesma altura do vizinho com foto, e só. Se
+   gritar, uma capa com seis serviços sem foto vira uma parede de letras
+   soltas competindo com os nomes — que é onde está a informação de verdade.
+   Daí o tom baixo: presente o bastante para não parecer defeito, apagado o
+   bastante para o olho passar direto.
+   Herda o `aspect-ratio` do `.sv-cartao-foto`, que é o que alinha as duas
+   colunas quando uma tem foto e a outra não. */
+.sv-cartao-inicial{
+  display:grid; place-items:center;
+  font-size:30px; font-weight:700; line-height:1;
+  /* ⚠ Cor apagada, e NÃO `opacity`. O `opacity` cai sobre o elemento
+     inteiro, e o elemento é a letra E o fundo: apagar a letra apagaria junto
+     a cor de marca que sustenta o cartão. */
+  color:var(--txt3); background:var(--ac-soft);
+}
+
+/* O serviço que a pessoa já escolheu tocando na capa. Ela pode voltar para
+   cá pelo botão de trás do navegador, e sem esta marca o cartão parece não
+   ter sido tocado — ela toca de novo achando que falhou. */
+.sv-cartao.sel{ border-color:var(--ac-600); box-shadow:0 0 0 2px var(--ac-soft) }
+
+/* ── "Ver todos os serviços" ─────────────────────────────────────────────
+   A capa mostra os destaques; este botão é a porta para o resto. Sem ele, o
+   que não coube some — e o salão perde a venda do serviço que não cabia na
+   primeira dobra. O NÚMERO ao lado existe para a pessoa saber que vale a
+   pena tocar: "ver todos" sem contagem pode ser mais três ou mais trinta. */
+.ver-todos{
+  display:flex; align-items:center; justify-content:center; gap:9px;
+  width:100%; min-height:52px; margin-top:12px; padding:0 16px;
+  border:1px solid var(--ac-line); border-radius:var(--r);
+  background:var(--painel); color:var(--ac-600);
+  font-size:15.5px; font-weight:650; cursor:pointer; transition:.15s;
+}
+.ver-todos:hover{ background:var(--ac-soft) }
+.ver-todos-n{
+  min-width:24px; padding:1px 7px; border-radius:var(--r-pill);
+  background:var(--ac-soft); color:var(--ac-600);
+  font-size:13px; font-weight:700;
+}
+
+/* ── Os atalhos de quem já é cliente ─────────────────────────────────────
+   Dois cartões largos, com ícone redondo à esquerda: é a forma que o olho
+   já conhece de lista de aplicativo, e ela separa estes dois do resto da
+   página sem precisar de título. */
+.atalho{
+  display:flex; align-items:center; gap:14px; width:100%; text-align:left;
+  min-height:64px; padding:13px 15px; margin-top:10px;
+  border:1px solid var(--borda); border-radius:var(--r);
+  background:var(--painel); cursor:pointer; transition:.15s;
+}
+.atalho:hover{ border-color:var(--borda-forte) }
+.atalho-ic{
+  flex:none; width:44px; height:44px; border-radius:50%;
+  display:grid; place-items:center; color:#FFFFFF;
+}
+.atalho-txt{ display:flex; flex-direction:column; gap:2px; min-width:0 }
+.atalho-txt b{ font-size:15.5px; font-weight:650; color:var(--txt) }
+.atalho-txt span{ font-size:13.5px; color:var(--txt2); line-height:1.35 }
+/* Cores diferentes porque são coisas diferentes: uma é a agenda, a outra é
+   dinheiro já pago. Iguais, os dois cartões viram um bloco só para o olho. */
+.atalho.a-agenda .atalho-ic{ background:var(--ac-600) }
+.atalho.a-pacote .atalho-ic{ background:var(--su-500) }
+
+/* ── Os pacotes dela ─────────────────────────────────────────────────────
+   O número das sessões restantes é o que ela veio ver, então é a maior
+   coisa do cartão. O resto — o que cobre, até quando vale — é o que responde
+   a próxima pergunta, e fica em corpo de texto. */
+.pacote-cartao{
+  border:1px solid var(--borda); border-radius:var(--r);
+  background:var(--painel); padding:15px; margin-bottom:11px;
+}
+.pacote-topo{ display:flex; align-items:center; gap:12px }
+.pacote-topo b{ flex:1; font-size:16px; font-weight:650; min-width:0 }
+.pacote-n{
+  flex:none; min-width:44px; height:44px; padding:0 10px; border-radius:var(--r-sm);
+  display:grid; place-items:center; background:var(--su-soft);
+  color:var(--su-500); font-size:21px; font-weight:700;
+}
+.pacote-sub{ font-size:13px; color:var(--txt2); text-align:right; margin-top:2px }
+.pacote-linha{
+  font-size:13.5px; color:var(--txt2); margin-top:7px;
+  padding-top:7px; border-top:1px solid var(--borda);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    MOLDURA ELEGANTE — o segundo modelo do cartão de serviço
 
@@ -1850,6 +1964,13 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
    `padding-top:2px` do texto, que só faz sentido quando existe uma foto acima
    para encostar. Sem esta regra, o nome do serviço ficaria colado no topo. */
 [data-moldura="elegante"] .sv-cartao.sem-foto .sv-cartao-txt{ padding:14px 15px 13px }
+
+/* ⚠ Menos quando a capa da inicial está lá. Aí EXISTE um `.sv-cartao-foto`,
+   com onda e tudo, e o texto volta a ser o de quem tem foto — senão ele
+   descola do recorte e abre um vão branco no meio do cartão. */
+[data-moldura="elegante"] .sv-grade.com-foto .sv-cartao.sem-foto .sv-cartao-txt{
+  padding:2px 14px 12px;
+}
 
 .grade-servicos{
   display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:11px;

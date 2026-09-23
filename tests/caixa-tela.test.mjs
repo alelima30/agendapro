@@ -429,7 +429,19 @@ verdade('e diz que o caixa foi fechado', /não está aberto/.test(hoje),
 secao('7) Cadastrar as regras novas de comissão');
 
 await irPara('servicos');
-await p.click(`button[onclick*="${serv.id}"]`).catch(() => {});
+/* ⚠ O SELETOR NOMEIA A FUNÇÃO, e não só o id do serviço.
+
+   Era `button[onclick*="${serv.id}"]`, e funcionou enquanto havia UM botão
+   por linha. No dia em que a linha ganhou a estrela dos destaques da capa,
+   passaram a ser dois botões com o mesmo id no `onclick` — o Editar e a
+   estrela — e o clique virou ambíguo.
+
+   O `.catch(() => {})` engolia isso calado, e o teste seguia para cobrar um
+   formulário que nunca tinha aberto. Quer dizer: uma mudança na TABELA saiu
+   como reprovação sobre COMISSÃO FIXA, que não tem nada a ver. O catch saiu
+   junto — a linha de baixo já afirma que o formulário abriu, então esconder
+   a falha do clique só atrasa a notícia e manda procurar no lugar errado. */
+await p.click(`button[onclick^="abrirServico('${serv.id}')"]`);
 await p.waitForTimeout(600);
 verdade('o serviço tem campo de comissão fixa',
   await p.isVisible('#sComFixa'));
