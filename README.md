@@ -313,10 +313,9 @@ separada por verbo: `for insert`, `for update`, `for delete`.
 
 ## O que falta
 
-Revisado contra o código, e não de memória: quatro itens que estavam nesta
-lista já existiam e foram tirados — "meus horários" da cliente, a lista de
-espera na nuvem, o CI e a cobrança. Lista de pendência que envelhece é pior
-que nenhuma, porque dá trabalho a quem for conferir.
+Revisado contra o código, e não de memória — a lista inteira, de novo, depois
+da leva do dashboard. Item que já existe e continua aqui dá trabalho a quem
+for conferir e desmoraliza a lista toda.
 
 ### Depende de mim (código)
 
@@ -339,17 +338,51 @@ que nenhuma, porque dá trabalho a quem for conferir.
    do pacote (`pacotes.so_nos_dias`). "Escova só de quinta a sábado", sem
    pacote nenhum, não tem onde ser dita — e é pedido de quem tem serviço
    longo que só cabe em dia de movimento fraco. Aprovado, não começado.
+   Conferido: `servicos` não tem coluna de dia nenhuma.
+6. **Preço por dia da semana e por faixa de horário.** Pedido junto dos
+   prints de produto, e o único de peso daquela leva que ficou de fora.
+   "Corte R$ 60, mas R$ 80 no sábado"; "20% menos das 9h às 11h, terça e
+   quarta"; com período de vigência, para a tabela nova valer só a partir de
+   uma data.
+
+   ⚠ É a mudança mais delicada da lista, e não pelo tamanho. Preço hoje é uma
+   coluna e sai do banco na hora de marcar; virar REGRA significa uma tabela
+   nova, uma função que resolve qual regra vale para aquele instante, e o
+   cuidado de nunca mexer no valor de um agendamento JÁ FEITO — que é
+   exatamente o que a tela de referência promete em letras miúdas ("a mudança
+   de preço não altera os agendamentos realizados"). Errar aqui é cobrar da
+   cliente um valor diferente do que ela viu ao marcar.
 
 ### Depende do dono (fora do código)
 
-6. **Chaves do Mercado Pago** em Edge Functions → Secrets, e as funções
+7. **Chaves do Mercado Pago** em Edge Functions → Secrets, e as funções
    `criar-cobranca` e `webhook-mp` publicadas. O SQL da cobrança está
    instalado; sem as chaves, nenhum salão consegue pagar.
-7. **Verificação do Meta Business.** É ela que libera o template
+8. **Verificação do Meta Business.** É ela que libera o template
    transacional do lembrete — o item 1 depende dela para sair do papel.
 
 ### O que deixou de faltar
 
+- **O dashboard**, com sete cartões que o dono liga, desliga e ordena
+  (`30_painel.sql` + a aba). Faturamento anual e semanal em SVG desenhado à
+  mão — sem biblioteca, porque o projeto não tem passo de build e funciona
+  sem rede.
+- **Tirar alguém da equipe e tirar um produto da lista.** Quem nunca
+  trabalhou some; quem já trabalhou é arquivado, e o histórico fica. As duas
+  telas barram o caso que o banco NÃO barra: `comanda_itens` tem
+  `on delete set null` nas duas pontas, e apagaria em silêncio.
+- **O dinheiro do dia num lugar só** (o Caixa), com o previsto e a
+  comparação com o dia anterior. Eram três telas somando o mesmo dia com
+  contas diferentes.
+- **Vista de 3 dias** na agenda, e o resumo do dia embaixo do calendário do
+  mês.
+- **A vitrine da capa escolhida pelo dono** (`saloes.cfg.destaques`), o
+  toque no cartão que já escolhe o serviço, e os atalhos de "meus horários"
+  e "meus pacotes".
+- **De quanto em quanto tempo o link oferece horário** (15, 30 ou 60). É
+  peneira de exibição: a agenda por dentro continua fina.
+- **Os recados manuais do WhatsApp**, editáveis, com `cliente`, `horario` e
+  `empresa` como parâmetros.
 - **Cobrança por Pix e boleto.** `13_cobranca.sql` mais as duas Edge
   Functions, com verificação de assinatura e idempotência pelo `mp_id`.
 - **"Meus horários" e a lista de espera na nuvem.** `meus_agendamentos`,
