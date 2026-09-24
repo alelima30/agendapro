@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.edb12e';
+const VERSAO_APP = 'v9.b97068';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7381,8 +7381,22 @@ function pintarSalao(){
           ou escolha exatamente a sua</label>
       </div>
 
-      <div class="rot" style="margin:18px 0 8px">Fundo</div>
+      <!-- ══════════ A BASE, E NAO "O FUNDO" ══════════
+           O rotulo dizia so' "Fundo", e a regua embaixo dele tem duas opcoes.
+           Foi lido exatamente como estava escrito: "o fundo so' tem preto e
+           bege claro". E' verdade e nao e' o todo — o fundo tambem tem cor
+           livre (em "Cores, uma a uma"), gradiente e imagem (em "Tipo de
+           fundo"), logo abaixo.
+
+           Renomear resolve sem mexer em nada: isto aqui decide a FAMILIA de
+           tons de tudo o que nao for escolhido a' mao, e nao a cor do papel.
+           (Sem crase e sem acento em alguns pontos: comentario dentro de
+           template literal.) -->
+      <div class="rot" style="margin:18px 0 8px">Base clara ou escura</div>
       <div class="regua" id="reguaTema" style="justify-content:flex-start"></div>
+      <p class="secao-sub" style="margin-top:9px">Decide o tom de tudo o que
+        você não escolher à mão. A cor do fundo em si, o gradiente e a imagem
+        estão logo abaixo.</p>
 
       <!-- ══════════ TEMAS PRONTOS ══════════
            ⚠ Eles NAO sao um estado. Aplicar um so' PREENCHE os campos de cor
@@ -8012,6 +8026,20 @@ function lerAparencia(){
    um que avisa e obedece.
    ═══════════════════════════════════════════════════════════════════════════ */
 const CORES_SOLTAS = [
+  /* ⚠ O PAPEL DA PÁGINA VEM PRIMEIRO, porque é a maior superfície da tela —
+     e era a que o dono não conseguia escolher.
+
+     Até aqui o fundo tinha duas opções: o marfim do tema claro e o grafite do
+     escuro. Foi exatamente a reclamação: "o fundo só tem preto e bege claro".
+     O interruptor Claro/Escuro continua existindo e continua sendo a BASE —
+     ele decide a família de tons de tudo o que não foi escolhido à mão. Esta
+     linha é a escolha explícita por cima dela, como todas as outras aqui.
+
+     ⚠ E É A MAIS FÁCIL DE ERRAR SEM PERCEBER. Escolher um papel escuro com a
+     base clara deixa o texto escuro sobre fundo escuro FORA dos cartões —
+     onde moram os títulos de seção. Por isso o `conferirLegibilidade()`
+     passou a medir o texto contra o papel também, e não só contra o card. */
+  ['papel',      'Fundo da página', 'O papel atrás de tudo. Vale a página inteira.'],
   ['secundaria', 'Cor secundária',  'Apoio da principal: fundos suaves e realces.'],
   ['botao',      'Botões',          'O botão de marcar e os de ação.'],
   ['texto',      'Textos',          'O corpo do texto, no cartão e na lista.'],
@@ -8291,18 +8319,38 @@ function limparCoresSoltas(){
    obedece. Então aqui se diz o que está ruim, com o número, e deixa passar.
 
    4,5 é o piso da WCAG para texto corrido. 3 é o de texto grande e desenho. */
+/* ⚠ DUAS SUPERFÍCIES, E NÃO UMA. O texto da página vive em dois lugares: em
+   cima dos CARTÕES e em cima do PAPEL, entre eles — que é onde ficam os
+   títulos de seção ("NOSSOS SERVIÇOS", "QUEM ATENDE").
+
+   Enquanto o papel só podia ser o marfim ou o grafite do tema, medir contra o
+   cartão bastava: os dois eram claros juntos ou escuros juntos. Com o papel
+   escolhível, os dois passam a poder discordar — papel roxo escuro com cartão
+   branco é uma combinação boa, e papel roxo escuro com a base CLARA deixa o
+   título de seção preto sobre roxo, ilegível, num pedaço da tela que o dono
+   não olha na prévia porque ele rola junto com o resto.
+
+   Então cada cor escolhida é medida contra as duas, e a queixa diz ONDE. */
 function conferirLegibilidade(){
   const alvo = document.getElementById('avisoLegibilidade');
   if(!alvo) return;
   const c = aparencia.cores || {};
-  const papel = corValida(c.card) ? c.card
-              : (aparencia.tema === 'escuro' ? '#131A26' : '#FFFFFF');
+  const escuro = aparencia.tema === 'escuro';
+  const cartao = corValida(c.card)  ? c.card  : (escuro ? '#131A26' : '#FFFFFF');
+  const papel  = corValida(c.papel) ? c.papel : (escuro ? '#0B1220' : '#F6F2E8');
 
   const queixas = [];
   const olhar = (chave, rot, piso) => {
     if(!corValida(c[chave])) return;          // herdada: o cálculo garante
-    const r = contrasteEntre(c[chave], papel);
-    if(r < piso) queixas.push(rot + ' (' + r.toFixed(1) + ':1)');
+    const rc = contrasteEntre(c[chave], cartao);
+    const rp = contrasteEntre(c[chave], papel);
+    /* A pior das duas é a que manda: uma cor que se lê no cartão e some no
+       papel é ilegível na metade da tela, e não "meio legível". */
+    const pior = Math.min(rc, rp);
+    if(pior < piso){
+      queixas.push(rot + ' (' + pior.toFixed(1) + ':1 '
+        + (rp < rc ? 'sobre o fundo' : 'sobre os cards') + ')');
+    }
   };
   olhar('texto',    'o texto',     4.5);
   olhar('titulo',   'os títulos',  3);
@@ -8310,7 +8358,7 @@ function conferirLegibilidade(){
   olhar('icone',    'os ícones',   3);
 
   alvo.innerHTML = !queixas.length ? '' :
-    '<b style="color:var(--alerta)">Difícil de ler sobre os cards:</b> '
+    '<b style="color:var(--alerta)">Difícil de ler:</b> '
     + escapar(queixas.join(', '))
     + '. Dá para salvar assim mesmo — mas confira no celular antes.';
 }

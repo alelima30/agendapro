@@ -107,6 +107,11 @@ async function olharCapa(){
       borda:  est.getPropertyValue('--borda').trim(),
       ico:    est.getPropertyValue('--ico').trim(),
       ac600:  est.getPropertyValue('--ac-600').trim(),
+      bg:     est.getPropertyValue('--bg').trim(),
+      painel2: est.getPropertyValue('--painel2').trim(),
+      temaCor: (document.querySelector('meta[name="theme-color"]') || {})
+                 .getAttribute ? document.querySelector('meta[name="theme-color"]')
+                 .getAttribute('content') : null,
       grad:   est.getPropertyValue('--bg-grad').trim(),
       temGradiente: document.body.classList.contains('tem-gradiente'),
       temFundo: document.body.classList.contains('tem-fundo'),
@@ -176,7 +181,7 @@ const daTela = await p.evaluate(() => ({
 }));
 console.log('      ' + JSON.stringify(daTela));
 verdade('a tela de Aparência ganhou o seletor de modo', daTela.temModo);
-igual('as oito cores aparecem uma a uma', daTela.temCores, 8);
+igual('as nove cores aparecem uma a uma', daTela.temCores, 9);
 /* Dez temas mais o "Personalizado", que não é tema: é o botão que limpa as
    cores soltas e devolve tudo ao cálculo automático. */
 igual('e os onze botões de tema', daTela.temTemas, 11);
@@ -234,7 +239,8 @@ verdade('e as cores que ele trocou', noBanco.cores
    Mesma lição dos recados do WhatsApp. */
 verdade('e SÓ elas — as herdadas não viram valor fixo',
   !('borda' in (noBanco.cores || {})) && !('titulo' in (noBanco.cores || {}))
-  && !('botao' in (noBanco.cores || {})), JSON.stringify(noBanco.cores));
+  && !('botao' in (noBanco.cores || {}))
+  && !('papel' in (noBanco.cores || {})), JSON.stringify(noBanco.cores));
 
 /* ⚠ E A CHAVE DA OUTRA TELA CONTINUA LÁ. "Não apague nada", medido. */
 igual('e o que outra tela tinha gravado no cfg continua intacto',
@@ -313,6 +319,46 @@ verdade('e a tela volta ao card do tema',
   !!herdado.painel && herdado.painel.toUpperCase() !== '#1B1B1F', herdado.painel);
 igual('sem mexer nas outras que ele escolheu',
   herdado.ico.toUpperCase(), '#F5C34B');
+
+/* ══════════════════════════════════════════════════════════════════════════
+   4b — ⚠ O PAPEL DA PÁGINA, QUE ERA O QUE FALTAVA
+
+   "O fundo só tem preto e bege claro." Era verdade: o interruptor
+   Claro/Escuro decidia a maior superfície da tela, e não havia como pedir
+   outra cor. Agora há — e ela precisa levar a página inteira junto, não só
+   uma faixa.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('O fundo na cor que o dono quiser');
+
+await p.evaluate(() => { escolherCorSolta('papel', '#2E1065'); salvarAparencia(); });
+await p.waitForTimeout(1800);
+const comPapel = await olharCapa();
+console.log('      ' + JSON.stringify(comPapel).slice(0, 240));
+
+igual('o papel escolhido vale', comPapel.bg.toUpperCase(), '#2E1065');
+/* ⚠ E O `--painel2` VAI JUNTO. Ele é o fundo dos blocos rasos e da barra do
+   topo. Ficando na cor antiga, a tela sai com duas famílias de fundo
+   brigando — um papel roxo com uma faixa bege em cima dele lê como defeito,
+   não como escolha. */
+verdade('e o fundo dos blocos rasos acompanha, em vez de ficar na cor velha',
+  comPapel.painel2 && comPapel.painel2.toUpperCase() !== '#FBF8F1',
+  comPapel.painel2);
+// A barra do navegador no celular também: senão a tela começa com uma faixa
+// de outra cor acima da página.
+igual('a barra do navegador acompanha o papel',
+  String(comPapel.temaCor).toUpperCase(), '#2E1065');
+
+/* ⚠ E O CARD ESCOLHIDO NÃO SE MEXE. O papel é outra superfície: quem pediu
+   card escuro e papel roxo quer os dois, e não um só. */
+verdade('e o card escolhido continua o que era',
+  comPapel.painel.toUpperCase() !== '#2E1065', comPapel.painel);
+
+// Herdando de volta, o papel volta ao do tema.
+await p.evaluate(() => { herdarCorSolta('papel'); salvarAparencia(); });
+await p.waitForTimeout(1800);
+const semPapel = await olharCapa();
+verdade('herdando, o papel volta ao da base clara/escura',
+  semPapel.bg.toUpperCase() !== '#2E1065', semPapel.bg);
 
 /* ══════════════════════════════════════════════════════════════════════════
    5 — ⚠ A FOTO DE FUNDO QUE JÁ ESTAVA LÁ

@@ -4218,6 +4218,28 @@ function aplicarCoresSoltas(s, p, escuro){
   }
   const titulo = vale('titulo');
   if(titulo) p('--txt', titulo);
+  /* ── O PAPEL DA PÁGINA ────────────────────────────────────────────────
+     A maior superfície da tela, e a única que o dono não conseguia escolher:
+     o fundo só tinha o marfim do tema claro e o grafite do escuro.
+
+     ⚠ E ELE PUXA DOIS COMPANHEIROS. `--bg` sozinho deixaria a barra do topo
+     e os blocos rasos (`--painel2`) na cor antiga, e a tela ficaria com duas
+     famílias de fundo brigando — um papel roxo com uma faixa bege em cima
+     dele lê como defeito, não como escolha. `--painel2` sai do papel por uma
+     conta, na mesma direção do tema: clareia um tiquinho no escuro, escurece
+     um tiquinho no claro.
+
+     ⚠ E A BARRA DO NAVEGADOR VAI JUNTO no celular. `theme-color` fica com a
+     cor da marca por padrão; com papel escolhido, o topo do celular passa a
+     ser a cor do papel — senão a tela começa com uma faixa de outra cor
+     acima da página, e no celular isso é metade da primeira impressão. */
+  const papel = vale('papel');
+  if(papel){
+    p('--bg', papel);
+    p('--painel2', mexer(papel, escuro ? 0.07 : -0.035));
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if(meta) meta.setAttribute('content', papel);
+  }
   const card = vale('card');
   if(card){
     p('--painel', card);
