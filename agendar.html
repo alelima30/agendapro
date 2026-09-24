@@ -1086,6 +1086,17 @@ function bdDaVitrine(v){
       logoForma: s.logoForma || 'circular',
       logoBorda: s.logoBorda || 'media',
       slideForma: s.slideForma || 'panoramico',
+      /* ── A FITA DO CARRINHO, EM METAL ──────────────────────────────────
+         Cinco chaves, e as cinco ausentes no salão que nunca mexeu. Ausente
+         aqui NÃO quer dizer "desligado": quer dizer "o metal de fábrica", que
+         é o mesmo desenho do botão de agendar. Foi o pedido — a barra é
+         metálica; o que o dono escolhe é o quanto, de que cor, em que ritmo e
+         com que canto. */
+      fitaMetal: s.fitaMetal || 'media',
+      fitaBrilho: s.fitaBrilho !== false,
+      fitaTempo: s.fitaTempo || 'media',
+      fitaCor: s.fitaCor || null,
+      fitaBorda: s.fitaBorda || 'reta',
       /* ── ⚠ OS DOIS MÓDULOS, E POR QUE ELES PRECISAM ATRAVESSAR ──────────
          A lista vazia NÃO responde a pergunta que o rodapé faz.
 
@@ -3487,15 +3498,24 @@ function desenharLojaNaCapa(){
   if(!lista.length || !zapDoSalao()){ alvo.innerHTML = ''; return; }
 
   const mostrar = lista.slice(0, 4);
-  const sobram = lista.length - mostrar.length;
 
   alvo.innerHTML = `
     <div class="cat">Produtos em destaque</div>
     <div class="pr-grade">${mostrar.map(p => {
       const n = carrinho[p.id] || 0;
       return `<div class="pr-cartao">
+        <!-- ⚠ A URL VAI NA VARIAVEL --pr-foto, E NAO EM background-image.
+             A foto aparece inteira (contain) sobre uma copia borrada dela
+             mesma, e o borrao mora num ::before — pseudo-elemento nao enxerga
+             estilo embutido do pai, entao a URL precisa vir numa variavel
+             para os dois lados poderem usa-la. Ver .pr-foto no estilo.css.
+
+             (SEM CRASE NESTE COMENTARIO, e eu escrevi com crase mesmo assim —
+             justamente no comentario que fala de codigo. Ele mora dentro de
+             um template literal: uma crase aqui FECHA a string. Sexta vez que
+             esta pedra aparece no projeto.) -->
         <span class="pr-foto"${p.foto
-          ? ` style="background-image:url('${escapar(p.foto)}')"` : ''}>
+          ? ` style="--pr-foto:url('${escapar(p.foto)}')"` : ''}>
           ${p.foto ? '' : '<span data-ico="presente"></span>'}</span>
         <div class="pr-pe">
           <span class="pr-txt">
@@ -4537,6 +4557,76 @@ function aplicarModo(s){
   const fs = s.slideForma || c.slideForma || 'panoramico';
   if(FORMA_SLIDE[fs]) raiz.style.setProperty('--slide-forma', FORMA_SLIDE[fs]);
   else raiz.style.removeProperty('--slide-forma');
+
+  aplicarFita(s, c);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A FITA DO CARRINHO, EM METAL
+
+   A barra que aparece no pé quando há produto no carrinho. Era a cor do salão
+   chapada; agora é metal escovado, com cinco escolhas — o quanto de metal, o
+   brilho que atravessa, a velocidade dele, a cor e o canto de cima.
+
+   ⚠ TUDO SAI DE VARIÁVEL, E NENHUMA COR É ESCRITA AQUI. Quem não escolheu
+   herda `--acao`, a cor do salão, e o metal é calculado em cima dela por
+   `color-mix` — dourado vira ouro, grafite vira aço, rosa vira metal rosado.
+   Cor chapada dentro desta função seria a única coisa da página que não
+   obedece à personalização.
+
+   ⚠ E O PADRÃO NÃO ESCREVE NADA, como no anel da logo e na forma do slide. O
+   CSS já tem o valor de reserva; escrever o mesmo número criaria um estado
+   "escolhido" onde não houve escolha, e a próxima pessoa que mexer no padrão
+   mexeria num lugar e não em dois.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function aplicarFita(s, c){
+  const raiz = document.documentElement;
+  const p = (k, v) => raiz.style.setProperty(k, v);
+  const fora = k => raiz.style.removeProperty(k);
+
+  /* O quanto de metal. Os números são o contraste entre a faixa clara e a
+     escura, em por cento — `media` reproduz o botão de agendar, que é o metal
+     que já está na tela e que o dono já aprovou.
+
+     `chapado` NÃO escreve `--fita-luz`, e é de propósito: sem essa variável o
+     `color-mix` do gradiente fica com argumento vazio e o navegador DESCARTA
+     a declaração inteira, sobrando a cor chapada da regra de cima. É o mesmo
+     mecanismo que protege o navegador antigo, usado aqui de propósito. */
+  const METAL = { suave: ['18%','12%'], media: ['30%','18%'], forte: ['46%','30%'] };
+  const m = METAL[s.fitaMetal || c.fitaMetal || 'media'];
+  if(m){ p('--fita-luz', m[0]); p('--fita-sombra', m[1]); }
+  else { fora('--fita-luz'); fora('--fita-sombra'); }
+
+  /* Estático ou animado. O atributo, e não uma variável: o CSS precisa
+     APAGAR o pseudo-elemento, e `opacity:0` deixaria a animação rodando —
+     trabalho de desenho a cada quadro, no celular, para não mostrar nada. */
+  /* ⚠ A MESMA PENEIRA DE LETRA DOS MÓDULOS, e pelo mesmo motivo: em
+     demonstração o valor chega do `localStorage` e pode ser a STRING "false",
+     que `!== false` deixa passar como ligado. Na nuvem já vem booleano de
+     verdade, mas escrever a peneira só para um dos dois modos é escolher qual
+     deles vai ficar errado. */
+  const cru = s.fitaBrilho != null ? s.fitaBrilho : c.fitaBrilho;
+  const brilho = cru == null
+    || !MOD_NAO.includes(String(cru).trim().toLowerCase());
+  if(brilho) raiz.removeAttribute('data-fita-brilho');
+  else raiz.setAttribute('data-fita-brilho', 'nao');
+
+  const TEMPO = { lenta:'8.5s', media:'5.2s', rapida:'2.8s' };
+  const t = TEMPO[s.fitaTempo || c.fitaTempo || 'media'];
+  if(t && t !== '5.2s') p('--fita-tempo', t); else fora('--fita-tempo');
+
+  /* A cor da fita. Vazia = herda `--acao`, e é o caso de todo salão de hoje.
+     ⚠ A LETRA NÃO ACOMPANHA, e isso é uma limitação conhecida: `--acao-txt`
+     é calculada em cima da cor do BOTÃO. Cor de fita muito clara com letra
+     branca fica ilegível, então o painel só oferece o seletor junto de um
+     aviso de contraste — a mesma régua das outras cores soltas. */
+  const cor = s.fitaCor || c.fitaCor;
+  if(cor && /^#[0-9a-fA-F]{6}$/.test(cor)) p('--fita-cor', cor);
+  else fora('--fita-cor');
+
+  const RAIO = { suave:'10px', redonda:'18px' };
+  const r = RAIO[s.fitaBorda || c.fitaBorda || 'reta'];
+  if(r) p('--fita-raio', r); else fora('--fita-raio');
 }
 
 /* As nove, e o que cada uma pinta. A chave AUSENTE não aparece aqui: o laço

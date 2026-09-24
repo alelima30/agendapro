@@ -197,6 +197,7 @@ rodar "dias por serviço"     node "$AQUI/dias-servico.test.mjs"
 rodar "cadastro de produto" node "$AQUI/produto-cadastro.test.mjs"
 rodar "visual da capa"       node "$AQUI/capa-visual.test.mjs"
 rodar "os dois módulos"      node "$AQUI/modulos.test.mjs"
+rodar "a fita do carrinho"   node "$AQUI/fita.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

@@ -256,6 +256,37 @@ igual('e os dois produtos', m.cartoesProduto, 2);
    é a tela da loja que deixa mudar quantidade e enviar o pedido. */
 verdade('"Ver todos os produtos" aparece mesmo sem sobrar produto',
   m.verTodosProdutos);
+
+/* ⚠ A FOTO DO PRODUTO APARECE INTEIRA, e não recortada no quadrado.
+
+   Era `center/cover`. Para foto de serviço isso funciona — cabelo, unha, um
+   ambiente: é cena, e qualquer pedaço conta a mesma história. Para produto
+   não: foto de produto é um vidro em pé, quase sempre em retrato, e o
+   quadrado come justamente o rótulo, que é a única coisa que identifica o que
+   está à venda.
+
+   `contain` sobre uma cópia BORRADA da mesma imagem — o que o carrossel da
+   capa já faz desde sempre. O dono não precisa recortar nada antes de subir. */
+const foto = await p.evaluate(() => {
+  /* ⚠ O CARTÃO COM FOTO, e não o primeiro da grade. A vitrine ordena por
+     nome, e aqui a "Máscara Nutritiva" (sem foto) vem antes do "Shampoo
+     Reparador" (com foto) — o `querySelector` seco media o cartão do
+     placeholder e reprovava um código certo. */
+  const f = Array.from(document.querySelectorAll('#capaLoja .pr-foto'))
+    .find(x => (x.getAttribute('style') || '').includes('--pr-foto'));
+  if(!f) return null;
+  const e = getComputedStyle(f);
+  const b = getComputedStyle(f, '::before');
+  return { tamanho: e.backgroundSize, url: e.backgroundImage,
+           borraoTamanho: b.backgroundSize, borraoFiltro: b.filter,
+           borraoTemFoto: (b.backgroundImage || '').includes('url(') };
+});
+console.log('      FOTO: ' + JSON.stringify(foto));
+verdade('a foto do produto aparece inteira, sem corte',
+  foto && foto.tamanho === 'contain', JSON.stringify(foto));
+verdade('e o fundo é uma cópia borrada dela mesma, não uma tarja cinza',
+  foto && foto.borraoTamanho === 'cover' && /blur/.test(foto.borraoFiltro)
+       && foto.borraoTemFoto, JSON.stringify(foto));
 igual('o pé continua sendo o de agendar', m.peRotulo.trim(), 'Agendar horário');
 igual('e a cor é a do salão, não uma cor cravada', m.acao, COR.toUpperCase());
 verdade('nada rola de lado', !m.rolaDeLado);

@@ -58,6 +58,12 @@ language sql stable security definer set search_path = public as $$
       'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
       'logoBorda', coalesce(s.cfg->>'logoBorda', 'media'),
       'slideForma', coalesce(s.cfg->>'slideForma', 'panoramico'),
+      'fitaMetal',  coalesce(s.cfg->>'fitaMetal', 'media'),
+      'fitaBrilho', lower(btrim(coalesce(s.cfg->>'fitaBrilho', 'true')))
+                      not in ('false', 'f', '0', 'no', 'nao', 'não'),
+      'fitaTempo',  coalesce(s.cfg->>'fitaTempo', 'media'),
+      'fitaCor',    s.cfg->>'fitaCor',
+      'fitaBorda',  coalesce(s.cfg->>'fitaBorda', 'reta'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
       'gradiente', s.cfg->>'gradiente'
     ),
@@ -3323,6 +3329,12 @@ language sql stable security definer set search_path = public as $$
       'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
       'logoBorda', coalesce(s.cfg->>'logoBorda', 'media'),
       'slideForma', coalesce(s.cfg->>'slideForma', 'panoramico'),
+      'fitaMetal',  coalesce(s.cfg->>'fitaMetal', 'media'),
+      'fitaBrilho', lower(btrim(coalesce(s.cfg->>'fitaBrilho', 'true')))
+                      not in ('false', 'f', '0', 'no', 'nao', 'não'),
+      'fitaTempo',  coalesce(s.cfg->>'fitaTempo', 'media'),
+      'fitaCor',    s.cfg->>'fitaCor',
+      'fitaBorda',  coalesce(s.cfg->>'fitaBorda', 'reta'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
       'gradiente', s.cfg->>'gradiente'
     ),

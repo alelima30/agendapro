@@ -118,6 +118,24 @@ language sql stable security definer set search_path = public as $$
       'logoBorda', coalesce(s.cfg->>'logoBorda', 'media'),
       -- A forma da caixa do carrossel. `panoramico` é o 16/8 de antes.
       'slideForma', coalesce(s.cfg->>'slideForma', 'panoramico'),
+      /* ── A FITA DO CARRINHO, EM METAL ─────────────────────────────────
+         Cinco chaves, e as cinco AUSENTES no salão que nunca mexeu. Ausente
+         não quer dizer "desligado": quer dizer "o metal de fábrica", que é o
+         mesmo do botão de agendar.
+
+         ⚠ `fitaBrilho` SAI COMO BOOLEANO, com a peneira de letra. Não é
+         capricho: é a mesma armadilha do `loja` logo acima, e aqui ela morde
+         mais fácil porque esta chave é gravada por um botão de dois estados
+         — se alguém um dia gravar a string "nao" em vez de `false`, um
+         `::boolean` derruba a `vitrine()` inteira. */
+      'fitaMetal',  coalesce(s.cfg->>'fitaMetal', 'media'),
+      'fitaBrilho', lower(btrim(coalesce(s.cfg->>'fitaBrilho', 'true')))
+                      not in ('false', 'f', '0', 'no', 'nao', 'não'),
+      'fitaTempo',  coalesce(s.cfg->>'fitaTempo', 'media'),
+      /* Sem coalesce: nulo é "não escolhi", e a página herda a cor do botão.
+         Um padrão aqui seria uma cor cravada no banco. */
+      'fitaCor',    s.cfg->>'fitaCor',
+      'fitaBorda',  coalesce(s.cfg->>'fitaBorda', 'reta'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
       'gradiente', s.cfg->>'gradiente'
     ),

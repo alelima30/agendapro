@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.07a333';
+const VERSAO_APP = 'v9.67517c';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7502,6 +7502,52 @@ function pintarSalao(){
         da logo, quando há foto de capa. A cor dele você escolhe acima, em
         <b>Cores, uma a uma</b>.</p>
 
+      <!-- ══════════ A FITA DO CARRINHO ══════════
+           A barra que aparece no pe' quando a cliente poe um produto no
+           carrinho. Ela so' existe em salao que vende — por isso vem DEPOIS
+           das escolhas que todo mundo usa, e nao no meio delas.
+           (Sem crase e sem acento: comentario dentro de template literal.) -->
+      <div class="linha-fina" style="margin:22px 0 14px"></div>
+      <div class="rot" style="margin:0 0 4px">A fita do carrinho</div>
+      <p class="secao-sub" style="margin-bottom:12px">A barra que aparece no
+        pé da tela quando a cliente põe um produto no pedido. Ela é metálica,
+        como o botão de agendar — aqui você decide o quanto.</p>
+
+      <div class="dupla">
+        <div>
+          <div class="secao" style="margin-bottom:8px">Quanto de metal</div>
+          <div class="regua" id="reguaFitaMetal" style="justify-content:flex-start"></div>
+        </div>
+        <div>
+          <div class="secao" style="margin-bottom:8px">Canto de cima</div>
+          <div class="regua" id="reguaFitaBorda" style="justify-content:flex-start"></div>
+        </div>
+      </div>
+      <p class="secao-sub" id="explicaFitaMetal" style="margin-top:9px"></p>
+
+      <div class="dupla" style="margin-top:14px">
+        <div>
+          <div class="secao" style="margin-bottom:8px">Brilho passando</div>
+          <div class="regua" id="reguaFitaBrilho" style="justify-content:flex-start"></div>
+        </div>
+        <div>
+          <div class="secao" style="margin-bottom:8px">Velocidade do brilho</div>
+          <div class="regua" id="reguaFitaTempo" style="justify-content:flex-start"></div>
+        </div>
+      </div>
+      <p class="secao-sub" id="explicaFitaBrilho" style="margin-top:9px"></p>
+
+      <div class="cor-linha" style="margin-top:14px">
+        <input type="color" id="fitaCor" class="cor-bolha"
+               oninput="escolherFitaCor(this.value)" aria-label="Cor da fita">
+        <span class="cor-linha-txt">
+          <b>Cor da fita</b>
+          <span id="fitaCorAjuda">acompanha a cor do botão</span>
+        </span>
+        <button type="button" class="btn btn-peq"
+                id="fitaCorHerdar" onclick="escolherFitaCor('')">herdar</button>
+      </div>
+
       <div class="rot" style="margin:18px 0 8px">Preços na capa</div>
       <div class="regua" id="reguaPreco" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaPreco" style="margin-top:9px"></p>
@@ -8065,6 +8111,17 @@ function lerAparencia(){
        16/8 de antes desta escolha existir. */
     slideForma: ['paisagem','quadrado','retrato'].includes(c.slideForma)
       ? c.slideForma : 'panoramico',
+    /* ── A FITA DO CARRINHO ──────────────────────────────────────────────
+       Mesma peneira das outras: só o que a régua oferece entra. Valor de fora
+       da lista viraria uma variável de CSS que ninguém escreveu, e a página
+       cairia no padrão sem nada explicando por quê. */
+    fitaMetal: ['chapado','suave','forte'].includes(c.fitaMetal)
+      ? c.fitaMetal : 'media',
+    /* `!== false`, e não `|| true`: `false` é escolha legítima. */
+    fitaBrilho: c.fitaBrilho !== false,
+    fitaTempo: ['lenta','rapida'].includes(c.fitaTempo) ? c.fitaTempo : 'media',
+    fitaCor: corValida(c.fitaCor) ? c.fitaCor : '',
+    fitaBorda: ['suave','redonda'].includes(c.fitaBorda) ? c.fitaBorda : 'reta',
     fundoTipo: ['gradiente','imagem'].includes(c.fundoTipo) ? c.fundoTipo : 'cor',
     gradiente: c.gradiente || null,
   };
@@ -8238,6 +8295,59 @@ function pintarAparencia(){
   document.getElementById('reguaLogoForma').innerHTML = FORMAS.map(([v, rot]) =>
     `<button type="button" class="${aparencia.logoForma === v ? 'on' : ''}"
              onclick="escolherAparencia('logoForma','${v}')">${rot}</button>`).join('');
+
+  /* ── A FITA DO CARRINHO ────────────────────────────────────────────────
+     Cinco escolhas, e as cinco caem na mesma barra. A explicação embaixo diz
+     o EFEITO, não o nome do botão: "quase sem relevo" ensina alguma coisa;
+     "suave" repete o rótulo que a pessoa acabou de ler. */
+  const FITA_METAL = [
+    ['chapado', 'Chapada', 'Sem relevo nenhum: a cor lisa, como era antes.'],
+    ['suave',   'Suave',   'Um relevo de leve, que se nota sem chamar atenção.'],
+    ['media',   'Média',   'O mesmo metal do botão de agendar. É o padrão.'],
+    ['forte',   'Forte',   'Metal bem marcado, com claro e escuro bem separados.'],
+  ];
+  document.getElementById('reguaFitaMetal').innerHTML = FITA_METAL.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.fitaMetal === v ? 'on' : ''}"
+             onclick="escolherAparencia('fitaMetal','${v}')">${rot}</button>`).join('');
+  const fmAchado = FITA_METAL.find(x => x[0] === aparencia.fitaMetal);
+  document.getElementById('explicaFitaMetal').textContent = fmAchado ? fmAchado[2] : '';
+
+  const FITA_BORDA = [['reta','Reto'], ['suave','Arredondado'], ['redonda','Bem redondo']];
+  document.getElementById('reguaFitaBorda').innerHTML = FITA_BORDA.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.fitaBorda === v ? 'on' : ''}"
+             onclick="escolherAparencia('fitaBorda','${v}')">${rot}</button>`).join('');
+
+  const FITA_BRILHO = [[true, 'Animado'], [false, 'Parado']];
+  document.getElementById('reguaFitaBrilho').innerHTML = FITA_BRILHO.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.fitaBrilho === v ? 'on' : ''}"
+             onclick="escolherAparencia('fitaBrilho',${v})">${rot}</button>`).join('');
+
+  const FITA_TEMPO = [['lenta','Devagar'], ['media','Normal'], ['rapida','Rápido']];
+  document.getElementById('reguaFitaTempo').innerHTML = FITA_TEMPO.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.fitaTempo === v ? 'on' : ''}"
+             ${aparencia.fitaBrilho ? '' : 'disabled'}
+             onclick="escolherAparencia('fitaTempo','${v}')">${rot}</button>`).join('');
+
+  /* ⚠ A VELOCIDADE FICA CINZA COM O BRILHO PARADO, e a frase diz por quê.
+     Régua viva que não muda nada é a forma mais rápida de fazer alguém achar
+     que a tela está quebrada. */
+  document.getElementById('explicaFitaBrilho').innerHTML = aparencia.fitaBrilho
+    ? 'Uma faixa de luz atravessa a barra de tempos em tempos, como acontece '
+      + 'no botão de agendar.'
+    : 'A barra fica em metal <b>parado</b>. A velocidade ao lado só volta a '
+      + 'valer com o brilho animado.';
+
+  const fc = document.getElementById('fitaCor');
+  if(fc){
+    /* ⚠ O `<input type="color">` NÃO ACEITA VAZIO. Sem escolha, ele mostra a
+       cor do botão — que é o que a fita realmente vai usar — e quem diz se
+       houve escolha é a frase ao lado, não o quadradinho. */
+    fc.value = aparencia.fitaCor || aparencia.cor;
+    document.getElementById('fitaCorAjuda').textContent = aparencia.fitaCor
+      ? 'cor própria, escolhida por você' : 'acompanha a cor do botão';
+    document.getElementById('fitaCorHerdar').style.display =
+      aparencia.fitaCor ? '' : 'none';
+  }
 
   const BORDAS = [['sem','Sem moldura'], ['fina','Fina'],
                   ['media','Média'], ['grossa','Grossa']];
@@ -8501,6 +8611,14 @@ function herdarCorSolta(chave){
 function escolherCor(hex){  aparencia.cor = hex;  pintarAparencia(); }
 function escolherTema(t){   aparencia.tema = t;   pintarAparencia(); }
 function escolherPreco(v){  aparencia.precoNaCapa = v; pintarAparencia(); }
+
+/* Vazio devolve a fita à cor do botão. É o "herdar" das outras cores, com o
+   mesmo nome na tela e o mesmo efeito: a chave sai do `cfg`, e a página passa
+   a calcular em vez de obedecer. */
+function escolherFitaCor(v){
+  aparencia.fitaCor = corValida(v) ? v.toLowerCase() : '';
+  pintarAparencia();
+}
 function escolherBrilho(v){ aparencia.brilho = v;      pintarAparencia(); }
 // Uma função para as escolhas que são só "guarde este valor". As três de
 // cima ficam separadas porque já eram chamadas assim de outros lugares.
@@ -8630,6 +8748,23 @@ function pintarPreviaFone(){
             <div class="fone-sv-txt"><b>${escapar(x.apelido || x.nome)}</b></div>
           </div>`).join('')}
        </div>` : ''}
+       <!-- ⚠ A FITA ENTRA NA PREVIA, e nao so' no link publicado.
+            Escolher metal, brilho e cor sem ver onde cai e' escolher no
+            escuro: o dono so' descobriria o resultado abrindo o proprio link
+            no celular, com um produto no carrinho — tres passos para conferir
+            uma escolha de dois segundos.
+            (Sem crase e sem acento: comentario em template literal.) -->
+       <div class="fone-fita${aparencia.fitaBrilho ? ' com-brilho' : ''}"
+            data-metal="${aparencia.fitaMetal}"
+            data-tempo="${aparencia.fitaTempo}"
+            data-borda="${aparencia.fitaBorda}"
+            ${aparencia.fitaCor
+              ? `style="--fone-fita-cor:${escapar(aparencia.fitaCor)}"` : ''}>
+         <span class="fone-fita-saco">2</span>
+         <span class="fone-fita-txt"><b>2 produtos · R$ 93,00</b>
+           <span>Ver meu pedido</span></span>
+         <span class="fone-fita-zap">Enviar</span>
+       </div>
      </div>
      <p class="secao-sub" style="text-align:center;margin-top:8px">
        Prévia — é assim que a cliente vê</p>`;
@@ -8659,6 +8794,16 @@ function salvarAparencia(){
     logoForma: aparencia.logoForma,
     logoBorda: aparencia.logoBorda,
     slideForma: aparencia.slideForma,
+    fitaMetal: aparencia.fitaMetal,
+    fitaBrilho: aparencia.fitaBrilho,
+    fitaTempo: aparencia.fitaTempo,
+    /* ⚠ VAZIO VIRA NULO, e não a string vazia. Nulo é "não escolhi", e a
+       página herda `--acao`; a string vazia atravessaria a vitrine como uma
+       cor de verdade e o `/^#[0-9a-f]{6}$/` do outro lado a recusaria em
+       silêncio — o mesmo resultado por acidente, que é como se esconde um
+       defeito. */
+    fitaCor: aparencia.fitaCor || null,
+    fitaBorda: aparencia.fitaBorda,
     fundoTipo: aparencia.fundoTipo,
     gradiente: aparencia.gradiente,
   });

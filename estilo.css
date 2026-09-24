@@ -821,6 +821,67 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   transform:translateX(-180%);pointer-events:none;
   animation:brilho-metal 5.2s cubic-bezier(.4,0,.2,1) infinite;
 }
+
+/* ── A FITA DO CARRINHO, NA PRÉVIA ────────────────────────────────────────
+   O mesmo desenho da `.carrinho-fita` da página da cliente, no tamanho do
+   celular de mentira. Não é a mesma folha de regras porque lá quem manda são
+   variáveis escritas pelo JavaScript da PÁGINA, e aqui é o `data-` que o
+   painel escreve enquanto o dono ainda nem salvou.
+
+   ⚠ E OS NÚMEROS TÊM QUE SER OS MESMOS DOS DOIS LADOS. Prévia que mente é
+   pior que prévia nenhuma: o dono escolhe "forte", vê pouca coisa, escolhe
+   de novo, e a página fica com o dobro do que ele queria. Os pares abaixo
+   são os mesmos do `aplicarFita()` no agendar.html — mexer num lugar é
+   mexer nos dois. */
+.fone-fita{
+  position:relative; overflow:hidden;
+  display:flex; align-items:center; gap:7px;
+  margin:14px -11px -11px; padding:8px 11px;
+  --fone-fita-base:var(--fone-fita-cor, var(--fone-marca));
+  background:var(--fone-fita-base); color:var(--fone-marca-txt);
+  font-size:11px;
+}
+.fone-fita[data-metal="suave"], .fone-fita[data-metal="media"],
+.fone-fita[data-metal="forte"]{
+  background-image:linear-gradient(100deg,
+    color-mix(in srgb, var(--fone-fita-base) calc(100% - var(--ff-sombra)), #000)  0%,
+    color-mix(in srgb, var(--fone-fita-base) calc(100% - var(--ff-luz) * .6), #fff) 20%,
+    color-mix(in srgb, var(--fone-fita-base) calc(100% - var(--ff-luz)), #fff)     40%,
+    var(--fone-fita-base)                                                          60%,
+    color-mix(in srgb, var(--fone-fita-base) calc(100% - var(--ff-sombra) * .9), #000) 100%);
+  border-top:1px solid color-mix(in srgb, var(--fone-fita-base) 72%, #000);
+}
+.fone-fita[data-metal="suave"]{ --ff-luz:18%; --ff-sombra:12% }
+.fone-fita[data-metal="media"]{ --ff-luz:30%; --ff-sombra:18% }
+.fone-fita[data-metal="forte"]{ --ff-luz:46%; --ff-sombra:30% }
+.fone-fita[data-borda="suave"]{ border-radius:10px 10px 0 0 }
+.fone-fita[data-borda="redonda"]{ border-radius:18px 18px 0 0 }
+.fone-fita.com-brilho::after{
+  content:""; position:absolute; top:0; bottom:0; left:0; width:38%;
+  background:linear-gradient(100deg, transparent,
+             rgba(255,255,255,.38) 45%, rgba(255,255,255,.55) 55%, transparent);
+  transform:translateX(-180%); pointer-events:none;
+  animation:brilho-metal var(--ff-tempo, 5.2s) cubic-bezier(.4,0,.2,1) infinite;
+}
+.fone-fita[data-tempo="lenta"]{ --ff-tempo:8.5s }
+.fone-fita[data-tempo="rapida"]{ --ff-tempo:2.8s }
+.fone-fita > *{ position:relative; z-index:1 }
+.fone-fita-saco{
+  flex:none; display:grid; place-items:center; width:20px; height:20px;
+  border-radius:50%; background:rgba(255,255,255,.2);
+  font-size:10px; font-weight:800;
+}
+.fone-fita-txt{ flex:1; min-width:0; line-height:1.2 }
+.fone-fita-txt b{ display:block; font-size:11px; white-space:nowrap }
+.fone-fita-txt span{ display:block; font-size:9.5px; opacity:.82 }
+.fone-fita-zap{
+  flex:none; padding:4px 8px; border-radius:7px;
+  background:var(--painel); color:var(--fone-fita-base);
+  font-size:10px; font-weight:750;
+}
+@media (prefers-reduced-motion: reduce){
+  .fone-fita.com-brilho::after{ animation:none; opacity:0 }
+}
 @media (prefers-reduced-motion: reduce){
   .fone-cta.com-brilho::after{ animation:none; opacity:0 }
 }
@@ -1410,11 +1471,43 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
   border-radius:var(--r); overflow:hidden; box-shadow:var(--sombra);
   display:flex; flex-direction:column;
 }
+/* ── ⚠ A FOTO DO PRODUTO APARECE INTEIRA ─────────────────────────────────
+   Era `center/cover`, que CORTA. Para foto de serviço isso funciona — cabelo,
+   unha, um ambiente: é cena, e qualquer pedaço dela conta a mesma história.
+   Para produto não: foto de produto é um vidro em pé, quase sempre em
+   retrato, e o quadrado do cartão come justamente o rótulo, que é a única
+   coisa que identifica o que está à venda. Shampoo cortado é shampoo genérico.
+
+   `contain` sozinho deixaria duas tarjas cinzas de cada lado, então o fundo é
+   uma cópia BORRADA da mesma imagem — exatamente o que o carrossel da capa já
+   faz desde sempre, e pelo mesmo motivo. O dono não precisa recortar nada
+   antes de subir.
+
+   ⚠ E A IMAGEM CHEGA POR `--pr-foto`, NÃO POR `background-image`. O borrão
+   mora num `::before`, e pseudo-elemento não enxerga o estilo embutido do
+   pai: ele precisa da URL numa variável para poder repeti-la. Se algum dia
+   alguém voltar a escrever `style="background-image:..."` no HTML, o
+   `contain` da frente some e o borrão fica sozinho.
+
+   A moldura elegante recorta esta caixa com a máscara de onda, e continua
+   funcionando: máscara corta a CAIXA, não muda o enquadramento de dentro. */
 .pr-foto{
+  position:relative; overflow:hidden;
   display:grid; place-items:center; aspect-ratio:1/1;
-  background:var(--painel2) center/cover no-repeat;
+  background:var(--painel2) var(--pr-foto, none) center/contain no-repeat;
   color:var(--txt3);
 }
+.pr-foto::before{
+  content:""; position:absolute; inset:-14px;   /* sangra: o borrão não vaza */
+  background:var(--pr-foto, none) center/cover no-repeat;
+  filter:blur(18px) saturate(1.2) brightness(.82);
+  /* Sem foto não há o que borrar, e um `none` desenhado é um retângulo
+     transparente por cima do fundo — inofensivo, mas é pintura à toa em cada
+     cartão de um salão que ainda não subiu imagem nenhuma. */
+  z-index:0;
+}
+/* O ícone de reserva e qualquer coisa dentro ficam ACIMA do borrão. */
+.pr-foto > *{ position:relative; z-index:1 }
 .pr-foto .ic-svg{ width:30px; height:30px }
 .pr-pe{
   display:flex; align-items:center; gap:9px; padding:9px 10px 10px;
@@ -1503,7 +1596,7 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
    grudam no mesmo lugar, uma em cima da outra. */
 .pe-fixo{ position:sticky; bottom:0; z-index:3 }
 .carrinho-fita{
-  position:relative; z-index:1;
+  position:relative; z-index:1; overflow:hidden;
   display:flex; align-items:center; gap:10px;
   /* ⚠ SEM MARGEM NEGATIVA. Copiei o `margin:0 -18px` de um bloco que mora
      DENTRO do `<main>`, onde ele cancela o recuo da coluna. A fita mora fora,
@@ -1511,9 +1604,66 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
      18px para fora de cada lado. Medido: a fita ia de -18 a 430 numa tela de
      412, e o botão do WhatsApp ficava cortado pela beira direita. */
   padding:10px 16px;
-  background:var(--acao); color:var(--acao-txt);
+  /* ── ⚠ A COR CHAPADA VEM PRIMEIRO, E ELA NÃO É DECORAÇÃO ────────────────
+     Navegador que não conhece `color-mix` descarta a linha do gradiente
+     inteira e fica com esta. A fita perde o metal e não perde mais nada — o
+     contraste da letra continua calculado, e o botão continua legível.
+     Mesma ordem do `.boas-cta`, e pelo mesmo motivo. */
+  background:var(--fita-cor, var(--acao)); color:var(--acao-txt);
+  border-radius:var(--fita-raio, 0) var(--fita-raio, 0) 0 0;
   box-shadow:0 -6px 18px -10px rgba(0,0,0,.35);
 }
+/* ── ⚠ A FITA EM METAL, E O QUANTO DE METAL É ESCOLHA DO DONO ─────────────
+   O mesmo desenho do `.boas-cta`: metal escovado é uma cor só com claro e
+   escuro, porque a luz bate em ângulo. O que muda aqui é que as tonalidades
+   passam por `--fita-luz` e `--fita-sombra`, dois números que a página
+   escreve a partir da intensidade escolhida.
+
+   ⚠ E `--fita-cor` NÃO ENTRA NA CONTA DIRETO. Ela cai em `--fita-base`, que
+   é `--acao` quando o dono não escolheu cor nenhuma. Sem esse degrau, o
+   `color-mix` recebia `var(--fita-cor)` vazio e a barra inteira sumia — um
+   `color-mix` com argumento inválido não "usa o padrão", ele descarta a
+   declaração, e o que sobrava era o `background` chapado de cima. Ficava
+   parecido o bastante para passar despercebido no claro, e uma faixa da cor
+   errada no escuro.
+
+   Intensidade `chapado` não escreve `--fita-luz`: sem ela esta regra inteira
+   é descartada (é `color-mix` com argumento vazio de novo), e o que fica é a
+   cor chapada da regra acima. Não é gambiarra — é o mesmo mecanismo que
+   protege o navegador antigo, usado de propósito. */
+.carrinho-fita{
+  --fita-base:var(--fita-cor, var(--acao));
+  background-image:linear-gradient(100deg,
+    color-mix(in srgb, var(--fita-base) calc(100% - var(--fita-sombra)), #000)  0%,
+    color-mix(in srgb, var(--fita-base) calc(100% - var(--fita-luz) * .6), #fff) 20%,
+    color-mix(in srgb, var(--fita-base) calc(100% - var(--fita-luz)), #fff)     40%,
+    var(--fita-base)                                                            60%,
+    color-mix(in srgb, var(--fita-base) calc(100% - var(--fita-sombra) * .9), #000) 100%);
+  border-top:1px solid color-mix(in srgb, var(--fita-base) 72%, #000);
+}
+/* A faixa de luz que atravessa, igual à do botão de agendar. `--fita-brilho`
+   em 0 apaga sem mexer em mais nada, e `--fita-tempo` decide o ritmo.
+
+   ⚠ O `body.sem-brilho` continua por cima de tudo. São duas perguntas
+   diferentes — "quero brilho nesta barra?" e "quero brilho em lugar nenhum?"
+   — e a segunda tem que ganhar, senão o interruptor geral vira mentira. */
+.carrinho-fita::after{
+  content:""; position:absolute; top:0; bottom:0; left:0; width:38%;
+  background:linear-gradient(100deg, transparent,
+             rgba(255,255,255,calc(var(--fita-brilho, .38) * .7)) 45%,
+             rgba(255,255,255,var(--fita-brilho, .38)) 55%, transparent);
+  transform:translateX(-180%); pointer-events:none;
+  animation:brilho-metal var(--fita-tempo, 5.2s) cubic-bezier(.4,0,.2,1) infinite;
+}
+@media (prefers-reduced-motion: reduce){
+  .carrinho-fita::after{ animation:none; opacity:0 }
+}
+body.sem-brilho .carrinho-fita::after{ animation:none; opacity:0 }
+/* Brilho desligado só para a fita: a barra continua em metal, parada. */
+[data-fita-brilho="nao"] .carrinho-fita::after{ display:none }
+/* Os dois filhos ficam ACIMA da faixa de luz. Sem isto o `::after` passa por
+   cima do texto e do botão — o valor do pedido pisca de branco a cada volta. */
+.carrinho-fita > *{ position:relative; z-index:1 }
 /* O resumo é um botão de largura inteira: num celular, o alvo grande é o que
    faz a pessoa conseguir voltar ao pedido sem mirar. */
 .carrinho-fita .cf-resumo{
