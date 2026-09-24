@@ -1772,7 +1772,9 @@ body.sem-brilho .marca-selo{ animation:none }
      comer 206, e é a diferença entre o primeiro cartão de serviço aparecer
      ou não na primeira dobra. A foto continua inteira — quem enquadra é o
      `contain` com o borrão atrás, não a proporção da caixa. */
-  aspect-ratio:16 / 8;
+  /* A forma sai de `--slide-forma` quando o dono escolhe; sem escolha, o
+     16/8 de sempre. Ver o `aplicarModo()` no agendar.html. */
+  aspect-ratio:var(--slide-forma, 16 / 8);
 }
 .slide{
   position:absolute; inset:0; margin:0;

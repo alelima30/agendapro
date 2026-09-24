@@ -1085,6 +1085,7 @@ function bdDaVitrine(v){
       modo: s.modo || 'atual',
       logoForma: s.logoForma || 'circular',
       logoBorda: s.logoBorda || 'media',
+      slideForma: s.slideForma || 'panoramico',
       fundoTipo: s.fundoTipo || 'cor',
       gradiente: s.gradiente || null,
       cfg: { diasLiberados: s.diasLiberados },
@@ -1784,7 +1785,6 @@ function desenharCapa(){
      função de desenho só, sem lógica duplicada. O que muda é a forma, e quem
      decide a forma é o CSS pelo `data-moldura` na raiz. */
   const elegante = (salao.moldura || (salao.cfg||{}).moldura) === 'elegante';
-  const grupos = agruparPorCategoria(svs, 'Outros');
 
   /* ⚠ A FORMA DO CARTÃO É DECIDIDA PELO CONJUNTO, NUNCA POR CARTÃO.
 
@@ -1804,10 +1804,23 @@ function desenharCapa(){
      forma só por tela, dos dois jeitos. */
   const temAlgumaFoto = svs.some(s => s.foto);
 
+  /* ⚠ A CAPA NÃO SEPARA POR CATEGORIA, e a tela de todos os serviços separa.
+
+     Aqui saía "NOSSOS SERVIÇOS", depois "CABELO", depois dois cartões, depois
+     "UNHAS", depois um cartão. Três títulos para quatro serviços: a vitrine
+     virava índice, e índice de quatro itens não organiza nada — só empurra o
+     que importa para baixo.
+
+     A capa mostra os DESTAQUES, que são poucos por definição (o dono escolhe,
+     ou a capa pega os primeiros). Quem quer o catálogo inteiro toca em "Ver
+     todos os serviços", e é LÁ que a separação por categoria ganha sentido,
+     porque lá a lista é longa.
+
+     O agrupamento continua existindo e continua sendo usado — só não aqui. */
   document.getElementById('capaServicos').innerHTML = !svs.length ? '' : `
     <div class="cat">${voc('oferecemos')}</div>
-    ${grupos.map(({ rotulo, lista }) => `
-      ${grupos.length > 1 && rotulo ? `<div class="cat-sub">${escapar(rotulo)}</div>` : ''}
+    ${[{ rotulo:'', lista: svs }].map(({ rotulo, lista }) => `
+      ${rotulo ? `<div class="cat-sub">${escapar(rotulo)}</div>` : ''}
       <div class="sv-grade${temAlgumaFoto ? ' com-foto' : ''}">${lista.map(s => `
         <button class="sv-cartao${s.foto ? '' : ' sem-foto'}${
                   escolha.servicos.includes(s.id) ? ' sel' : ''}"
@@ -4320,6 +4333,19 @@ function aplicarModo(s){
   const borda = s.logoBorda || c.logoBorda || 'media';
   if(ESPESSURA[borda]) raiz.style.setProperty('--selo-anel', ESPESSURA[borda]);
   else raiz.style.removeProperty('--selo-anel');
+
+  /* ── A FORMA DA CAIXA DO CARROSSEL ────────────────────────────────────
+     Mesma regra do anel: `panoramico` é o padrão e NÃO escreve nada — o CSS
+     já tem o 16/8 como valor de reserva, e escrever o mesmo número criaria
+     um estado "escolhido" onde não houve escolha.
+
+     A foto continua inteira em qualquer forma: quem enquadra é o `contain`
+     com o borrão atrás, não a proporção da caixa. Mudar a forma muda quanta
+     tela o carrossel ocupa, e não o recorte da imagem. */
+  const FORMA_SLIDE = { paisagem:'16 / 9', quadrado:'1 / 1', retrato:'4 / 5' };
+  const fs = s.slideForma || c.slideForma || 'panoramico';
+  if(FORMA_SLIDE[fs]) raiz.style.setProperty('--slide-forma', FORMA_SLIDE[fs]);
+  else raiz.style.removeProperty('--slide-forma');
 }
 
 /* As nove, e o que cada uma pinta. A chave AUSENTE não aparece aqui: o laço

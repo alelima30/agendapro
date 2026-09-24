@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.c88cc5';
+const VERSAO_APP = 'v9.bf8df2';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7445,6 +7445,12 @@ function pintarSalao(){
       <!-- A espessura do anel em volta da logo. A COR dele esta' nas cores,
            uma a uma, em "Moldura do logo" — duas perguntas diferentes, cada
            uma no lugar onde ja' se pergunta aquilo. -->
+      <!-- A forma da caixa do carrossel. Fica junto do logo e da moldura
+           porque e' a mesma pergunta: que forma as coisas tem nesta pagina. -->
+      <div class="rot" style="margin:18px 0 8px">Formato do slide</div>
+      <div class="regua" id="reguaSlideForma" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaSlideForma" style="margin-top:9px"></p>
+
       <div class="rot" style="margin:18px 0 8px">Moldura do logo</div>
       <div class="regua" id="reguaLogoBorda" style="justify-content:flex-start"></div>
       <p class="secao-sub" style="margin-top:9px">A espessura do anel em volta
@@ -8009,6 +8015,10 @@ function lerAparencia(){
        5px de antes desta escolha existir — nenhum salão muda de aparência. */
     logoBorda: ['sem','fina','grossa'].includes(c.logoBorda)
       ? c.logoBorda : 'media',
+    /* A forma da caixa do carrossel. Ausente vale `panoramico`, que é o
+       16/8 de antes desta escolha existir. */
+    slideForma: ['paisagem','quadrado','retrato'].includes(c.slideForma)
+      ? c.slideForma : 'panoramico',
     fundoTipo: ['gradiente','imagem'].includes(c.fundoTipo) ? c.fundoTipo : 'cor',
     gradiente: c.gradiente || null,
   };
@@ -8188,6 +8198,30 @@ function pintarAparencia(){
   document.getElementById('reguaLogoBorda').innerHTML = BORDAS.map(([v, rot]) =>
     `<button type="button" class="${aparencia.logoBorda === v ? 'on' : ''}"
              onclick="escolherAparencia('logoBorda','${v}')">${rot}</button>`).join('');
+
+  /* `FORMAS_SLIDE`, e não `SLIDES`: já existe um `SLIDES` no topo deste
+     arquivo — é a régua de DE ONDE saem as fotos (serviços ou galeria). Dois
+     nomes iguais em escopos aninhados compilam e um esconde o outro; o
+     segundo a mexer nisso ia achar que consertou e não consertou. */
+  const FORMAS_SLIDE = [
+    ['panoramico', 'Panorâmico',
+     'Bem deitado (16:8). É o formato de hoje, e o que deixa mais tela para '
+     + 'os serviços aparecerem logo abaixo.'],
+    ['paisagem', 'Paisagem',
+     'Deitado (16:9), o formato de foto de celular na horizontal. Um pouco '
+     + 'mais alto que o panorâmico.'],
+    ['quadrado', 'Quadrado',
+     'Um por um. Bom para foto de produto e para arte de rede social, que '
+     + 'quase sempre é quadrada.'],
+    ['retrato', 'Retrato',
+     'Em pé (4:5). Ocupa muita tela no celular — use só se as suas fotos '
+     + 'forem todas em pé.'],
+  ];
+  document.getElementById('reguaSlideForma').innerHTML = FORMAS_SLIDE.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.slideForma === v ? 'on' : ''}"
+             onclick="escolherAparencia('slideForma','${v}')">${rot}</button>`).join('');
+  const sAchado = FORMAS_SLIDE.find(x => x[0] === aparencia.slideForma);
+  document.getElementById('explicaSlideForma').textContent = sAchado ? sAchado[2] : '';
 
   document.getElementById('reguaPreco').innerHTML = PRECOS.map(([v, rot]) =>
     `<button type="button" class="${aparencia.precoNaCapa === v ? 'on' : ''}"
@@ -8578,6 +8612,7 @@ function salvarAparencia(){
     modo: aparencia.modo,
     logoForma: aparencia.logoForma,
     logoBorda: aparencia.logoBorda,
+    slideForma: aparencia.slideForma,
     fundoTipo: aparencia.fundoTipo,
     gradiente: aparencia.gradiente,
   });

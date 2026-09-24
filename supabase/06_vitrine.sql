@@ -116,6 +116,8 @@ language sql stable security definer set search_path = public as $$
       'modo',      coalesce(s.cfg->>'modo', 'atual'),
       'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
       'logoBorda', coalesce(s.cfg->>'logoBorda', 'media'),
+      -- A forma da caixa do carrossel. `panoramico` é o 16/8 de antes.
+      'slideForma', coalesce(s.cfg->>'slideForma', 'panoramico'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
       'gradiente', s.cfg->>'gradiente'
     ),

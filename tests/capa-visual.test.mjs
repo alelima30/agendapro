@@ -398,6 +398,85 @@ await dona.atualizar('saloes', SALAO,
   { whatsapp:'11988887777', telefone:'(11) 98111-3251' });
 
 /* ══════════════════════════════════════════════════════════════════════════
+   2c — AS CATEGORIAS, E A FORMA DO SLIDE
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('As categorias e a forma do slide');
+
+/* ⚠ A CAPA NÃO SEPARA POR CATEGORIA; A TELA DE TODOS OS SERVIÇOS SEPARA.
+   Saíam três títulos para quatro serviços — "NOSSOS SERVIÇOS", "CABELO",
+   "UNHAS" —, e índice de quatro itens não organiza nada: só empurra a
+   vitrine para baixo. A separação ganha sentido onde a lista é longa. */
+await dona.inserir('servicos', { salaoId: SALAO, nome:'Manicure',
+  duracaoMin:60, intervaloMin:0, preco:60, ativo:true, aceitaOnline:true,
+  categoria:'Unhas', foto: arte('#DB2777', '#F9A8D4') });
+
+const pCat = await abrir(412, 915);
+const naCapa = await pCat.evaluate(() => ({
+  subs: document.querySelectorAll('#capaServicos .cat-sub').length,
+  cartoes: document.querySelectorAll('#capaServicos .sv-cartao').length,
+  titulo: (document.querySelector('#capaServicos .cat') || {}).textContent || '',
+}));
+console.log('      capa: ' + JSON.stringify(naCapa));
+igual('a capa não mostra título de categoria nenhum', naCapa.subs, 0);
+verdade('mas mostra os serviços, os dois', naCapa.cartoes >= 2,
+  String(naCapa.cartoes));
+verdade('e o título da seção continua lá', naCapa.titulo.length > 0, naCapa.titulo);
+
+// E na tela de todos os serviços as categorias continuam separando.
+await pCat.click('#btPrincipal');
+await pCat.waitForTimeout(700);
+/* ⚠ `.cat`, E NÃO `.cat-sub`. Na capa o título de categoria é um SUBtítulo,
+   porque acima dele há o "NOSSOS SERVIÇOS". Na tela de todos os serviços a
+   categoria é o título de primeiro nível, e usa `.cat`. Procurei pela classe
+   da capa e achei zero — o que parecia "as categorias sumiram de lá também",
+   e era o seletor errado. */
+const naLista = await pCat.evaluate(() => ({
+  subs: [...document.querySelectorAll('#listaServicos .cat')]
+          .map(e => e.textContent.trim()),
+  opcoes: document.querySelectorAll('#listaServicos button.opcao').length,
+}));
+console.log('      todos: ' + JSON.stringify(naLista));
+verdade('abrindo todos os serviços, as categorias voltam a separar',
+  naLista.subs.length >= 2, JSON.stringify(naLista.subs));
+verdade('e nenhum serviço se perdeu no caminho', naLista.opcoes >= 2,
+  String(naLista.opcoes));
+await pCat.close();
+
+/* ⚠ A FORMA DO SLIDE: `panoramico` é o padrão e NÃO escreve a variável. O CSS
+   já tem o 16/8 de reserva; escrever o mesmo valor criaria um estado
+   "escolhido" onde não houve escolha — a mesma lição da moldura do logo, que
+   a suíte cobrou uma vez e não precisa cobrar duas. */
+const pSlide = await abrir(412, 915);
+igual('sem escolher, a forma do slide não é definida',
+  await pSlide.evaluate(() => getComputedStyle(document.documentElement)
+    .getPropertyValue('--slide-forma').trim()), '');
+const altoAntes = await pSlide.evaluate(() =>
+  Math.round(document.querySelector('.slides').getBoundingClientRect().height));
+await pSlide.close();
+
+await dona.atualizar('saloes', SALAO, { cfg: Object.assign({},
+  (await dona.lista('saloes', { id: SALAO }))[0].cfg, { slideForma:'quadrado' }) });
+const pQuad = await abrir(412, 915);
+const quadrado = await pQuad.evaluate(() => {
+  const c = document.querySelector('.slides').getBoundingClientRect();
+  return { forma: getComputedStyle(document.documentElement)
+             .getPropertyValue('--slide-forma').trim(),
+           larg: Math.round(c.width), alt: Math.round(c.height) };
+});
+console.log('      ' + JSON.stringify(quadrado) + ' — antes: ' + altoAntes);
+igual('escolhendo quadrado, a variável vale', quadrado.forma, '1 / 1');
+/* Medir a CAIXA, e não a variável: variável certa com CSS que não a usa é o
+   erro que não dá sinal. */
+verdade('e a caixa do carrossel fica mesmo quadrada',
+  Math.abs(quadrado.larg - quadrado.alt) <= 2,
+  quadrado.larg + ' x ' + quadrado.alt);
+verdade('e ela é bem mais alta do que era no panorâmico',
+  quadrado.alt > altoAntes + 40, quadrado.alt + ' vs ' + altoAntes);
+await pQuad.close();
+await dona.atualizar('saloes', SALAO, { cfg: Object.assign({},
+  (await dona.lista('saloes', { id: SALAO }))[0].cfg, { slideForma:'panoramico' }) });
+
+/* ══════════════════════════════════════════════════════════════════════════
    3 — ⚠ O SALÃO SEM FOTO NENHUMA
 
    Metade dos salões não sobe capa. A beira curva não pode virar um arco

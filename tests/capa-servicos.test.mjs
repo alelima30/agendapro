@@ -157,22 +157,43 @@ const ordem = await medir();
 console.log('      capa:  ' + JSON.stringify(ordem.grupos));
 console.log('      lista: ' + JSON.stringify(ordem.naLista));
 
+/* ⚠ A CAPA DEIXOU DE SEPARAR POR CATEGORIA, e estas verificações mudaram de
+   endereço junto com a regra.
+
+   Elas cobravam a ordem dos grupos NA CAPA. A capa mostra os destaques, que
+   são poucos por definição — e três títulos para quatro serviços não
+   organizavam nada, só empurravam a vitrine para baixo. O agrupamento
+   continua existindo, continua alfabético, e continua pondo "Outros" por
+   último: agora só na tela de todos os serviços, que é onde a lista é longa o
+   bastante para precisar disso.
+
+   A regra não foi enfraquecida, foi medida no lugar onde ela vive. */
+e('a capa não separa por categoria — ' + JSON.stringify(ordem.grupos),
+  ordem.grupos.length === 0, JSON.stringify(ordem.grupos));
+
 /* Alfabética não é gosto: é a única ordem que a cliente consegue prever. A
    de cadastro é a ordem em que o dono foi digitando, meses atrás. */
-e('os grupos saem em ordem alfabética — ' + JSON.stringify(ordem.grupos),
-  JSON.stringify(ordem.grupos.slice(0, 2)) === JSON.stringify(['Cabelo', 'Unhas']),
-  JSON.stringify(ordem.grupos));
+e('na lista de todos, os grupos saem em ordem alfabética — '
+  + JSON.stringify(ordem.naLista),
+  JSON.stringify(ordem.naLista.slice(0, 2)) === JSON.stringify(['Cabelo', 'Unhas']),
+  JSON.stringify(ordem.naLista));
 
 /* ⚠ E O QUE NÃO TEM CATEGORIA VAI PARA O FIM, COM NOME.
    Nos prints ele abria a página, sem título nenhum em cima — a cliente
-   começava a leitura pelo que o salão não soube classificar. */
-e('e o grupo sem categoria fica por último, e ganha um nome',
-  ordem.grupos[ordem.grupos.length - 1] === 'Outros',
-  JSON.stringify(ordem.grupos));
+   começava a leitura pelo que o salão não soube classificar.
 
-e('a lista de escolher segue a MESMA ordem da capa',
-  JSON.stringify(ordem.naLista.slice(0, 2)) === JSON.stringify(['Cabelo', 'Unhas']),
-  'capa ' + JSON.stringify(ordem.grupos) + ' × lista ' + JSON.stringify(ordem.naLista));
+   ⚠ O NOME É "Serviços" AQUI, e era "Outros" na capa: cada tela passa o
+   próprio rótulo de reserva ao `agruparPorCategoria()`. Na capa, sob o título
+   "NOSSOS SERVIÇOS", um grupo chamado "Serviços" seria eco; nesta tela, que
+   não tem título acima, "Outros" é que não diria nada.
+
+   A REGRA é "vai para o fim e ganha um nome" — e é ela que está medida
+   abaixo, e não a palavra. Cravar "Outros" aqui reprovaria a tela por dizer a
+   coisa certa com a palavra da outra. */
+const ultimo = ordem.naLista[ordem.naLista.length - 1];
+e('e o grupo sem categoria fica por último, e ganha um nome',
+  !!ultimo && !['Cabelo', 'Unhas'].includes(ultimo),
+  JSON.stringify(ordem.naLista));
 
 /* ── 4 · Na moldura elegante, que é a dos prints ─────────────────────────── */
 console.log('\nNa moldura elegante');
