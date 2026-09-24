@@ -3284,6 +3284,8 @@ revoke all on function public.checar_limite_produtos() from public, anon, authen
 
 alter table public.servicos
   add column if not exists dias smallint[];
+alter table public.produtos
+  add column if not exists preco_visivel boolean not null default true;
 create or replace function public.vitrine(p_slug text)
 returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -3320,7 +3322,8 @@ language sql stable security definer set search_path = public as $$
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', pr.id, 'nome', pr.nome, 'marca', pr.marca,
-               'descricao', pr.descricao, 'preco', pr.preco, 'foto', pr.foto)
+               'descricao', pr.descricao, 'foto', pr.foto,
+               'preco', case when pr.preco_visivel then pr.preco else null end)
              order by pr.nome)
         from public.produtos pr
        where pr.salao_id = s.id and pr.ativo and pr.venda_online
@@ -3938,6 +3941,182 @@ begin
   end if;
   return null;
 end $$;
+
+comment on column public.produtos.preco_visivel is
+  'O preço aparece na loja do link? Padrão true — o que a loja sempre fez. False mostra o produto sem o valor, e a cliente pergunta no WhatsApp.';
+create table if not exists public.produtos_profissionais (
+  id             uuid primary key default gen_random_uuid(),
+  produto_id     uuid not null references public.produtos(id) on delete cascade,
+  profissional_id uuid not null references public.profissionais(id) on delete cascade,
+  comissao_pct   numeric(5,2) check (comissao_pct between 0 and 100),
+  comissao_fixa  numeric(10,2) check (comissao_fixa >= 0),
+  unique (produto_id, profissional_id)
+);
+comment on table public.produtos_profissionais is
+  'Exceção de comissão de um produto para um profissional. Linha ausente = usa a comissão do produto. Espelho de servicos_profissionais.';
+alter table public.produtos_profissionais enable row level security;
+drop policy if exists pp_ler on public.produtos_profissionais;
+create policy pp_ler on public.produtos_profissionais for select to authenticated
+  using ( exists (select 1 from public.produtos p
+                   where p.id = produto_id and tem_acesso(p.salao_id)) );
+drop policy if exists pp_gerir on public.produtos_profissionais;
+create policy pp_gerir on public.produtos_profissionais for all to authenticated
+  using ( exists (select 1 from public.produtos p
+                   where p.id = produto_id and e_gestor(p.salao_id)) )
+  with check ( exists (select 1 from public.produtos p
+                        where p.id = produto_id and e_gestor(p.salao_id)) );
+grant select, insert, update, delete on public.produtos_profissionais to authenticated;
+create or replace function public.comissao_de(
+  p_tipo text, p_servico uuid, p_produto uuid, p_profissional uuid,
+  out pct numeric, out fixa numeric)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if p_tipo = 'servico' and p_servico is not null and p_profissional is not null then
+    select sp.comissao_pct, sp.comissao_fixa into pct, fixa
+      from public.servicos_profissionais sp
+     where sp.servico_id = p_servico and sp.profissional_id = p_profissional
+       and (sp.comissao_pct is not null or sp.comissao_fixa is not null);
+    if found then
+      return;
+    end if;
+  elsif p_tipo = 'produto' and p_produto is not null and p_profissional is not null then
+    select pp.comissao_pct, pp.comissao_fixa into pct, fixa
+      from public.produtos_profissionais pp
+     where pp.produto_id = p_produto and pp.profissional_id = p_profissional
+       and (pp.comissao_pct is not null or pp.comissao_fixa is not null);
+    if found then
+      return;
+    end if;
+  end if;
+  if p_tipo = 'servico' and p_servico is not null then
+    select sv.comissao_pct, sv.comissao_fixa into pct, fixa
+      from public.servicos sv
+     where sv.id = p_servico
+       and (sv.comissao_pct is not null or sv.comissao_fixa is not null);
+    if found then
+      return;
+    end if;
+  elsif p_tipo = 'produto' and p_produto is not null then
+    select pd.comissao_pct, pd.comissao_fixa into pct, fixa
+      from public.produtos pd
+     where pd.id = p_produto;
+    if found then
+      return;
+    end if;
+  end if;
+  if p_profissional is not null then
+    select pr.comissao_pct, pr.comissao_fixa into pct, fixa
+      from public.profissionais pr
+     where pr.id = p_profissional;
+    if found then
+      return;
+    end if;
+  end if;
+  pct := 0; fixa := 0;
+end $$;
+comment on function public.comissao_de(text, uuid, uuid, uuid) is
+  'A escada: par, catálogo, pessoa, zero. Vale para serviço e para produto. Não aceita taxa por parâmetro.';
+revoke all on function public.comissao_de(text, uuid, uuid, uuid)
+  from public, anon, authenticated;
+create table if not exists public.estoque_mov (
+  id         uuid primary key default gen_random_uuid(),
+  produto_id uuid not null references public.produtos(id) on delete cascade,
+  de         numeric(10,2) not null,
+  para       numeric(10,2) not null,
+  motivo     text not null default 'ajuste',
+  comanda_id uuid references public.comandas(id) on delete set null,
+  quem       uuid references public.perfis(id) on delete set null,
+  criado_em  timestamptz not null default now()
+);
+create index if not exists ix_estoque_mov_produto
+  on public.estoque_mov (produto_id, criado_em desc);
+comment on table public.estoque_mov is
+  'Toda mudança de produtos.estoque, com de/para e o motivo. Escrita só pelo gatilho tg_produto_estoque_mov.';
+alter table public.estoque_mov enable row level security;
+drop policy if exists em_ler on public.estoque_mov;
+create policy em_ler on public.estoque_mov for select to authenticated
+  using ( exists (select 1 from public.produtos p
+                   where p.id = produto_id and tem_acesso(p.salao_id)) );
+grant select on public.estoque_mov to authenticated;
+create or replace function public.tg_produto_estoque_mov()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_motivo  text;
+  v_comanda uuid;
+begin
+  if new.estoque is not distinct from old.estoque then
+    return null;
+  end if;
+  v_motivo  := coalesce(nullif(current_setting('agendapro.mov_motivo', true), ''), 'ajuste');
+  v_comanda := nullif(current_setting('agendapro.mov_comanda', true), '')::uuid;
+  insert into public.estoque_mov (produto_id, de, para, motivo, comanda_id, quem)
+  values (new.id, old.estoque, new.estoque, v_motivo, v_comanda, auth.uid());
+  return null;
+end $$;
+drop trigger if exists tg_produto_estoque_mov on public.produtos;
+create trigger tg_produto_estoque_mov
+  after update of estoque on public.produtos
+  for each row execute function public.tg_produto_estoque_mov();
+revoke all on function public.tg_produto_estoque_mov() from public, anon, authenticated;
+create or replace function public.tg_comanda_estoque()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_sinal int;
+begin
+  if old.status <> 'fechada' and new.status = 'fechada' then
+    v_sinal := -1;
+  elsif old.status = 'fechada' and new.status <> 'fechada' then
+    v_sinal := 1;
+  else
+    return null;
+  end if;
+  perform set_config('agendapro.mov_motivo',
+                     case when v_sinal < 0 then 'venda' else 'devolucao' end, true);
+  perform set_config('agendapro.mov_comanda', new.id::text, true);
+  update public.produtos p
+     set estoque = p.estoque + v_sinal * i.total_qtd
+    from (select ci.produto_id, sum(ci.qtd) as total_qtd
+            from public.comanda_itens ci
+           where ci.comanda_id = new.id
+             and ci.tipo = 'produto'
+             and ci.produto_id is not null
+           group by ci.produto_id) i
+   where p.id = i.produto_id;
+  perform set_config('agendapro.mov_motivo', '', true);
+  perform set_config('agendapro.mov_comanda', '', true);
+  return null;
+end $$;
+comment on function public.tg_comanda_estoque() is
+  'Baixa o estoque ao fechar a comanda e devolve ao reabrir. Nunca recusa o fechamento. Marca o motivo para o histórico.';
+create or replace function public.estoque_historico(p_produto uuid, p_limite int default 50)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare v_salao uuid;
+begin
+  select salao_id into v_salao from public.produtos where id = p_produto;
+  if v_salao is null then
+    raise exception 'Produto não encontrado.' using errcode = 'no_data_found';
+  end if;
+  if not public.e_gestor(v_salao) then
+    raise exception 'Sem permissão neste salão.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+             'quando', m.criado_em,
+             'de', m.de, 'para', m.para,
+             'delta', m.para - m.de,
+             'motivo', m.motivo,
+             'quem', coalesce(pf.nome, '—'))
+           order by m.criado_em desc)
+      from (select * from public.estoque_mov
+             where produto_id = p_produto
+             order by criado_em desc
+             limit greatest(1, least(coalesce(p_limite, 50), 200))) m
+      left join public.perfis pf on pf.id = m.quem), '[]'::jsonb);
+end $$;
+revoke all on function public.estoque_historico(uuid, int) from public, anon;
+grant execute on function public.estoque_historico(uuid, int) to authenticated;
+comment on function public.estoque_historico(uuid, int) is
+  'As últimas movimentações de estoque de um produto, mais recentes primeiro. Gestão only.';
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();

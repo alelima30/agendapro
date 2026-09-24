@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.5874d0';
+const VERSAO_APP = 'v9.6a8db0';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6541,10 +6541,181 @@ function abrirProduto(pid){
       <span class="i"><span class="n">Vender na página do salão</span>
         <span class="d">A cliente vê e põe no carrinho. Nasce desligado — quem
           publica é você.</span></span></label>
+
+    <!-- ══════════ O PRECO PODE FICAR ESCONDIDO ══════════
+         Outro eixo, e nao o mesmo interruptor de cima: o produto APARECE, com
+         foto e nome, e o valor sai por WhatsApp. Serve para produto de revenda
+         com preco tabelado, para o que o salao vende mais caro que a farmacia
+         da esquina, e para o que muda de preco toda semana.
+         Nasce LIGADO, que e' o que a loja sempre fez.
+         (Sem crase e sem acento em alguns pontos: comentario dentro de
+         template literal.) -->
+    <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px;margin-top:8px">
+      <input type="checkbox" id="pPrecoVisivel"
+             ${!p || p.precoVisivel !== false ? 'checked' : ''}>
+      <span class="i"><span class="n">Mostrar o preço na loja</span>
+        <span class="d">Desligado, a cliente vê o produto sem o valor e
+          pergunta no WhatsApp. O preço nem sai do banco.</span></span></label>
+
+    ${paresDoProduto(p)}
+    ${historicoDoEstoque(p)}
   `, [
     ['Cancelar','fecharModal()',''],
     ['Salvar', `salvarProduto(${p ? `'${p.id}'` : 'null'})`, 'btn-p'],
   ]);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUANDO ESTE PRODUTO PAGA DIFERENTE PARA ALGUÉM
+
+   Espelho do `paresDoServico()`, de propósito: a mesma ideia com duas caras
+   diferentes faria cada tela ensinar um jeito de fazer a mesma coisa.
+
+   ⚠ A ESCADA DO PRODUTO TEM UM DEGRAU A MENOS QUE A DO SERVIÇO, e é
+   deliberado — está escrito no 16_comissao.sql. `produtos.comissao_pct` é
+   `not null default 0`, então o degrau do CATÁLOGO sempre responde e o degrau
+   da PESSOA nunca é alcançado para produto. Quer dizer: produto não herda a
+   comissão geral do profissional.
+
+   Esta tabelinha é o único jeito de dizer "a Ana ganha diferente NESTE
+   produto". Em branco = usa a comissão do produto, que é o de sempre.
+
+   ⚠ O `id` NASCE AQUI, e não no banco. Mesma lição que `servicos_profissionais`
+   aprendeu doendo: o `Dados.subir()` compara os retratos por `id`, e linha sem
+   ele vira a chave `undefined` — duas viram a mesma, a segunda sobrescreve a
+   primeira, e sobe UMA. Sem erro nenhum.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function paresDoProduto(p){
+  if(!p) return `<p style="margin-top:14px;font-size:13px;color:var(--txt2)">
+      Salve o produto primeiro. Depois dá para ajustar a comissão de cada
+      profissional.</p>`;
+
+  const equipe = doSalao(bd.profissionais).filter(x => x.ativo);
+  if(!equipe.length) return '';
+
+  const par = pid => (bd.produtos_profissionais || []).find(
+    x => x.produtoId === p.id && x.profissionalId === pid) || {};
+  const v = x => (x == null ? '' : x);
+
+  return `
+    <h3 style="margin:20px 0 4px;font-size:15px">Quando paga diferente para alguém</h3>
+    <p style="font-size:12px;color:var(--txt2);margin-bottom:10px">
+      Em branco = usa a comissão do produto, aqui de cima. Isto é exceção, não
+      permissão: quem não aparecer preenchido continua vendendo normalmente.</p>
+    <div class="tabela-rola">
+      <table class="tabela" style="box-shadow:none"><thead><tr>
+        <th>Profissional</th>
+        <th style="width:82px">Com. %</th>
+        <th style="width:92px">Com. R$</th>
+      </tr></thead><tbody>
+      ${equipe.map(pr => {
+        const x = par(pr.id);
+        return `<tr>
+          <td>${escapar(pr.nome)}</td>
+          <td><input type="number" step="1" min="0" max="100" class="ppar-in"
+                     data-prof="${pr.id}" data-campo="comissaoPct"
+                     value="${v(x.comissaoPct)}" placeholder="${p.comissaoPct || 0}"></td>
+          <td><input type="number" step="0.01" min="0" class="ppar-in"
+                     data-prof="${pr.id}" data-campo="comissaoFixa"
+                     value="${v(x.comissaoFixa)}" placeholder="—"></td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+/* Lê a tabelinha e reescreve as linhas DESTE produto.
+
+   Linha inteiramente em branco é REMOVIDA, pelo mesmo motivo do serviço: "não
+   tem exceção" e "tem uma exceção vazia" precisam ser a mesma coisa no banco.
+   O `comissao_de()` só aceita o degrau que tem pct OU fixa preenchida, então
+   uma linha vazia não muda nada — ela só fica lá confundindo quem for ler. */
+function guardarParesDoProduto(produtoId){
+  const campos = [...document.querySelectorAll('.ppar-in')];
+  if(!campos.length) return;
+
+  bd.produtos_profissionais = (bd.produtos_profissionais || [])
+    .filter(x => x.produtoId !== produtoId);
+
+  const porProf = new Map();
+  for(const el of campos){
+    const pid = el.dataset.prof;
+    const txt = (el.value || '').trim();
+    if(txt === '') continue;
+    if(!porProf.has(pid)) porProf.set(pid, {});
+    porProf.get(pid)[el.dataset.campo] = parseFloat(txt);
+  }
+
+  for(const [pid, vals] of porProf){
+    bd.produtos_profissionais.push({
+      id: id(), produtoId, profissionalId: pid,
+      comissaoPct: vals.comissaoPct ?? null,
+      comissaoFixa: vals.comissaoFixa ?? null,
+    });
+  }
+}
+
+/* ── O HISTÓRICO DO ESTOQUE ───────────────────────────────────────────────
+   Um botão, e não a lista aberta: quem abre o cadastro quase sempre quer
+   mudar o preço, e a lista de movimentos empurraria o resto do formulário
+   para baixo todo dia por causa de uma consulta que se faz uma vez por mês.
+
+   Só na nuvem: o histórico é escrito por um gatilho do banco, e em
+   demonstração não há gatilho nenhum. Prometer um botão que não responde é
+   pior do que não ter o botão. */
+function historicoDoEstoque(p){
+  if(!p || !NA_NUVEM) return '';
+  return `
+    <div style="margin-top:16px">
+      <button class="btn btn-peq" onclick="verHistoricoEstoque('${p.id}')">
+        Ver histórico do estoque</button>
+      <div id="histEstoque" style="margin-top:10px"></div>
+    </div>`;
+}
+
+async function verHistoricoEstoque(produtoId){
+  const alvo = document.getElementById('histEstoque');
+  if(!alvo) return;
+  alvo.innerHTML = '<p style="font-size:13px;color:var(--txt2)">Buscando…</p>';
+  let linhas;
+  try{
+    linhas = await Dados.chamar('estoque_historico',
+      { p_produto: produtoId, p_limite: 50 });
+  }catch(e){
+    /* ⚠ A FUNÇÃO PODE NÃO EXISTIR NO BANCO DESTE SALÃO. Quem instalou antes
+       desta versão recebe 404 do PostgREST, e "Not Found" na cara do dono não
+       diz o que fazer. Mesma cortesia do dashboard. */
+    const msg = e.message || '';
+    alvo.innerHTML = `<p style="font-size:13px;color:var(--alerta)">${
+      /PGRST202|not found/i.test(msg)
+        ? 'O banco deste salão ainda não tem esta parte. Cole o '
+          + '<b>supabase/98_modulos.sql</b> no Supabase e recarregue a página.'
+        : escapar(msg)}</p>`;
+    return;
+  }
+
+  if(!linhas || !linhas.length){
+    alvo.innerHTML = `<p style="font-size:13px;color:var(--txt2)">
+      Nenhuma movimentação ainda. O estoque passa a ser registrado aqui a
+      partir da próxima venda ou do próximo ajuste.</p>`;
+    return;
+  }
+
+  const ROTULO = { venda:'venda', devolucao:'comanda reaberta', ajuste:'ajuste à mão' };
+  alvo.innerHTML = `<div class="tabela-rola">
+    <table class="tabela" style="box-shadow:none"><thead><tr>
+      <th>Quando</th><th>Movimento</th><th>Motivo</th><th>Quem</th>
+    </tr></thead><tbody>${linhas.map(l => {
+      const d = Number(l.delta);
+      return `<tr>
+        <td>${escapar(String(l.quando).slice(0, 10).split('-').reverse().join('/'))}</td>
+        <td>${d > 0 ? '+' : ''}${d} <span style="color:var(--txt3)"
+          >(${l.de} → ${l.para})</span></td>
+        <td>${escapar(ROTULO[l.motivo] || l.motivo)}</td>
+        <td>${escapar(l.quem || '—')}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+  rotularTabelas(alvo);
 }
 
 async function salvarProduto(pid){
@@ -6598,10 +6769,16 @@ async function salvarProduto(pid){
     comissaoFixa: fixaTxt === '' ? null : parseFloat(fixaTxt),
     ativo: document.getElementById('pAtivo').checked,
     vendaOnline: document.getElementById('pOnline').checked,
+    /* Ligado é o padrão, e é o que a loja sempre fez. Ler o `.checked` direto
+       já garante isso: o campo nasce marcado quando o produto não tem a chave. */
+    precoVisivel: document.getElementById('pPrecoVisivel').checked,
     foto,
   };
   if(pid) Object.assign(acharProduto(pid), dados);
   else (bd.produtos = bd.produtos || []).push({id:alvoId, salaoId:salaoAtual, ...dados});
+
+  // As comissões por pessoa ANTES do salvar, para tudo subir numa gravação só.
+  guardarParesDoProduto(alvoId);
 
   salvar(); fecharModal(); pintar();
 }

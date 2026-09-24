@@ -1080,7 +1080,12 @@ function bdDaVitrine(v){
        comentário do salão descreve logo acima. */
     produtos: (v.produtos || []).map(x => ({
       id: x.id, salaoId, nome: x.nome, marca: x.marca,
-      descricao: x.descricao, preco: Number(x.preco), foto: x.foto,
+      descricao: x.descricao, foto: x.foto,
+      /* ⚠ NULO É UM ESTADO, e `Number(null)` é ZERO. O dono que esconde o
+         preço na loja recebe nulo da `vitrine()`; convertendo direto, o
+         produto apareceria por "R$ 0,00" — que é muito pior do que aparecer
+         sem preço, porque parece uma promessa. */
+      preco: x.preco == null ? null : Number(x.preco),
     })),
     profissionais: (v.profissionais || []).map((x, i) => ({
       id: x.id, salaoId, nome: x.nome, foto: x.foto,
@@ -3153,6 +3158,10 @@ const itensNoCarrinho = () => produtosDaLoja()
 
 function totalDoCarrinho(){
   return produtosDaLoja().reduce(
+    /* Produto sem preço soma zero, e o rótulo do total diz "estimado" desde
+       sempre — por isso a conta não mente, ela fica incompleta de propósito.
+       Somar um chute seria pior: a cliente chegaria com um número na cabeça
+       que o salão nunca disse. */
     (s, p) => s + (carrinho[p.id] > 0 ? carrinho[p.id] * Number(p.preco || 0) : 0), 0);
 }
 
@@ -3226,7 +3235,9 @@ function desenharLoja(){
             ${escapar(p.descricao)}</p>` : ''}
         <div style="display:flex;align-items:center;justify-content:space-between;
                     gap:10px;margin-top:9px;flex-wrap:wrap">
-          <b>${real(Number(p.preco))}</b>
+          <b>${p.preco == null
+              ? '<span style="color:var(--txt2);font-weight:600">sob consulta</span>'
+              : real(Number(p.preco))}</b>
           ${n ? `<span style="display:inline-flex;align-items:center;gap:9px">
                    <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',-1)">−</button>
                    <b style="min-width:1.4em;text-align:center">${n}</b>
@@ -3276,7 +3287,8 @@ function textoDoPedido(){
   const itens = produtosDaLoja()
     .filter(p => carrinho[p.id] > 0)
     .map(p => '• ' + p.nome + (p.marca ? ' (' + p.marca + ')' : '')
-            + ' — ' + carrinho[p.id] + 'x ' + real(Number(p.preco)));
+            + ' — ' + carrinho[p.id] + 'x '
+            + (p.preco == null ? '(preço a combinar)' : real(Number(p.preco))));
   return 'Olá! Vim pela página do ' + salao.nome + ' e quero estes produtos:'
        + '\n\n' + itens.join('\n')
        + '\n\nTotal estimado: ' + real(totalDoCarrinho())

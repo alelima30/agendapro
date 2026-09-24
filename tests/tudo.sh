@@ -194,6 +194,7 @@ rodar "dashboard"            node "$AQUI/dashboard.test.mjs"
 rodar "ajustes do salão"     node "$AQUI/salao-ajustes.test.mjs"
 rodar "identidade visual"    node "$AQUI/identidade-visual.test.mjs"
 rodar "dias por serviço"     node "$AQUI/dias-servico.test.mjs"
+rodar "cadastro de produto" node "$AQUI/produto-cadastro.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

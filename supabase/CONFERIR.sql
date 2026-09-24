@@ -142,6 +142,40 @@ with conferencia(ordem, item, veredito, detalhe) as (
                    like '%''logoForma''%' then ''
               else 'a vitrine() é de antes: a tela de Aparência salva, e a '
                 || 'página da cliente continua com o visual calculado' end
+
+  union all
+  /* Os dias da semana por serviço. Três peças têm que estar de pé, e por isso
+     esta linha olha as três: a COLUNA (senão o painel nem grava), a FUNÇÃO que
+     escreve a recusa, e a `porque_nao_agenda()` chamando a função — que é o
+     que faz a recusa valer para o `horarios_livres()` e para o `agendar()`.
+
+     ⚠ A terceira é a que falha calado. Com a coluna e a função no lugar mas a
+     `porque_nao_agenda()` de antes, o dono marca "escova só de quinta a
+     sábado", a tela grava, e o link continua oferecendo segunda-feira. Sem
+     erro nenhum: só uma regra que não é perguntada a ninguém. */
+  select 12, 'o serviço que só é feito em certos dias',
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema='public' and table_name='servicos'
+                               and column_name='dias') then 'FALTA'
+           when to_regprocedure('public.servico_fora_do_dia(uuid[], date)') is null
+             then 'FALTA'
+           when pg_get_functiondef(to_regprocedure(
+                  'public.porque_nao_agenda(uuid, date, uuid[])'))
+                like '%servico_fora_do_dia%' then 'certo'
+           else 'FALTA' end,
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema='public' and table_name='servicos'
+                               and column_name='dias')
+             then 'falta a coluna servicos.dias — o painel não tem onde gravar'
+           when to_regprocedure('public.servico_fora_do_dia(uuid[], date)') is null
+             then 'falta a função que escreve a recusa'
+           when pg_get_functiondef(to_regprocedure(
+                  'public.porque_nao_agenda(uuid, date, uuid[])'))
+                like '%servico_fora_do_dia%' then ''
+           else 'a porque_nao_agenda() é de antes: o dono marca os dias, a tela '
+             || 'grava, e o link continua oferecendo os outros' end
 )
 select item                                as "o que",
        veredito                            as "está",

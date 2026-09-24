@@ -82,6 +82,9 @@ const COLUNAS = {
   servicos_profissionais: { servicoId:'servico_id',
                    profissionalId:'profissional_id', duracaoMin:'duracao_min',
                    comissaoPct:'comissao_pct', comissaoFixa:'comissao_fixa' },
+  produtos_profissionais: { produtoId:'produto_id',
+                   profissionalId:'profissional_id',
+                   comissaoPct:'comissao_pct', comissaoFixa:'comissao_fixa' },
   jornadas:      { profissionalId:'profissional_id', diaSemana:'dia_semana' },
   bloqueios:     { salaoId:'salao_id', profissionalId:'profissional_id',
                    criadoEm:'criado_em' },
@@ -99,7 +102,8 @@ const COLUNAS = {
                    profissionalId:'profissional_id', duracaoMin:'duracao_min',
                    avisadoEm:'avisado_em', criadoEm:'criado_em' },
   produtos:      { salaoId:'salao_id', comissaoPct:'comissao_pct',
-                   comissaoFixa:'comissao_fixa', vendaOnline:'venda_online' },
+                   comissaoFixa:'comissao_fixa', vendaOnline:'venda_online',
+                   precoVisivel:'preco_visivel' },
   pacotes:       { salaoId:'salao_id', validadeDias:'validade_dias',
                    soNosDias:'so_nos_dias', criadoEm:'criado_em' },
   pacote_servicos: { pacoteId:'pacote_id', servicoId:'servico_id' },
@@ -992,6 +996,11 @@ const TABELAS_SINCRONIZADAS = [
   // que o agendamento exista antes das linhas de serviço dele.
   'agendamento_servicos',
   'lista_espera','produtos',
+  /* Logo depois de `produtos`, e pelo mesmo motivo de `agendamento_servicos`:
+     a chave estrangeira exige que o produto exista antes da linha de comissão
+     dele. Gravar um produto novo junto com a comissão de alguém, na mesma
+     leva, falharia se esta linha viesse antes. */
+  'produtos_profissionais',
   /* Os pacotes ANTES de `pacote_servicos` e `pacote_clientes`: as duas
      apontam para ele, e a chave estrangeira exige que o pai já esteja lá.
      Mesma razão de `agendamento_servicos` vir logo depois do agendamento. */

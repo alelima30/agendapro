@@ -129,6 +129,7 @@ partes.append(limpar(open('supabase/28_sem_comanda.sql', encoding='utf-8').read(
 partes.append(limpar(open('supabase/29_confirmacao.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/30_painel.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/31_dias_servico.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/32_produto_cadastro.sql', encoding='utf-8').read()))
 
 # ⚠ E O 09_cliente.sql POR ÚLTIMO, porque é dele o `agendar()` que vale.
 #

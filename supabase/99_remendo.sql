@@ -1120,6 +1120,8 @@ grant execute on function public.vitrine(text) to anon, authenticated;
 
 alter table public.servicos
   add column if not exists dias smallint[];
+alter table public.produtos
+  add column if not exists preco_visivel boolean not null default true;
 create or replace function public.vitrine(p_slug text)
 returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -1156,7 +1158,8 @@ language sql stable security definer set search_path = public as $$
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', pr.id, 'nome', pr.nome, 'marca', pr.marca,
-               'descricao', pr.descricao, 'preco', pr.preco, 'foto', pr.foto)
+               'descricao', pr.descricao, 'foto', pr.foto,
+               'preco', case when pr.preco_visivel then pr.preco else null end)
              order by pr.nome)
         from public.produtos pr
        where pr.salao_id = s.id and pr.ativo and pr.venda_online

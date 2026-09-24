@@ -48,6 +48,12 @@
 alter table public.servicos
   add column if not exists dias smallint[];
 
+/* Pelo mesmo motivo, a do 32_produto_cadastro.sql: o preço pode ficar
+   escondido da cliente sem o produto sumir da loja. Padrão `true`, que é o
+   que a loja sempre fez — nenhum produto que já existe muda de comportamento. */
+alter table public.produtos
+  add column if not exists preco_visivel boolean not null default true;
+
 create or replace function public.vitrine(p_slug text)
 returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -220,7 +226,12 @@ language sql stable security definer set search_path = public as $$
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', pr.id, 'nome', pr.nome, 'marca', pr.marca,
-               'descricao', pr.descricao, 'preco', pr.preco, 'foto', pr.foto)
+               'descricao', pr.descricao, 'foto', pr.foto,
+               /* ⚠ NULO, e não o preço com uma marca do lado. Mandar o valor
+                  e pedir para a tela não mostrar é publicar o preço mesmo
+                  assim: ele viaja pela rede e fica visível a quem abrir o
+                  inspetor. Preço escondido tem que sair escondido daqui. */
+               'preco', case when pr.preco_visivel then pr.preco else null end)
              order by pr.nome)
         from public.produtos pr
        where pr.salao_id = s.id and pr.ativo and pr.venda_online
