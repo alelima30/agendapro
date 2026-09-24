@@ -1202,9 +1202,28 @@ async function abrirSalaoDaNuvem(slug){
   clearTimeout(acender);
   bd = bdDaVitrine(v);
   entrarNoSalao(slug);
-  // Os pacotes dela, se houver sessão guardada. Não bloqueia a abertura da
-  // página: chega quando chegar, e o `desenhar()` do próximo passo já usa.
-  carregarMeusPacotes().then(() => { if(tela === 'servico') desenhar(); });
+  /* Os pacotes dela, se houver sessão guardada. Não bloqueia a abertura da
+     página: chega quando chegar.
+
+     ⚠ E QUANDO CHEGA, A TELA TEM QUE SER REDESENHADA. Aqui estava
+     `if(tela === 'servico')`, e isso nunca era verdade: esta linha roda logo
+     depois do `entrarNoSalao(slug)`, que termina em `irPara('capa')`. A tela
+     é a CAPA, sempre.
+
+     O efeito era o atalho "Meus pacotes" NUNCA aparecer para ninguém. A capa
+     se desenhava com a lista ainda vazia — a resposta do servidor não tinha
+     chegado — e nada a redesenhava depois. A funcionalidade existia inteira,
+     testada do banco até a tela, e morria na última linha: quem pagou por
+     cinco escovas abria o link e não via nada.
+
+     Não peguei antes porque o teste de pacotes entra pelo botão de agendar e
+     confere o DESCONTO, que é desenhado depois, na tela de serviços. O
+     atalho da capa ninguém tinha olhado com a resposta do servidor atrasada
+     — que é o único jeito que ela chega.
+
+     A condição agora é ter o que mostrar. Com zero pacotes nada mudou na
+     tela, e redesenhar seria trabalho à toa. */
+  carregarMeusPacotes().then(() => { if(meusPacotes.length) desenhar(); });
   /* Não bloqueia nada e não redesenha: só é lida lá na frente, quando ela
      termina de marcar. Pedir agora é ter a resposta na mão na hora certa. */
   carregarPoliticaDeConfirmacao();
@@ -1688,7 +1707,21 @@ function desenhar(){
   if(tela === 'pronto')      { bp.textContent='Ver meus horários'; trilhaAte(0);
                                bs.style.display=''; bs.textContent='Marcar outro'; }
   if(tela === 'meus')        { desenharMeus();      bp.textContent='Agendar novo horário'; trilhaAte(0); }
-  if(tela === 'pacotes')     { desenharPacotes();   bp.textContent='Usar meu pacote'; trilhaAte(0); }
+  /* ⚠ SEM O MÓDULO DE SERVIÇOS NÃO HÁ O QUE USAR, e o botão some.
+
+     O pacote é serviço pago adiantado. Com o módulo desligado, "Usar meu
+     pacote" abria a lista de serviços vazia, com a frase "este salão ainda
+     não publicou os serviços" — que é MENTIRA: ele publicou, e depois
+     desligou o módulo.
+
+     A tela continua: ela mostra quantas sessões sobram, e essa informação é
+     dela. O que sai é a ação que não tem para onde ir. */
+  if(tela === 'pacotes')     { desenharPacotes();   trilhaAte(0);
+                               if(casaFazServicos()){
+                                 bp.textContent = 'Usar meu pacote';
+                               } else {
+                                 rodape.style.display = 'none';
+                               } }
 
   /* ⚠ DEPOIS DE TODOS OS `if`, e não dentro do da capa. O carrinho sobrevive
      à navegação (fica no `localStorage`), então a fita tem que existir em
@@ -3178,12 +3211,22 @@ function desenharPacotes(){
     return;
   }
 
+  /* O aviso vem ANTES dos cartões, e não depois: quem abre esta tela com o
+     módulo desligado vem para usar o pacote, e precisa saber por que não dá
+     antes de contar as sessões. As sessões não se perdem — o salão só não
+     está marcando pelo link agora. */
+  const semAgenda = !casaFazServicos()
+    ? `<div class="recado">O salão não está marcando horário por aqui no
+         momento. Suas sessões continuam guardadas — combine pelo WhatsApp
+         ou no balcão.</div>`
+    : '';
+
   const nomes = ids => (ids || []).map(i => {
     const s = acharServico(i);
     return s ? s.nome : null;
   }).filter(Boolean).join(', ');
 
-  alvo.innerHTML = meusPacotes.map(p => {
+  alvo.innerHTML = semAgenda + meusPacotes.map(p => {
     const n = Number(p.restantes) || 0;
     const cobre = nomes(p.servicos);
     return `

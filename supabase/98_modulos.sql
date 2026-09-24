@@ -43,14 +43,18 @@ language sql stable security definer set search_path = public as $$
       'diasLiberados', public.dias_liberados(s.id),
       'cor',  s.cfg->>'cor',
       'tema', s.cfg->>'tema',
-      'precoNaCapa', coalesce((s.cfg->>'precoNaCapa')::boolean, false),
+      'precoNaCapa', lower(btrim(coalesce(s.cfg->>'precoNaCapa', 'false')))
+                       in ('true', 't', '1', 'yes', 'sim'),
       'fundo', s.cfg->>'fundo',
-      'brilho', coalesce((s.cfg->>'brilho')::boolean, true),
+      'brilho', lower(btrim(coalesce(s.cfg->>'brilho', 'true')))
+                  not in ('false', 'f', '0', 'no', 'nao', 'não'),
       'letra', s.cfg->>'letra',
       'slideDe', s.cfg->>'slideDe',
       'galeria', coalesce(s.cfg->'galeria', '[]'::jsonb),
-      'capaFoco', (s.cfg->>'capaFoco')::int,
-      'veu', (s.cfg->>'veu')::int,
+      'capaFoco', case when s.cfg->>'capaFoco' ~ '^[0-9]+$'
+                       then (s.cfg->>'capaFoco')::int end,
+      'veu', case when s.cfg->>'veu' ~ '^[0-9]+$'
+                  then (s.cfg->>'veu')::int end,
       'cartoes', s.cfg->>'cartoes',
       'moldura', coalesce(s.cfg->>'moldura', 'reta'),
       'cores',     coalesce(s.cfg->'cores', '{}'::jsonb),
@@ -3306,14 +3310,18 @@ language sql stable security definer set search_path = public as $$
       'diasLiberados', public.dias_liberados(s.id),
       'cor',  s.cfg->>'cor',
       'tema', s.cfg->>'tema',
-      'precoNaCapa', coalesce((s.cfg->>'precoNaCapa')::boolean, false),
+      'precoNaCapa', lower(btrim(coalesce(s.cfg->>'precoNaCapa', 'false')))
+                       in ('true', 't', '1', 'yes', 'sim'),
       'fundo', s.cfg->>'fundo',
-      'brilho', coalesce((s.cfg->>'brilho')::boolean, true),
+      'brilho', lower(btrim(coalesce(s.cfg->>'brilho', 'true')))
+                  not in ('false', 'f', '0', 'no', 'nao', 'não'),
       'letra', s.cfg->>'letra',
       'slideDe', s.cfg->>'slideDe',
       'galeria', coalesce(s.cfg->'galeria', '[]'::jsonb),
-      'capaFoco', (s.cfg->>'capaFoco')::int,
-      'veu', (s.cfg->>'veu')::int,
+      'capaFoco', case when s.cfg->>'capaFoco' ~ '^[0-9]+$'
+                       then (s.cfg->>'capaFoco')::int end,
+      'veu', case when s.cfg->>'veu' ~ '^[0-9]+$'
+                  then (s.cfg->>'veu')::int end,
       'cartoes', s.cfg->>'cartoes',
       'moldura', coalesce(s.cfg->>'moldura', 'reta'),
       'loja', lower(btrim(coalesce(s.cfg->>'loja', 'true')))

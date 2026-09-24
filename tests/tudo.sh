@@ -199,6 +199,7 @@ rodar "visual da capa"       node "$AQUI/capa-visual.test.mjs"
 rodar "os dois módulos"      node "$AQUI/modulos.test.mjs"
 rodar "a fita do carrinho"   node "$AQUI/fita.test.mjs"
 rodar "sua conta"            node "$AQUI/conta.test.mjs"
+rodar "todas as telas"       node "$AQUI/telas.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

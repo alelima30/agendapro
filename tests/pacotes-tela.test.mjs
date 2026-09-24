@@ -197,6 +197,46 @@ e('a página carregou o pacote da Maria — ' + JSON.stringify(carregou),
   carregou.quantos === 1 && carregou.nome === 'Unha em Dia',
   'se ficou zero, a cadeia painel → banco → link está quebrada');
 
+/* ══════════════════════════════════════════════════════════════════════════
+   ⚠ O ATALHO NA CAPA — O DEFEITO QUE ESTE ARQUIVO NÃO PEGAVA
+
+   A funcionalidade existia inteira, do banco até a tela, e morria na última
+   linha. O carregamento dos pacotes é assíncrono, e quem o disparava dizia:
+
+       carregarMeusPacotes().then(() => { if(tela === 'servico') desenhar(); });
+
+   Só que essa linha roda logo depois do `entrarNoSalao()`, que termina em
+   `irPara('capa')`. A tela é a CAPA, sempre — a condição nunca era verdade, e
+   nada redesenhava. A capa tinha se desenhado com a lista ainda vazia, porque
+   a resposta do servidor não havia chegado.
+
+   Resultado: quem pagou por cinco escovas abria o link e NÃO VIA NADA. Zero
+   erro no console, zero teste vermelho.
+
+   E não pegava aqui porque esta suíte entra pelo botão de agendar — logo
+   abaixo — e confere o DESCONTO, que é desenhado depois, na tela de serviços.
+   O atalho da capa ninguém tinha olhado com a resposta do servidor atrasada,
+   que é o único jeito que ela chega.
+
+   ⚠ A ESPERA É POR CONDIÇÃO, e não um `waitForTimeout`. Tempo fixo correndo
+   contra a rede é o defeito que fez o `dashboard.test.mjs` falhar dentro da
+   bateria e passar sozinho.
+   ══════════════════════════════════════════════════════════════════════════ */
+let atalhoApareceu = true;
+try{
+  await c.waitForFunction(() => {
+    const a = document.getElementById('capaAtalhos');
+    return a && /pacote/i.test(a.textContent);
+  }, null, { timeout: 12000 });
+}catch(err){ atalhoApareceu = false; }
+e('o atalho "Meus pacotes" aparece na capa quando os pacotes chegam',
+  atalhoApareceu,
+  'a capa foi desenhada antes da resposta do servidor e ninguém a redesenhou');
+const textoAtalho = await c.evaluate(() =>
+  (document.getElementById('capaAtalhos') || {}).textContent || '');
+e('e diz quantas sessões ela ainda tem',
+  /\d+\s+sess(ão|ões)/i.test(textoAtalho), textoAtalho.replace(/\s+/g,' ').trim());
+
 await c.click('.boas-cta');
 await c.waitForTimeout(1200);
 const naLista = await c.evaluate(() =>
@@ -223,6 +263,62 @@ if(hojeVale){
 }
 e('sem erro de JavaScript no link',
   errosC.length === 0, errosC.slice(0, 3).join(' | '));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ⚠ E COM O MÓDULO DE SERVIÇOS DESLIGADO, O PACOTE NÃO PODE LEVAR AO VAZIO
+
+   Pacote é serviço pago adiantado. Com o módulo desligado, "Usar meu pacote"
+   abria a lista de serviços vazia, com a frase "este salão ainda não publicou
+   os serviços" — que é MENTIRA: ele publicou, e depois desligou o módulo.
+
+   A tela continua, porque quantas sessões sobram é informação DELA. O que sai
+   é a ação que não tem para onde ir, e entra uma frase dizendo que as sessões
+   estão guardadas. Um botão que abre o nada é pior que botão nenhum: ela
+   conclui que perdeu o que pagou.
+   ══════════════════════════════════════════════════════════════════════════ */
+console.log('\n── O PACOTE COM A AGENDA DESLIGADA ──────────────────────────');
+{
+  const sl = (await dona.lista('saloes', { id: SALAO }))[0];
+  await dona.atualizar('saloes', SALAO,
+    { cfg: Object.assign({}, sl.cfg, { usaServicos: false }) });
+
+  const c2 = await ctx.newPage();
+  const errosC2 = [];
+  c2.on('pageerror', x => errosC2.push('pageerror: ' + x.message));
+  await c2.addInitScript(([base, ses]) => {
+    window.AGENDAPRO = { url: base, chave:'k', ambiente:'bancada' };
+    localStorage.setItem('agendapro.sessao', JSON.stringify(ses));
+  }, [BASE, maria.sessao()]);
+  await c2.goto(BASE + '/agendar.html?salao=' + SLUG);
+  await c2.waitForFunction(() => {
+    const a = document.getElementById('capaAtalhos');
+    return a && /pacote/i.test(a.textContent);
+  }, null, { timeout: 12000 }).catch(() => {});
+
+  e('o atalho continua na capa: o saldo dela não some porque o salão pausou',
+    /pacote/i.test(await c2.evaluate(() =>
+      (document.getElementById('capaAtalhos') || {}).textContent || '')));
+
+  await c2.evaluate(() => Array.from(document.querySelectorAll('#capaAtalhos .atalho'))
+    .find(x => /pacote/i.test(x.textContent)).click());
+  await c2.waitForTimeout(800);
+  const semAgenda = await c2.evaluate(() => ({
+    passo: document.body.getAttribute('data-passo'),
+    pe: getComputedStyle(document.getElementById('rodapeAcao')).display,
+    texto: (document.getElementById('listaPacotes') || {}).textContent
+             .replace(/\s+/g, ' ').trim(),
+  }));
+  console.log('      ' + JSON.stringify(semAgenda).slice(0, 220));
+  e('a tela dos pacotes abre normalmente', semAgenda.passo === 'pacotes');
+  e('mas o botão "Usar meu pacote" some — ele abriria uma lista vazia',
+    semAgenda.pe === 'none', semAgenda.pe);
+  e('e a tela diz que as sessões continuam guardadas',
+    /guardadas/i.test(semAgenda.texto), semAgenda.texto.slice(0, 160));
+  e('sem erro de JavaScript', errosC2.length === 0, errosC2.slice(0,2).join(' | '));
+
+  await dona.atualizar('saloes', SALAO, { cfg: sl.cfg });
+  await c2.close();
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    3 — O INTERRUPTOR DO BLOQUEIO, LIGADO NO PAINEL

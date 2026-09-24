@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.c8d905';
+const VERSAO_APP = 'v9.4b3fea';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -11192,8 +11192,32 @@ function recomecar(){
 
 /* ── Dados de demonstração ───────────────────────────────────────────────
    A semente vive em `demo.js`, porque o app do cliente precisa dela também.
-   ──────────────────────────────────────────────────────────────────────── */
-function semear(){ return semearDemo(); }
+
+   ⚠ E O `bd` TEM QUE TER A MESMA FORMA NOS DOIS MODOS.
+
+   Na nuvem, o `baixar()` do dados.js monta uma chave por tabela, sempre, nem
+   que seja lista vazia. Na demonstração a semente montava só as tabelas que
+   ela tinha algo para contar — e quem lesse uma das outras recebia
+   `undefined`.
+
+   Não é hipótese: a aba Pacotes ESTOURAVA em demonstração. O
+   `pacotesDoSalao()` faz `doSalao(bd.pacotes)`, e `undefined.filter` derruba
+   a tela inteira com um TypeError no console. Quem está conhecendo o sistema
+   clicava em Pacotes e via uma tela em branco.
+
+   Semear o pacote (feito, no demo.js) conserta ESSA aba. Este laço conserta a
+   CLASSE: a próxima tabela que a semente não tiver nasce vazia em vez de
+   nascer inexistente, e os dois modos voltam a concordar sobre o que é o
+   `bd`. É a mesma lista que o `baixar()` usa, e não uma segunda cópia dela —
+   duas listas divergiriam no dia em que uma tabela nova entrasse. */
+function semear(){
+  const d = semearDemo();
+  const tabelas = (window.Dados && Dados.TABELAS_SINCRONIZADAS) || [];
+  for(const t of tabelas.concat(['planos','assinaturas','perfis','vinculos'])){
+    if(!Array.isArray(d[t])) d[t] = [];
+  }
+  return d;
+}
 
 /* ===========================================================================
    INSTALAR COMO APLICATIVO (PWA)

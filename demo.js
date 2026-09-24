@@ -323,6 +323,31 @@ function semear(){
       {id:id(), salaoId:s1, profissionalId:'p3', data:d, inicio:12*60+15, fim:13*60+15, motivo:'Almoço'},
     ],
     comandas,
+
+    /* ── PACOTES, QUE FALTAVAM ────────────────────────────────────────────
+       A demonstração não semeava pacote nenhum, e a aba Pacotes do painel
+       ESTOURAVA: `pacotesDoSalao()` faz `doSalao(bd.pacotes)`, e
+       `undefined.filter` não perdoa. A tela ficava em branco, com um
+       TypeError no console, para quem está conhecendo o sistema.
+
+       Agora a demonstração mostra a funcionalidade, como já mostra produtos e
+       comandas: um pacote de escovas, vendido para a Maria, com uma sessão já
+       usada. É o estado em que ela é interessante de olhar. */
+    pacotes: [
+      {id:'pk1', salaoId:s1, nome:'5 escovas', sessoes:5, preco:300,
+       validadeDias:90, soNosDias:false, ativo:true},
+      {id:'pk2', salaoId:s1, nome:'Unha em dia', sessoes:4, preco:150,
+       validadeDias:60, soNosDias:true, dias:[2,3,4], ativo:true},
+    ],
+    pacote_servicos: [
+      {id:id(), pacoteId:'pk1', servicoId:'v2'},
+      {id:id(), pacoteId:'pk2', servicoId:'v5'},
+      {id:id(), pacoteId:'pk2', servicoId:'v6'},
+    ],
+    pacote_clientes: [
+      {id:id(), pacoteId:'pk1', clienteId:'c1', salaoId:s1, restantes:4,
+       venceEm: somarDias(hoje(), 74), criadoEm: nascido(16)},
+    ],
   };
 }
 

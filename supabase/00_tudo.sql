@@ -2917,14 +2917,37 @@ language sql stable security definer set search_path = public as $$
          precisar de migração. */
       'cor',  s.cfg->>'cor',
       'tema', s.cfg->>'tema',
-      'precoNaCapa', coalesce((s.cfg->>'precoNaCapa')::boolean, false),
+      /* ── ⚠ AS QUATRO PENEIRAS, E POR QUE NENHUMA USA `::` DIRETO ──────
+         `'abacaxi'::boolean` e `'abacaxi'::int` LEVANTAM no Postgres — não
+         devolvem nulo. Dentro da `vitrine()` isso não é "o ajuste não pega":
+         é a função inteira caindo, e ela é a ÚNICA porta da página da
+         cliente. A casa sai do ar por um caractere, com o link que o salão
+         mandou no WhatsApp.
+
+         Medido, uma chave por vez, num banco de verdade: as quatro derrubavam
+         a `vitrine()`. Eram as últimas — o `loja` e o `usaServicos` já tinham
+         sido peneirados; estas ficaram para trás porque eu consertei a que
+         estava mexendo e não varri o resto.
+
+         ⚠ E O LADO SEGURO NÃO É O MESMO NOS QUATRO.
+
+         `brilho` nasce LIGADO: lixo deixa ligado, que é o visual de hoje.
+         `precoNaCapa` nasce DESLIGADO, e a peneira é invertida — só publica
+         preço quem escreveu exatamente que quer. Lixo aqui não pode revelar
+         valor que o dono não mandou mostrar; é o único dos quatro em que o
+         erro custa dinheiro.
+         `capaFoco` e `veu` são números sem padrão: lixo vira nulo, e a página
+         usa o que ela já usava quando a chave não existia. */
+      'precoNaCapa', lower(btrim(coalesce(s.cfg->>'precoNaCapa', 'false')))
+                       in ('true', 't', '1', 'yes', 'sim'),
       -- A imagem de fundo da página, que o dono anexa em Identidade visual.
       -- Mora no `cfg` e não numa coluna própria de propósito: `cfg` é jsonb
       -- e já existe, então nenhum salão precisa de migração de tabela.
       'fundo', s.cfg->>'fundo',
       -- O brilho do botão principal. Ausente quer dizer LIGADO: é o padrão, e
       -- assim salão criado antes disto existir já nasce com ele.
-      'brilho', coalesce((s.cfg->>'brilho')::boolean, true),
+      'brilho', lower(btrim(coalesce(s.cfg->>'brilho', 'true')))
+                  not in ('false', 'f', '0', 'no', 'nao', 'não'),
       -- A letra do nome na capa. Nulo = a tela decide pelo tipo do negócio.
       'letra', s.cfg->>'letra',
       /* De onde sai o slide da capa: 'servicos' (as fotos dos serviços) ou
@@ -2935,8 +2958,10 @@ language sql stable security definer set search_path = public as $$
       'galeria', coalesce(s.cfg->'galeria', '[]'::jsonb),
       -- Enquadramento da foto de capa (0 = topo à vista, 100 = pé) e quanto
       -- da imagem de fundo aparece por baixo do véu. Nulo = o padrão da tela.
-      'capaFoco', (s.cfg->>'capaFoco')::int,
-      'veu', (s.cfg->>'veu')::int,
+      'capaFoco', case when s.cfg->>'capaFoco' ~ '^[0-9]+$'
+                       then (s.cfg->>'capaFoco')::int end,
+      'veu', case when s.cfg->>'veu' ~ '^[0-9]+$'
+                  then (s.cfg->>'veu')::int end,
       /* Quanto os cartões fecham sobre a foto de fundo: 'auto', 'vidro' ou
          'fechado'. Nulo = 'auto', que é o que a tela faz sozinha — então
          salão criado antes disto não precisa de migração nenhuma.
@@ -10385,14 +10410,37 @@ language sql stable security definer set search_path = public as $$
          precisar de migração. */
       'cor',  s.cfg->>'cor',
       'tema', s.cfg->>'tema',
-      'precoNaCapa', coalesce((s.cfg->>'precoNaCapa')::boolean, false),
+      /* ── ⚠ AS QUATRO PENEIRAS, E POR QUE NENHUMA USA `::` DIRETO ──────
+         `'abacaxi'::boolean` e `'abacaxi'::int` LEVANTAM no Postgres — não
+         devolvem nulo. Dentro da `vitrine()` isso não é "o ajuste não pega":
+         é a função inteira caindo, e ela é a ÚNICA porta da página da
+         cliente. A casa sai do ar por um caractere, com o link que o salão
+         mandou no WhatsApp.
+
+         Medido, uma chave por vez, num banco de verdade: as quatro derrubavam
+         a `vitrine()`. Eram as últimas — o `loja` e o `usaServicos` já tinham
+         sido peneirados; estas ficaram para trás porque eu consertei a que
+         estava mexendo e não varri o resto.
+
+         ⚠ E O LADO SEGURO NÃO É O MESMO NOS QUATRO.
+
+         `brilho` nasce LIGADO: lixo deixa ligado, que é o visual de hoje.
+         `precoNaCapa` nasce DESLIGADO, e a peneira é invertida — só publica
+         preço quem escreveu exatamente que quer. Lixo aqui não pode revelar
+         valor que o dono não mandou mostrar; é o único dos quatro em que o
+         erro custa dinheiro.
+         `capaFoco` e `veu` são números sem padrão: lixo vira nulo, e a página
+         usa o que ela já usava quando a chave não existia. */
+      'precoNaCapa', lower(btrim(coalesce(s.cfg->>'precoNaCapa', 'false')))
+                       in ('true', 't', '1', 'yes', 'sim'),
       -- A imagem de fundo da página, que o dono anexa em Identidade visual.
       -- Mora no `cfg` e não numa coluna própria de propósito: `cfg` é jsonb
       -- e já existe, então nenhum salão precisa de migração de tabela.
       'fundo', s.cfg->>'fundo',
       -- O brilho do botão principal. Ausente quer dizer LIGADO: é o padrão, e
       -- assim salão criado antes disto existir já nasce com ele.
-      'brilho', coalesce((s.cfg->>'brilho')::boolean, true),
+      'brilho', lower(btrim(coalesce(s.cfg->>'brilho', 'true')))
+                  not in ('false', 'f', '0', 'no', 'nao', 'não'),
       -- A letra do nome na capa. Nulo = a tela decide pelo tipo do negócio.
       'letra', s.cfg->>'letra',
       /* De onde sai o slide da capa: 'servicos' (as fotos dos serviços) ou
@@ -10403,8 +10451,10 @@ language sql stable security definer set search_path = public as $$
       'galeria', coalesce(s.cfg->'galeria', '[]'::jsonb),
       -- Enquadramento da foto de capa (0 = topo à vista, 100 = pé) e quanto
       -- da imagem de fundo aparece por baixo do véu. Nulo = o padrão da tela.
-      'capaFoco', (s.cfg->>'capaFoco')::int,
-      'veu', (s.cfg->>'veu')::int,
+      'capaFoco', case when s.cfg->>'capaFoco' ~ '^[0-9]+$'
+                       then (s.cfg->>'capaFoco')::int end,
+      'veu', case when s.cfg->>'veu' ~ '^[0-9]+$'
+                  then (s.cfg->>'veu')::int end,
       /* Quanto os cartões fecham sobre a foto de fundo: 'auto', 'vidro' ou
          'fechado'. Nulo = 'auto', que é o que a tela faz sozinha — então
          salão criado antes disto não precisa de migração nenhuma.

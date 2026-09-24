@@ -187,6 +187,49 @@ igual('"0" desliga', v.salao.usaServicos, false);
 igual('"f" desliga', v.salao.loja, false);
 
 /* ══════════════════════════════════════════════════════════════════════════
+   ⚠ E A REGRA VALE PARA TODA CHAVE DA VITRINE, NÃO SÓ PARA ESTAS DUAS
+
+   Depois de peneirar `loja` e `usaServicos` eu parei — consertei a que estava
+   mexendo e não varri o resto. Sobraram quatro com `::` cru, e a medição num
+   banco de verdade mostrou as quatro derrubando a `vitrine()` inteira.
+
+   Este laço existe para a próxima chave: quem acrescentar uma sexta e usar
+   `::boolean` reprova aqui, e não no dia em que um salão sair do ar.
+
+   ⚠ O LADO SEGURO NÃO É O MESMO EM TODAS, e por isso a tabela diz qual é.
+   `precoNaCapa` é o único em que o erro custa dinheiro: lixo não pode
+   publicar um valor que o dono não mandou mostrar. */
+secao('2b · Nenhuma chave do cfg pode derrubar a vitrine');
+
+const COM_LIXO = [
+  ['loja',        true,  'a loja fica ligada'],
+  ['usaServicos', true,  'os serviços ficam ligados'],
+  ['brilho',      true,  'o brilho fica ligado, que é o visual de hoje'],
+  ['precoNaCapa', false, 'o preço NÃO é publicado — lixo não revela valor'],
+  ['fitaBrilho',  true,  'o brilho da fita fica ligado'],
+  ['capaFoco',    null,  'o enquadramento vira nulo, e a página usa o padrão'],
+  ['veu',         null,  'o véu vira nulo, e a página usa o padrão'],
+];
+for(const [chave, esperado, frase] of COM_LIXO){
+  const sl = (await dona.lista('saloes', { id: SALAO }))[0];
+  const limpo = Object.assign({}, sl.cfg);
+  delete limpo.usaServicos; delete limpo.loja;
+  await dona.atualizar('saloes', SALAO,
+    { cfg: Object.assign({}, limpo, { [chave]: 'abacaxi' }) });
+  let resp = null, caiu = null;
+  try{ resp = await vitrine(); }catch(e){ caiu = e; }
+  if(caiu){
+    nao(`com lixo em "${chave}", a vitrine ainda responde`,
+        'a vitrine LEVANTOU: ' + caiu.message);
+  } else {
+    ok(`com lixo em "${chave}", a vitrine ainda responde`);
+    igual(`  e ${frase}`, resp.salao[chave] === undefined ? null : resp.salao[chave],
+          esperado);
+  }
+}
+await ligar(undefined, undefined);
+
+/* ══════════════════════════════════════════════════════════════════════════
    3 — A CAPA SE MONTA SOZINHA
    ══════════════════════════════════════════════════════════════════════════ */
 secao('3 · As quatro combinações, num celular de 412px');
