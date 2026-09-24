@@ -1549,6 +1549,10 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
   font-size:13.5px; font-weight:750; cursor:pointer;
 }
 .carrinho-fita .cf-zap .ic-svg{ width:18px; height:18px }
+/* Ícone dentro de um botão de texto: menor que o do botão redondo, e alinhado
+   pela linha da letra em vez de pelo centro da caixa. */
+.ic-pequeno.ic-svg, .btn .ic-pequeno{ width:16px; height:16px; margin-right:5px;
+  vertical-align:-3px }
 .carrinho-fita .cf-zap:active{ transform:scale(.98) }
 /* ⚠ E O CORPO GANHA ESPAÇO EMBAIXO. Sem isto a fita tapa o último cartão da
    página — e "o botão fixo inferior não pode esconder conteúdo importante"
@@ -2149,6 +2153,28 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 /* Os ícones herdam a cor da letra do botão — inclusive quando ela vira preta
    por causa de uma cor de marca clara, como o dourado. */
 .boas-cta .ic-svg, .boas-b2 .ic-svg{ width:19px; height:19px }
+
+/* ── QUANDO A CASA TEM OS DOIS CAMINHOS ───────────────────────────────────
+   Agendar E ver produtos. O primeiro em metal, o segundo discreto: são duas
+   ações legítimas, mas não são do mesmo tamanho — a maioria abre este link
+   para marcar horário, e dois botões em metal lado a lado não deixam o olho
+   escolher nenhum.
+
+   ⚠ E ESTE BLOCO VEM DEPOIS DO `@container` LÁ DE CIMA, de propósito. Aquele
+   dá `width:auto` ao `.boas-cta` como filho direto do cartão; com o embrulho
+   o botão deixa de ser filho direto, e quem passa a medir é este. Foi a mesma
+   pedra que espremeu o texto numa coluna de 30px quando o bloco de cima
+   estava na ordem errada — a nota completa está lá.
+
+   O embrulho só existe com DOIS botões. Com um, o HTML é exatamente o de
+   antes, e o caminho que todo salão de hoje usa não passa por nenhuma regra
+   nova. */
+.boas-acoes{ display:grid; gap:9px }
+.boas-acoes .boas-b2{ margin-top:0 }
+@container (min-width: 380px){
+  .boas-acoes{ flex:0 0 auto }
+  .boas-acoes .boas-cta, .boas-acoes .boas-b2{ width:auto; padding:0 22px }
+}
 
 .cat-sub{
   font-size:12px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;

@@ -3932,6 +3932,7 @@ declare
   v_hoje    date;
   v_token   uuid;
   v_abertas int;
+  v_motivo  text;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
   v_tel  := public.so_digitos(p_telefone);
@@ -3978,6 +3979,24 @@ begin
     raise exception 'A agenda está liberada até %.',
       to_char(v_hoje + public.dias_liberados(p_salao), 'DD/MM/YYYY')
       using errcode = 'check_violation';
+  end if;
+
+  /* ── ⚠ A JANELA PRECISA TER PELO MENOS UM DIA POSSÍVEL ─────────────────
+     Sem isto, o mesmo link recusava marcar escova na segunda — com a frase
+     certa — e aceitava a cliente na fila de domingo a quarta, janela em que a
+     escova não é feita em dia nenhum. Ela recebia "pronto, a gente te avisa"
+     e ficava esperando um telefonema que não podia acontecer.
+
+     ⚠ E A CONFERÊNCIA VEM DEPOIS DAS DATAS, de propósito: com `p_ate` antes
+     de `p_de`, "confira as datas" é a resposta útil; falar dos dias da semana
+     de uma janela invertida seria responder outra pergunta.
+
+     A frase é a mesma da recusa de marcar — ver `servico_fora_do_periodo()`
+     no 31_dias_servico.sql. Dois textos para o mesmo motivo fazem a cliente
+     achar que são dois problemas. */
+  v_motivo := public.servico_fora_do_periodo(p_servicos, p_de, p_ate);
+  if v_motivo is not null then
+    raise exception '%', v_motivo using errcode = 'check_violation';
   end if;
 
   -- Mesma função das outras duas. Entrar na fila com um número diferente do
@@ -10388,11 +10407,45 @@ language sql stable security definer set search_path = public as $$
          elegante com fundo de vidro. */
       'moldura', coalesce(s.cfg->>'moldura', 'reta'),
 
-      /* O interruptor da loja inteira. Ausente = ligada: os PRODUTOS já
-         nascem fechados um a um, e exigir dois "sim" faria o dono marcar o
-         produto e não entender por que nada apareceu. Serve para pausar a
-         loja sem desmarcar vinte produtos. */
-      'loja', coalesce((s.cfg->>'loja')::boolean, true),
+      /* ── ⚠ OS DOIS MÓDULOS DA CASA ────────────────────────────────────
+         `usaServicos` e `loja` dizem com o que o estabelecimento trabalha:
+         agenda, loja, ou as duas. Os dois nascem LIGADOS — é o que todo salão
+         já é hoje, e nenhum deles muda de comportamento por causa destas
+         linhas.
+
+         `loja` já existia e já peneirava a lista de produtos lá embaixo. Era
+         meio interruptor: o banco o respeitava, nenhuma tela o ligava, e a
+         página da cliente nem o lia. Agora ele é a outra metade de um par, e
+         a capa se monta a partir dos dois. Ausente = ligada, porque os
+         PRODUTOS já nascem fechados um a um — exigir dois "sim" faria o dono
+         marcar o produto e não entender por que nada apareceu.
+
+         ⚠ E O NOME É `usaServicos`, NÃO `servicos`. A vitrine já devolve uma
+         chave `servicos` — é a LISTA. Duas coisas diferentes com o mesmo nome
+         no mesmo objeto é o tipo de colisão que compila, roda, e entrega a
+         lista onde alguém esperava um sim/não.
+
+         ⚠ E A PENEIRA É DE TEXTO, NÃO `::boolean`. Estava `(...)::boolean`
+         aqui — copiado sem pensar quando o `loja` nasceu, e sem consequência
+         enquanto NENHUMA TELA escrevia a chave: o `cfg` só continha o que o
+         painel punha, e o painel não punha nada. A partir de agora o dono
+         liga e desliga isto, e `'abacaxi'::boolean` LEVANTA no Postgres — não
+         devolve nulo. Um `cfg` com lixo derrubaria a `vitrine()` inteira, que
+         é a única porta da página da cliente: a casa toda sairia do ar por um
+         caractere.
+
+         É a mesma armadilha do `antecedenciaMin` com `'abc'::int` no 14, e a
+         mesma resposta do `usa_comanda()` no 29 — a terceira vez que ela
+         aparece neste projeto. Só desliga quem escreveu exatamente que quer
+         desligar; qualquer outra coisa deixa ligado, que é o lado seguro.
+
+         (Inline, e não uma chamada ao `usa_comanda()`: esta é uma função SQL,
+         que compila o corpo na hora, e o 29 roda DEPOIS do 25 nos dois
+         pacotes. Chamar dali seria a mesma pedra do `v.dias` lá em cima.) */
+      'loja', lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+                not in ('false', 'f', '0', 'no', 'nao', 'não'),
+      'usaServicos', lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+                       not in ('false', 'f', '0', 'no', 'nao', 'não'),
 
       /* ── OS SERVIÇOS QUE APARECEM NA CAPA ─────────────────────────────
          Lista de ids que o dono marcou como destaque. Um salão com vinte
@@ -10508,7 +10561,8 @@ language sql stable security definer set search_path = public as $$
              order by pr.nome)
         from public.produtos pr
        where pr.salao_id = s.id and pr.ativo and pr.venda_online
-         and coalesce((s.cfg->>'loja')::boolean, true)), '[]'::jsonb),
+         and lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+               not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb),
 
     /* ── ⚠ `dias` PRECISA VIR JUNTO, E NÃO É ENFEITE ─────────────────────
        Quem RECUSA é o banco (`porque_nao_agenda`, no 31). Sem esta chave a
@@ -10530,7 +10584,14 @@ language sql stable security definer set search_path = public as $$
                             then null else to_jsonb(v.dias) end)
              order by v.categoria nulls last, v.nome)
         from public.servicos v
-       where v.salao_id = s.id and v.ativo and v.aceita_online), '[]'::jsonb),
+       where v.salao_id = s.id and v.ativo and v.aceita_online
+         /* ⚠ O MÓDULO PENEIRA A LISTA AQUI, e não só na tela. Deixar a lista
+            sair e pedir para a página não desenhar seria publicar o catálogo
+            de um salão que decidiu não trabalhar com serviços — visível a
+            quem abrisse o inspetor. É a mesma trava que a loja já tinha, e
+            pela mesma razão. */
+         and lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+               not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb),
 
     'profissionais', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -11852,8 +11913,15 @@ begin
   /* A frase diz as três coisas que resolvem sozinhas: o que não cabe, quando
      cabe, e o que fazer agora. Sem a última ela fica sabendo que não pode e
      não sabe o que fazer — que é o mesmo que não ter resposta. */
+  /* ⚠ SEM CONCORDÂNCIA DE GÊNERO NA FRASE. Aqui estava "%s é feito só %s", e
+     saía "Escova é feito só quinta" — o nome do serviço é texto livre do dono,
+     e metade deles é feminino. Não dá para adivinhar o gênero, e errar a
+     concordância numa recusa é o tipo de detalhe que faz a página parecer
+     descuidada exatamente no momento em que ela está negando alguma coisa.
+
+     Dois-pontos resolvem sem adivinhar nada. */
   return format(
-    '%s é feito só %s. Escolha um desses dias, tire este serviço do pedido, '
+    '%s: só %s. Escolha um desses dias, tire este serviço do pedido, '
     || 'ou chame o salão no WhatsApp.',
     v_nome, public.dias_por_extenso(v_dias));
 end $$;
@@ -11861,9 +11929,78 @@ end $$;
 comment on function public.servico_fora_do_dia(uuid[], date) is
   'Frase de recusa quando algum serviço do pedido não é feito no dia da semana pedido. NULL quando não há nada a barrar. Só o link usa: a recepção marca por fora.';
 
+/* ⚠ SEM GRANT NENHUM, e não `to anon, authenticated`.
+
+   Eu tinha liberado as duas para o anon por reflexo — "é o link que usa, o
+   link é anônimo". Errado: quem o link chama é a `porque_nao_agenda()` e o
+   `entrar_na_fila()`, e as duas são `security definer`. Enquanto elas rodam,
+   quem executa é o DONO da função, não a cliente — então a ajudante não
+   precisa estar aberta a ninguém.
+
+   Quem apontou foi o `portas.test.sql`, que cobra justificativa de toda
+   `security definer` aberta ao anon. E ele só chegou a rodar porque o
+   `tests/rodar.sh` passou a instalar o módulo 31 — antes ele parava no 29, e
+   estas duas funções nunca existiram no banco de teste. Um guarda que não
+   enxerga metade da casa não é um guarda.
+
+   Aberta ao anon, `servico_fora_do_dia` é uma consulta sobre serviços de
+   QUALQUER salão, com o id no parâmetro: um id adivinhado devolve o nome do
+   serviço na frase de recusa. Pouco, mas é mais do que zero, e de graça. */
 revoke all on function public.servico_fora_do_dia(uuid[], date) from public;
-grant execute on function public.servico_fora_do_dia(uuid[], date)
-  to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 2b) A MESMA PERGUNTA, PARA UM PERÍODO INTEIRO
+--
+-- A lista de espera não pede um dia: pede uma JANELA ("de 27 a 30, qualquer
+-- turno"). A pergunta certa ali é outra — existe ALGUM dia dessa janela em
+-- que o salão faz tudo o que ela pediu?
+--
+-- ── ⚠ POR QUE ISTO PRECISOU EXISTIR ───────────────────────────────────────
+-- Sem ela, o mesmo link RECUSAVA marcar escova na segunda, com a frase certa,
+-- e ACEITAVA a cliente na fila de espera de domingo a quarta — uma janela em
+-- que a escova não é feita em dia nenhum.
+--
+-- É a pior forma de falhar que este projeto conhece: nada dá erro, a cliente
+-- recebe um "pronto, a gente te avisa", e espera um telefonema que não pode
+-- acontecer. Do lado do salão também não aparece nada — a fila tem um pedido
+-- impossível no meio dos possíveis.
+--
+-- ⚠ E BASTA UM DIA PARA ACEITAR. Se a janela pega uma quinta, a fila é
+-- legítima: o salão vai oferecer a quinta. Recusar uma janela por ela conter
+-- dias ruins seria recusar quase todas — quase toda janela de uma semana tem
+-- pelo menos um dia de fora.
+-- ---------------------------------------------------------------------------
+create or replace function public.servico_fora_do_periodo(
+  p_servicos uuid[], p_de date, p_ate date)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare v_dia date;
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0
+     or p_de is null or p_ate is null or p_ate < p_de then
+    return null;
+  end if;
+
+  /* Sai no primeiro dia que serve. A janela é limitada pelo `dias_liberados`
+     de quem chama, então isto roda dezenas de vezes, não milhares — e para na
+     primeira quinta-feira que aparecer. */
+  for v_dia in select d::date from generate_series(p_de, p_ate, interval '1 day') d
+  loop
+    if public.servico_fora_do_dia(p_servicos, v_dia) is null then
+      return null;
+    end if;
+  end loop;
+
+  -- Nenhum dia serve: a frase é a mesma da recusa de marcar, para a cliente
+  -- não receber duas explicações diferentes do mesmo motivo.
+  return public.servico_fora_do_dia(p_servicos, p_de);
+end $$;
+
+comment on function public.servico_fora_do_periodo(uuid[], date, date) is
+  'Frase de recusa quando NENHUM dia do período serve para os serviços pedidos. NULL quando pelo menos um serve. Usada pela lista de espera.';
+
+-- Sem grant, pelo mesmo motivo da irmã: quem a chama é o `entrar_na_fila()`,
+-- que é `security definer` e roda como dono.
+revoke all on function public.servico_fora_do_periodo(uuid[], date, date) from public;
 
 -- ---------------------------------------------------------------------------
 -- 3) A POLÍTICA DA AGENDA ONLINE, COM O DIA DO SERVIÇO NO MEIO

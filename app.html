@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.bf8df2';
+const VERSAO_APP = 'v9.07a333';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7216,6 +7216,51 @@ function pintarSalao(){
           </select></div>
       </div>
 
+      <!-- ══════════ OS DOIS MODULOS DA CASA ══════════
+           A pergunta mais larga de todas, e por isso a PRIMEIRA: ela decide o
+           que a pagina da cliente mostra. Vem antes de "como voce trabalha"
+           porque aquela ja pressupoe que existe agenda.
+
+           ⚠ ISTO NAO ESCONDE ABA NENHUMA DO PAINEL, e e' de proposito. O
+           catalogo de Produtos alimenta a COMANDA — vender um shampoo no
+           balcao nao tem nada a ver com vender pelo link — entao esconder a
+           aba junto tiraria do dono uma venda que ele faz todo dia. Estes dois
+           interruptores dizem o que a PAGINA DA CLIENTE oferece, so isso.
+           (Sem crase e sem acento: comentario dentro de template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">O que a sua página oferece</h3>
+      <p class="secao-sub">Os dois são independentes. A página se monta
+        sozinha com o que estiver ligado — e o que estiver desligado não
+        deixa espaço vazio.</p>
+      <!-- A classe dupla e' a grade de duas colunas que esta tela ja usa em
+           todo lugar, e ela vira uma coluna so' abaixo de 640px sem ninguem
+           escrever nada. Classe nova aqui seria uma terceira forma de fazer
+           duas colunas, com um ponto de quebra proprio para manter.
+
+           ⚠ E SEM CRASE NESTE COMENTARIO. Ele mora dentro de um template
+           literal: uma crase aqui FECHA a string, e o resto do painel vira
+           JavaScript invalido. Escrevi ".dupla" entre crases e a tela de Meu
+           salao parou de existir — sem mensagem nenhuma, porque o erro e' de
+           sintaxe e acontece antes de qualquer linha rodar. -->
+
+      <div class="dupla">
+        <div>
+          <div class="secao" style="margin-bottom:8px">
+            <span data-ico="tesoura" class="ic-pequeno"></span>Serviços e agendamento</div>
+          <div class="regua" id="reguaModServico" role="group"
+               aria-label="Mostrar serviços e agendamento na página"
+               style="justify-content:flex-start"></div>
+        </div>
+        <div>
+          <div class="secao" style="margin-bottom:8px">
+            <span data-ico="carrinho" class="ic-pequeno"></span>Produtos à venda</div>
+          <div class="regua" id="reguaModLoja" role="group"
+               aria-label="Mostrar produtos na página"
+               style="justify-content:flex-start"></div>
+        </div>
+      </div>
+      <p class="secao-sub" id="explicaModulos" style="margin-top:10px"></p>
+
       <!-- COMO O SALAO TRABALHA. Vem antes das regras da agenda de proposito:
            e a pergunta mais larga das tres, e a resposta muda o menu inteiro.
            (Sem crase e sem acento: comentario dentro de template literal.) -->
@@ -7663,6 +7708,7 @@ function pintarSalao(){
   pintarPassoLink();
   pintarRecados();
   pintarAntecedencia();
+  pintarModulos();
   pintarComanda();
   pintarConfirma();
   pintarTetoOnline();
@@ -8936,6 +8982,82 @@ function pintarComanda(){
 
 function escolherComanda(v){ comandaEscolhida = !!v; pintarComanda(); }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   OS DOIS MÓDULOS DA CASA
+
+   `usaServicos` e `loja`, no mesmo `cfg` e com a MESMA peneira de letra da
+   comanda logo acima — o `NAO` é o mesmo array. Não é economia de código: é
+   que o `vitrine()` no 25_loja.sql peneira exatamente assim, e tela e banco
+   discordando sobre o que a página mostra faria o dono desligar a loja aqui e
+   continuar vendo produtos no link dele.
+
+   ⚠ O QUE ISTO LIGA E DESLIGA É A PÁGINA DA CLIENTE, não o painel. Um salão
+   pode vender shampoo no balcão — pela comanda — e não querer loja nenhuma no
+   link. São duas perguntas diferentes, e juntá-las tiraria uma venda de quem
+   só queria arrumar a página.
+
+   ⚠ E OS DOIS PODEM FICAR DESLIGADOS. Não é engano nem estado proibido: é o
+   cartão de visita — nome, foto, endereço e o botão do WhatsApp. Casa que
+   ainda está montando o catálogo publica o link assim e já é achável, em vez
+   de publicar uma página que promete o que ainda não existe.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function usaServicosNoLink(sl){
+  const v = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).usaServicos;
+  if(v == null) return true;
+  return !NAO.includes(String(v).trim().toLowerCase());
+}
+function usaLojaNoLink(sl){
+  const v = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).loja;
+  if(v == null) return true;
+  return !NAO.includes(String(v).trim().toLowerCase());
+}
+
+/* Mesma dupla de variáveis da comanda, e pelo mesmo motivo: a escolha vive na
+   tela até o Salvar, e `modulosDoSalao` impede que a escolha de um salão vaze
+   para o outro quando o dono troca de casa no seletor. */
+let modServicoEscolhido = null, modLojaEscolhida = null, modulosDoSalao = null;
+
+function pintarModulos(){
+  const a = document.getElementById('reguaModServico');
+  const b = document.getElementById('reguaModLoja');
+  if(!a || !b) return;
+  if(modulosDoSalao !== salaoAtual
+     || modServicoEscolhido === null || modLojaEscolhida === null){
+    modServicoEscolhido = usaServicosNoLink();
+    modLojaEscolhida    = usaLojaNoLink();
+    modulosDoSalao      = salaoAtual;
+  }
+  const regua = (escolhido, fn) => [[true, 'Sim'], [false, 'Não']]
+    .map(([v, rot]) => `<button type="button" class="${v === escolhido ? 'on' : ''}"
+        onclick="${fn}(${v})">${rot}</button>`).join('');
+  a.innerHTML = regua(modServicoEscolhido, 'escolherModServico');
+  b.innerHTML = regua(modLojaEscolhida,    'escolherModLoja');
+  explicarModulos();
+}
+
+/* A frase diz o que a CLIENTE vai ver, não o que foi marcado. "Serviços: sim,
+   produtos: não" é repetir os botões; "ela vê a agenda, e nada de produtos" é
+   a consequência, que é o que o dono está decidindo. */
+function explicarModulos(){
+  const alvo = document.getElementById('explicaModulos');
+  if(!alvo) return;
+  const s = modServicoEscolhido, l = modLojaEscolhida;
+  alvo.innerHTML =
+      (s && l) ? 'A sua página abre com os serviços e com a vitrine de '
+                 + 'produtos, e a cliente escolhe por onde começa.'
+    : (s && !l) ? 'A sua página abre só com os serviços e o agendamento. '
+                 + 'Nenhuma menção a produtos — nem botão, nem carrinho.'
+    : (!s && l) ? 'A sua página abre como loja: a vitrine de produtos e o '
+                 + 'pedido pelo WhatsApp. Ninguém consegue marcar horário '
+                 + 'por ela.'
+    : '<b>Os dois desligados:</b> a página vira um cartão de visita — nome, '
+      + 'foto, endereço e o botão do WhatsApp. Serve para publicar o link '
+      + 'enquanto você ainda monta o catálogo.';
+}
+
+function escolherModServico(v){ modServicoEscolhido = !!v; pintarModulos(); }
+function escolherModLoja(v){    modLojaEscolhida    = !!v; pintarModulos(); }
+
 /* ── QUEM CONFIRMA O QUE VEM PELO LINK ────────────────────────────────────
    Mesma peneira do `confirma_automatico()` no 29, letra por letra, e pelo
    mesmo motivo da comanda: tela e banco discordando aqui fariam o dono achar
@@ -9098,6 +9220,12 @@ function salvarCadastroSalao(){
        linhas acima. */
     usaComanda: comandaEscolhida ?? true,
     confirmaAuto: confirmaEscolhida ?? true,
+    /* ⚠ `?? true` PELO MESMO MOTIVO das duas linhas acima: `false` é escolha
+       legítima nos dois, e com `||` desligar a loja gravaria `true` — o dono
+       marcaria "Não", salvaria, e os produtos continuariam no link dele sem
+       nada na tela explicando por quê. */
+    usaServicos: modServicoEscolhido ?? true,
+    loja:        modLojaEscolhida    ?? true,
     tetoOnlinePct:    aparar(v('cTetoPct'),    10, 100, 70),
     tetoOnlineRajada: aparar(v('cTetoRajada'),  1, 100, 10),
   });

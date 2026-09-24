@@ -950,6 +950,7 @@ declare
   v_hoje    date;
   v_token   uuid;
   v_abertas int;
+  v_motivo  text;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
   v_tel  := public.so_digitos(p_telefone);
@@ -989,6 +990,10 @@ begin
     raise exception 'A agenda está liberada até %.',
       to_char(v_hoje + public.dias_liberados(p_salao), 'DD/MM/YYYY')
       using errcode = 'check_violation';
+  end if;
+  v_motivo := public.servico_fora_do_periodo(p_servicos, p_de, p_ate);
+  if v_motivo is not null then
+    raise exception '%', v_motivo using errcode = 'check_violation';
   end if;
   v_cliente := public.ficha_do_cliente(p_salao, v_nome, v_tel);
   select count(*) into v_abertas from public.lista_espera
@@ -1146,7 +1151,10 @@ language sql stable security definer set search_path = public as $$
       'veu', (s.cfg->>'veu')::int,
       'cartoes', s.cfg->>'cartoes',
       'moldura', coalesce(s.cfg->>'moldura', 'reta'),
-      'loja', coalesce((s.cfg->>'loja')::boolean, true),
+      'loja', lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+                not in ('false', 'f', '0', 'no', 'nao', 'não'),
+      'usaServicos', lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+                       not in ('false', 'f', '0', 'no', 'nao', 'não'),
       'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb),
       'passoHorarios', case
         when s.cfg->>'passoHorarios' in ('15','30','60')
@@ -1167,7 +1175,8 @@ language sql stable security definer set search_path = public as $$
              order by pr.nome)
         from public.produtos pr
        where pr.salao_id = s.id and pr.ativo and pr.venda_online
-         and coalesce((s.cfg->>'loja')::boolean, true)), '[]'::jsonb),
+         and lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+               not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb),
     'servicos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', v.id, 'nome', v.nome, 'categoria', v.categoria,
@@ -1177,7 +1186,9 @@ language sql stable security definer set search_path = public as $$
                             then null else to_jsonb(v.dias) end)
              order by v.categoria nulls last, v.nome)
         from public.servicos v
-       where v.salao_id = s.id and v.ativo and v.aceita_online), '[]'::jsonb),
+       where v.salao_id = s.id and v.ativo and v.aceita_online
+         and lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+               not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb),
     'profissionais', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', p.id, 'nome', coalesce(p.apelido, p.nome),
@@ -1193,6 +1204,24 @@ language sql stable security definer set search_path = public as $$
   from public.saloes s
   where s.slug = p_slug and s.status = 'ativo'
 $$;
+
+create or replace function public.servico_fora_do_periodo(
+  p_servicos uuid[], p_de date, p_ate date)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare v_dia date;
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0
+     or p_de is null or p_ate is null or p_ate < p_de then
+    return null;
+  end if;
+  for v_dia in select d::date from generate_series(p_de, p_ate, interval '1 day') d
+  loop
+    if public.servico_fora_do_dia(p_servicos, v_dia) is null then
+      return null;
+    end if;
+  end loop;
+  return public.servico_fora_do_dia(p_servicos, p_de);
+end $$;
 
 create or replace function public.tg_notificar_agendamento()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -1292,6 +1321,33 @@ returns boolean language sql stable set search_path = public as $$
       where id = p_salao and cfg->>p_chave in ('true','false')),
     p_padrao)
 $$;
+
+create or replace function public.servico_fora_do_dia(
+  p_servicos uuid[], p_data date)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  v_dia   smallint;
+  v_nome  text;
+  v_dias  smallint[];
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0 or p_data is null then
+    return null;
+  end if;
+  v_dia := extract(dow from p_data)::smallint;
+  select s.nome, s.dias into v_nome, v_dias
+    from public.servicos s
+   where s.id = any(p_servicos)
+     and s.dias is not null
+     and cardinality(s.dias) > 0
+     and not (v_dia = any(s.dias))
+   order by s.nome
+   limit 1;
+  if v_nome is null then return null; end if;
+  return format(
+    '%s: só %s. Escolha um desses dias, tire este serviço do pedido, '
+    || 'ou chame o salão no WhatsApp.',
+    v_nome, public.dias_por_extenso(v_dias));
+end $$;
 
 create or replace function public.texto_agendamento(
   p_agendamento uuid, p_tipo text)

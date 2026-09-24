@@ -1086,6 +1086,26 @@ function bdDaVitrine(v){
       logoForma: s.logoForma || 'circular',
       logoBorda: s.logoBorda || 'media',
       slideForma: s.slideForma || 'panoramico',
+      /* ── ⚠ OS DOIS MÓDULOS, E POR QUE ELES PRECISAM ATRAVESSAR ──────────
+         A lista vazia NÃO responde a pergunta que o rodapé faz.
+
+         "Não veio serviço nenhum" tem duas causas muito diferentes: a casa
+         desligou o módulo, ou a casa acabou de nascer e ainda não publicou
+         nada. A segunda é o estado de TODO salão na primeira hora — o
+         cadastro entrega o link no fim, e a dona manda para as clientes antes
+         de lançar os serviços.
+
+         Tratar as duas igual tira o botão do pé de quem acabou de se
+         cadastrar, e a cliente que abre o link não tem por onde entrar. A
+         página já sabia dizer "o salão ainda não publicou os serviços"; sem
+         estas duas linhas, ninguém chega nessa tela para ler.
+
+         (Eu as tinha tirado daqui: uma mutação sobreviveu e concluí que eram
+         inúteis. Estavam mesmo, enquanto o rodapé olhava a LISTA. Quem
+         mostrou foi o `cliente-nuvem.test.mjs`, que guarda exatamente a
+         primeira hora de um salão.) */
+      usaServicos: s.usaServicos !== false,
+      loja: s.loja !== false,
       fundoTipo: s.fundoTipo || 'cor',
       gradiente: s.gradiente || null,
       cfg: { diasLiberados: s.diasLiberados },
@@ -1275,7 +1295,45 @@ function diasLiberados(){
 function ultimoDiaLiberado(){ return somarDias(hoje(), diasLiberados()); }
 
 /* ── Consultas ───────────────────────────────────────────────────────── */
-const servicosDoSalao = () => bd.servicos.filter(s =>
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OS DOIS MÓDULOS DA CASA
+
+   `usaServicos` e `loja`: com o que este estabelecimento trabalha. Os dois
+   nascem ligados, então nenhuma casa que já existe muda de comportamento.
+
+   ⚠ A PENEIRA É DE LETRA, e ela vem de longe. No Supabase a `vitrine()` já
+   peneirou — a lista chega vazia e estas funções só confirmam. Em
+   demonstração não há `vitrine()` nenhuma: o `bd` sai do `localStorage` com
+   o `cfg` cru, e aí o valor pode ser a string "false" do jsonb, o booleano
+   `false`, ou lixo que alguém digitou. `Boolean('false')` é `true`, e só com
+   isso a loja desligada voltaria à tela na demonstração.
+
+   Mesma lista de palavras do `usa_comanda()` no banco e do `usaComanda()` no
+   painel. Três lugares com a mesma tabela é o preço de a página da cliente
+   não poder chamar o banco para saber o que desenhar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const MOD_NAO = ['false', 'f', '0', 'no', 'nao', 'não'];
+function moduloLigado(chave){
+  const sl = salao || {};
+  const v = sl[chave] != null ? sl[chave] : ((sl.cfg || {})[chave]);
+  if(v == null) return true;
+  return !MOD_NAO.includes(String(v).trim().toLowerCase());
+}
+const casaFazServicos = () => moduloLigado('usaServicos');
+const casaVendeProdutos = () => moduloLigado('loja');
+
+/* ⚠ A PENEIRA MORA NAS DUAS CONSULTAS, e não em cada tela que desenha.
+
+   Foram dezessete lugares que perguntam "quais serviços?" ou "quais
+   produtos?" — capa, slides, escolha, pacotes, carrinho, o texto do pedido.
+   Uma checagem por tela seria dezessete chances de esquecer uma, e a que
+   ficasse de fora ofereceria o que a casa desligou.
+
+   Aqui a lista simplesmente não existe, e todo o resto herda isso de graça:
+   quem pergunta recebe vazio, e cada tela já sabe o que fazer com vazio
+   porque salão sem serviço cadastrado sempre existiu. */
+const servicosDoSalao = () => !casaFazServicos() ? [] : bd.servicos.filter(s =>
   s.salaoId === salao.id && s.ativo);
 
 /* ── O QUE APARECE NA CAPA ────────────────────────────────────────────────
@@ -1566,8 +1624,25 @@ function desenhar(){
   bp.disabled = false;
 
   if(tela === 'saloes')      { desenharSaloes();    rodape.style.display='none'; trilhaAte(0); }
+  /* ⚠ O PÉ DA CAPA SEGUE OS MÓDULOS, e some quando não há para onde ir.
+
+     O rótulo era sempre `voc('acao')` — "Agendar horário" — porque agendar
+     era a única coisa que a página fazia. Numa casa só de produtos esse botão
+     abriria uma lista de serviços vazia, e no cartão de visita abriria o
+     nada.
+
+     A ordem importa: com os dois ligados o pé continua sendo o de agendar,
+     que é por que a maioria abre o link. Os produtos têm o botão de cima e a
+     vitrine inteira; não precisam também do pé. */
   if(tela === 'capa')        { desenharCapa(); desenharLojaNaCapa();
-                               bp.textContent=voc('acao'); trilhaAte(0); }
+                               trilhaAte(0);
+                               if(casaFazServicos()){
+                                 bp.textContent = voc('acao');
+                               } else if(produtosDaLoja().length && zapDoSalao()){
+                                 bp.textContent = 'Ver produtos';
+                               } else {
+                                 rodape.style.display = 'none';
+                               } }
   /* O botão diz o que falta, como nos outros passos: carrinho vazio não
      manda mensagem nenhuma, e cinza mudo faria a pessoa procurar o que não
      fez. E quando o salão não tem WhatsApp cadastrado, ele some de vez —
@@ -1692,26 +1767,71 @@ function desenharCapa(){
      do rodapé sempre existiu, mas ele é discreto de propósito — e numa tela
      de celular a primeira dobra é tudo o que muita gente vê. Este cartão põe
      o caminho principal onde o olho já está, logo abaixo do nome da casa. */
-  /* `produtosDaLoja()` já peneira por salão e a `vitrine()` já peneira por
-     `venda_online` e pelo interruptor da loja — então esta lista é
-     exatamente o que a cliente veria na seção de produtos. */
-  const temLoja = produtosDaLoja().length > 0;
+  /* ⚠ A PERGUNTA É "TEM O QUE MOSTRAR?", E NÃO "O MÓDULO ESTÁ LIGADO?".
+
+     São duas perguntas diferentes e a segunda não basta. Loja ligada e zero
+     produtos cadastrados dá o mesmo resultado na tela que loja desligada:
+     nada para ver. Prometer "confira nossos produtos" nos dois casos manda a
+     cliente procurar uma seção que não existe — e ela conclui que a página
+     está quebrada, não que o salão não vende.
+
+     As duas consultas já carregam o módulo dentro delas (ver a peneira lá em
+     cima): lista vazia é a resposta certa nos dois casos, e aqui embaixo
+     ninguém precisa saber qual dos dois foi.
+
+     O WhatsApp entra na conta dos produtos porque o pedido SAI por ele: sem
+     número, a vitrine é uma vitrine sem porta. */
+  /* ⚠ E AS DUAS PERGUNTAS NÃO SÃO A MESMA, nem se respondem do mesmo jeito.
+
+     SERVIÇOS seguem o MÓDULO. Agenda é o motivo de a casa existir, e o vazio
+     é temporário por natureza: a dona se cadastrou hoje e lança os serviços à
+     tarde. A página tem uma tela escrita para essa hora — "o salão ainda não
+     publicou os serviços" — e ela precisa de um caminho para ser lida.
+
+     PRODUTOS seguem a LISTA. A loja nasce ligada (é o padrão do `cfg`), então
+     olhar só o módulo poria um "Ver produtos" na capa de TODO salão que
+     existe hoje, e o botão levaria a uma prateleira vazia. Aqui o vazio não é
+     "ainda não", é "não vendemos" — e não há tela nenhuma escrita para
+     explicar isso, porque não há o que explicar.
+
+     A assimetria é o conteúdo da decisão, não um descuido: a diferença está
+     no que o vazio QUER DIZER de cada lado. */
+  const temSv = casaFazServicos();
+  const temPr = produtosDaLoja().length > 0 && !!zapDoSalao();
+
+  /* ⚠ E OS QUATRO CASOS ESTÃO AQUI, inclusive o de não ter nada.
+
+     Casa que ainda monta o catálogo publica o link assim: nome, foto,
+     endereço e o WhatsApp. É pouco, mas é verdade — e é melhor que uma capa
+     com um botão que abre uma lista vazia. */
+  const convite =
+      (temSv && temPr) ? 'Escolha o serviço, agende seu horário ou confira nossos produtos.'
+    : (temSv)          ? 'Escolha o serviço e agende seu horário em poucos toques.'
+    : (temPr)          ? 'Monte o seu pedido e mande pelo WhatsApp em poucos toques.'
+    : zapDoSalao()     ? 'Fale com a gente pelo WhatsApp — respondemos por lá.'
+    :                    'Que bom ver você por aqui.';
+
+  /* ⚠ O SEGUNDO BOTÃO É DISCRETO, e a ordem não é alfabética. Quem abre este
+     link quase sempre veio marcar horário: dois botões em metal lado a lado
+     não deixam o olho escolher nenhum. Com só um caminho, ele é o de metal,
+     seja qual for — numa casa só de produtos, "Ver produtos" é O caminho. */
+  const botoes = [];
+  if(temSv) botoes.push(['servico', 'calendario', voc('acao')]);
+  if(temPr) botoes.push(['loja', 'carrinho', 'Ver produtos']);
+  const acoes = botoes.map(([t, ico, rot], i) => `
+    <button class="${i === 0 ? 'boas-cta' : 'boas-b2'}" onclick="irPara('${t}')">
+      <span data-ico="${ico}"></span> ${escapar(rot)}</button>`).join('');
   document.getElementById('capaBoas').innerHTML = `
     <div class="boas">
       <div class="boas-txt">
         <div class="boas-oi">Bem-vindo!</div>
-        <!-- ⚠ A FRASE MUDA COM O QUE O SALAO TEM. Prometer "confira nossos
-             produtos" a quem nao vende produto nenhum e' mandar a pessoa
-             procurar uma secao que nao existe — e ela conclui que a pagina
-             esta' quebrada, nao que o salao nao vende.
-             (Sem crase e sem acento em alguns pontos: comentario dentro de
-             template literal.) -->
-        <p class="boas-sub">${temLoja
-          ? 'Escolha o serviço, agende seu horário ou confira nossos produtos.'
-          : 'Escolha o serviço e agende seu horário em poucos toques.'}</p>
+        <p class="boas-sub">${escapar(convite)}</p>
       </div>
-      <button class="boas-cta" onclick="irPara('servico')">
-        <span data-ico="calendario"></span> Agendar horário</button>
+      ${botoes.length > 1 ? `<div class="boas-acoes">${acoes}</div>` : acoes}
+      ${botoes.length || !zapDoSalao() ? '' : `
+        <a class="boas-cta" target="_blank" rel="noopener"
+           href="https://wa.me/${zapDoSalao()}">
+          <span data-ico="whatsapp"></span> Falar no WhatsApp</a>`}
     </div>`;
 
   /* ── OS ATALHOS DE QUEM JÁ É CLIENTE ────────────────────────────────────
@@ -3185,7 +3305,22 @@ function gravarCarrinho(){
   catch(e){ /* aba anônima, armazenamento cheio: o carrinho só não persiste */ }
 }
 
-const produtosDaLoja = () => (bd.produtos || []).filter(p => p.salaoId === salao.id);
+/* ⚠ `salao` PODE SER NULO, e esta função lê `salao.id`.
+
+   Hoje não estoura por acidente: quando não há salão escolhido também não há
+   produto carregado, e o `filter` nunca chega a rodar a função. Quer dizer que
+   a proteção é uma coincidência entre dois estados, e não uma regra.
+
+   A coincidência ficou mais perigosa quando a fita do carrinho passou a ser
+   desenhada no fim de TODA tela, inclusive a lista de salões: antes esta
+   função só era chamada de dentro da loja, onde o salão existe por
+   construção. Basta um dia haver produto em memória sem salão escolhido — o
+   modo demonstração do README é exatamente isso — para a página inteira
+   parar com "Cannot read properties of null".
+
+   Uma linha, custo zero, e o caminho deixa de depender de sorte. */
+const produtosDaLoja = () => (!salao || !casaVendeProdutos() ? []
+  : (bd.produtos || []).filter(p => p.salaoId === salao.id));
 
 /* ⚠ CONTA PELA LOJA, E NÃO PELO CARRINHO. A diferença não é estilo.
 
@@ -3219,13 +3354,46 @@ const produtosDaLoja = () => (bd.produtos || []).filter(p => p.salaoId === salao
 const itensNoCarrinho = () => produtosDaLoja()
   .reduce((s, p) => s + (carrinho[p.id] > 0 ? carrinho[p.id] : 0), 0);
 
+/* ⚠ SOMA SÓ O QUE TEM PREÇO — E QUEM CHAMA PRECISA DIZER ISSO.
+
+   O comentário que estava aqui garantia que "a conta não mente, ela fica
+   incompleta de propósito". Era verdade quando nenhum produto podia ter preço
+   nulo. O `preco_visivel` (32_produto_cadastro) tornou a frase falsa, e o
+   comentário envelheceu junto com a premissa — que é o jeito mais silencioso
+   de um comentário virar mentira.
+
+   Medido, com um produto de R$ 45 e outro de R$ 200 com o preço escondido:
+
+     carrinho só com o escondido  → a fita dizia "1 produto · R$ 0,00"
+     carrinho com os dois         → "2 produtos · R$ 45,00", e a conta é 245
+
+   O zero lê como grátis. O 45 é pior: parece um número legítimo, e a cliente
+   chega ao salão esperando pagar um quinto do que vai pagar.
+
+   A soma continua sendo só do que tem preço — chutar o que o dono escolheu
+   não mostrar seria inventar o valor dele. O que mudou é que agora existe o
+   `carrinhoTemSemPreco()`, e TODO lugar que escreve o total é obrigado a
+   dizer que ele está incompleto. */
 function totalDoCarrinho(){
   return produtosDaLoja().reduce(
-    /* Produto sem preço soma zero, e o rótulo do total diz "estimado" desde
-       sempre — por isso a conta não mente, ela fica incompleta de propósito.
-       Somar um chute seria pior: a cliente chegaria com um número na cabeça
-       que o salão nunca disse. */
     (s, p) => s + (carrinho[p.id] > 0 ? carrinho[p.id] * Number(p.preco || 0) : 0), 0);
+}
+
+// Algum item do carrinho está sem preço? É o que obriga o total a se declarar
+// incompleto, em vez de anunciar um número que o salão nunca disse.
+function carrinhoTemSemPreco(){
+  return produtosDaLoja().some(p => carrinho[p.id] > 0 && p.preco == null);
+}
+
+/* O total escrito para gente ler. Três respostas, e nenhuma delas é um número
+   solto quando falta preço:
+     · nada sem preço  → "R$ 45,00"
+     · tudo sem preço  → "a combinar" (e NÃO "R$ 0,00")
+     · misturado       → "R$ 45,00 + a combinar" */
+function totalEscrito(){
+  const t = totalDoCarrinho();
+  if(!carrinhoTemSemPreco()) return real(t);
+  return t > 0 ? real(t) + ' + a combinar' : 'a combinar';
 }
 
 /* O número do salão, em dígitos, pronto para o `wa.me`. Devolve vazio quando
@@ -3279,10 +3447,10 @@ function desenharCarrinhoFita(){
   fita.style.display = '';
   fita.innerHTML = `
     <button class="cf-resumo" onclick="irPara('loja')">
-      <span class="cf-saco"><span data-ico="presente"></span>
+      <span class="cf-saco"><span data-ico="carrinho"></span>
         <span class="cf-n">${n}</span></span>
       <span class="cf-txt">
-        <b>${n === 1 ? '1 produto' : n + ' produtos'} · ${real(totalDoCarrinho())}</b>
+        <b>${n === 1 ? '1 produto' : n + ' produtos'} · ${totalEscrito()}</b>
         <span>Ver meu pedido</span>
       </span>
     </button>
@@ -3322,12 +3490,7 @@ function desenharLojaNaCapa(){
   const sobram = lista.length - mostrar.length;
 
   alvo.innerHTML = `
-    <div class="cat-linha">
-      <div class="cat" style="margin:0">Produtos em destaque</div>
-      ${sobram > 0 ? `<button class="ver-todos ver-todos-min"
-          onclick="irPara('loja')">Ver todos
-          <span class="ver-todos-n">${lista.length}</span></button>` : ''}
-    </div>
+    <div class="cat">Produtos em destaque</div>
     <div class="pr-grade">${mostrar.map(p => {
       const n = carrinho[p.id] || 0;
       return `<div class="pr-cartao">
@@ -3342,11 +3505,30 @@ function desenharLojaNaCapa(){
           <button class="pr-add${n ? ' tem' : ''}"
                   onclick="mudarNoCarrinho('${p.id}', 1)"
                   aria-label="Adicionar ${escapar(p.nome)} ao pedido">
-            <span data-ico="presente"></span>
+            <span data-ico="carrinho"></span>
             ${n ? `<span class="pr-n">${n}</span>` : ''}</button>
         </div>
       </div>`;
-    }).join('')}</div>`;
+    }).join('')}</div>
+    <!-- ⚠ O LINK APARECE SEMPRE, e nao so' quando sobra produto.
+
+         Os cartoes daqui so' SOMAM: tocar poe mais um no carrinho e nao ha
+         como tirar. Quem quer conferir o pedido, mudar a quantidade, procurar
+         pelo nome ou ler a descricao precisa da tela da loja — e precisa dela
+         mesmo que a casa tenha dois produtos, porque o botao de enviar mora
+         la'. Com a regra antiga, um salao de tres produtos ficava com a
+         vitrine sem saida nenhuma.
+
+         Era um link miudo ao lado do titulo, e agora e' um botao de largura
+         inteira igual ao "Ver todos os servicos" logo acima: e' o mesmo gesto
+         na mesma pagina, e duas formas diferentes para o mesmo gesto fazem a
+         cliente achar que sao coisas diferentes.
+         (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <button class="ver-todos" onclick="irPara('loja')">
+      <span data-ico="carrinho"></span>
+      Ver todos os produtos
+      <span class="ver-todos-n">${lista.length}</span>
+    </button>`;
   if(window.aplicarIcones) aplicarIcones(alvo);
 }
 
@@ -3392,13 +3574,14 @@ function desenharLoja(){
                    <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)">+</button>
                  </span>`
                : `<button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)">
+                    <span data-ico="carrinho" class="ic-pequeno"></span>
                     Adicionar</button>`}
         </div>
       </div>
     </div>`;
   }).join('') + (itensNoCarrinho() ? `
     <div class="recado" style="margin-top:14px">
-      <b>${itensNoCarrinho()} item(ns) · ${real(totalDoCarrinho())}</b><br>
+      <b>${itensNoCarrinho()} item(ns) · ${totalEscrito()}</b><br>
       Este valor é uma estimativa. Quem confirma o preço final, o que tem em
       estoque e a forma de pagamento é o salão, na conversa.
       <div style="margin-top:9px">
@@ -3439,7 +3622,7 @@ function textoDoPedido(){
             + (p.preco == null ? '(preço a combinar)' : real(Number(p.preco))));
   return 'Olá! Vim pela página do ' + salao.nome + ' e quero estes produtos:'
        + '\n\n' + itens.join('\n')
-       + '\n\nTotal estimado: ' + real(totalDoCarrinho())
+       + '\n\nTotal estimado: ' + totalEscrito()
        + '\n\nPode confirmar o que tem disponível?';
 }
 
@@ -3454,7 +3637,15 @@ function enviarPedido(){
 }
 
 function acaoPrincipal(){
-  if(tela === 'capa')      return irPara('servico');
+  /* Espelha o rótulo que o `desenhar()` acabou de escrever: com serviços, vai
+     para eles; sem serviços e com loja, vai para a loja. Sem os dois o botão
+     nem está na tela, e o `return` vazio é o que sobra se alguém chamar isto
+     por fora. */
+  if(tela === 'capa'){
+    if(casaFazServicos()) return irPara('servico');
+    if(produtosDaLoja().length && zapDoSalao()) return irPara('loja');
+    return;
+  }
   if(tela === 'loja')      return enviarPedido();
   if(tela === 'servico')   return irPara('prof');
   if(tela === 'prof')      return irPara('quando');

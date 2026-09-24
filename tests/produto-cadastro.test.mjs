@@ -96,6 +96,63 @@ verdade('e o produto continua na loja, com nome e foto',
 igual('a máscara, que ninguém tocou, continua com o preço', Number(ms.preco), 60);
 
 /* ══════════════════════════════════════════════════════════════════════════
+   1b — ⚠ O TOTAL DO CARRINHO NÃO PODE MENTIR
+
+   Achado caçando bug, e foi o preço escondido que abriu a porta. O
+   `totalDoCarrinho()` soma `Number(p.preco || 0)` — e o comentário dele
+   garantia que "a conta não mente, fica incompleta de propósito". Era verdade
+   enquanto nenhum produto podia ter preço nulo. O `preco_visivel` tornou a
+   frase falsa, e o comentário envelheceu junto com a premissa.
+
+   Medido, com um produto de R$ 45 e outro de R$ 200 com o preço escondido:
+
+     só o escondido no carrinho  → "1 produto · R$ 0,00"    (lê como grátis)
+     os dois no carrinho         → "2 produtos · R$ 45,00"  (a conta é 245)
+
+   O segundo é o pior: parece um número legítimo, e a cliente chega ao salão
+   esperando pagar um quinto do que vai pagar.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('O total do carrinho, com preço escondido no meio');
+
+const nav0 = await chromium.launch({ executablePath: CHROMIUM });
+const ctx0 = await nav0.newContext({ viewport:{ width:412, height:915 },
+                                     isMobile:true, hasTouch:true });
+const cli0 = await ctx0.newPage();
+await dona.atualizar('saloes', SALAO, { whatsapp:'11988887777' });
+await cli0.goto(BASE + '/agendar.html?salao=' + SLUG);
+await cli0.waitForTimeout(2600);
+
+const carrinho = async ids => cli0.evaluate(lista => {
+  Object.keys(carrinho).forEach(k => delete carrinho[k]);
+  for(const id of lista) mudarNoCarrinho(id, 1);
+  return { fita: (document.getElementById('carrinhoFita') || {}).innerText || '',
+           pedido: textoDoPedido(), soma: totalDoCarrinho() };
+}, ids);
+
+const soEscondido = await carrinho([shampoo.id]);   // shampoo está com preço oculto
+console.log('      ' + JSON.stringify(soEscondido.fita.replace(/\s+/g, ' ')));
+/* ⚠ "R$ 0,00" É A RESPOSTA ERRADA, e é a que o código dava. Zero lê como
+   grátis; o certo é dizer que o valor não está escrito. */
+verdade('só o produto de preço escondido: a fita não anuncia R$ 0,00',
+  !/R\$\s*0,00/.test(soEscondido.fita), soEscondido.fita);
+verdade('ela diz que o valor é a combinar',
+  /a combinar/.test(soEscondido.fita), soEscondido.fita);
+verdade('e a mensagem do WhatsApp também',
+  /Total estimado: a combinar/.test(soEscondido.pedido),
+  soEscondido.pedido.slice(-120));
+
+const misturado = await carrinho([shampoo.id, mascara.id]);
+console.log('      ' + JSON.stringify(misturado.fita.replace(/\s+/g, ' ')));
+/* ⚠ O TOTAL PARCIAL PRECISA SE DECLARAR PARCIAL. R$ 60,00 sozinho, com um
+   item sem preço no carrinho, é um número que o salão nunca disse. */
+verdade('carrinho misto: o total aparece, mas dizendo que falta preço',
+  /a combinar/.test(misturado.fita) && /60,00/.test(misturado.fita),
+  misturado.fita);
+igual('e a soma continua contando só o que tem preço',
+  Number(misturado.soma), 60);
+await nav0.close();
+
+/* ══════════════════════════════════════════════════════════════════════════
    2 — ⚠ A ESCADA DA COMISSÃO
 
    Quatro degraus, e o novo é o primeiro. O que mais importa aqui não é que o

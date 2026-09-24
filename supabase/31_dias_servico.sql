@@ -114,8 +114,15 @@ begin
   /* A frase diz as três coisas que resolvem sozinhas: o que não cabe, quando
      cabe, e o que fazer agora. Sem a última ela fica sabendo que não pode e
      não sabe o que fazer — que é o mesmo que não ter resposta. */
+  /* ⚠ SEM CONCORDÂNCIA DE GÊNERO NA FRASE. Aqui estava "%s é feito só %s", e
+     saía "Escova é feito só quinta" — o nome do serviço é texto livre do dono,
+     e metade deles é feminino. Não dá para adivinhar o gênero, e errar a
+     concordância numa recusa é o tipo de detalhe que faz a página parecer
+     descuidada exatamente no momento em que ela está negando alguma coisa.
+
+     Dois-pontos resolvem sem adivinhar nada. */
   return format(
-    '%s é feito só %s. Escolha um desses dias, tire este serviço do pedido, '
+    '%s: só %s. Escolha um desses dias, tire este serviço do pedido, '
     || 'ou chame o salão no WhatsApp.',
     v_nome, public.dias_por_extenso(v_dias));
 end $$;
@@ -123,9 +130,78 @@ end $$;
 comment on function public.servico_fora_do_dia(uuid[], date) is
   'Frase de recusa quando algum serviço do pedido não é feito no dia da semana pedido. NULL quando não há nada a barrar. Só o link usa: a recepção marca por fora.';
 
+/* ⚠ SEM GRANT NENHUM, e não `to anon, authenticated`.
+
+   Eu tinha liberado as duas para o anon por reflexo — "é o link que usa, o
+   link é anônimo". Errado: quem o link chama é a `porque_nao_agenda()` e o
+   `entrar_na_fila()`, e as duas são `security definer`. Enquanto elas rodam,
+   quem executa é o DONO da função, não a cliente — então a ajudante não
+   precisa estar aberta a ninguém.
+
+   Quem apontou foi o `portas.test.sql`, que cobra justificativa de toda
+   `security definer` aberta ao anon. E ele só chegou a rodar porque o
+   `tests/rodar.sh` passou a instalar o módulo 31 — antes ele parava no 29, e
+   estas duas funções nunca existiram no banco de teste. Um guarda que não
+   enxerga metade da casa não é um guarda.
+
+   Aberta ao anon, `servico_fora_do_dia` é uma consulta sobre serviços de
+   QUALQUER salão, com o id no parâmetro: um id adivinhado devolve o nome do
+   serviço na frase de recusa. Pouco, mas é mais do que zero, e de graça. */
 revoke all on function public.servico_fora_do_dia(uuid[], date) from public;
-grant execute on function public.servico_fora_do_dia(uuid[], date)
-  to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 2b) A MESMA PERGUNTA, PARA UM PERÍODO INTEIRO
+--
+-- A lista de espera não pede um dia: pede uma JANELA ("de 27 a 30, qualquer
+-- turno"). A pergunta certa ali é outra — existe ALGUM dia dessa janela em
+-- que o salão faz tudo o que ela pediu?
+--
+-- ── ⚠ POR QUE ISTO PRECISOU EXISTIR ───────────────────────────────────────
+-- Sem ela, o mesmo link RECUSAVA marcar escova na segunda, com a frase certa,
+-- e ACEITAVA a cliente na fila de espera de domingo a quarta — uma janela em
+-- que a escova não é feita em dia nenhum.
+--
+-- É a pior forma de falhar que este projeto conhece: nada dá erro, a cliente
+-- recebe um "pronto, a gente te avisa", e espera um telefonema que não pode
+-- acontecer. Do lado do salão também não aparece nada — a fila tem um pedido
+-- impossível no meio dos possíveis.
+--
+-- ⚠ E BASTA UM DIA PARA ACEITAR. Se a janela pega uma quinta, a fila é
+-- legítima: o salão vai oferecer a quinta. Recusar uma janela por ela conter
+-- dias ruins seria recusar quase todas — quase toda janela de uma semana tem
+-- pelo menos um dia de fora.
+-- ---------------------------------------------------------------------------
+create or replace function public.servico_fora_do_periodo(
+  p_servicos uuid[], p_de date, p_ate date)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare v_dia date;
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0
+     or p_de is null or p_ate is null or p_ate < p_de then
+    return null;
+  end if;
+
+  /* Sai no primeiro dia que serve. A janela é limitada pelo `dias_liberados`
+     de quem chama, então isto roda dezenas de vezes, não milhares — e para na
+     primeira quinta-feira que aparecer. */
+  for v_dia in select d::date from generate_series(p_de, p_ate, interval '1 day') d
+  loop
+    if public.servico_fora_do_dia(p_servicos, v_dia) is null then
+      return null;
+    end if;
+  end loop;
+
+  -- Nenhum dia serve: a frase é a mesma da recusa de marcar, para a cliente
+  -- não receber duas explicações diferentes do mesmo motivo.
+  return public.servico_fora_do_dia(p_servicos, p_de);
+end $$;
+
+comment on function public.servico_fora_do_periodo(uuid[], date, date) is
+  'Frase de recusa quando NENHUM dia do período serve para os serviços pedidos. NULL quando pelo menos um serve. Usada pela lista de espera.';
+
+-- Sem grant, pelo mesmo motivo da irmã: quem a chama é o `entrar_na_fila()`,
+-- que é `security definer` e roda como dono.
+revoke all on function public.servico_fora_do_periodo(uuid[], date, date) from public;
 
 -- ---------------------------------------------------------------------------
 -- 3) A POLÍTICA DA AGENDA ONLINE, COM O DIA DO SERVIÇO NO MEIO

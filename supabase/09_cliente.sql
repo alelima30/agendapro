@@ -488,6 +488,7 @@ declare
   v_hoje    date;
   v_token   uuid;
   v_abertas int;
+  v_motivo  text;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
   v_tel  := public.so_digitos(p_telefone);
@@ -534,6 +535,24 @@ begin
     raise exception 'A agenda está liberada até %.',
       to_char(v_hoje + public.dias_liberados(p_salao), 'DD/MM/YYYY')
       using errcode = 'check_violation';
+  end if;
+
+  /* ── ⚠ A JANELA PRECISA TER PELO MENOS UM DIA POSSÍVEL ─────────────────
+     Sem isto, o mesmo link recusava marcar escova na segunda — com a frase
+     certa — e aceitava a cliente na fila de domingo a quarta, janela em que a
+     escova não é feita em dia nenhum. Ela recebia "pronto, a gente te avisa"
+     e ficava esperando um telefonema que não podia acontecer.
+
+     ⚠ E A CONFERÊNCIA VEM DEPOIS DAS DATAS, de propósito: com `p_ate` antes
+     de `p_de`, "confira as datas" é a resposta útil; falar dos dias da semana
+     de uma janela invertida seria responder outra pergunta.
+
+     A frase é a mesma da recusa de marcar — ver `servico_fora_do_periodo()`
+     no 31_dias_servico.sql. Dois textos para o mesmo motivo fazem a cliente
+     achar que são dois problemas. */
+  v_motivo := public.servico_fora_do_periodo(p_servicos, p_de, p_ate);
+  if v_motivo is not null then
+    raise exception '%', v_motivo using errcode = 'check_violation';
   end if;
 
   -- Mesma função das outras duas. Entrar na fila com um número diferente do

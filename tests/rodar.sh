@@ -80,6 +80,22 @@ preparar() {
   carregar "$RAIZ/supabase/27_pacotes.sql"
   carregar "$RAIZ/supabase/28_sem_comanda.sql"
   carregar "$RAIZ/supabase/29_confirmacao.sql"
+  # ⚠ MÓDULO NOVO ENTRA AQUI TAMBÉM, e esquecer não dá erro na hora.
+  #
+  # Esta lista parou no 29 enquanto o 30, o 31 e o 32 já existiam e já estavam
+  # nos dois pacotes. O banco de teste rodava uma instalação INCOMPLETA, e a
+  # suíte ficou verde assim mesmo — porque nada exercitava o que faltava.
+  #
+  # Só apareceu quando o `entrar_na_fila` (09) passou a chamar o
+  # `servico_fora_do_periodo` (31): plpgsql resolve o nome na hora de RODAR,
+  # então a instalação não reclamou de nada, e o erro estourou no meio de um
+  # teste de fila de espera, apontando para o arquivo errado.
+  #
+  # Módulo esquecido aqui é pior que teste a menos: é um teste que aprova um
+  # banco que ninguém tem instalado.
+  carregar "$RAIZ/supabase/30_painel.sql"
+  carregar "$RAIZ/supabase/31_dias_servico.sql"
+  carregar "$RAIZ/supabase/32_produto_cadastro.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

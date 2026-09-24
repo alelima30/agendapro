@@ -134,6 +134,11 @@ verdade('na segunda o banco recusa', typeof naSegunda === 'string' && naSegunda.
 /* ⚠ A FRASE PRECISA DIZER O QUÊ, QUANDO E O QUE FAZER. Recusa sem motivo
    escrito é igual a horário que some: a cliente conclui que o salão fechou. */
 verdade('e a frase diz o serviço', /Escova/.test(naSegunda || ''), naSegunda);
+/* ⚠ SEM CONCORDÂNCIA DE GÊNERO. A frase dizia "Escova é feito só quinta" — o
+   nome do serviço é texto livre do dono, e metade é feminino. Não dá para
+   adivinhar; dois-pontos resolvem sem adivinhar nada. */
+verdade('e sem errar a concordância — nada de "é feito" num nome feminino',
+  !/é feit[oa]/.test(naSegunda || ''), naSegunda);
 verdade('e diz quais são os dias',
   /quinta/.test(naSegunda || '') && /sábado/.test(naSegunda || ''), naSegunda);
 verdade('e oferece uma saída', /WhatsApp|Escolha/.test(naSegunda || ''), naSegunda);
@@ -155,6 +160,61 @@ verdade('e com horário para marcar', await vagas(SEGUNDA, [corte.id]) > 0);
 verdade('corte + escova na segunda é recusado por causa da escova',
   /Escova/.test(await porque(SEGUNDA, [corte.id, escova.id]) || ''),
   JSON.stringify(await porque(SEGUNDA, [corte.id, escova.id])));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   2b — ⚠ A LISTA DE ESPERA PEDE UMA JANELA, NÃO UM DIA
+
+   Achado caçando bug, e é o pior tipo de falha que este projeto conhece: o
+   mesmo link RECUSAVA marcar escova na segunda, com a frase certa, e ACEITAVA
+   a cliente na fila de domingo a quarta — uma janela em que a escova não é
+   feita em dia nenhum.
+
+   Nada dava erro. Ela recebia "pronto, a gente te avisa" e ficava esperando um
+   telefonema que não podia acontecer. Do lado do salão também não aparecia
+   nada: um pedido impossível no meio dos possíveis.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('A fila de espera e os dias do serviço');
+
+const naFila = async (de, ate, servicos) => {
+  try{
+    await dona.chamar('entrar_na_fila', { p_salao: SALAO, p_servicos: servicos,
+      p_nome:'Ana Teste', p_telefone:'1197770' + String(Date.now()).slice(-4),
+      p_de: de, p_ate: ate, p_profissional: null, p_turno:'qualquer', p_obs: null });
+    return null;                       // entrou
+  }catch(e){ return e.message; }       // recusou, e a frase é esta
+};
+
+// Uma janela de domingo a quarta: nenhum dia em que a escova é feita.
+let DOMINGO = HOJE;
+for(let i = 1; i <= 14; i++){
+  const d = somarDias(HOJE, i);
+  if(dowDe(d) === 0){ DOMINGO = d; break; }
+}
+const QUARTA = somarDias(DOMINGO, 3);
+const naoNaFila = await naFila(DOMINGO, QUARTA, [escova.id]);
+verdade('janela sem nenhum dia possível é recusada',
+  typeof naoNaFila === 'string' && /Escova/.test(naoNaFila), JSON.stringify(naoNaFila));
+/* ⚠ E A FRASE É A MESMA DA RECUSA DE MARCAR. Dois textos para o mesmo motivo
+   fazem a cliente achar que são dois problemas diferentes. */
+verdade('e com a MESMA frase da recusa de marcar',
+  naoNaFila === await porque(SEGUNDA, [escova.id]),
+  JSON.stringify(naoNaFila) + '\n      vs '
+    + JSON.stringify(await porque(SEGUNDA, [escova.id])));
+
+/* ⚠ E BASTA UM DIA PARA ACEITAR. Recusar a janela por ela conter dias ruins
+   seria recusar quase todas — quase toda semana tem pelo menos um dia de
+   fora. Se pega uma quinta, o salão vai oferecer a quinta. */
+igual('janela que pega uma quinta é aceita',
+  await naFila(DOMINGO, somarDias(DOMINGO, 6), [escova.id]), null);
+igual('e o corte, que não tem dia marcado, entra em qualquer janela',
+  await naFila(DOMINGO, QUARTA, [corte.id]), null);
+
+/* ⚠ DATA INVERTIDA CONTINUA RESPONDENDO SOBRE A DATA. Falar dos dias da
+   semana de uma janela que começa depois de terminar seria responder outra
+   pergunta. */
+verdade('janela invertida reclama da data, e não dos dias',
+  /datas/.test(await naFila(QUARTA, DOMINGO, [escova.id]) || ''),
+  JSON.stringify(await naFila(QUARTA, DOMINGO, [escova.id])));
 
 /* ══════════════════════════════════════════════════════════════════════════
    3 — ⚠ A RECEPÇÃO NÃO É PENEIRADA

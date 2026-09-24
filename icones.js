@@ -50,6 +50,19 @@ const D = {
   casa:       '<path d="m3.5 10.5 8.5-7 8.5 7V19a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2Z"/><path d="M9.5 21v-6h5v6"/>',
   sino:       '<path d="M18 9a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16S18 14 18 9Z"/><path d="M10.3 19a2 2 0 0 0 3.4 0"/>',
   escudo:     '<path d="M12 3 5 6v5.5c0 4.3 2.9 7.9 7 9.5 4.1-1.6 7-5.2 7-9.5V6Z"/><path d="m9 12 2.2 2.2L15.5 10"/>',
+  /* ⚠ O CARRINHO, e não mais o presente, para COMPRAR.
+
+     O presente continua existindo — ele é o ícone de produto como COISA (a
+     caixa na prateleira), e é o que aparece no cadastro do painel e no lugar
+     da foto que falta. O carrinho é o ícone da AÇÃO de comprar.
+
+     Eram a mesma coisa enquanto a loja era um bloco de texto. Virou confusão
+     quando o cartão do produto ganhou um botão redondo: a cliente via um
+     presente e não lia "adicionar ao pedido" — lia "brinde". Ícone de ação
+     tem que dizer a ação.
+
+     Traço de 1,75 e quadro de 24, como todos os outros. */
+  carrinho:   '<circle cx="9.5" cy="20" r="1.4"/><circle cx="17.5" cy="20" r="1.4"/><path d="M2.5 3.5h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.7a1.6 1.6 0 0 0 1.6-1.25l1.5-6.75H6"/>',
   presente:   '<rect x="3" y="9" width="18" height="11.5" rx="2"/><path d="M3 13.5h18M12 9v11.5"/><path d="M12 9S10.5 3.5 8 4.5 9.5 9 12 9Zm0 0s1.5-5.5 4-4.5S14.5 9 12 9Z"/>',
   info:       '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
   alerta:     '<path d="M12 4.5 3 19.5h18Z"/><path d="M12 10v4M12 17.2v.2"/>',

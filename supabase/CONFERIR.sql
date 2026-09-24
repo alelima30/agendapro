@@ -176,6 +176,38 @@ with conferencia(ordem, item, veredito, detalhe) as (
                 like '%servico_fora_do_dia%' then ''
            else 'a porque_nao_agenda() é de antes: o dono marca os dias, a tela '
              || 'grava, e o link continua oferecendo os outros' end
+  union all
+  /* Os dois módulos da casa. A pergunta é UMA: a `vitrine()` de hoje sabe
+     responder "esta casa trabalha com serviços?" e "vende produtos?".
+
+     ⚠ E A CONFERÊNCIA OLHA A PENEIRA, não só o nome da chave. Com
+     `(cfg->>'loja')::boolean` as duas chaves aparecem no texto da função e
+     tudo parece no lugar — até o dia em que um caractere estranho entra no
+     `cfg` e a `vitrine()` LEVANTA. Aí não é a loja que some: é a página
+     inteira da cliente, com o link que o salão mandou no WhatsApp.
+
+     Por isso o teste é o `lower(btrim(`: é a assinatura da peneira de letra,
+     a mesma do `usa_comanda()`. */
+  select 13, 'os dois módulos: serviços e loja',
+         case
+           when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%usaServicos%' then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                like '%(s.cfg->>''loja'')::boolean%' then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.vitrine(text)') is null
+             then 'a vitrine() nem existe — rode o 00_tudo.sql'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%usaServicos%'
+             then 'a vitrine() é de antes dos módulos: o painel liga e desliga, '
+               || 'e a página da cliente não fica sabendo'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                like '%(s.cfg->>''loja'')::boolean%'
+             then 'a peneira ainda é ::boolean: um caractere estranho no cfg '
+               || 'derruba a página inteira da cliente'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",
