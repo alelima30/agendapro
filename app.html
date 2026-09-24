@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.67517c';
+const VERSAO_APP = 'v9.c8d905';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7396,6 +7396,25 @@ function pintarSalao(){
       </div>
     </div>
 
+    <!-- ══════════ SUA CONTA ══════════
+         Cartao proprio, e nao uma secao dentro de "Dados do estabelecimento",
+         porque nao e' do estabelecimento: e' DA PESSOA. O mesmo e-mail e a
+         mesma senha entram em qualquer salao em que ela tenha vinculo, e o
+         botao Salvar la de cima nao tem nada a ver com isto aqui.
+
+         E fica na aba Dados, e nao numa aba nova, porque e' onde a pessoa
+         vem quando quer "mexer no cadastro" — foi assim que ele pediu.
+         (Sem crase e sem acento: comentario dentro de template literal.) -->
+    <div class="card" id="cartaoConta">
+      <h3 class="secao">Sua conta</h3>
+      <p class="secao-sub">O endereço com que você entra no painel, e a senha.
+        Isto é seu, não do salão: vale em qualquer estabelecimento que você
+        administre.</p>
+      <div id="contaCorpo">
+        <p class="secao-sub" style="margin:0">Carregando…</p>
+      </div>
+    </div>
+
     </div><!-- /sub-tela dados -->
 
     <div class="sub-tela" data-sub="aparencia">
@@ -7754,6 +7773,7 @@ function pintarSalao(){
   pintarPassoLink();
   pintarRecados();
   pintarAntecedencia();
+  pintarConta();
   pintarModulos();
   pintarComanda();
   pintarConfirma();
@@ -9126,6 +9146,215 @@ function pintarComanda(){
 }
 
 function escolherComanda(v){ comandaEscolhida = !!v; pintarComanda(); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUA CONTA — O E-MAIL COM QUE VOCÊ ENTRA, E A SENHA
+
+   Faltavam as duas coisas no painel. Quem esquecia com qual endereço tinha se
+   cadastrado não tinha onde olhar, e quem queria trocar a senha precisava
+   SAIR, clicar em "esqueci minha senha" e esperar um e-mail — para trocar uma
+   senha que ela sabe.
+
+   ⚠ O E-MAIL VEM DO `auth.users`, e não do `perfis`. O `perfis.email` é uma
+   cópia gravada no dia do cadastro pelo gatilho `perfil_ao_criar_conta`, e
+   ele não acompanha uma troca feita depois. Esta é justamente a informação
+   que a pessoa vai usar para entrar quando esquecer a senha: mostrar uma
+   cópia velha é mandá-la tentar um endereço que não funciona mais.
+
+   ⚠ O E-MAIL NÃO SE TROCA AQUI, e é decisão. Trocar o endereço de login no
+   Supabase dispara confirmação nos DOIS endereços, e enquanto ela não é
+   clicada a conta continua no antigo. Uma tela que aceita o novo e não avisa
+   disso deixa a pessoa certa de que trocou, e trancada para fora no dia
+   seguinte. Enquanto esse fluxo não existir inteiro, ele não existe pela
+   metade.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let minhaConta = null;
+
+async function pintarConta(){
+  const alvo = document.getElementById('contaCorpo');
+  if(!alvo) return;
+
+  /* Na demonstração não há conta nem servidor: o banco mora no navegador e
+     quem abre a página já está dentro. Prometer troca de senha aqui seria
+     prometer uma segurança que não existe. */
+  if(!NA_NUVEM){
+    alvo.innerHTML = `<div class="aviso info" style="margin:0">
+      <b>Esta é a demonstração.</b><br>
+      Não há conta nem senha: os dados ficam neste navegador, e qualquer
+      pessoa que abra a página entra. Ligado no Supabase, aqui aparece o
+      e-mail com que você entra e o botão de trocar a senha.</div>`;
+    return;
+  }
+
+  /* A chamada é de rede, então a tela já nasceu dizendo "Carregando…". Se
+     falhar, o cartão NÃO some: some seria a pessoa achar que a atualização
+     tirou alguma coisa. Ele fica, dizendo o que houve. */
+  try{
+    minhaConta = await Dados.minhaConta();
+  }catch(e){
+    console.error('[AgendaPro] conta:', e);
+    alvo.innerHTML = `<div class="aviso" style="margin:0">
+      <b>Não consegui ler os dados da sua conta agora.</b><br>
+      ${escapar(e.message || '')} — recarregue a página e tente de novo.</div>`;
+    return;
+  }
+
+  const email = (minhaConta && minhaConta.email) || '';
+  alvo.innerHTML = `
+    <div class="dupla">
+      <div class="campo" style="margin:0">
+        <label for="contaEmail">E-mail de acesso</label>
+        <!-- E readonly, e nao disabled: campo desabilitado nao deixa
+             selecionar o texto, e a pessoa vem aqui justamente para COPIAR o
+             endereco ou conferir letra por letra.
+
+             (SEM CRASE NESTE COMENTARIO — ele mora dentro de um template
+             literal, e uma crase aqui FECHA a string. Setima vez que esta
+             pedra aparece, e de novo num comentario que cita codigo.) -->
+        <input id="contaEmail" readonly onclick="this.select()"
+               value="${escapar(email || 'sem e-mail nesta conta')}">
+      </div>
+      <div class="campo" style="margin:0">
+        <label>Senha</label>
+        <button type="button" class="btn" style="width:100%"
+                onclick="abrirTrocaDeSenha()">Trocar minha senha</button>
+      </div>
+    </div>
+    ${email ? '' : `<div class="aviso" style="margin-top:14px">
+      <b>Esta conta entrou sem e-mail</b> — pelo código do WhatsApp, ou criada
+      direto no Supabase. Sem endereço não dá para conferir a senha atual, nem
+      para recuperar a senha por e-mail.</div>`}`;
+}
+
+/* ── TROCAR A SENHA ───────────────────────────────────────────────────────
+   Três campos: a atual, a nova, e a nova de novo.
+
+   ⚠ A SENHA ATUAL NÃO É ENFEITE. O `PUT /user` do Supabase troca a senha só
+   com a sessão aberta — não pergunta a de antes. Numa recepção isso é um
+   buraco real: o computador fica destravado um minuto e alguém tranca a dona
+   para fora do próprio salão. Quem confere é o servidor, com um login de
+   verdade (ver `trocarMinhaSenha` no dados.js); daqui nada passa por
+   validação de tela só.
+
+   ⚠ E A REPETIÇÃO TAMBÉM NÃO. Senha nova é digitada às cegas: um dedo torto
+   e a pessoa fica trancada fora, sem nunca saber o que digitou. */
+function abrirTrocaDeSenha(){
+  if(!minhaConta || !minhaConta.email){
+    abrirModal('Sem e-mail nesta conta',
+      `<div class="aviso">Para trocar a senha eu preciso conferir a atual, e
+       essa conferência é feita com o e-mail de acesso. Esta conta não tem um
+       — ela entrou pelo código do WhatsApp, ou foi criada direto no
+       Supabase.</div>`,
+      [['Fechar', 'fecharModal()', 'btn-p']]);
+    return;
+  }
+  abrirModal('Trocar minha senha', `
+    <p class="secao-sub">Você vai continuar conectado aqui. Nos outros
+      aparelhos, entre de novo com a senha nova.</p>
+    <div class="campo">
+      <label for="senhaAtual">Senha atual</label>
+      <input type="password" id="senhaAtual" autocomplete="current-password">
+    </div>
+    <div class="campo">
+      <label for="senhaNova">Senha nova</label>
+      <input type="password" id="senhaNova" autocomplete="new-password"
+             oninput="medirSenhaNova()">
+      <p class="secao-sub" id="forcaSenha" style="margin:6px 0 0">
+        Pelo menos 8 caracteres. Uma frase curta funciona bem, e é mais fácil
+        de lembrar.</p>
+    </div>
+    <div class="campo" style="margin-bottom:0">
+      <label for="senhaNova2">Repita a senha nova</label>
+      <input type="password" id="senhaNova2" autocomplete="new-password">
+    </div>
+    <div id="recadoSenha"></div>`,
+    [['Cancelar', 'fecharModal()', ''],
+     ['Trocar a senha', 'salvarSenhaNova()', 'btn-p']]);
+  const c = document.getElementById('senhaAtual');
+  if(c) c.focus();
+}
+
+function medirSenhaNova(){
+  const alvo = document.getElementById('forcaSenha');
+  const s = (document.getElementById('senhaNova') || {}).value || '';
+  if(!alvo) return;
+  if(!s){
+    alvo.textContent = 'Pelo menos 8 caracteres. Uma frase curta funciona '
+      + 'bem, e é mais fácil de lembrar.';
+    return;
+  }
+  /* A mesma régua do `nova-senha.html`, letra por letra. Duas contas
+     diferentes para a mesma pergunta fariam a mesma senha ser "boa" numa tela
+     e "fraca" na outra. */
+  const n = s.length >= 12 ? (/[^a-zA-Z]/.test(s) ? 3 : 2) : (s.length >= 8 ? 1 : 0);
+  alvo.textContent = 'Força: ' + ['curta demais','fraca','boa','forte'][n];
+}
+
+function recadoDaSenha(tipo, html){
+  const alvo = document.getElementById('recadoSenha');
+  if(alvo) alvo.innerHTML = `<div class="aviso ${tipo}"
+    style="margin:14px 0 0">${html}</div>`;
+}
+
+async function salvarSenhaNova(){
+  const atual = (document.getElementById('senhaAtual') || {}).value || '';
+  const nova  = (document.getElementById('senhaNova')  || {}).value || '';
+  const nova2 = (document.getElementById('senhaNova2') || {}).value || '';
+
+  if(!atual){
+    recadoDaSenha('', '<b>Digite a senha atual.</b>');
+    return;
+  }
+  if(nova.length < 8){
+    recadoDaSenha('', '<b>A senha nova precisa de pelo menos 8 caracteres.</b>');
+    return;
+  }
+  if(nova !== nova2){
+    recadoDaSenha('', '<b>As duas senhas novas não são iguais.</b> '
+      + 'Confira a segunda.');
+    return;
+  }
+
+  const bt = Array.from(document.querySelectorAll('#modalPe .btn'))
+    .find(b => /Trocar a senha/.test(b.textContent));
+  if(bt){ bt.disabled = true; bt.textContent = 'Trocando…'; }
+  recadoDaSenha('info', 'Conferindo a senha atual…');
+
+  try{
+    await Dados.trocarMinhaSenha({ atual, nova });
+  }catch(e){
+    /* ⚠ PELO `codigo`, e não pelo texto. `error_code` é a mesma palavra em
+       toda versão do Supabase; a frase em inglês muda entre elas. Foi a
+       lição do `nova-senha.html`, e vale igual aqui. */
+    const cod = String(e.codigo || ''), cru = String(e.message || '');
+    let recado;
+    if(cod === 'invalid_credentials' || /invalid login/i.test(cru)){
+      recado = '<b>A senha atual não confere.</b> Se você não lembra, saia e '
+        + 'use "Esqueci minha senha" na tela de entrada.';
+    } else if(cod === 'same_password'){
+      recado = '<b>A senha nova é igual à atual.</b> Escolha outra.';
+    } else if(cod === 'weak_password'){
+      recado = '<b>O servidor achou esta senha fraca demais.</b> Tente uma '
+        + 'mais longa, ou com número e pontuação.';
+    } else if(cod === 'over_request_rate_limit' || e.status === 429){
+      recado = '<b>Muitas tentativas seguidas.</b> Espere um minuto e tente '
+        + 'de novo.';
+    } else {
+      recado = '<b>Não consegui trocar a senha.</b><br>' + escapar(cru);
+    }
+    recadoDaSenha('', recado);
+    if(bt){ bt.disabled = false; bt.textContent = 'Trocar a senha'; }
+    return;
+  }
+
+  /* ⚠ SEM `alert()`, e sem fechar calado. Fechar sem dizer nada deixa a
+     dúvida "será que trocou?", e é a dúvida que faz a pessoa trocar de novo
+     — ou pior, anotar a senha num papel para não arriscar. */
+  recadoDaSenha('ok', '<b>Pronto, senha trocada.</b> Você continua conectado '
+    + 'aqui. Nos outros aparelhos, entre de novo com a senha nova.');
+  if(bt){ bt.textContent = 'Fechar'; bt.disabled = false;
+          bt.setAttribute('onclick', 'fecharModal()'); }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    OS DOIS MÓDULOS DA CASA

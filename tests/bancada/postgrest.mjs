@@ -327,6 +327,25 @@ const http_ = http.createServer(async (req, res) => {
         return json(res, 200, {});
       }
 
+      /* ── QUEM SOU EU ─────────────────────────────────────────────────
+         O `GET /auth/v1/user` do Supabase, que devolve a conta da sessão.
+         A bancada tinha só o PUT: dava para TROCAR a senha e não dava para
+         perguntar com qual e-mail a pessoa entra — e é essa pergunta que o
+         cartão "Sua conta" do painel faz.
+
+         Devolve o `auth.users`, e não o `public.perfis`, porque é isso que o
+         Supabase devolve. O perfil é uma cópia gravada no cadastro; se a
+         bancada respondesse por ele, um código que lê a cópia velha passaria
+         aqui e mostraria o endereço errado em produção. */
+      if(acao === 'user' && req.method === 'GET'){
+        const id = usuarioDo(req);
+        if(!id) return erroAuth(res, 'no_authorization', 'não autenticado', 401);
+        const { rows } = await pool.query(
+          'select id, email, phone from auth.users where id = $1', [id]);
+        if(!rows[0]) return erroAuth(res, 'user_not_found', 'não encontrado', 404);
+        return json(res, 200, rows[0]);
+      }
+
       if(acao === 'user' && (req.method === 'PUT' || req.method === 'PATCH')){
         const id = usuarioDo(req);
         if(!id) return erroAuth(res, 'no_authorization', 'não autenticado', 401);

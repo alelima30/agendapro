@@ -666,6 +666,60 @@ const Nuvem = {
     return r;
   },
 
+  /* ═════════════════════════════════════════════════════════════════════
+     A CONTA DE QUEM ESTÁ LOGADO
+
+     Devolve o e-mail com que a pessoa ENTRA. Não é o `perfis.email`: aquele
+     é uma cópia, gravada pelo gatilho `perfil_ao_criar_conta` no dia do
+     cadastro, e ele não acompanha uma troca feita depois no painel do
+     Supabase. Aqui a resposta vem de quem decide — o `auth.users`.
+
+     A diferença importa porque esta é a informação que a pessoa vai usar
+     para entrar quando esquecer a senha. Mostrar uma cópia desatualizada é
+     mandá-la tentar entrar com um endereço que não funciona mais.
+     ═════════════════════════════════════════════════════════════════════ */
+  async minhaConta(){
+    const u = await auth('user', null, 'GET');
+    return u ? { id: u.id, email: u.email || '', telefone: u.phone || '' } : null;
+  },
+
+  /* ═════════════════════════════════════════════════════════════════════
+     TROCAR A PRÓPRIA SENHA, DE DENTRO DO PAINEL
+
+     ⚠ A SENHA ATUAL É CONFERIDA PELO SERVIDOR, e não por nós.
+
+     O `PUT /user { password }` do Supabase aceita a troca só com a sessão
+     aberta — não pergunta a senha de antes. Numa recepção isso é um buraco
+     real: basta o computador ficar destravado um minuto para alguém trocar
+     a senha da dona e trancá-la para fora do próprio salão.
+
+     A conferência aqui é um login de verdade (`grant_type=password`) com a
+     senha digitada. Quem responde sim ou não é o Supabase, contando as
+     tentativas e aplicando os limites dele. Não é validação de tela: uma
+     validação de tela seria contornada por qualquer pessoa que abrisse o
+     console, e o `PUT` continuaria passando.
+
+     ⚠ E A SESSÃO NOVA É GUARDADA. O login devolve um par de tokens fresco;
+     ignorá-lo deixaria o painel com o token velho e um refresh órfão do
+     lado do servidor. Usar o novo também evita o caso chato de o token
+     estar a segundos de vencer bem na hora da troca.
+     ═════════════════════════════════════════════════════════════════════ */
+  async trocarMinhaSenha({ atual, nova }){
+    const eu = await this.minhaConta();
+    if(!eu || !eu.email){
+      const e = new Error('Esta conta não tem e-mail, então não dá para '
+        + 'conferir a senha atual.');
+      e.codigo = 'sem_email';
+      throw e;
+    }
+    const r = await auth('token?grant_type=password',
+                         { email: eu.email, password: atual });
+    guardarSessao({ token: r.access_token, refresh: r.refresh_token,
+                    usuarioId: (r.user && r.user.id) || eu.id,
+                    expiraEm: quandoVence(r) });
+    return auth('user', { password: nova }, 'PUT');
+  },
+
   async pedirCodigo(telefone){
     return auth('otp', { phone: telefone, create_user: true });
   },
@@ -916,6 +970,14 @@ const Demo = {
   async entrar(){ throw new Error('Login por senha só existe no modo nuvem.'); },
   async pedirNovaSenha(){ throw new Error('Recuperação de senha só existe no modo nuvem.'); },
   async trocarSenha(){ throw new Error('Recuperação de senha só existe no modo nuvem.'); },
+  /* Na demonstração não existe conta nem servidor: o `bd` mora no navegador
+     e qualquer pessoa que abra a página já está dentro. Devolver um e-mail
+     de mentira aqui faria a tela prometer uma segurança que não existe. */
+  async minhaConta(){ return null; },
+  async trocarMinhaSenha(){
+    throw new Error('Trocar senha só existe no modo nuvem — na demonstração '
+      + 'não há conta nem servidor.');
+  },
   async reenviarConfirmacao(){ throw new Error('Confirmação de e-mail só existe no modo nuvem.'); },
   entrarComToken(){ /* na demonstração não há token nem sessão */ },
   async pedirCodigo(){ return { demo: true }; },
