@@ -1342,14 +1342,38 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
   background:var(--painel2) no-repeat;
   background-size:cover;
   background-position:center var(--foco, 50%);
-  border-bottom:1px solid var(--borda);
+  /* ── A BEIRA CURVA ────────────────────────────────────────────────────
+     Raio ELÍPTICO (`50% 30px`), e não um canto redondo comum: o primeiro
+     valor é metade da largura, então a curva atravessa a foto inteira num
+     arco só. Canto de 30px nos dois lados deixaria a beira reta no meio, que
+     é outra coisa.
+
+     18px de altura é medido, e apanhei para chegar nele: comecei com 30 e a
+     foto virou um BALÃO — a curva descia tanto no meio que a imagem parecia
+     abaulada, e o rosto de quem estava nela ficava dentro do arco. Foto de
+     salão é quase sempre alguém olhando para a câmera, então o que sobra
+     para o arco é a faixa morta de baixo. Abaixo de 12 ninguém percebe que é
+     curvo, e aí é só um canto arredondado torto.
+
+     A borda de baixo sai junto: linha reta por baixo de um arco desenha a
+     corda do arco, e fica pior do que sem linha nenhuma. */
+  border-bottom-left-radius:50% 18px;
+  border-bottom-right-radius:50% 18px;
 }
 /* Com foto, a logo monta na beira de baixo dela — o anel na cor do fundo é o
    que a recorta da imagem sem precisar de sombra. */
 .marca-salao.com-foto{ padding-top:0 }
 .marca-salao.com-foto .marca-selo{
-  margin-top:-52px; position:relative;
-  box-shadow:0 0 0 4px var(--bg), var(--sombra-md);
+  /* ⚠ SOBE MAIS do que antes (-52 → -58) porque a beira da foto agora é
+     curva: no meio, onde a logo fica, o arco desceu 30px. Com o -52 de antes
+     ela encostava na curva em vez de montar nela. */
+  margin-top:-58px; position:relative;
+  /* O anel é `--painel`, a cor do cartão, e não `--bg`, o papel da página. Os
+     dois são claros, mas o papel é marfim e desenha um contorno amarelado em
+     volta da logo quando a foto é escura. O anel existe para RECORTAR a peça
+     da imagem — para isso ele precisa ser a cor mais neutra que a página
+     tem, e continua saindo da personalização do salão como tudo aqui. */
+  box-shadow:0 0 0 5px var(--painel), var(--sombra-md);
 }
 
 /* A espera, sem palavra nenhuma. Ver o comentário do `#p-abrindo`. */
@@ -1365,6 +1389,13 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
 }
 
 .marca-salao{ text-align:center; padding:6px 0 18px }
+/* O pino ao lado da rua. `inline-flex` com `gap` em vez de um ícone solto:
+   assim ele acompanha a linha quando o endereço quebra em duas, em vez de
+   ficar pendurado na primeira. */
+.marca-end .rua{
+  display:inline-flex; align-items:center; gap:6px; justify-content:center;
+}
+.marca-end .rua .ic-svg{ width:15px; height:15px; flex:none; opacity:.75 }
 /* A logo cresceu de 76 para 104: é a primeira coisa que a cliente vê ao
    abrir o link no WhatsApp, e reconhecer a casa no primeiro segundo é o que
    separa "é do meu salão" de "isso é golpe". */
@@ -1533,7 +1564,12 @@ body.sem-brilho .marca-selo{ animation:none }
    aplicativo de foto usa para mídia fora de proporção, e que aqui resolve
    sem pedir ao dono do salão que recorte nada.
    ──────────────────────────────────────────────────────────────────────── */
-.slide-caixa{ margin:2px 0 18px }
+/* ⚠ `relative` AQUI, senão os pontinhos somem no rodapé. Eles são irmãos de
+   `.slides`, não filhos — então `position:absolute` neles procura o primeiro
+   ancestral posicionado, e sem esta linha esse ancestral era o `<body>`. Os
+   pontos foram parar em cima do botão fixo do rodapé, o que não dá erro em
+   lugar nenhum: eles estavam lá, visíveis, no lugar errado. */
+.slide-caixa{ margin:2px 0 18px; position:relative }
 .slides{
   position:relative; border-radius:var(--r); overflow:hidden;
   border:1px solid var(--borda); background:var(--painel2);
@@ -1542,7 +1578,12 @@ body.sem-brilho .marca-selo{ animation:none }
      dobra. Deitado, sobra tela para o primeiro cartão aparecer e convidar a
      rolar. A foto continua inteira: quem enquadra é o `contain` com o
      borrão atrás, não a proporção da caixa. */
-  aspect-ratio:16 / 10;
+  /* Deitado de novo, de 16/10 para 16/8. Mesma conta de antes, um passo
+     adiante: o slide deixou de comer 260px de uma tela de 915 e passou a
+     comer 206, e é a diferença entre o primeiro cartão de serviço aparecer
+     ou não na primeira dobra. A foto continua inteira — quem enquadra é o
+     `contain` com o borrão atrás, não a proporção da caixa. */
+  aspect-ratio:16 / 8;
 }
 .slide{
   position:absolute; inset:0; margin:0;
@@ -1569,7 +1610,19 @@ body.sem-brilho .marca-selo{ animation:none }
    teste de celular reprovou, e com razão: dedo não acerta 7px, e quem erra
    troca de foto sem querer ou não troca nenhuma. O ponto continua discreto,
    desenhado no ::after; quem tem 40px é a área invisível ao redor. */
-.slide-pontos{ display:flex; justify-content:center; margin-top:3px }
+/* Os pontos DENTRO da foto, e não numa faixa embaixo dela. A faixa custava
+   uns 40px de altura só para carregar três bolinhas — e 40px, numa tela de
+   celular, é o que decide se o próximo bloco aparece na primeira dobra.
+   O alvo de toque continua tendo 40px; o que mudou foi o lugar. */
+.slide-pontos{
+  position:absolute; left:0; right:0; bottom:0; z-index:2;
+  display:flex; justify-content:center; margin-top:0;
+  pointer-events:none;                     /* só os botões recebem o toque */
+}
+.slide-pontos button{ pointer-events:auto }
+/* Sobre foto clara o pontinho apagado sumia. O anel escuro por baixo o
+   segura em qualquer imagem, sem pintar uma faixa por cima da foto. */
+.slide-pontos button::after{ box-shadow:0 0 0 1px rgba(0,0,0,.25) }
 .slide-pontos button{
   width:40px; height:40px; padding:0; border:none; background:none;
   display:grid; place-items:center; cursor:pointer;
@@ -1791,7 +1844,12 @@ body.sem-brilho .marca-selo{ animation:none }
   background:var(--ac-soft); padding:15px; margin-bottom:20px;
 }
 .boas-oi{
-  font-weight:650; font-size:15px; color:var(--ac-600); margin-bottom:11px;
+  font-weight:650; font-size:15px; color:var(--ac-600); margin-bottom:2px;
+}
+/* A linha que diz o que dá para fazer aqui. Sem ela o cartão é um título e um
+   botão — e o título sozinho não informa nada que o botão já não diga. */
+.boas-sub{
+  font-size:13.5px; line-height:1.45; color:var(--txt2); margin:0 0 11px;
 }
 .boas-cta, .boas-b2{
   display:flex; align-items:center; justify-content:center; gap:9px;
@@ -1852,6 +1910,36 @@ body.sem-brilho .marca-selo{ animation:none }
     0 2px 4px rgba(0,0,0,.2),
     0 14px 30px -10px color-mix(in srgb, var(--acao) 75%, transparent);
 }
+/* ── ⚠ DUAS COLUNAS SÓ QUANDO CABE, E A CONTA É DO CARTÃO ────────────────
+   `container-type:inline-size` mede o CARTÃO, não a janela. Media query aqui
+   erraria no desktop: a página é centrada e estreita, então uma janela de
+   1200px não quer dizer que este cartão tenha 1200px.
+
+   ⚠ O CONTAINER É O PAI, E NÃO O PRÓPRIO CARTÃO. Escrevi
+   `container-type:inline-size` no `.boas` e a regra não aplicou — e não dá
+   erro nenhum: um elemento NÃO pode ser estilizado pela consulta ao container
+   que ele mesmo declara. Quem declara mede; quem é medido é de dentro.
+   Medido: o cartão tinha 442px, a consulta pedia 380, e o `display` continuava
+   `block`.
+
+   ⚠ E ESTE BLOCO PRECISA VIR DEPOIS DO `.boas-cta`, não antes. Ele estava lá
+   em cima, e o `width:100%` da regra de baixo ganhava por vir depois — mesma
+   especificidade, ordem decide. O resultado foi pior que não aplicar: o
+   cartão virou flex, o botão continuou com 100%, e o texto foi espremido
+   numa coluna de 30px, com uma palavra por linha. Também não dá erro.
+
+   380px é medido: abaixo disso o botão e o texto ficam com menos de 170px
+   cada, e "Agendar horário" quebra em duas linhas dentro do botão. Num
+   celular de 412px o cartão tem 374 — fica empilhado de propósito, com o
+   botão inteiro, que é o alvo de toque mais confortável. */
+#capaBoas{ container-type:inline-size }
+@container (min-width: 380px){
+  .boas{ display:flex; align-items:center; gap:16px }
+  .boas-txt{ flex:1; min-width:0 }
+  .boas-sub{ margin-bottom:0 }
+  .boas-cta{ width:auto; flex:0 0 auto; padding:0 26px }
+}
+
 .boas-cta:active{ transform:translateY(1px) }
 
 /* Quem pediu ao sistema para parar de mover coisas não recebe uma faixa de

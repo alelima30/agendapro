@@ -1641,7 +1641,7 @@ function desenharCapa(){
       <h2>${escapar(salao.nome)}</h2>
       ${end.length
         ? `<div class="marca-end">
-             <div class="rua">${end[0]}</div>
+             <div class="rua"><span data-ico="local"></span>${end[0]}</div>
              ${end[1] ? `<div class="lugar">${end[1]}</div>` : ''}
            </div>`
         : `<p class="sub">Agende seu horário</p>`}
@@ -1656,9 +1656,24 @@ function desenharCapa(){
      do rodapé sempre existiu, mas ele é discreto de propósito — e numa tela
      de celular a primeira dobra é tudo o que muita gente vê. Este cartão põe
      o caminho principal onde o olho já está, logo abaixo do nome da casa. */
+  /* `produtosDaLoja()` já peneira por salão e a `vitrine()` já peneira por
+     `venda_online` e pelo interruptor da loja — então esta lista é
+     exatamente o que a cliente veria na seção de produtos. */
+  const temLoja = produtosDaLoja().length > 0;
   document.getElementById('capaBoas').innerHTML = `
     <div class="boas">
-      <div class="boas-oi">Bem-vindo!</div>
+      <div class="boas-txt">
+        <div class="boas-oi">Bem-vindo!</div>
+        <!-- ⚠ A FRASE MUDA COM O QUE O SALAO TEM. Prometer "confira nossos
+             produtos" a quem nao vende produto nenhum e' mandar a pessoa
+             procurar uma secao que nao existe — e ela conclui que a pagina
+             esta' quebrada, nao que o salao nao vende.
+             (Sem crase e sem acento em alguns pontos: comentario dentro de
+             template literal.) -->
+        <p class="boas-sub">${temLoja
+          ? 'Escolha o serviço, agende seu horário ou confira nossos produtos.'
+          : 'Escolha o serviço e agende seu horário em poucos toques.'}</p>
+      </div>
       <button class="boas-cta" onclick="irPara('servico')">
         <span data-ico="calendario"></span> Agendar horário</button>
     </div>`;
