@@ -1368,12 +1368,201 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
      curva: no meio, onde a logo fica, o arco desceu 30px. Com o -52 de antes
      ela encostava na curva em vez de montar nela. */
   margin-top:-58px; position:relative;
-  /* O anel é `--painel`, a cor do cartão, e não `--bg`, o papel da página. Os
-     dois são claros, mas o papel é marfim e desenha um contorno amarelado em
-     volta da logo quando a foto é escura. O anel existe para RECORTAR a peça
-     da imagem — para isso ele precisa ser a cor mais neutra que a página
-     tem, e continua saindo da personalização do salão como tudo aqui. */
-  box-shadow:0 0 0 5px var(--painel), var(--sombra-md);
+  /* ── A MOLDURA, EM DUAS VARIÁVEIS ─────────────────────────────────────
+     A espessura e a cor saem de `--selo-anel` e `--selo-cor`, que a página da
+     cliente escreve quando o dono escolhe. Os valores de reserva são o que
+     havia antes desta linha existir: 5px na cor do cartão. Salão que não
+     escolher nada não muda de aparência.
+
+     O padrão é `--painel`, a cor do cartão, e não `--bg`, o papel da página.
+     Os dois são claros, mas o papel é marfim e desenha um contorno amarelado
+     em volta da logo quando a foto é escura. O anel existe para RECORTAR a
+     peça da imagem — para isso ele precisa ser a cor mais neutra da página.
+
+     ⚠ `0px` PRECISA DO `px`. `var(--selo-anel, 5px)` com o valor `0` puro
+     dentro de um `box-shadow` invalida a declaração INTEIRA, e a sombra de
+     relevo some junto com o anel. Quem escolhe "sem moldura" fica com a logo
+     chapada na foto, sem sombra nenhuma, e nada avisa. Por isso o lado do JS
+     manda sempre `0px`. */
+  box-shadow:0 0 0 var(--selo-anel, 5px) var(--selo-cor, var(--painel)),
+             var(--sombra-md);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRODUTOS EM DESTAQUE, NA CAPA
+
+   Mesma linguagem dos cartões de serviço logo acima: foto em cima, texto e
+   ação embaixo. Duas vitrines na mesma rolagem com desenhos diferentes fazem
+   a página parecer montada por duas pessoas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cat-linha{ display:flex; align-items:center; gap:10px; margin:18px 0 8px }
+.cat-linha .cat{ flex:1; min-width:0 }
+/* O "Ver todos" ao lado do título, e não numa linha própria: linha própria
+   custa 40px de altura para três palavras. */
+.ver-todos-min{ flex:0 0 auto; padding:7px 11px; font-size:12.5px }
+
+.pr-grade{
+  display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:11px;
+}
+@media (min-width:560px){ .pr-grade{ grid-template-columns:repeat(4, minmax(0,1fr)) } }
+.pr-cartao{
+  background:var(--painel); border:1px solid var(--borda);
+  border-radius:var(--r); overflow:hidden; box-shadow:var(--sombra);
+  display:flex; flex-direction:column;
+}
+.pr-foto{
+  display:grid; place-items:center; aspect-ratio:1/1;
+  background:var(--painel2) center/cover no-repeat;
+  color:var(--txt3);
+}
+.pr-foto .ic-svg{ width:30px; height:30px }
+.pr-pe{
+  display:flex; align-items:center; gap:9px; padding:9px 10px 10px;
+}
+.pr-txt{ flex:1; min-width:0; display:block; line-height:1.3 }
+/* Duas linhas no máximo: nome de produto de salão é comprido ("Máscara de
+   hidratação profunda 500ml") e, sem teto, um cartão fica o dobro do outro. */
+.pr-txt b{
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden; font-size:13px; font-weight:650;
+}
+.pr-txt span{ display:block; font-size:13.5px; font-weight:750; color:var(--ac-600) }
+/* ⚠ O BOTÃO CARREGA A CONTAGEM. Sem ela, quem já escolheu dois vidros na tela
+   da loja volta para a capa, vê o carrinho "vazio", toca de novo — e leva
+   três. O número é o que impede o pedido errado, não é enfeite. */
+.pr-add{
+  position:relative; flex:none; width:40px; height:40px; border:0;
+  border-radius:50%; cursor:pointer;
+  background:var(--ac-soft); color:var(--ac-600);
+  display:grid; place-items:center;
+}
+.pr-add.tem{ background:var(--acao); color:var(--acao-txt) }
+.pr-add .ic-svg{ width:19px; height:19px }
+.pr-add:active{ transform:scale(.94) }
+.pr-n{
+  position:absolute; top:-3px; right:-3px; min-width:18px; height:18px;
+  padding:0 4px; border-radius:9px;
+  background:var(--acao); color:var(--acao-txt);
+  border:2px solid var(--painel);
+  font-size:10.5px; font-weight:800; line-height:15px; text-align:center;
+}
+.pr-add.tem .pr-n{ background:var(--painel); color:var(--acao) }
+
+/* ── ⚠ A MOLDURA DOS PRODUTOS É A MESMA DOS SERVIÇOS ─────────────────────
+   Pedido: "as molduras aparecerem de várias maneiras, com ondinha ou só
+   quadrado, mesmo estilo das fotos dos serviços".
+
+   E a resposta é NÃO CRIAR UMA SEGUNDA ESCOLHA. O dono já decide a forma do
+   cartão em Aparência → Moldura (`reta` ou `elegante`), e o
+   `aplicarAparencia()` já marca o `<html>` com `data-moldura`. Os produtos
+   passam a obedecer ao mesmo atributo.
+
+   Dois seletores separados seriam dois lugares para escolher a mesma coisa, e
+   a primeira vez que alguém mexesse num só a página sairia com metade das
+   fotos onduladas e metade quadrada — sem nada errado no código, e feio.
+
+   Sem o atributo (todo salão que nunca escolheu) nenhuma destas regras casa,
+   e o cartão quadrado é o que aparece. A onda é a MESMA máscara SVG do cartão
+   de serviço, copiada com o mesmo comentário de origem: branco por causa do
+   canal alfa, e `preserveAspectRatio='none'` para ela esticar com o cartão. */
+[data-moldura="elegante"] .pr-grade{ gap:14px }
+[data-moldura="elegante"] .pr-cartao{
+  border:1px solid transparent; border-radius:var(--r-lg);
+  box-shadow:var(--sombra-md); padding-bottom:2px;
+}
+@supports (mask-image: linear-gradient(#000, #000)) or
+          (-webkit-mask-image: linear-gradient(#000, #000)) {
+  [data-moldura="elegante"] .pr-foto{
+    --onda:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 H100 V80 C78 100 22 62 0 84 Z' fill='%23fff'/%3E%3C/svg%3E");
+    -webkit-mask-image:var(--onda); mask-image:var(--onda);
+    -webkit-mask-size:100% 100%;    mask-size:100% 100%;
+    -webkit-mask-repeat:no-repeat;  mask-repeat:no-repeat;
+    /* Os mesmos 12% do cartão de serviço, e pelo mesmo motivo: sem subir o
+       texto sobraria a fatia recortada como faixa vazia. Vale aqui porque a
+       foto também é quadrada; se o `aspect-ratio` do `.pr-foto` mudar, este
+       número muda junto. */
+    margin-bottom:-12%;
+  }
+}
+[data-moldura="elegante"] .pr-pe{ position:relative; padding-top:2px }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A FITA DO CARRINHO
+
+   Empilhada ACIMA do rodapé de ação, nunca no lugar dele: o botão de agendar
+   é o caminho principal da página e não pode sumir porque a cliente pôs um
+   shampoo no carrinho.
+
+   ⚠ A COR SAI DA PERSONALIZAÇÃO, como todo o resto desta folha. `--acao` é a
+   cor que o salão escolheu e `--acao-txt` é a letra que o cálculo de
+   contraste decidiu para cima dela — então a fita se lê em dourado, em roxo
+   ou em verde-escuro sem ninguém escrever cor nenhuma aqui.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* O pé é quem gruda; as barras dentro dele são conteúdo normal e se empilham
+   pela ordem. Ver o comentário no HTML: duas sticky no mesmo `bottom:0`
+   grudam no mesmo lugar, uma em cima da outra. */
+.pe-fixo{ position:sticky; bottom:0; z-index:3 }
+.carrinho-fita{
+  position:relative; z-index:1;
+  display:flex; align-items:center; gap:10px;
+  /* ⚠ SEM MARGEM NEGATIVA. Copiei o `margin:0 -18px` de um bloco que mora
+     DENTRO do `<main>`, onde ele cancela o recuo da coluna. A fita mora fora,
+     no pé — ali não há recuo para cancelar, e a margem só empurrava a barra
+     18px para fora de cada lado. Medido: a fita ia de -18 a 430 numa tela de
+     412, e o botão do WhatsApp ficava cortado pela beira direita. */
+  padding:10px 16px;
+  background:var(--acao); color:var(--acao-txt);
+  box-shadow:0 -6px 18px -10px rgba(0,0,0,.35);
+}
+/* O resumo é um botão de largura inteira: num celular, o alvo grande é o que
+   faz a pessoa conseguir voltar ao pedido sem mirar. */
+.carrinho-fita .cf-resumo{
+  flex:1; min-width:0; display:flex; align-items:center; gap:11px;
+  background:none; border:0; padding:6px 0; color:inherit;
+  cursor:pointer; text-align:left; min-height:44px;
+}
+.cf-saco{ position:relative; flex:none; display:grid; place-items:center;
+          width:34px; height:34px; border-radius:50%;
+          background:rgba(255,255,255,.18) }
+.cf-saco .ic-svg{ width:19px; height:19px }
+/* A contagem no canto do saco. Quadradinho pequeno com número é o sinal que
+   todo mundo já sabe ler; sem ele a fita diz "3 produtos" e o ícone não
+   participa da informação. */
+.cf-n{
+  position:absolute; top:-3px; right:-4px; min-width:17px; height:17px;
+  padding:0 4px; border-radius:9px;
+  background:var(--painel); color:var(--acao);
+  font-size:11px; font-weight:800; line-height:17px; text-align:center;
+}
+.cf-txt{ min-width:0; display:block; line-height:1.25 }
+/* `nowrap`: "1 produto · R$ 45,00" quebrando em duas linhas empurra o "Ver
+   meu pedido" para fora da fita. Se não couber, o que corta é o nome do
+   botão ao lado (ver a media query lá embaixo), não o valor. */
+.cf-txt b{ display:block; font-size:14.5px; font-weight:700; white-space:nowrap }
+.cf-txt span{ display:block; font-size:12px; opacity:.82 }
+/* O botão do WhatsApp é claro sobre a fita colorida, e não colorido sobre
+   colorido: a ação de mandar precisa saltar da barra que a carrega. */
+.carrinho-fita .cf-zap{
+  flex:0 0 auto; display:inline-flex; align-items:center; gap:7px;
+  min-height:44px; padding:0 15px; border:0; border-radius:12px;
+  background:var(--painel); color:var(--acao);
+  font-size:13.5px; font-weight:750; cursor:pointer;
+}
+.carrinho-fita .cf-zap .ic-svg{ width:18px; height:18px }
+.carrinho-fita .cf-zap:active{ transform:scale(.98) }
+/* ⚠ E O CORPO GANHA ESPAÇO EMBAIXO. Sem isto a fita tapa o último cartão da
+   página — e "o botão fixo inferior não pode esconder conteúdo importante"
+   foi pedido com essas palavras. */
+/* ⚠ `.conteudo`, E NÃO `.corpo`. `.corpo` é o palco do PAINEL; a página da
+   cliente usa `.conteudo`. A regra com o seletor errado não pinta nada e não
+   dá erro: escrevi `.corpo`, medi, e o `getComputedStyle` do teste reclamou
+   que o elemento não existia — foi assim que apareceu. */
+body.com-fita .conteudo{ padding-bottom:78px }
+@media (max-width:360px){
+  /* Em tela estreita o rótulo sai e fica só o ícone: "Enviar pedido" ao lado
+     de "3 produtos · R$ 135,00" empurrava o valor para fora da tela. */
+  .carrinho-fita .cf-zap span:not(.ic-svg){ display:none }
+  .carrinho-fita .cf-zap{ padding:0 13px }
 }
 
 /* A espera, sem palavra nenhuma. Ver o comentário do `#p-abrindo`. */

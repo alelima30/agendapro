@@ -218,8 +218,11 @@ h2{font-size:20px;font-weight:800;letter-spacing:-.02em;margin-bottom:3px}
 .st-falt{background:rgba(107,114,133,.18);color:var(--txt2)}
 
 /* ── Botões ──────────────────────────────────────────────────────────── */
+/* `relative`, e nao mais `sticky`: quem gruda agora e' o `.pe-fixo` em volta.
+   Sticky aqui dentro nao faz mal, mas deixa duas coisas parecendo responsaveis
+   pela mesma tarefa — e aí ninguem sabe qual e' a que importa. */
 .rodape-acao{
-  position:sticky;bottom:0;background:var(--painel);border-top:1px solid var(--borda);
+  position:relative;background:var(--painel);border-top:1px solid var(--borda);
   padding:12px 18px calc(12px + env(safe-area-inset-bottom));
   display:flex;gap:9px;
 }
@@ -389,15 +392,21 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
            lista. Estava aqui fixo E lá dentro de novo, então a tela mostrava
            "O QUE OFERECEMOS" e "SERVIÇOS" um debaixo do outro. -->
       <div id="capaServicos"></div>
+      <!-- ⚠ A LOJA SUBIU, e o motivo mudou junto com ela.
+           Ela ficava DEPOIS da equipe, e o argumento era que quem chega por um
+           link no WhatsApp veio marcar horario — produto e' o segundo assunto.
+           Continua verdade, e por isso ela continua DEPOIS dos servicos.
+
+           O que mudou foi o que ela e': era um bloco de texto com um botao, e
+           agora e' vitrine com foto e preco. Bloco de texto atras da equipe
+           ninguem le'; vitrine atras da equipe e' vitrine que ninguem ve'. -->
+      <div id="capaLoja"></div>
       <!-- Os atalhos de quem ja' e' cliente, DEPOIS da vitrine: quem chega
            pela primeira vez tem que ver o que a casa faz antes de qualquer
            outra coisa, e quem ja' e' cliente rola dois dedos e acha. -->
       <div id="capaAtalhos"></div>
       <div class="cat" id="rotuloEquipe">Quem atende</div>
       <div id="capaEquipe"></div>
-      <!-- A loja entra DEPOIS da equipe, e não antes: quem chegou por um link
-           no WhatsApp veio marcar horário. Produto é o segundo assunto. -->
-      <div id="capaLoja"></div>
     </section>
 
     <!-- ══════ LOJA ══════
@@ -655,9 +664,27 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
 
   </main>
 
-  <div class="rodape-acao" id="rodapeAcao" style="display:none">
-    <button class="b2" id="btSecundario" style="display:none" onclick="acaoSecundaria()">—</button>
-    <button class="b" id="btPrincipal" onclick="acaoPrincipal()">Continuar</button>
+  <!-- ══════════ A FITA DO CARRINHO ══════════
+       Fica ACIMA do rodape de acao, e nao no lugar dele: o botao de agendar e'
+       o caminho principal da pagina e nao pode sumir porque a cliente pos um
+       shampoo no carrinho. As duas coisas convivem, empilhadas, que e' como
+       estao no modelo que o dono mandou.
+
+       Nasce escondida e so' aparece com produto no carrinho. -->
+  <!-- ⚠ AS DUAS DENTRO DE UM PE' SO'. Cada uma era `position:sticky` com
+       `bottom:0` — e dois sticky no mesmo bottom NAO se empilham: os dois
+       grudam no mesmo lugar, um por cima do outro. Medido: a fita ia de 889 a
+       955 e o rodape de 875 a 955, na mesma tela de 955.
+
+       Quem gruda passa a ser o pe'; as duas barras viram conteudo normal
+       dentro dele e se empilham pela ordem, que e' o que o modelo mostra. -->
+  <div class="pe-fixo" id="peFixo">
+    <div class="carrinho-fita" id="carrinhoFita" style="display:none"></div>
+
+    <div class="rodape-acao" id="rodapeAcao" style="display:none">
+      <button class="b2" id="btSecundario" style="display:none" onclick="acaoSecundaria()">—</button>
+      <button class="b" id="btPrincipal" onclick="acaoPrincipal()">Continuar</button>
+    </div>
   </div>
 
   <p class="rodape-nota" id="notaRodape"></p>
@@ -1057,6 +1084,7 @@ function bdDaVitrine(v){
       cores: (s.cores && typeof s.cores === 'object') ? s.cores : {},
       modo: s.modo || 'atual',
       logoForma: s.logoForma || 'circular',
+      logoBorda: s.logoBorda || 'media',
       fundoTipo: s.fundoTipo || 'cor',
       gradiente: s.gradiente || null,
       cfg: { diasLiberados: s.diasLiberados },
@@ -1574,6 +1602,13 @@ function desenhar(){
                                bs.style.display=''; bs.textContent='Marcar outro'; }
   if(tela === 'meus')        { desenharMeus();      bp.textContent='Agendar novo horário'; trilhaAte(0); }
   if(tela === 'pacotes')     { desenharPacotes();   bp.textContent='Usar meu pacote'; trilhaAte(0); }
+
+  /* ⚠ DEPOIS DE TODOS OS `if`, e não dentro do da capa. O carrinho sobrevive
+     à navegação (fica no `localStorage`), então a fita tem que existir em
+     qualquer tela — menos na loja, onde ela repetiria o botão do rodapé. Se
+     ela morasse só no ramo da capa, a cliente que fosse ver os horários
+     perderia o pedido de vista e não voltaria para ele. */
+  desenharCarrinhoFita();
 }
 
 function desenharSaloes(){
@@ -3199,22 +3234,107 @@ function mudarNoCarrinho(pid, delta){
 }
 
 /* O convite na capa. Só aparece quando há o que vender E para onde mandar. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   A FITA DO CARRINHO
+
+   Conta o que tem, soma quanto dá, e leva ao WhatsApp — sem tirar o botão de
+   agendar do lugar.
+
+   ⚠ TRÊS CONDIÇÕES PARA APARECER, e cada uma evita um jeito de errar:
+
+     · carrinho com item. Fita vazia ocupando 70px no pé de toda tela é uma
+       barra de propaganda;
+     · salão com WhatsApp cadastrado. Sem ele o botão abriria um `wa.me/`
+       quebrado, e botão que leva a lugar nenhum é pior que botão nenhum. É a
+       mesma regra que a tela da loja já aplica;
+     · não estar NA loja. Lá o botão principal do rodapé já é "Enviar pedido
+       no WhatsApp" — a fita repetiria a mesma ação dois dedos acima dela.
+
+   ⚠ E O CORPO GANHA ESPAÇO EMBAIXO. Sem isso a fita tapa o último cartão da
+   página, e o pedido foi explícito: "o botão fixo inferior não pode esconder
+   conteúdo importante".
+   ═══════════════════════════════════════════════════════════════════════════ */
+function desenharCarrinhoFita(){
+  const fita = document.getElementById('carrinhoFita');
+  if(!fita) return;
+  const n = itensNoCarrinho();
+  const mostrar = n > 0 && !!zapDoSalao() && tela !== 'loja';
+
+  document.body.classList.toggle('com-fita', mostrar);
+  if(!mostrar){ fita.style.display = 'none'; fita.innerHTML = ''; return; }
+
+  fita.style.display = '';
+  fita.innerHTML = `
+    <button class="cf-resumo" onclick="irPara('loja')">
+      <span class="cf-saco"><span data-ico="presente"></span>
+        <span class="cf-n">${n}</span></span>
+      <span class="cf-txt">
+        <b>${n === 1 ? '1 produto' : n + ' produtos'} · ${real(totalDoCarrinho())}</b>
+        <span>Ver meu pedido</span>
+      </span>
+    </button>
+    <button class="cf-zap" onclick="enviarPedido()">
+      <span data-ico="whatsapp"></span> Enviar pedido</button>`;
+  if(window.aplicarIcones) aplicarIcones(fita);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRODUTOS EM DESTAQUE, NA CAPA
+
+   Era um bloco de texto — "2 produtos à venda" e um botão. Virou vitrine, com
+   a mesma cara dos serviços logo acima: foto, nome, preço e uma ação redonda
+   no canto. A cliente vê o que o salão vende sem precisar entrar em lugar
+   nenhum, que é o ponto inteiro de uma vitrine.
+
+   ⚠ O BOTÃO PÕE NO CARRINHO DAQUI MESMO, e mostra QUANTO já tem. Sem o
+   número, quem já escolheu dois vidros na tela da loja volta para a capa e vê
+   um carrinho vazio — toca de novo, e agora são três. O contador não é
+   enfeite: é o que impede a cliente de pedir o que não queria.
+
+   ⚠ E OS QUATRO PRIMEIROS, não a lista inteira. Salão com vinte produtos
+   empurraria "quem atende" e "meus horários" para fora de qualquer tela. O
+   "Ver todos" leva ao resto, e leva junto a contagem.
+
+   ⚠ PREÇO PODE SER NULO. O dono escolhe esconder o valor (32_produto_cadastro);
+   `real(null)` escreveria "R$ 0,00", que é pior do que não escrever nada
+   porque parece uma promessa.
+   ═══════════════════════════════════════════════════════════════════════════ */
 function desenharLojaNaCapa(){
   const alvo = document.getElementById('capaLoja');
   if(!alvo) return;
   const lista = produtosDaLoja();
   if(!lista.length || !zapDoSalao()){ alvo.innerHTML = ''; return; }
-  const n = itensNoCarrinho();
+
+  const mostrar = lista.slice(0, 4);
+  const sobram = lista.length - mostrar.length;
+
   alvo.innerHTML = `
-    <div class="cat">Produtos</div>
-    <div class="bloco" style="cursor:pointer" onclick="irPara('loja')">
-      <div class="rot">${lista.length === 1
-        ? '1 produto à venda' : lista.length + ' produtos à venda'}</div>
-      <p style="font-size:13.5px;color:var(--txt2);margin:6px 0 10px">
-        Monte o pedido aqui e mande pelo WhatsApp do salão.</p>
-      <button class="btn" onclick="event.stopPropagation();irPara('loja')">
-        ${n ? 'Ver o carrinho (' + n + ')' : 'Ver os produtos'}</button>
-    </div>`;
+    <div class="cat-linha">
+      <div class="cat" style="margin:0">Produtos em destaque</div>
+      ${sobram > 0 ? `<button class="ver-todos ver-todos-min"
+          onclick="irPara('loja')">Ver todos
+          <span class="ver-todos-n">${lista.length}</span></button>` : ''}
+    </div>
+    <div class="pr-grade">${mostrar.map(p => {
+      const n = carrinho[p.id] || 0;
+      return `<div class="pr-cartao">
+        <span class="pr-foto"${p.foto
+          ? ` style="background-image:url('${escapar(p.foto)}')"` : ''}>
+          ${p.foto ? '' : '<span data-ico="presente"></span>'}</span>
+        <div class="pr-pe">
+          <span class="pr-txt">
+            <b>${escapar(p.nome)}</b>
+            <span>${p.preco == null ? 'sob consulta' : real(Number(p.preco))}</span>
+          </span>
+          <button class="pr-add${n ? ' tem' : ''}"
+                  onclick="mudarNoCarrinho('${p.id}', 1)"
+                  aria-label="Adicionar ${escapar(p.nome)} ao pedido">
+            <span data-ico="presente"></span>
+            ${n ? `<span class="pr-n">${n}</span>` : ''}</button>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  if(window.aplicarIcones) aplicarIcones(alvo);
 }
 
 function desenharLoja(){
@@ -4182,6 +4302,24 @@ function aplicarModo(s){
   if(forma === 'arredondado' || forma === 'quadrado')
     raiz.setAttribute('data-logo', forma);
   else raiz.removeAttribute('data-logo');
+
+  /* ── A ESPESSURA DA MOLDURA ───────────────────────────────────────────
+     Ausente vale `media`, que são os 5px de antes desta escolha existir.
+
+     ⚠ E O `0px` VAI COM UNIDADE. `0` puro dentro do `box-shadow` do CSS
+     invalida a declaração inteira, e a sombra de relevo da logo some junto
+     com o anel — a peça fica chapada na foto, e nada avisa. Ver o comentário
+     no `.marca-selo` do estilo.css. */
+  /* ⚠ `media` NÃO ESCREVE NADA. Ela é o padrão, e o CSS já tem os 5px como
+     valor de reserva — escrever a variável com o mesmo número não muda um
+     pixel, mas cria um estado "escolhido" onde não houve escolha. É a mesma
+     regra do `data-modo` e do `data-logo` aqui em cima, e vale pelo mesmo
+     motivo: ausente tem que ser ausente, senão a próxima pessoa que mexer no
+     padrão vai mexer num lugar e não em dois. */
+  const ESPESSURA = { sem:'0px', fina:'3px', grossa:'9px' };
+  const borda = s.logoBorda || c.logoBorda || 'media';
+  if(ESPESSURA[borda]) raiz.style.setProperty('--selo-anel', ESPESSURA[borda]);
+  else raiz.style.removeProperty('--selo-anel');
 }
 
 /* As nove, e o que cada uma pinta. A chave AUSENTE não aparece aqui: o laço
@@ -4216,6 +4354,15 @@ function aplicarCoresSoltas(s, p, escuro){
     // marrom com apoio cinza fica com duas famílias de cor na mesma frase.
     p('--txt3', mexer(texto, escuro ? -0.25 : 0.30));
   }
+  /* ⚠ DEPOIS DO `texto`, e a ordem é a regra inteira. O `texto` acima já
+     deduz um `--txt3` puxado dele; esta linha só entra quando o dono escolheu
+     o cinza DE PROPÓSITO, e então ela ganha. Invertida a ordem, a dedução
+     apagaria a escolha — em silêncio, que é o pior jeito. */
+  const discreto = vale('discreto');
+  if(discreto) p('--txt3', discreto);
+  // O anel em volta da logo. A espessura dele é outra escolha, no `aplicarModo`.
+  const moldura = vale('moldura');
+  if(moldura) p('--selo-cor', moldura);
   const titulo = vale('titulo');
   if(titulo) p('--txt', titulo);
   /* ── O PAPEL DA PÁGINA ────────────────────────────────────────────────

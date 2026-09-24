@@ -2973,6 +2973,7 @@ language sql stable security definer set search_path = public as $$
       'cores',     coalesce(s.cfg->'cores', '{}'::jsonb),
       'modo',      coalesce(s.cfg->>'modo', 'atual'),
       'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
+      'logoBorda', coalesce(s.cfg->>'logoBorda', 'media'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
       'gradiente', s.cfg->>'gradiente'
     ),
@@ -10447,6 +10448,9 @@ language sql stable security definer set search_path = public as $$
       'cores',     coalesce(s.cfg->'cores', '{}'::jsonb),
       'modo',      coalesce(s.cfg->>'modo', 'atual'),
       'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
+      -- A espessura do anel em volta da logo. `media` é o que a página fazia
+      -- antes desta escolha existir, então salão que nunca mexeu não muda.
+      'logoBorda', coalesce(s.cfg->>'logoBorda', 'media'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
       'gradiente', s.cfg->>'gradiente'
     ),

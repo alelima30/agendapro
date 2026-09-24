@@ -216,6 +216,188 @@ verdade('e sobra largura de verdade para o texto', d.txtLargura > 120,
 await desk.close();
 
 /* ══════════════════════════════════════════════════════════════════════════
+   2b — ⚠ A MOLDURA DO LOGO, E A FITA DO CARRINHO
+
+   Duas coisas pedidas depois, e as duas com o mesmo cuidado: nascem no que
+   havia antes e só mudam para quem escolher.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('A moldura do logo e a fita do carrinho');
+
+await dona.inserir('produtos', { salaoId: SALAO, nome:'Shampoo', preco:45,
+  custo:20, estoque:5, comissaoPct:10, ativo:true, vendaOnline:true });
+await dona.atualizar('saloes', SALAO, { whatsapp:'11988887777' });
+
+const p2 = await abrir(412, 915);
+const padrao = await p2.evaluate(() =>
+  getComputedStyle(document.documentElement).getPropertyValue('--selo-anel').trim());
+/* Sem escolha, a variável nem existe — e o CSS cai no valor de reserva, que é
+   o 5px de antes. Definida com um número "neutro", ela já seria uma escolha. */
+igual('sem escolher, a espessura da moldura não é definida', padrao, '');
+
+await dona.atualizar('saloes', SALAO, { cfg: Object.assign({},
+  (await dona.lista('saloes', { id: SALAO }))[0].cfg,
+  { logoBorda:'grossa', cores:{ moldura:'#F5C34B' } }) });
+const p3 = await abrir(412, 915);
+const moldura = await p3.evaluate(() => {
+  const e = getComputedStyle(document.documentElement);
+  return { anel: e.getPropertyValue('--selo-anel').trim(),
+           cor:  e.getPropertyValue('--selo-cor').trim(),
+           // A sombra de relevo precisa sobreviver ao anel.
+           sombra: getComputedStyle(document.querySelector('.marca-selo')).boxShadow };
+});
+console.log('      ' + JSON.stringify(moldura));
+igual('a espessura escolhida vale', moldura.anel, '9px');
+igual('e a cor da moldura também', moldura.cor.toUpperCase(), '#F5C34B');
+verdade('e a sombra de relevo da logo continua lá',
+  (moldura.sombra.match(/rgba?\(/g) || []).length >= 2, moldura.sombra.slice(0, 120));
+
+/* ⚠ "SEM MOLDURA" NÃO PODE APAGAR A SOMBRA. `0` puro num `box-shadow`
+   invalida a declaração INTEIRA — o anel some e a sombra de relevo vai junto,
+   deixando a logo chapada na foto. Por isso o JS manda `0px`, com unidade. */
+await dona.atualizar('saloes', SALAO, { cfg: Object.assign({},
+  (await dona.lista('saloes', { id: SALAO }))[0].cfg, { logoBorda:'sem' }) });
+const p4 = await abrir(412, 915);
+const semAnel = await p4.evaluate(() => ({
+  anel: getComputedStyle(document.documentElement)
+          .getPropertyValue('--selo-anel').trim(),
+  sombra: getComputedStyle(document.querySelector('.marca-selo')).boxShadow,
+}));
+igual('sem moldura, a espessura é zero COM unidade', semAnel.anel, '0px');
+verdade('e a sombra de relevo sobrevive',
+  semAnel.sombra !== 'none' && (semAnel.sombra.match(/rgba?\(/g) || []).length >= 2,
+  semAnel.sombra.slice(0, 120));
+await p4.close();
+
+/* ── A FITA DO CARRINHO ───────────────────────────────────────────────── */
+const fita = await p3.evaluate(() => {
+  const pr = produtosDaLoja()[0];
+  if(pr) mudarNoCarrinho(pr.id, 1);
+  const f = document.getElementById('carrinhoFita');
+  const r = document.getElementById('rodapeAcao');
+  const z = f.querySelector('.cf-zap');
+  const cx = e => e ? e.getBoundingClientRect() : null;
+  return {
+    apareceu: f.style.display !== 'none',
+    texto: f.innerText.replace(/\s+/g, ' ').trim(),
+    // ⚠ Acima do rodapé, e não em cima dele: duas sticky no mesmo bottom
+    // grudam no mesmo lugar, uma por cima da outra.
+    acimaDoRodape: cx(f).bottom <= cx(r).top + 1,
+    // ⚠ E dentro da tela: a margem negativa que copiei de outro bloco
+    // empurrava o botão do WhatsApp para fora da beira direita.
+    dentroDaTela: cx(z).right <= innerWidth,
+    alvoZap: Math.round(cx(z).height),
+    folgaEmbaixo: getComputedStyle(document.querySelector('.conteudo')).paddingBottom,
+  };
+});
+console.log('      ' + JSON.stringify(fita));
+verdade('com produto no carrinho, a fita aparece', fita.apareceu);
+verdade('ela conta o que tem e quanto dá',
+  /1 produto/.test(fita.texto) && /45,00/.test(fita.texto), fita.texto);
+verdade('e leva ao WhatsApp', /Enviar pedido/.test(fita.texto), fita.texto);
+verdade('a fita fica ACIMA do botão de agendar, sem cobri-lo', fita.acimaDoRodape);
+verdade('e o botão do WhatsApp cabe na tela', fita.dentroDaTela);
+verdade('com alvo de toque de gente', fita.alvoZap >= 44, String(fita.alvoZap));
+/* "O botão fixo inferior não pode esconder conteúdo importante" foi pedido
+   com essas palavras. */
+verdade('e o corpo ganha folga embaixo, para a fita não tapar o último bloco',
+  parseInt(fita.folgaEmbaixo, 10) >= 60, fita.folgaEmbaixo);
+
+/* ── ⚠ A VITRINE DE PRODUTOS, E O CONTADOR NO CARRINHO ────────────────
+   O contador não é enfeite. Sem ele, quem já escolheu dois vidros na tela da
+   loja volta para a capa, vê o botão "vazio", toca de novo — e leva três. */
+const vitrine = await p3.evaluate(() => {
+  const cartoes = [...document.querySelectorAll('#capaLoja .pr-cartao')];
+  const add = document.querySelector('#capaLoja .pr-add');
+  return {
+    quantos: cartoes.length,
+    temFoto: !!document.querySelector('#capaLoja .pr-foto'),
+    texto: (document.getElementById('capaLoja') || {}).innerText || '',
+    // O carrinho já tem 1 deste produto, posto logo acima.
+    contador: (document.querySelector('#capaLoja .pr-n') || {}).textContent || '',
+    marcado: add ? add.classList.contains('tem') : null,
+    alvo: add ? Math.round(add.getBoundingClientRect().height) : null,
+  };
+});
+console.log('      ' + JSON.stringify(vitrine).slice(0, 200));
+verdade('a capa mostra os produtos em cartão, com foto', vitrine.quantos > 0
+  && vitrine.temFoto, JSON.stringify(vitrine.quantos));
+verdade('com o nome e o preço', /Shampoo/.test(vitrine.texto)
+  && /45,00/.test(vitrine.texto), vitrine.texto.slice(0, 120));
+igual('e o botão do carrinho traz a quantidade já escolhida',
+  vitrine.contador, '1');
+verdade('e fica marcado quando já tem', vitrine.marcado === true);
+verdade('com alvo de toque de gente', vitrine.alvo >= 40, String(vitrine.alvo));
+
+/* ⚠ A MOLDURA DOS PRODUTOS É A MESMA DOS SERVIÇOS, e não uma segunda
+   escolha. Duas escolhas para a mesma coisa é a garantia de que um dia a
+   página sai com metade das fotos onduladas e metade quadrada. */
+const semOnda = await p3.evaluate(() => ({
+  attr: document.documentElement.getAttribute('data-moldura'),
+  prod: getComputedStyle(document.querySelector('#capaLoja .pr-foto')).maskImage,
+  serv: getComputedStyle(document.querySelector('#capaServicos .sv-cartao-foto'))
+          .maskImage,
+}));
+igual('sem escolher moldura, nem o serviço nem o produto têm onda',
+  [semOnda.prod, semOnda.serv], ['none', 'none']);
+
+await dona.atualizar('saloes', SALAO, { cfg: Object.assign({},
+  (await dona.lista('saloes', { id: SALAO }))[0].cfg, { moldura:'elegante' }) });
+const pOnda = await abrir(412, 915);
+const comOnda = await pOnda.evaluate(() => ({
+  attr: document.documentElement.getAttribute('data-moldura'),
+  prod: getComputedStyle(document.querySelector('#capaLoja .pr-foto')).maskImage,
+  serv: getComputedStyle(document.querySelector('#capaServicos .sv-cartao-foto'))
+          .maskImage,
+}));
+igual('escolhendo a moldura elegante, o atributo aparece',
+  comOnda.attr, 'elegante');
+verdade('o serviço ganha a onda', /svg/.test(comOnda.serv), comOnda.serv.slice(0,40));
+verdade('e o produto ganha a MESMA onda', comOnda.prod === comOnda.serv,
+  comOnda.prod.slice(0, 60) + ' | ' + comOnda.serv.slice(0, 60));
+await pOnda.close();
+await dona.atualizar('saloes', SALAO, { cfg: Object.assign({},
+  (await dona.lista('saloes', { id: SALAO }))[0].cfg, { moldura:'reta' }) });
+
+/* ⚠ TOCAR NO CARTÃO SOMA, E O NÚMERO ACOMPANHA NA HORA. Se o contador só
+   atualizasse ao trocar de tela, a cliente tocaria duas vezes achando que a
+   primeira não pegou. */
+await p3.evaluate(() => document.querySelector('#capaLoja .pr-add').click());
+await p3.waitForTimeout(500);
+igual('tocando de novo, o contador vai para 2',
+  await p3.evaluate(() =>
+    (document.querySelector('#capaLoja .pr-n') || {}).textContent || ''), '2');
+
+/* ⚠ E SEM WHATSAPP A FITA NÃO APARECE. O botão abriria um `wa.me/` quebrado,
+   e botão que leva a lugar nenhum é pior que botão nenhum. */
+await p3.close();
+/* ⚠ OS DOIS CAMPOS, e não só o `whatsapp`. O `zapDoSalao()` cai no
+   `telefone` quando não há whatsapp cadastrado — e está certo: salão pequeno
+   usa o mesmo número para as duas coisas, e exigir que ele digite duas vezes
+   é atrito à toa. Limpando só um, a fita continuava aparecendo e a premissa
+   deste teste é que era falsa, não o código. */
+await dona.atualizar('saloes', SALAO, { whatsapp: null, telefone: null });
+const p5 = await abrir(412, 915);
+const semZap = await p5.evaluate(() => {
+  const pr = produtosDaLoja()[0];
+  if(pr) mudarNoCarrinho(pr.id, 1);
+  return document.getElementById('carrinhoFita').style.display;
+});
+igual('salão sem WhatsApp nenhum não ganha a fita', semZap, 'none');
+await p5.close();
+await p2.close();
+
+/* ⚠ E O PRODUTO SAI DAQUI. A seção 3 mede o salão SEM LOJA, e o produto que
+   esta seção cadastrou ficaria de herança — a verificação de lá passou a
+   reprovar porque o convite passou a (corretamente) falar em produtos.
+   Cenário que vaza para o seguinte é defeito de teste, e dos que acusam o
+   código de algo que ele acertou. */
+for(const pr of (await dona.lista('produtos', { salaoId: SALAO }))){
+  await dona.apagar('produtos', pr.id);
+}
+await dona.atualizar('saloes', SALAO,
+  { whatsapp:'11988887777', telefone:'(11) 98111-3251' });
+
+/* ══════════════════════════════════════════════════════════════════════════
    3 — ⚠ O SALÃO SEM FOTO NENHUMA
 
    Metade dos salões não sobe capa. A beira curva não pode virar um arco

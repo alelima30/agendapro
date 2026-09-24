@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.b97068';
+const VERSAO_APP = 'v9.c88cc5';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7442,6 +7442,15 @@ function pintarSalao(){
       <div class="rot" style="margin:18px 0 8px">Formato do logo</div>
       <div class="regua" id="reguaLogoForma" style="justify-content:flex-start"></div>
 
+      <!-- A espessura do anel em volta da logo. A COR dele esta' nas cores,
+           uma a uma, em "Moldura do logo" — duas perguntas diferentes, cada
+           uma no lugar onde ja' se pergunta aquilo. -->
+      <div class="rot" style="margin:18px 0 8px">Moldura do logo</div>
+      <div class="regua" id="reguaLogoBorda" style="justify-content:flex-start"></div>
+      <p class="secao-sub" style="margin-top:9px">A espessura do anel em volta
+        da logo, quando há foto de capa. A cor dele você escolhe acima, em
+        <b>Cores, uma a uma</b>.</p>
+
       <div class="rot" style="margin:18px 0 8px">Preços na capa</div>
       <div class="regua" id="reguaPreco" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaPreco" style="margin-top:9px"></p>
@@ -7996,6 +8005,10 @@ function lerAparencia(){
     modo: ['personalizado','premium'].includes(c.modo) ? c.modo : 'atual',
     logoForma: ['arredondado','quadrado'].includes(c.logoForma)
       ? c.logoForma : 'circular',
+    /* A espessura do anel em volta da logo. Ausente vale `media`, que são os
+       5px de antes desta escolha existir — nenhum salão muda de aparência. */
+    logoBorda: ['sem','fina','grossa'].includes(c.logoBorda)
+      ? c.logoBorda : 'media',
     fundoTipo: ['gradiente','imagem'].includes(c.fundoTipo) ? c.fundoTipo : 'cor',
     gradiente: c.gradiente || null,
   };
@@ -8043,11 +8056,17 @@ const CORES_SOLTAS = [
   ['secundaria', 'Cor secundária',  'Apoio da principal: fundos suaves e realces.'],
   ['botao',      'Botões',          'O botão de marcar e os de ação.'],
   ['texto',      'Textos',          'O corpo do texto, no cartão e na lista.'],
+  /* O cinza dos detalhes. Vale a pena listar ONDE ele aparece, porque "texto
+     secundário" não diz nada a quem está olhando a própria página: é a linha
+     do bairro embaixo do endereço, o "NOSSOS SERVIÇOS" e o "CABELO", e o
+     "30 min" no canto do cartão de serviço. */
+  ['discreto',   'Textos discretos','O bairro, os títulos de seção e a duração do serviço.'],
   ['titulo',     'Títulos',         'Os nomes em destaque: serviço, seção, salão.'],
   ['card',       'Cards',           'O fundo dos cartões que ficam sobre a página.'],
   ['icone',      'Ícones',          'Os desenhos de traço, quando não acompanham o texto.'],
   ['destaque',   'Destaque e preço','O valor do serviço e o que precisa saltar.'],
   ['borda',      'Bordas',          'As linhas finas que separam um bloco do outro.'],
+  ['moldura',    'Moldura do logo', 'O anel em volta da logo, na capa.'],
 ];
 
 function pintarAparencia(){
@@ -8163,6 +8182,12 @@ function pintarAparencia(){
   document.getElementById('reguaLogoForma').innerHTML = FORMAS.map(([v, rot]) =>
     `<button type="button" class="${aparencia.logoForma === v ? 'on' : ''}"
              onclick="escolherAparencia('logoForma','${v}')">${rot}</button>`).join('');
+
+  const BORDAS = [['sem','Sem moldura'], ['fina','Fina'],
+                  ['media','Média'], ['grossa','Grossa']];
+  document.getElementById('reguaLogoBorda').innerHTML = BORDAS.map(([v, rot]) =>
+    `<button type="button" class="${aparencia.logoBorda === v ? 'on' : ''}"
+             onclick="escolherAparencia('logoBorda','${v}')">${rot}</button>`).join('');
 
   document.getElementById('reguaPreco').innerHTML = PRECOS.map(([v, rot]) =>
     `<button type="button" class="${aparencia.precoNaCapa === v ? 'on' : ''}"
@@ -8356,6 +8381,16 @@ function conferirLegibilidade(){
   olhar('titulo',   'os títulos',  3);
   olhar('destaque', 'o preço',     3);
   olhar('icone',    'os ícones',   3);
+  /* ⚠ 2, E NÃO 4.5. Este cinza é apagado DE PROPÓSITO, e o padrão do próprio
+     app está em 2,29:1 sobre o papel claro — medido. Cobrar 4.5 aqui faria a
+     tela acusar a cor de fábrica assim que alguém a escolhesse, e um aviso
+     que dispara no estado normal é um aviso que a pessoa aprende a ignorar —
+     e aí ele não serve para o caso em que importa.
+
+     O piso 2 não é norma nenhuma: é a fronteira entre DISCRETO e INVISÍVEL.
+     Ele deixa passar o cinza fraco que o projeto já usa e pega o cinza claro
+     sobre fundo claro, que é o acidente que esta cor nova torna possível. */
+  olhar('discreto', 'os textos discretos', 2);
 
   alvo.innerHTML = !queixas.length ? '' :
     '<b style="color:var(--alerta)">Difícil de ler:</b> '
@@ -8542,6 +8577,7 @@ function salvarAparencia(){
     cores: soAsEscolhidas(aparencia.cores),
     modo: aparencia.modo,
     logoForma: aparencia.logoForma,
+    logoBorda: aparencia.logoBorda,
     fundoTipo: aparencia.fundoTipo,
     gradiente: aparencia.gradiente,
   });

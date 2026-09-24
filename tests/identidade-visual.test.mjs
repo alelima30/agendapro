@@ -108,6 +108,7 @@ async function olharCapa(){
       ico:    est.getPropertyValue('--ico').trim(),
       ac600:  est.getPropertyValue('--ac-600').trim(),
       bg:     est.getPropertyValue('--bg').trim(),
+      txt3:   est.getPropertyValue('--txt3').trim(),
       painel2: est.getPropertyValue('--painel2').trim(),
       temaCor: (document.querySelector('meta[name="theme-color"]') || {})
                  .getAttribute ? document.querySelector('meta[name="theme-color"]')
@@ -181,7 +182,7 @@ const daTela = await p.evaluate(() => ({
 }));
 console.log('      ' + JSON.stringify(daTela));
 verdade('a tela de Aparência ganhou o seletor de modo', daTela.temModo);
-igual('as nove cores aparecem uma a uma', daTela.temCores, 9);
+igual('as onze cores aparecem uma a uma', daTela.temCores, 11);
 /* Dez temas mais o "Personalizado", que não é tema: é o botão que limpa as
    cores soltas e devolve tudo ao cálculo automático. */
 igual('e os onze botões de tema', daTela.temTemas, 11);
@@ -359,6 +360,34 @@ await p.waitForTimeout(1800);
 const semPapel = await olharCapa();
 verdade('herdando, o papel volta ao da base clara/escura',
   semPapel.bg.toUpperCase() !== '#2E1065', semPapel.bg);
+
+/* ══════════════════════════════════════════════════════════════════════════
+   4c — ⚠ O CINZA DOS DETALHES
+
+   O bairro embaixo do endereço, o "NOSSOS SERVIÇOS" e o "30 min" do cartão.
+   Ele era DEDUZIDO do texto escolhido, e a dedução tem que continuar valendo
+   para quem não escolher — o que se ganha é a escolha explícita por cima.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('O cinza dos detalhes');
+
+const antesDoCinza = (await olharCapa()).txt3;
+await p.evaluate(() => { escolherCorSolta('discreto', '#B08D57'); salvarAparencia(); });
+await p.waitForTimeout(1800);
+const comCinza = await olharCapa();
+igual('a cor escolhida para os textos discretos vale',
+  comCinza.txt3.toUpperCase(), '#B08D57');
+/* ⚠ E ELA GANHA DA DEDUÇÃO. O `texto` escolhido (lá em cima, #E8E4DA) já
+   deduz um `--txt3` puxado dele. Se a dedução viesse depois, ela apagaria a
+   escolha — e a linha acima passaria mesmo assim numa ordem errada, porque o
+   valor deduzido também é uma cor válida. Por isso a comparação é com o que
+   havia ANTES: o número tem que ter mudado, e mudado para o escolhido. */
+verdade('e ela é diferente do cinza que era deduzido do texto',
+  antesDoCinza.toUpperCase() !== '#B08D57', antesDoCinza);
+
+await p.evaluate(() => { herdarCorSolta('discreto'); salvarAparencia(); });
+await p.waitForTimeout(1800);
+igual('herdando, o cinza volta a ser deduzido do texto',
+  (await olharCapa()).txt3.toUpperCase(), antesDoCinza.toUpperCase());
 
 /* ══════════════════════════════════════════════════════════════════════════
    5 — ⚠ A FOTO DE FUNDO QUE JÁ ESTAVA LÁ

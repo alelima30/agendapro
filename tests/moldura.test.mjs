@@ -500,11 +500,21 @@ verdade('com a curva desenhada nela também',
    continuam bonitas, cada uma sozinha. */
 const curvaDaPagina = (fs.readFileSync(path.join(RAIZ, 'estilo.css'), 'utf8')
   .match(/--onda:url\("[^"]+"\)/g) || []);
-igual('a onda está escrita duas vezes na folha — página e prévia',
-  curvaDaPagina.length, 2);
-verdade('e as duas são a MESMA curva, caractere por caractere',
-  curvaDaPagina.length === 2 && curvaDaPagina[0] === curvaDaPagina[1],
-  'divergiram:\n      ' + curvaDaPagina.join('\n      '));
+/* ⚠ O NÚMERO DE CÓPIAS NÃO É A REGRA. Aqui estava `length === 2`, e o 2 era
+   circunstancial: eram a página e a prévia. No dia em que os PRODUTOS
+   ganharam a mesma onda, virou 3 e o teste reprovou — sem nada de errado ter
+   acontecido.
+
+   A regra é que TODAS as cópias sejam idênticas, quantas forem. Escrita
+   assim, ela sobrevive à próxima cópia e continua pegando o que importa:
+   duas curvas diferentes na mesma folha fazem a prévia prometer uma coisa e
+   a página entregar outra, e ninguém descobre — as duas continuam bonitas,
+   cada uma sozinha. */
+verdade('a onda está escrita mais de uma vez na folha — página, prévia, loja',
+  curvaDaPagina.length >= 2, 'achei ' + curvaDaPagina.length);
+verdade('e TODAS as cópias são a mesma curva, caractere por caractere',
+  curvaDaPagina.length >= 2 && new Set(curvaDaPagina).size === 1,
+  'divergiram:\n      ' + [...new Set(curvaDaPagina)].join('\n      '));
 
 igual('sem erro de JavaScript no painel',
   errosP.length ? errosP.join(' | ') : 0, 0);
