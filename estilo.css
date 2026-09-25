@@ -127,6 +127,9 @@
      O quente é de propósito: um cinza frio ao lado do azul da marca puxa
      para o verde e parece sujo. Um creme puxa para o papel. */
   --bg:#F6F2E8;       --painel:var(--n-0); --painel2:#FBF8F1;
+  /* A margem em volta da coluna da página, num computador, quando o dono
+     escolheu um fundo: o papel de fábrica, que o fundo escolhido não apaga. */
+  --mesa:#F6F2E8;
 
   /* ── A MOLDURA, AGORA CLARA ───────────────────────────────────────────
      A lateral era grafite quase preto nos dois temas. Ficava com cara de
@@ -206,6 +209,7 @@
    o #1D4ED8 que serve de texto no papel branco desaparece no grafite. */
 [data-tema="escuro"], html[data-tema="escuro"]{
   --bg:#0B1220; --painel:#131C2E; --painel2:#18233A;
+  --mesa:#0B1220;
   --borda:#25324A; --borda-forte:#35455F;
   --txt:#E8EEF7; --txt2:#A3B2C7; --txt3:#6F8098;
 
@@ -1026,20 +1030,47 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   background:var(--painel) no-repeat; background-size:cover;
   background-position:center var(--foco, 50%);
   position:relative; z-index:1;
+  /* ⚠ O MESMO ARCO DA PÁGINA (.hero-foto), na escala: 18px num celular de
+     412px são 10px nos 236px da prévia. A prévia cortava reto e a página
+     curvava — "a prévia não está igual ao real". */
+  border-bottom-left-radius:50% 10px;
+  border-bottom-right-radius:50% 10px;
 }
+.fone-capa.reta{ border-radius:0 }
+.fone[data-modo="premium"] .fone-capa{ aspect-ratio:3 / 2 }
 .fone-topo{ position:relative; z-index:1 }
+
+/* ── A LOGO, NA ESCALA DA PÁGINA ──────────────────────────────────────────
+   A forma da página em proporção (22px num selo de 104 é 21%; o "Arredondado"
+   é 16px, 15%; o "Quadrado", 4px) — e, com foto de capa, a logo monta na
+   beira dela com o anel escolhido, como a `.marca-selo.com-foto`: 104px com
+   58 para cima viram 60 com 33; no premium, 116 com 60 viram 66 com 34. */
+.fone-topo img, .fone-selo{ border-radius:21% }
+.fone[data-logo="arredondado"] .fone-topo img,
+.fone[data-logo="arredondado"] .fone-selo{ border-radius:15% }
+.fone[data-logo="quadrado"] .fone-topo img,
+.fone[data-logo="quadrado"] .fone-selo{ border-radius:4% }
+.fone-capa + .fone-topo img, .fone-capa + .fone-topo .fone-selo{
+  width:60px; height:60px; margin-top:-33px; position:relative;
+  box-shadow:0 0 0 var(--fone-anel, 3px) var(--fone-anel-cor, var(--fone-card, var(--painel))),
+             0 5px 12px -5px rgba(0,0,0,.4);
+}
+.fone[data-modo="premium"] .fone-capa + .fone-topo img,
+.fone[data-modo="premium"] .fone-capa + .fone-topo .fone-selo{
+  width:66px; height:66px; margin-top:-34px;
+}
 
 .fone-slide{
   position:relative; aspect-ratio:4 / 3; border-radius:10px; overflow:hidden;
-  margin-bottom:11px; background:var(--painel);
+  margin-bottom:11px; background:var(--fone-card, var(--painel));
 }
 .fone-slide img, .fone-slide video{
   width:100%; height:100%; object-fit:cover; display:block;
 }
 .fone-slide.vazio{
   aspect-ratio:auto; display:grid; place-items:center; padding:14px 10px;
-  font-size:11.5px; color:var(--txt3); text-align:center; line-height:1.4;
-  border:1px dashed var(--borda);
+  font-size:11.5px; color:var(--fone-discreto, var(--txt3)); text-align:center; line-height:1.4;
+  border:1px dashed var(--fone-borda, var(--borda));
 }
 .fone-slide-n{
   position:absolute; right:6px; bottom:6px; padding:2px 6px; border-radius:5px;
@@ -1047,12 +1078,19 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 }
 
 /* O cartão de boas-vindas, com o botão dentro — como na página de verdade. */
+/* Os tons vêm do salão (--fone-ac*, escritos pelo `tonsDaMarcaNaPrevia()`),
+   e o `--ac-*` do painel fica só de reserva. */
 .fone-boas{
-  border:1px solid var(--ac-line); border-radius:12px; padding:10px;
-  background:var(--ac-soft); margin-bottom:11px; position:relative; z-index:1;
+  border:1px solid var(--fone-ac-line, var(--ac-line)); border-radius:12px; padding:10px;
+  background:var(--fone-ac-soft, var(--ac-soft)); margin-bottom:11px; position:relative; z-index:1;
+}
+/* Com fundo escolhido, o cartão opaco da página (body.tem-papel .boas). */
+.fone.com-papel .fone-boas, .fone.com-grad .fone-boas{
+  background:color-mix(in srgb, var(--fone-ac, var(--ac-600)) 10%, var(--fone-card, var(--painel)));
+  border-color:color-mix(in srgb, var(--fone-ac, var(--ac-600)) 30%, var(--fone-card, var(--painel)));
 }
 .fone-boas-t{ display:block; font-size:11.5px;
-  color:var(--fone-destaque, var(--ac-600)); margin-bottom:7px }
+  color:var(--fone-ac, var(--ac-600)); margin-bottom:7px }
 .fone-boas .fone-cta{ margin-bottom:0 }
 /* 11px é o piso, aqui como em qualquer outro texto do painel: a prévia é
    pequena, mas quem a lê é a mesma pessoa, no mesmo celular. */
@@ -1473,6 +1511,9 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
   border-bottom-left-radius:50% 18px;
   border-bottom-right-radius:50% 18px;
 }
+/* A divisão reta, escolhida em Aparência → "Divisão da foto". O arco acima
+   continua sendo o padrão: só quem escolhe "Reta" ganha o atributo. */
+[data-capa="reta"] .hero-foto{ border-bottom-left-radius:0; border-bottom-right-radius:0 }
 /* Com foto, a logo monta na beira de baixo dela — o anel na cor do fundo é o
    que a recorta da imagem sem precisar de sombra. */
 .marca-salao.com-foto{ padding-top:0 }
@@ -3367,9 +3408,15 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 [data-modo="premium"] .marca-salao.com-foto .marca-selo{
   margin-top:-60px;
   width:116px; height:116px;
-  /* O anel mais grosso separa o logo da foto sem precisar de sombra pesada,
-     que sobre foto clara vira uma mancha cinza. */
-  box-shadow:0 0 0 5px var(--bg), var(--sombra-md);
+  /* O anel separa o logo da foto sem precisar de sombra pesada, que sobre
+     foto clara vira uma mancha cinza.
+
+     ⚠ COM AS MESMAS VARIÁVEIS DO MODO ATUAL. Estava cravado em `5px var(--bg)`
+     e, sendo mais específico, ganhava da regra geral: no premium a espessura
+     e a cor escolhidas para a moldura da logo não chegavam à página. A
+     reserva continua a de antes (5px no papel), então quem nunca escolheu
+     não vê diferença. */
+  box-shadow:0 0 0 var(--selo-anel, 5px) var(--selo-cor, var(--bg)), var(--sombra-md);
 }
 [data-modo="premium"] .marca-salao h2{ font-size:26px; letter-spacing:-.02em }
 
@@ -3417,6 +3464,35 @@ body.tem-gradiente .app, body.tem-papel .app{ background:transparent !important;
 body.tem-gradiente .boas, body.tem-papel .boas{
   background:color-mix(in srgb, var(--ac-600) 10%, var(--painel));
   border-color:color-mix(in srgb, var(--ac-600) 30%, var(--painel));
+}
+
+/* ── NO COMPUTADOR, O FUNDO FICA NO FORMATO DO CELULAR ────────────────────
+   A página é uma coluna de 480px. No celular ela é a tela inteira; num
+   computador sobram as margens dos lados. O fundo escolhido ia para o
+   <body>, e com a coluna transparente ele tomava a tela toda — no print
+   dele, o roxo de ponta a ponta de um monitor. "Ele não tem que tomar
+   somente o formato do celular?"
+
+   Com a tela mais larga que a coluna, o fundo escolhido passa a pintar só a
+   coluna, e as margens ficam com o `--mesa`: o papel de fábrica do tema, o
+   mesmo que um salão sem fundo escolhido já tem em volta da página. No
+   celular (até 480px) nada disto casa, e a tela é a de antes.
+
+   O gradiente é `fixed` também aqui: medido pela janela, como no celular, e
+   recortado na coluna. A imagem e o véu, que são camadas presas na tela,
+   encolhem para a largura da coluna. */
+@media (min-width:481px){
+  body.tem-papel, body.tem-gradiente, body.tem-fundo{ background:var(--mesa) }
+  body.tem-papel .app{ background:var(--bg) !important; box-shadow:var(--sombra) }
+  body.tem-gradiente .app{
+    background:var(--bg-grad) 0 0 / cover no-repeat fixed var(--bg) !important;
+    box-shadow:var(--sombra);
+  }
+  /* Com imagem a coluna continua transparente: a foto e o véu ficam atrás
+     dela, e são eles que encolhem. Vem por último para ganhar do papel —
+     salão com foto antiga e papel escolhido tem as duas classes. */
+  body.tem-fundo .app{ background:transparent !important; box-shadow:var(--sombra) }
+  .fundo-imagem, .fundo-veu{ left:50%; right:auto; width:480px; transform:translateX(-50%) }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3644,39 +3720,50 @@ body.com-folha{ overflow:hidden }
 }
 
 /* A fileira e o status dentro da prévia do painel — miniatura do que a página
-   desenha, com as mesmas variáveis da prévia (--fone-marca, --fone-card). */
+   desenha (.recurso e .status-casa), com as MESMAS contas: o cartão, a borda,
+   a cor escrita da marca (--fone-ac, o `--ac-600` da página) e o verde e o
+   vermelho do tema do SALÃO. A prévia tingia o Horários com a cor do botão e
+   o verde com o do painel — no print dele, a prévia roxa e o link azul. */
+.fone{ --fone-su:#15803D; --fone-er:#DC2626 }
+.fone-escuro{ --fone-su:#4ADE80; --fone-er:#F87171 }   /* os --su-500/--er-500 do escuro */
 .fone-recursos{ position:relative; z-index:1; display:grid; gap:5px; margin:-4px 0 7px;
   grid-template-columns:repeat(var(--n, 3), minmax(0, 1fr)) }
 .fone-recurso{
   display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px;
   border-radius:9px; font-size:8.5px; font-weight:600;
-  background:var(--fone-card, var(--painel)); border:1px solid var(--borda);
+  background:var(--fone-card, var(--painel)); border:1px solid var(--fone-borda, var(--borda));
   color:var(--fone-texto, var(--txt2));
 }
-.fone-recurso [data-ico], .fone-recurso svg{ width:13px; height:13px; color:var(--fone-marca) }
-.fone-recurso.destaque{
-  background:color-mix(in srgb, var(--fone-marca) 13%, var(--fone-card, var(--painel)));
-  border-color:color-mix(in srgb, var(--fone-marca) 38%, var(--fone-card, var(--painel)));
-  color:var(--fone-marca);
-}
+.fone-recurso [data-ico], .fone-recurso svg{ width:13px; height:13px;
+  color:var(--fone-ac, var(--fone-marca)) }
 /* Com "Letras claras" os cartões da página são escuros — a prévia mostrava
-   os três botões brancos, e o dono aprovava uma fileira que não ia ao ar. */
-.fone-escuro .fone-recurso{ background:var(--fone-card, #1D1D20); border-color:#2A2A2E;
-  color:var(--fone-texto, #F2F2F3) }
-.fone-escuro .fone-recurso.destaque{
-  background:color-mix(in srgb, var(--fone-marca) 22%, var(--fone-card, #1D1D20));
-  border-color:color-mix(in srgb, var(--fone-marca) 45%, var(--fone-card, #1D1D20));
-  color:color-mix(in srgb, var(--fone-marca) 55%, #fff);
+   os três botões brancos, e o dono aprovava uma fileira que não ia ao ar.
+   Borda e letra são as do tema escuro da página (--borda e --txt2). */
+.fone-escuro .fone-recurso{ border-color:var(--fone-borda, #25324A);
+  color:var(--fone-texto, #A3B2C7) }
+/* ⚠ O DESTAQUE DEPOIS DO ESCURO, e com a mesma força: o contrário deixava a
+   letra do Horários no cinza dos outros dois, e não na cor da marca. */
+.fone .fone-recurso.destaque{
+  background:color-mix(in srgb, var(--fone-ac, var(--fone-marca)) 13%, var(--fone-card, var(--painel)));
+  border-color:color-mix(in srgb, var(--fone-ac, var(--fone-marca)) 38%, var(--fone-card, var(--painel)));
+  color:var(--fone-ac, var(--fone-marca));
 }
-.fone-escuro .fone-status{ --fone-base:var(--fone-card, #1D1D20) }
 .fone-status{
   position:relative; z-index:1; display:flex; align-items:center; gap:6px;
   margin:0 0 10px; padding:6px 8px; border-radius:9px; font-size:9px;
-  background:color-mix(in srgb, var(--st-cor) 11%, var(--fone-base, var(--fone-card, var(--painel))));
+  background:color-mix(in srgb, var(--st-cor) 11%, var(--fone-card, var(--painel)));
   border:1px solid var(--st-linha); color:var(--fone-texto, var(--txt2));
 }
-.fone-status.aberto { --st-cor:var(--su-500, #15803D); --st-soft:var(--su-soft, rgba(21,128,61,.10)) }
-.fone-status.fechado{ --st-cor:var(--er-500, #DC2626); --st-soft:var(--er-soft, rgba(220,38,38,.09)) }
-.fone-status{ --st-linha:color-mix(in srgb, var(--st-cor) 28%, transparent) }
+.fone-escuro .fone-status{ color:var(--fone-texto, #A3B2C7) }
+.fone-status.aberto { --st-cor:var(--fone-su);
+  --st-linha:color-mix(in srgb, var(--st-cor) 30%, var(--fone-card, var(--painel))) }
+.fone-status.fechado{ --st-cor:var(--fone-er);
+  --st-linha:color-mix(in srgb, var(--st-cor) 28%, var(--fone-card, var(--painel))) }
 .fone-status i{ width:7px; height:7px; border-radius:50%; background:var(--st-cor); flex:none }
 .fone-status b{ color:var(--st-cor); letter-spacing:.03em }
+.fone-status-sep{ width:1px; align-self:stretch; background:var(--st-linha); flex:none }
+.fone-status-txt{ flex:1; min-width:0 }
+/* A seta desenhada com borda girada, como a `.fone-cartao-ir`: a prévia é
+   reescrita a cada toque, e um ícone por `data-ico` dependeria de repintar. */
+.fone-status-seta{ width:5px; height:5px; flex:none; margin-right:2px;
+  border:solid var(--st-cor); border-width:1.5px 1.5px 0 0; transform:rotate(45deg) }

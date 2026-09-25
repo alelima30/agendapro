@@ -318,7 +318,10 @@ language sql stable security definer set search_path = public as $$
                             then s.cfg->'pagamentos' end,
       'sobre',     nullif(left(btrim(coalesce(s.cfg->>'sobre', '')), 600), ''),
       'instagram', nullif(left(regexp_replace(coalesce(s.cfg->>'instagram', ''),
-                                              '[^A-Za-z0-9._]', '', 'g'), 30), '')
+                                              '[^A-Za-z0-9._]', '', 'g'), 30), ''),
+      /* Onde a foto de capa encontra o fundo. Só `reta` sai daqui; ausente
+         (nulo) é o arco de sempre, então salão que nunca escolheu não muda. */
+      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────

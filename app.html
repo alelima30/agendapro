@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.fd60a3';
+const VERSAO_APP = 'v9.dcf0a0';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -8041,6 +8041,10 @@ function pintarSalao(){
         no meio corta a cabeça de quem está nela — puxe para a esquerda para
         mostrar mais de cima.</p>
 
+      <div class="rot" style="margin:18px 0 8px">Divisão da foto</div>
+      <div class="regua" id="reguaCapaForma" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaCapaForma" style="margin-top:9px"></p>
+
       <!-- ⚠ EIXO SEPARADO DO "Cartões sobre a foto", DE PROPÓSITO.
 
            Aquele ali decide o quanto o cartão FECHA sobre a foto de capa
@@ -8543,7 +8547,10 @@ function lerAparencia(){
     slideDe: c.slideDe === 'galeria' ? 'galeria' : 'servicos',
     // 50 = centro, que é o que o navegador faz sozinho. 84 = o véu de antes.
     capaFoco: Number.isFinite(Number(c.capaFoco)) ? Number(c.capaFoco) : 50,
-    veu: Number.isFinite(Number(c.veu)) ? Number(c.veu) : 84,
+    /* Onde a foto de capa encontra o fundo. Ausente vale `curva`, o arco que
+       a página já desenhava antes desta escolha existir. */
+    capaForma: c.capaForma === 'reta' ? 'reta' : 'curva',
+    veu:Number.isFinite(Number(c.veu)) ? Number(c.veu) : 84,
     /* `auto` para quem nunca escolheu — inclusive para todo salão criado
        antes disto existir. Não há o que migrar: o automático faz o que o
        limiar fixo fazia. */
@@ -8965,6 +8972,11 @@ function pintarAparencia(){
   if(fv) fv.value = 135 - aparencia.veu;
 
   regua('reguaCartoes', CARTOES, 'cartoes', 'explicaCartoes');
+  regua('reguaCapaForma', [
+    ['curva', 'Arredondada', 'A foto termina num arco suave, e a logo monta no '
+      + 'meio dele. É como a página já era.'],
+    ['reta', 'Reta', 'A foto termina numa linha reta, de um lado ao outro.'],
+  ], 'capaForma', 'explicaCapaForma');
   regua('reguaMoldura', MOLDURAS, 'moldura', 'explicaMoldura');
   regua('reguaLetra', LETRAS, 'letra', 'explicaLetra');
   regua('reguaSlide', SLIDES, 'slideDe', 'explicaSlide');
@@ -9468,7 +9480,54 @@ function coresDaPrevia(){
   if(aparencia.fundoTipo === 'gradiente' && g.length)
     fora += `;--fone-grad:linear-gradient(180deg, ${g.map((x, i) =>
       x + ' ' + Math.round(i * 100 / (g.length - 1)) + '%').join(', ')})`;
+  /* O cartão de fábrica também vai sempre, pelo mesmo motivo do papel: sem
+     ele o escuro da prévia caía no #1D1D20 antigo, e não no #131C2E dos
+     cartões da página. */
+  if(!corValida(c.card)) fora += `;--fone-card:${corHerdada('card')}`;
   return fora;
+}
+
+/* ── A COR ESCRITA DA MARCA, NA PRÉVIA ────────────────────────────────────
+   O `--ac-600` da página, com a mesma conta do `aplicarAparencia()`: a cor
+   do salão puxada para ler bem sobre o papel. A prévia usava o `--ac-600` do
+   PAINEL, que é a cor do sistema: salão dourado via "Bem-vindo!" azul na
+   prévia e dourado no link. Pinta o título do Bem-vindo, os ícones da
+   fileira e o botão Horários. */
+function tonsDaMarcaNaPrevia(){
+  const c = aparencia.cores || {};
+  const escuro = aparencia.tema === 'escuro';
+  const cor = corValida(aparencia.cor) ? aparencia.cor : '#1D4ED8';
+  const rgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(',');
+  const ac = corValida(c.destaque) ? c.destaque : mexer(cor, escuro ? 0.30 : -0.28);
+  const soft = corValida(c.secundaria)
+    ? `rgba(${rgb(c.secundaria)},${escuro ? '.18' : '.12'})`
+    : `rgba(${rgb(cor)},${escuro ? '.15' : '.10'})`;
+  return `;--fone-ac:${ac};--fone-ac-soft:${soft}`
+       + `;--fone-ac-line:rgba(${rgb(cor)},${escuro ? '.34' : '.28'})`;
+}
+
+/* ── A LOGO NA BEIRA DA FOTO, NA PRÉVIA ───────────────────────────────────
+   "A prévia não está igual ao real." Na página, a logo grande monta na beira
+   da foto com o anel escolhido em volta; na prévia ela ficava pequena, solta
+   embaixo da foto, sem anel — a prévia não lia o modo, a forma da logo, a
+   espessura do anel nem a cor dele.
+
+   A espessura é a da página (0, 3, 5 e 9px) vezes 234/412, a largura da
+   foto na prévia sobre a de um celular comum. A cor, quando ninguém
+   escolheu, é a mesma reserva da página: o cartão no modo atual, o papel no
+   premium (estilo.css, `.marca-selo`). */
+const ANEL_NA_PREVIA = { sem:'0px', fina:'1.7px', media:'2.8px', grossa:'5.1px' };
+function anelDaPrevia(){
+  const c = aparencia.cores || {};
+  const escuro = aparencia.tema === 'escuro';
+  let cor = c.moldura;
+  if(!corValida(cor)){
+    cor = aparencia.modo === 'premium'
+      // O --bg de fábrica da página (estilo.css), e não o da coluna.
+      ? (corValida(c.papel) ? c.papel : (escuro ? '#0B1220' : '#F6F2E8'))
+      : (corValida(c.card) ? c.card : corHerdada('card'));
+  }
+  return `;--fone-anel:${ANEL_NA_PREVIA[aparencia.logoBorda] || '2.8px'};--fone-anel-cor:${cor}`;
 }
 
 /* A prévia. Não é decoração: escolher cor sem ver onde ela cai é escolher no
@@ -9495,7 +9554,8 @@ function previaDaInfo(sl){
       `<span class="fone-recurso${d ? ' destaque' : ''}"><span data-ico="${ico}"></span>${rot}</span>`
     ).join('')}</div>`
     + (est ? `<div class="fone-status ${est.aberto ? 'aberto' : 'fechado'}">
-        <i></i><b>${est.aberto ? 'ABERTO' : 'FECHADO'}</b><span>${escapar(est.detalhe)}</span></div>` : '');
+        <i></i><b>${est.aberto ? 'ABERTO' : 'FECHADO'}</b><span class="fone-status-sep"></span><span class="fone-status-txt">${
+          escapar(est.detalhe)}</span><span class="fone-status-seta"></span></div>` : '');
 }
 
 function pintarPreviaFone(){
@@ -9521,14 +9581,17 @@ function pintarPreviaFone(){
   alvo.innerHTML =
     `<div class="fone ${escuro ? 'fone-escuro' : ''}${
           aparencia.veu < 35 ? ' pouco-veu' : ''}${
-          aparencia.fundoTipo === 'gradiente' ? ' com-grad' : ''}"
+          aparencia.fundoTipo === 'gradiente' ? ' com-grad' : ''}${
+          corValida((aparencia.cores || {}).papel) ? ' com-papel' : ''}"
+          data-modo="${aparencia.modo}" data-logo="${aparencia.logoForma}"
           style="--fone-marca:${escapar(corDoBotaoNaPrevia())};--fone-marca-txt:${
-            letraSobre(corDoBotaoNaPrevia())}${coresDaPrevia()}">
+            letraSobre(corDoBotaoNaPrevia())}${coresDaPrevia()}${tonsDaMarcaNaPrevia()}${anelDaPrevia()}">
        ${imagemDoSalao(sl, 'fundo') && aparencia.fundoTipo === 'imagem'
          ? `<div class="fone-fundo" style="background-image:url('${imagemDoSalao(sl, 'fundo')}');
                   --veu:${aparencia.veu / 100}"></div>`
          : ''}
-       ${sl.capa ? `<div class="fone-capa" style="background-image:url('${sl.capa}');
+       ${sl.capa ? `<div class="fone-capa${aparencia.capaForma === 'reta' ? ' reta' : ''}"
+                          style="background-image:url('${sl.capa}');
                           --foco:${aparencia.capaFoco}%"></div>` : ''}
        <div class="fone-topo" data-letra="${aparencia.letra}">
          ${sl.logo ? `<img src="${escapar(sl.logo)}" alt="">`
@@ -9598,6 +9661,7 @@ function salvarAparencia(){
     letra: aparencia.letra,
     slideDe: aparencia.slideDe,
     capaFoco: aparencia.capaFoco,
+    capaForma: aparencia.capaForma,
     veu: aparencia.veu,
     cartoes: aparencia.cartoes,
     moldura: aparencia.moldura,

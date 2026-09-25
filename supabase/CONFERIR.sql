@@ -277,6 +277,24 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a vitrine() é de antes dos horários: o painel grava e a '
                || 'página da cliente não mostra'
            else '' end
+  union all
+  /* A divisão da foto de capa (reta ou arredondada). Sem a chave na
+     vitrine(), o dono escolhe "Reta", a prévia mostra reta e o link continua
+     com o arco — a prévia prometendo o que a página não faz. */
+  select 16, 'divisão da foto de capa na página',
+         case
+           when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%capaForma%' then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.vitrine(text)') is null
+             then 'a vitrine() nem existe — rode o 00_tudo.sql'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%capaForma%'
+             then 'a vitrine() é de antes da divisão da foto: "Reta" aparece '
+               || 'na prévia e não no link'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

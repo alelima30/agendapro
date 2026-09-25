@@ -1130,6 +1130,8 @@ function bdDaVitrine(v){
       pagamentos: s.pagamentos || null,
       sobre: s.sobre || null,
       instagram: s.instagram || null,
+      // A divisão da foto de capa: só `reta` chega; nulo é o arco de sempre.
+      capaForma: s.capaForma || null,
       cfg: { diasLiberados: s.diasLiberados },
     }],
     servicos: (v.servicos || []).map(x => ({
@@ -4924,6 +4926,12 @@ function aplicarModo(s){
   if(forma === 'arredondado' || forma === 'quadrado')
     raiz.setAttribute('data-logo', forma);
   else raiz.removeAttribute('data-logo');
+
+  /* Onde a foto de capa encontra o fundo: o arco de sempre, ou reta. Mesma
+     regra do `data-logo`: o padrão (`curva`) não marca nada, e a página de
+     quem nunca escolheu é a de antes. */
+  if((s.capaForma || c.capaForma) === 'reta') raiz.setAttribute('data-capa', 'reta');
+  else raiz.removeAttribute('data-capa');
 
   /* ── A ESPESSURA DA MOLDURA ───────────────────────────────────────────
      Ausente vale `media`, que são os 5px de antes desta escolha existir.

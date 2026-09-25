@@ -1281,7 +1281,8 @@ language sql stable security definer set search_path = public as $$
       'fitaCor',    s.cfg->>'fitaCor',
       'fitaBorda',  coalesce(s.cfg->>'fitaBorda', 'reta'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
-      'gradiente', s.cfg->>'gradiente'
+      'gradiente', s.cfg->>'gradiente',
+      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end
     ),
     'servicos', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1393,7 +1394,8 @@ language sql stable security definer set search_path = public as $$
                             then s.cfg->'pagamentos' end,
       'sobre',     nullif(left(btrim(coalesce(s.cfg->>'sobre', '')), 600), ''),
       'instagram', nullif(left(regexp_replace(coalesce(s.cfg->>'instagram', ''),
-                                              '[^A-Za-z0-9._]', '', 'g'), 30), '')
+                                              '[^A-Za-z0-9._]', '', 'g'), 30), ''),
+      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end
     ),
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(

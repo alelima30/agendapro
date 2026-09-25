@@ -162,7 +162,9 @@ language sql stable security definer set search_path = public as $$
       'fitaCor',    s.cfg->>'fitaCor',
       'fitaBorda',  coalesce(s.cfg->>'fitaBorda', 'reta'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
-      'gradiente', s.cfg->>'gradiente'
+      'gradiente', s.cfg->>'gradiente',
+      -- A divisão da foto de capa: só `reta` sai; nulo é o arco de sempre.
+      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end
     ),
 
     'servicos', coalesce((
