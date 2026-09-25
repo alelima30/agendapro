@@ -1125,6 +1125,19 @@ function bdDaVitrine(v){
       id: x.id, salaoId, nome: x.nome, categoria: x.categoria,
       descricao: x.descricao, duracaoMin: x.duracaoMin, intervaloMin: 0,
       preco: Number(x.preco), foto: x.foto, ativo: true, aceitaOnline: true,
+      /* ── O PREÇO DE VERDADE ────────────────────────────────────────────
+         `preco` é o do catálogo, e sozinho ele MENTE: o `agendar()` cobra a
+         escada (regra → preço do par → catálogo). Medido na bancada, a tela
+         mostrava R$ 90 e a marcação saía por R$ 130.
+
+         As três chaves abaixo são o que falta para a tela responder a mesma
+         coisa que o banco. `regras` já vem ordenada por quem ganha — a
+         primeira que casar é a resposta, e a conta de especificidade fica só
+         no 33, onde ela pode ser conferida contra o Postgres. */
+      precoPorProf: (x.precoPorProf && typeof x.precoPorProf === 'object')
+        ? x.precoPorProf : {},
+      regras: Array.isArray(x.regras) ? x.regras : [],
+      precoMin: x.precoMin == null ? Number(x.preco) : Number(x.precoMin),
       /* Os dias em que o serviço é feito. Nulo = todos, que é o que a
          `vitrine()` manda para todo serviço nunca configurado. Aqui serve só
          para a faixa de dias escrever "não atende" em vez de "cheio" — quem
@@ -1573,8 +1586,64 @@ function diasPorExtenso(dias){
   return n.slice(0, -1).join(', ') + ' e ' + n[n.length - 1];
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUANTO CUSTA — O ESPELHO DA ESCADA DO BANCO
+
+   A escada mora no 33_preco_regras.sql e é ela que decide de verdade: o
+   gatilho `tg_preco_agend_servico` reescreve o preço de toda linha gravada,
+   venha do link ou do painel. Isto aqui é o espelho, para a tela dizer o
+   mesmo número ANTES de gravar.
+
+   Espelho de dinheiro é perigoso e vale dizer por quê: se ele divergir, a
+   cliente vê R$ 50, confirma, e a linha nasce R$ 70. Ela só descobre no
+   balcão, e a culpa parece do salão.
+
+   ⚠ POR ISSO A CONTA DIFÍCIL NÃO É REFEITA AQUI. Qual regra ganha quando
+   várias casam é decisão de especificidade, e o servidor já mandou a lista
+   `regras` ORDENADA por quem ganha. Aqui só se pergunta "esta casa com o dia
+   e a hora?" e pega a primeira que sim. O que sobra de lógica é comparação de
+   data, dia da semana e minuto — e o `preco.test.mjs` compara este espelho
+   com o Postgres numa matriz de casos, justamente porque ele não pode andar
+   sozinho.
+
+   ⚠ E O DIA DA SEMANA SAI DO MESMO LUGAR NOS DOIS LADOS: 0 = domingo, como o
+   `extract(dow)` do Postgres e o `getDay()` do JavaScript. Ver `diaDaSemana()`
+   lá em cima, que monta a data pelos componentes para não escorregar de fuso.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function precoDoServico(sv, profId, dataIso, minutos){
+  if(!sv) return 0;
+  const base = (profId && sv.precoPorProf && sv.precoPorProf[profId] != null)
+    ? Number(sv.precoPorProf[profId])
+    : Number(sv.preco);
+
+  /* Sem dia escolhido não há regra a aplicar — e é o estado da tela de
+     serviços, que vem ANTES do calendário. Ali o preço mostrado é a base, e
+     quem completa a informação é o "a partir de" da capa. */
+  if(!dataIso) return base;
+
+  const dow = diaDaSemana(dataIso);
+  for(const r of (sv.regras || [])){
+    if(r.profissionalId && r.profissionalId !== profId) continue;
+    if(r.de  && dataIso < r.de)  continue;
+    if(r.ate && dataIso > r.ate) continue;
+    if(Array.isArray(r.dias) && r.dias.length && !r.dias.includes(dow)) continue;
+    /* A faixa é fechada no começo e aberta no fim, igual ao `>= ini and <
+       fim` do 33: as 12h pertencem à tarde, não à manhã. E sem horário
+       escolhido ainda, uma regra COM faixa não pode ser aplicada — ela
+       depende de uma informação que não existe. */
+    if(r.horaIni != null){
+      if(minutos == null) continue;
+      if(minutos < r.horaIni || minutos >= r.horaFim) continue;
+    }
+    return Number(r.preco);
+  }
+  return base;
+}
+
 function precoEscolhido(){
-  return escolha.servicos.reduce((s,i) => s + acharServico(i).preco, 0);
+  return escolha.servicos.reduce(
+    (s, i) => s + precoDoServico(acharServico(i), escolha.profissionalId,
+                                 escolha.data, escolha.inicio), 0);
 }
 function nomesEscolhidos(){
   return escolha.servicos.map(i => acharServico(i).nome).join(' + ');
@@ -1999,7 +2068,26 @@ function desenharCapa(){
             ${elegante && s.descricao
               ? `<span class="sv-cartao-desc">${escapar(s.descricao)}</span>` : ''}
             <span class="sv-cartao-linha">
-              ${comPreco ? `<span class="sv-cartao-preco">${real(s.preco)}</span>` : ''}
+              <!-- ⚠ "A PARTIR DE" QUANDO EXISTE PRECO MENOR, e nao sempre.
+                   Na capa ela ainda nao escolheu dia nem profissional, entao
+                   nao existe UM preco — existe uma faixa. Mostrar o cheio de
+                   quem tem promocao de terca e' esconder a promocao; mostrar o
+                   mais barato como se fosse O preco e' prometer o que ela
+                   talvez nao consiga marcar.
+
+                   O precoMin vem do banco, e so' conta o que cabe na janela
+                   que a agenda tem aberta: promocao vencida ou que so' comeca
+                   em agosto nao puxa o numero de hoje para baixo.
+
+                   (SEM CRASE NESTE COMENTARIO: ele mora dentro de um template
+                   literal, e uma crase aqui FECHA a string. Oitava vez que
+                   esta pedra aparece — e de novo num comentario que cita o
+                   nome de uma variavel.) -->
+              ${comPreco ? `<span class="sv-cartao-preco">${
+                s.precoMin != null && s.precoMin < s.preco
+                  ? `<span class="sv-cartao-apartir">a partir de</span> `
+                    + real(s.precoMin)
+                  : real(s.preco)}</span>` : ''}
               <!-- ⚠ O RELÓGIO FICA DENTRO DA DURAÇÃO, e não solto antes do
                    preço. Solto, ele encostava no valor — "🕐 R$ 180,00" — e
                    passava a dizer que o número ao lado é tempo. Aqui ele não
@@ -2306,7 +2394,8 @@ function desenharServicos(){
             <span class="dd">${s.duracaoMin} min</span></span>
           <span class="vv">${pacoteCobre([s.id], escolha.data)
             ? '<span class="vv-pacote">no seu pacote</span>'
-            : real(s.preco)}</span>
+            : real(precoDoServico(s, escolha.profissionalId,
+                                  escolha.data, escolha.inicio))}</span>
         </button>`;
       }).join('')}`).join('')
     + (escolha.servicos.length

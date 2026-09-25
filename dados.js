@@ -82,6 +82,9 @@ const COLUNAS = {
   servicos_profissionais: { servicoId:'servico_id',
                    profissionalId:'profissional_id', duracaoMin:'duracao_min',
                    comissaoPct:'comissao_pct', comissaoFixa:'comissao_fixa' },
+  precos_regras: { salaoId:'salao_id', servicoId:'servico_id',
+                   profissionalId:'profissional_id', horaIni:'hora_ini',
+                   horaFim:'hora_fim', criadoEm:'criado_em' },
   produtos_profissionais: { produtoId:'produto_id',
                    profissionalId:'profissional_id',
                    comissaoPct:'comissao_pct', comissaoFixa:'comissao_fixa' },
@@ -194,6 +197,11 @@ const VAZIO_E_NULO = new Set([
   'comissao_pct', 'comissao_valor', 'total', 'duracao_min', 'preco',
   'trial_ate', 'vence_em', 'indicado_por', 'cliente_id', 'sinal_exigido',
   'sinal_pago', 'nascimento_dia', 'arquivado_em',
+  /* Os quatro recortes da regra de preço. Todos opcionais na tela: campo em
+     branco quer dizer "não recorta", e tem que chegar no banco como NULL.
+     Vazio como texto num `date` ou num `int` derruba a gravação inteira da
+     leva — não só o campo. */
+  'de', 'ate', 'hora_ini', 'hora_fim',
   /* Estas duas entraram quando o `colunas.test.js` passou a ler também as
      colunas criadas por `alter table`. Ele não as via antes — e por isso não
      acusava —, mas o Postgres via: `invalid input syntax for type uuid: ""`
@@ -437,13 +445,17 @@ async function conferir(resp){
      quer dizer nada, e o pior: não diz o que fazer.
 
      PGRST204 é a mesma história com coluna em vez de função — a tela grava
-     um campo que o banco ainda não tem.
+     um campo que o banco ainda não tem. PGRST205, com tabela inteira: foi o
+     caso das regras de preço, que a tela passou a salvar num banco que só
+     ganha a tabela quando o 33 for colado. Sem este código aqui, a dona lia
+     «Could not find the table 'public.precos_regras' in the schema cache».
 
      Traduzir aqui, e não em cada tela, porque o problema não é da tela: é
      do banco, e vale para todas elas igual. */
   const CODIGO = (corpo && typeof corpo.code === 'string') ? corpo.code : '';
-  if(CODIGO === 'PGRST202' || CODIGO === 'PGRST204'){
-    const oque = CODIGO === 'PGRST202' ? 'função' : 'coluna';
+  if(CODIGO === 'PGRST202' || CODIGO === 'PGRST204' || CODIGO === 'PGRST205'){
+    const oque = { PGRST202: 'função', PGRST204: 'coluna',
+                   PGRST205: 'tabela' }[CODIGO];
     /* O nome cru ajuda quem for consertar, e não atrapalha quem não for.
 
        As duas frases nomeiam a peça de jeitos diferentes: a de função traz
@@ -1052,7 +1064,12 @@ const Demo = {
    =========================================================================== */
 
 const TABELAS_SINCRONIZADAS = [
-  'saloes','profissionais','servicos','servicos_profissionais','jornadas',
+  'saloes','profissionais','servicos','servicos_profissionais',
+  /* Depois de `servicos` e de `profissionais` pela chave estrangeira: a regra
+     de preço aponta para os dois. Mesma razão de `agendamento_servicos` vir
+     logo depois do agendamento. */
+  'precos_regras',
+  'jornadas',
   'bloqueios','clientes','agendamentos',
   // Logo depois do pai, e não em qualquer lugar: a chave estrangeira exige
   // que o agendamento exista antes das linhas de serviço dele.

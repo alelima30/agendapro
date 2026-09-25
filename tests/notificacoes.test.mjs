@@ -561,9 +561,20 @@ if(depoisDeRemarcar){
     depoisDeRemarcar.variaveis[2], '17:30');
 }
 
-// A fila entrega o modelo ao worker — sem isso ele cairia em texto livre.
+/* A fila entrega o modelo ao worker — sem isso ele cairia em texto livre.
+
+   ⚠ CINCO HORAS PARA TRÁS, E NÃO UM MINUTO. O `notificacao_proxima()` pega a
+   MAIS ANTIGA da fila inteira, sem filtrar por salão. Com um minuto, a linha
+   deste teste só era a primeira enquanto nada mais na bancada tivesse fila —
+   e isso era circunstância, não regra: rodando dentro da bateria, uma suíte
+   anterior deixava a dela na frente e este arquivo reprovava por medir a
+   notificação de outro salão.
+
+   Cinco horas ganha de qualquer outra e continua DENTRO da janela de seis, que
+   é onde a própria função aposenta o que venceu. Seis horas ou mais e a linha
+   sairia como 'cancelado' — trocaríamos um teste frágil por um teste errado. */
 await banco.query(
-  `update public.notificacoes set quando = now() - interval '1 minute'
+  `update public.notificacoes set quando = now() - interval '5 hours'
     where salao_id=$1 and tipo='confirmacao'`, [M.salao]);
 const daFila = (await banco.query(
   `select * from public.notificacao_proxima(1)`)).rows[0];

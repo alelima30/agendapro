@@ -174,7 +174,23 @@ await p.waitForTimeout(600);
 const daTela = await p.evaluate(() => ({
   temModo: !!document.getElementById('reguaModo'),
   temTemas: document.querySelectorAll('#temasProntos button').length,
-  temCores: document.querySelectorAll('#coresSoltas .cor-linha').length,
+  /* ⚠ AS ONZE, NOS DOIS LUGARES ONDE ELAS PODEM SER DESENHADAS — e não
+     "todas dentro de #coresSoltas". A regra é que as onze sejam escolhíveis;
+     o container era circunstância, e cravá-lo reprovou a tela por ter movido
+     a linha do papel para junto das perguntas sobre fundo, que foi o conserto.
+
+     ⚠ E TAMBÉM NÃO É `.cor-linha` SOLTO NA PÁGINA. Tentei, e deu 12: a cor da
+     fita do carrinho usa a mesma classe, lá embaixo, e não é uma das onze.
+     Contar por classe media "quantos seletores de cor existem", que é outra
+     pergunta. */
+  temCores: document.querySelectorAll(
+    '#coresSoltas .cor-linha, #corDoPapel .cor-linha').length,
+  /* E o papel tem que estar no bloco do FUNDO. "O fundo só tem claro e
+     escuro" foi dito sobre uma tela em que a cor do papel morava no meio de
+     uma lista de onze, três blocos abaixo da pergunta sobre fundo. */
+  papelJuntoDoFundo: !!document.querySelector('#corDoPapel .cor-linha'),
+  papelForaDaLista: !document.querySelector(
+    '#coresSoltas input[aria-label="Fundo da página"]'),
   temFundoTipo: !!document.getElementById('reguaFundoTipo'),
   temLogoForma: !!document.getElementById('reguaLogoForma'),
   gradEscondido: getComputedStyle(
@@ -183,6 +199,9 @@ const daTela = await p.evaluate(() => ({
 console.log('      ' + JSON.stringify(daTela));
 verdade('a tela de Aparência ganhou o seletor de modo', daTela.temModo);
 igual('as onze cores aparecem uma a uma', daTela.temCores, 11);
+verdade('e a cor do papel fica junto das outras perguntas sobre fundo',
+  daTela.papelJuntoDoFundo && daTela.papelForaDaLista,
+  'ela ficou na lista das onze, longe de onde se pergunta pelo fundo');
 /* Dez temas mais o "Personalizado", que não é tema: é o botão que limpa as
    cores soltas e devolve tudo ao cálculo automático. */
 igual('e os onze botões de tema', daTela.temTemas, 11);
@@ -423,6 +442,81 @@ verdade('gradiente escrito errado é ignorado, e a página abre',
 
 verdade('nada disso deu erro de JavaScript', erros.length === 0,
   erros.slice(0, 3).join(' | '));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ⚠ A PRÉVIA TEM QUE MOSTRAR O QUE A PÁGINA VAI MOSTRAR
+
+   Este bloco nasceu de uma reclamação que parecia três: "não consigo mudar a
+   cor das letras", "o fundo só tem claro e escuro", "as configurações do link
+   não aparecem exatamente como mexemos".
+
+   Era uma coisa só. A prévia herdava o tema do PAINEL e ignorava as onze
+   cores. Medido, com as onze escolhidas, seis elementos de seis divergiam:
+
+       fundo #102030 na página, #fbf8f1 na prévia
+       nome  #203040 na página, #172033 na prévia   … e assim por diante
+
+   O estrago não é a divergência: é que o dono escolhe a cor, a prévia não
+   mexe, e ele conclui que a funcionalidade NÃO EXISTE. Ele estava certo sobre
+   o que via, e a página sabia pintar tudo aquilo o tempo todo.
+
+   ⚠ E A MEDIDA É LADO A LADO, elemento por elemento. Conferir só que a prévia
+   "tem uma cor diferente do padrão" passaria com ela pintando qualquer coisa.
+   O que importa é ser A MESMA.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('A prévia do painel contra a página de verdade');
+
+const CORES_PROVA = { papel:'#102030', texto:'#405060', discreto:'#708090',
+                      titulo:'#203040', card:'#c0d0e0', botao:'#804020' };
+/* ⚠ O ENDEREÇO PRECISA EXISTIR para a linha dele existir na tela. Sem ele o
+   `.marca-end .rua` não é desenhado, a leitura vem "nao achei", e a
+   comparação passa a medir a ausência do elemento em vez da cor dele. */
+await dona.atualizar('saloes', SALAO, {
+  endereco:{ logradouro:'Rua Avanhandava', numero:'10', bairro:'Cidade Nova',
+             cidade:'Itu', uf:'SP' } });
+await porCfg({ cores: CORES_PROVA, moldura:'elegante' });
+
+const hexDe = c => {
+  const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
+  return m ? '#' + [1,2,3].map(i => Number(m[i]).toString(16).padStart(2,'0')).join('')
+           : (c || '-');
+};
+const LADOS = [
+  ['fundo da página', 'body',              '#previaFone .fone',         'backgroundColor'],
+  ['nome do salão',   '.marca-salao h2',   '#previaFone .fone-topo b',  'color'],
+  ['endereço',        '.marca-end .rua',   '#previaFone .fone-topo span','color'],
+  ['título de seção', '.cat',              '#previaFone .fone-rot',     'color'],
+  ['fundo do cartão', '.sv-cartao',        '#previaFone .fone-cartao',  'backgroundColor'],
+  ['botão',           '.boas-cta',         '#previaFone .fone-cta',     'backgroundColor'],
+];
+
+const cPrev = await ctxCli.newPage();
+cPrev.on('pageerror', e => erros.push('cliente: ' + e.message));
+await cPrev.goto(BASE + '/agendar.html?salao=' + SLUG);
+await cPrev.waitForTimeout(2400);
+const naPagina = await cPrev.evaluate(l => l.map(([, sel, , prop]) => {
+  const e = document.querySelector(sel);
+  return e ? getComputedStyle(e)[prop] : 'nao achei';
+}), LADOS);
+await cPrev.close();
+
+await p.reload();
+await p.waitForTimeout(3500);
+await p.evaluate(() => { if(typeof pdFechar === 'function') pdFechar(true); });
+await p.waitForTimeout(900);
+await p.evaluate(() => irPara('salao'));
+await p.waitForTimeout(500);
+await p.evaluate(() => trocarAbaSalao('aparencia'));
+await p.waitForTimeout(1200);
+const naPrevia = await p.evaluate(l => l.map(([, , sel, prop]) => {
+  const e = document.querySelector(sel);
+  return e ? getComputedStyle(e)[prop] : 'nao achei';
+}), LADOS);
+
+LADOS.forEach(([rotulo], i) => {
+  igual('a prévia e a página pintam igual: ' + rotulo,
+        hexDe(naPrevia[i]), hexDe(naPagina[i]));
+});
 
 await nav.close();
 console.log(`\n${falhou ? '✗' : '✓'} ${passou} passaram, ${falhou} falharam`);

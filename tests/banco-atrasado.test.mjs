@@ -39,6 +39,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from './pg.mjs';
 
 const RAIZ = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const BASE = process.env.BANCADA || 'http://127.0.0.1:8123';
@@ -283,6 +284,72 @@ for(const arq of ['agendar.html','app.html','index.html','dados.js']){
     /PGRST202/.test(t),
     'reconhece a instalação atrasada pelo texto em inglês e nada mais — '
     + 'qualquer melhoria na mensagem quebra em silêncio');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4) A TABELA QUE O BANCO AINDA NÃO TEM
+
+   As regras de preço foram o primeiro caso de uma TABELA nova na tela: o
+   painel publicado passa a ler e gravar `precos_regras` na hora, e o banco
+   só ganha a tabela quando o 33 for colado. O PostgREST responde 404 com
+   PGRST205, e o `dados.js` não traduzia esse código — a dona leria «Could
+   not find the table 'public.precos_regras' in the schema cache» ao salvar
+   a primeira regra.
+
+   A tabela é escondida DE VERDADE aqui, pelo nome, e não inventada: uma
+   tabela que nunca existiu provaria a tradução, mas não que o painel real,
+   com a lista de tabelas real, continua abrindo quando falta uma delas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+secao('4) a tabela que o banco ainda não tem');
+{
+  const banco = new pg.Client({ host: process.env.PGHOST || '/tmp',
+    port: +(process.env.PGPORT || 5444), user: process.env.PGUSER || 'postgres',
+    database: process.env.PGBANCO || 'app' });
+  await banco.connect();
+
+  const m = Date.now().toString(36) + Math.floor(Math.random()*1000);
+  const dona = novaAba();
+  await dona.criarConta({ email:`ba-${m}@teste.com`, senha:'minhasenhaboa',
+    nome:'Rita Alves', telefone:'+5511' + (900000000 + (Date.now() % 89999999)) });
+  const cr = await dona.chamar('criar_salao', { p_nome_salao:'Casa Atrasada',
+    p_tipo:'salao', p_telefone:'(11) 98111-3251', p_documento:null, p_origem:null });
+  const S = cr[0].salao_id;
+  const sv = await dona.inserir('servicos', { salaoId: S, nome:'Corte',
+    duracaoMin:60, intervaloMin:0, preco:90, ativo:true, aceitaOnline:true });
+
+  await banco.query('alter table public.precos_regras rename to precos_regras_escondida');
+  try{
+    const e = await pegar(() => dona.inserir('precos_regras',
+      { salaoId: S, servicoId: sv.id, preco: 50 }));
+    verdade('salvar uma regra num banco sem a tabela falha', !!e);
+    if(e){
+      verdade('a frase em inglês do PostgREST não chega na tela',
+        !/schema cache|Could not find/i.test(e.message), e.message);
+      verdade('a mensagem diz qual peça falta: a tabela, pelo nome',
+        /tabela precos_regras/.test(e.message), e.message);
+      verdade('e o que fazer, e onde',
+        /98_modulos\.sql/.test(e.message) && /SQL Editor/.test(e.message), e.message);
+      verdade('o código de máquina continua lá, sem tradução',
+        e.codigo === 'PGRST205', e.codigo);
+    }
+
+    /* E a carga do painel NÃO PARA por causa disso. As tabelas descem em
+       paralelo, e a que falta tem que virar lista vazia — senão publicar a
+       tela derrubaria o painel de todo salão até a colagem seguinte, que é
+       o estado normal de todo cliente. */
+    const bd = await dona.baixar(S);
+    verdade('o painel baixa o resto normalmente',
+      Array.isArray(bd.servicos) && bd.servicos.some(x => x.id === sv.id));
+    verdade('com as regras vazias, e não quebradas',
+      Array.isArray(bd.precos_regras) && bd.precos_regras.length === 0,
+      JSON.stringify(bd.precos_regras));
+    verdade('e sem acusar defeito do código na carga',
+      !(bd.falhas || []).some(f => f.tabela === 'precos_regras'),
+      JSON.stringify(bd.falhas));
+  } finally {
+    await banco.query('alter table public.precos_regras_escondida rename to precos_regras');
+    await banco.end();
+  }
 }
 
 console.log('');

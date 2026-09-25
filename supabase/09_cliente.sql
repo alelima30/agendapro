@@ -176,7 +176,12 @@ begin
   end if;
 
   v_duracao := public.duracao_dos_servicos(p_profissional, p_servicos);
-  v_valor   := public.preco_dos_servicos(p_profissional, p_servicos);
+  /* ⚠ COM O HORÁRIO, e não sem. A soma vira `valor_previsto`, que é o
+     número que a cliente vê antes de confirmar — e com regra de preço o mesmo
+     serviço custa diferente na terça de manhã e no sábado à tarde. A versão
+     sem data existia quando preço era uma coluna só; hoje ela responderia a
+     pergunta errada, com a cara de estar certa. */
+  v_valor   := public.preco_dos_servicos(p_profissional, p_servicos, p_inicio);
   v_fim     := p_inicio + make_interval(mins => v_duracao);
 
   v_perfil := auth.uid();
@@ -336,9 +341,22 @@ begin
         using errcode = 'check_violation';
   end;
 
+  /* ⚠ O PREÇO NÃO É MAIS ESCOLHIDO AQUI.
+     Era `coalesce(sp.preco, sv.preco)` — dois degraus de uma escada que agora
+     tem três, e que o 33 mantém num lugar só. Quem escreve o preço da linha é
+     o gatilho `tg_preco_agend_servico`, no insert logo abaixo; o número que
+     sai daqui é ignorado por ele.
+
+     Deixo a coluna no `select` assim mesmo, porque o `insert` precisa de algo
+     na posição — e deixo o `preco_do_servico()`, e não o zero, para que uma
+     leitura desta consulta fora do gatilho continue dizendo a verdade. */
   for s in
     select sv.id, coalesce(sp.duracao_min, sv.duracao_min) + sv.intervalo_min as dur,
-           coalesce(sp.preco, sv.preco) as preco,
+           /* ⚠ NULO DE PROPÓSITO: é assim que o link diz "decide você".
+              O gatilho `tg_preco_agend_servico` preenche com a escada. Mandar
+              o número daqui funcionaria igual hoje e criaria um segundo lugar
+              que decide preço — que é exatamente o que este módulo acabou. */
+           null::numeric as preco,
            coalesce(sv.comissao_pct, pr.comissao_pct, 0) as com
       from unnest(p_servicos) with ordinality as pedido(id, pos)
       join public.servicos sv on sv.id = pedido.id

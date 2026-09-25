@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.4b3fea';
+const VERSAO_APP = 'v9.cd166d';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3211,7 +3211,15 @@ function pintarProdutos(){
      cartões, e o `rotularTabelas()` copia o cabeçalho para dentro de cada
      célula. Não faltava funcionalidade — era uma classe errada, e classe que
      não existe não dá erro em lugar nenhum: simplesmente não pinta nada. */
-  alvo.innerHTML = `<table class="tabela"><thead><tr>
+  /* O aviso vem ANTES da tabela, e só para quem pode resolver. É aqui que o
+     dono olha quando "não está enxergando os produtos" no link — a coluna
+     "Na loja" dizendo "à venda" enquanto a página esconde tudo era a tela
+     afirmando o contrário do que a cliente vê. Ver porqueALojaNaoAparece(). */
+  const porque = souGestor() ? porqueALojaNaoAparece() : '';
+  alvo.innerHTML = (porque
+      ? `<div class="aviso atencao" id="avisoLojaLink"
+              style="margin-bottom:12px">${porque}</div>` : '')
+    + `<table class="tabela"><thead><tr>
       <th>Produto</th><th>Marca</th><th>Preço</th><th>Estoque</th>
       <th>Na loja</th><th></th>
     </tr></thead><tbody>` + lista.map(p => `<tr>
@@ -5100,7 +5108,8 @@ function confirmarPublico(profId, servId, data, min){
   bd.agendamentos.push({
     id:id(), salaoId:salaoAtual, clienteId:cli.id, profissionalId:profId,
     data, inicio:min, fim:min + dur, status:'confirmado', origem:'online',
-    servicos:[{servicoId:servId, duracaoMin:s.duracaoMin, preco:s.preco,
+    servicos:[{servicoId:servId, duracaoMin:s.duracaoMin,
+               preco: precoDaEscada(servId, profId, data, min),
                comissaoPct: s.comissaoPct != null ? s.comissaoPct : acharProf(profId).comissaoPct}],
     obs:'',
   });
@@ -5343,7 +5352,13 @@ function salvarAgendamento(){
       ? (Dados.sessaoAtual() || {}).usuarioId || null : null,
     servicos: escolhidos.map(i => {
       const sv = acharServico(i);
-      return {servicoId:i, duracaoMin:sv.duracaoMin, preco:sv.preco,
+      return {servicoId:i, duracaoMin:sv.duracaoMin,
+              /* `ini`, e não `min`: nesta função o minuto de início se
+                 chama assim. Escrevi `min` por reflexo do outro caminho de
+                 marcação e a tela morreu com `ReferenceError` ao salvar —
+                 e o `sintaxe.test.js` não pega, porque a variável só não
+                 existe na hora de RODAR. */
+              preco: precoDaEscada(i, prof.id, data, ini),
               comissaoPct: sv.comissaoPct != null ? sv.comissaoPct : prof.comissaoPct};
     }),
     obs: document.getElementById('fObs').value || '',
@@ -5637,6 +5652,59 @@ const faltaNaComanda = c => Math.round((totalDaComanda(c) - pagoNaComanda(c))*10
 
    A ordem, e o que "diz alguma coisa" significa (pct OU fixa não nula),
    estão explicados por extenso no 16_comissao.sql. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   QUANTO CUSTA — O ESPELHO DA ESCADA DE PREÇO
+
+   Irmã da `comissaoDaEscada()` logo abaixo, e pelo mesmo motivo: quem decide é
+   o banco, e a tela precisa dizer o mesmo número antes de gravar.
+
+   A escada é: regra de preço → preço do par serviço+profissional → preço do
+   serviço. Está escrita no 33_preco_regras.sql, e o gatilho
+   `tg_preco_agend_servico` a aplica em toda linha de agendamento que nasce —
+   inclusive nas que ESTA tela grava.
+
+   ⚠ POR QUE ISTO PRECISOU EXISTIR. Aqui se escrevia `preco: sv.preco`, o do
+   catálogo, e o link cobrava a escada. Medido: corte a R$ 90 no catálogo e
+   R$ 130 com a profissional; a recepção marcava por 90, o link por 130, e a
+   cliente via 90 na página. Três preços para o mesmo atendimento.
+
+   Agora o banco corrige a linha de qualquer jeito. Este espelho existe para a
+   AGENDA não mostrar 90 até a próxima leitura — tela que discorda do banco por
+   alguns minutos é como se cria a desconfiança que não se desfaz depois.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function precoDaEscada(servicoId, profId, dataIso, minutos){
+  const sv = acharServico(servicoId);
+  if(!sv) return 0;
+
+  for(const r of regrasDe(servicoId)){
+    if(r.ativo === false) continue;
+    if(r.profissionalId && r.profissionalId !== profId) continue;
+    if(r.de  && dataIso < r.de)  continue;
+    if(r.ate && dataIso > r.ate) continue;
+    if((r.dias || []).length && !r.dias.includes(diaDaSemanaDe(dataIso))) continue;
+    // Fechada no começo, aberta no fim — como o `>= ini and < fim` do 33.
+    if(r.horaIni != null){
+      if(minutos == null) continue;
+      if(minutos < r.horaIni || minutos >= r.horaFim) continue;
+    }
+    return Number(r.preco);
+  }
+
+  const par = (bd.servicos_profissionais || []).find(
+    x => x.servicoId === servicoId && x.profissionalId === profId);
+  if(par && par.preco != null) return Number(par.preco);
+  return Number(sv.preco) || 0;
+}
+
+/* Componente a componente, para não escorregar de fuso: `new Date('2026-03-03')`
+   é meia-noite UTC, e a oeste de Greenwich isso é o dia anterior. Mesma conta
+   do `diaDaSemana()` na página da cliente e do `extract(dow)` no Postgres:
+   0 = domingo nos três. */
+function diaDaSemanaDe(dataIso){
+  const [a, m, d] = String(dataIso).split('-').map(Number);
+  return new Date(a, m - 1, d).getDay();
+}
+
 function comissaoDaEscada(tipo, servicoId, produtoId, profId){
   const diz = o => o && (o.comissaoPct != null || o.comissaoFixa != null);
   const sai = o => ({ pct: o.comissaoPct || 0, fixa: o.comissaoFixa || 0 });
@@ -6207,10 +6275,296 @@ function abrirServico(sid){
         <span class="d">Aparece na agenda e no link público</span></span></label>
 
     ${paresDoServico(s)}
+    ${regrasDoServico(s)}
   `, [
     ['Cancelar','fecharModal()',''],
     ['Salvar', `salvarServico(${s ? `'${s.id}'` : 'null'})`, 'btn-p'],
   ]);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREÇO POR VIGÊNCIA, DIA DA SEMANA E FAIXA DE HORÁRIO
+
+   Três recortes, combináveis, para a pergunta que todo salão faz: sábado à
+   tarde lota e terça de manhã fica vazia.
+
+       "escova R$ 50 de terça a quinta"
+       "corte R$ 60 antes das 14h"
+       "a partir de 1º de março a escova passa a R$ 80"
+
+   ⚠ QUEM DECIDE O PREÇO NÃO É ESTA TELA. É o 33_preco_regras.sql, e o gatilho
+   `tg_preco_agend_servico` reescreve o preço de TODA linha gravada — venha do
+   link ou daqui. Esta tela só cadastra as regras; o número que ela mostra na
+   agenda é espelho, e o banco é o original.
+
+   Foi assim que os três preços diferentes do mesmo atendimento acabaram: o que
+   a cliente via, o que o link cobrava e o que a recepção cobrava eram três
+   leituras de colunas diferentes, sem ninguém para arbitrar.
+
+   ⚠ E O SERVIÇO PRECISA EXISTIR ANTES. Regra aponta para serviço por chave
+   estrangeira; num serviço que ainda não foi salvo não há para onde apontar.
+   Em vez de guardar rascunho na memória e torcer, a tela diz isso.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const regrasDoServico = s => !s
+  ? `<div class="linha-fina" style="margin:18px 0"></div>
+     <div class="rot" style="margin-bottom:6px">Preços por dia e horário</div>
+     <p style="font-size:12.5px;color:var(--txt3);margin:0">
+       Salve o serviço primeiro. Depois reabra para cadastrar preço de terça,
+       preço de promoção, preço a partir de uma data.</p>`
+  : `<div class="linha-fina" style="margin:18px 0"></div>
+     <div class="rot" style="margin-bottom:6px">Preços por dia e horário</div>
+     <p style="font-size:12.5px;color:var(--txt3);margin:0 0 10px">
+       Sem regra nenhuma, vale ${real(s.preco || 0)} sempre. Cada regra recorta
+       um pedaço — dias, horário, período — e <b>a regra com mais recortes
+       ganha</b>.</p>
+     <div id="pregras">${listaDeRegras(s.id)}</div>
+     <button type="button" class="btn btn-peq" style="margin-top:10px"
+             onclick="novaRegraDePreco('${s.id}')">+ Nova regra de preço</button>`;
+
+const regrasDe = servicoId => (bd.precos_regras || [])
+  .filter(r => r.servicoId === servicoId && r.salaoId === salaoAtual)
+  .sort((a, b) => pesoDaRegra(b) - pesoDaRegra(a));
+
+/* Os mesmos pesos do `preco_regra_que_vale()` no 33, e é obrigatório que
+   sejam: esta lista é a ordem em que as regras GANHAM, e o dono precisa ver
+   na tela a mesma disputa que o banco vai fazer. Dois números diferentes aqui
+   e lá fariam a tela explicar errado um preço que está certo. */
+function pesoDaRegra(r){
+  return (r.profissionalId ? 8 : 0)
+       + ((r.dias || []).length ? 4 : 0)
+       + (r.horaIni != null ? 2 : 0)
+       + ((r.de || r.ate) ? 1 : 0);
+}
+
+function frasedaRegra(r){
+  const p = [];
+  if(r.profissionalId){
+    const pr = acharProf(r.profissionalId);
+    p.push('só com ' + (pr ? pr.nome : 'alguém que saiu'));
+  }
+  if((r.dias || []).length) p.push(diasPorExtensoCurto(r.dias));
+  if(r.horaIni != null) p.push('das ' + hhmm(r.horaIni) + ' às ' + hhmm(r.horaFim));
+  /* `diaMes` e não uma função nova: ele já existe nesta tela e já escreve
+     data do jeito que o resto do painel escreve. Uma segunda formatadora
+     seria o mesmo dia saindo em dois formatos na mesma página. */
+  if(r.de && r.ate)  p.push('de ' + diaMes(r.de) + ' a ' + diaMes(r.ate));
+  else if(r.de)      p.push('a partir de ' + diaMes(r.de));
+  else if(r.ate)     p.push('até ' + diaMes(r.ate));
+  return p.length ? p.join(' · ') : 'sempre';
+}
+
+const hhmm = m => String(Math.floor(m/60)).padStart(2,'0') + ':'
+                + String(m % 60).padStart(2,'0');
+const diasPorExtensoCurto = ds => (ds || []).slice().sort((a,b)=>a-b)
+  .map(d => DIAS_CURTOS[d]).join(', ');
+
+/* ── A JANELA DE UMA REGRA ────────────────────────────────────────────────
+   Quatro recortes, os quatro opcionais e desligados por padrão. Deixar tudo
+   desligado e só pôr o preço é como se escreve "o preço novo entra hoje".
+
+   ⚠ CADA RECORTE TEM SEU PRÓPRIO INTERRUPTOR, e não campos sempre à mostra.
+   Campo em branco é ambíguo — "não recorta" ou "esqueci de preencher"? — e o
+   interruptor responde antes de a pessoa digitar. É a mesma forma dos dias por
+   serviço, logo acima nesta tela. */
+function novaRegraDePreco(servicoId){ abrirRegraDePreco(servicoId, null); }
+function editarRegraDePreco(id){
+  const r = (bd.precos_regras || []).find(x => x.id === id);
+  if(r) abrirRegraDePreco(r.servicoId, r);
+}
+
+function abrirRegraDePreco(servicoId, r){
+  const sv = acharServico(servicoId);
+  const equipe = profsAtivos();
+  const temDias = !!(r && (r.dias || []).length);
+  const temHora = !!(r && r.horaIni != null);
+  const temVig  = !!(r && (r.de || r.ate));
+  abrirModal(r ? 'Editar regra de preço' : 'Nova regra de preço', `
+    <p class="secao-sub">Para <b>${escapar(sv ? sv.nome : '')}</b>. Sem regra,
+      vale ${real(sv ? sv.preco : 0)}.</p>
+
+    <div class="dupla">
+      <div class="campo"><label for="rgPreco">Preço nesta regra</label>
+        <input type="number" id="rgPreco" step="0.01" min="0"
+               value="${r ? r.preco : (sv ? sv.preco : 0)}"></div>
+      <div class="campo"><label for="rgProf">Com quem</label>
+        <select id="rgProf">
+          <option value="">Qualquer profissional</option>
+          ${equipe.map(p => `<option value="${p.id}"${
+            r && r.profissionalId === p.id ? ' selected' : ''
+          }>${escapar(p.nome)}</option>`).join('')}
+        </select></div>
+    </div>
+
+    <div class="linha-fina" style="margin:16px 0"></div>
+    <label class="check">
+      <input type="checkbox" id="rgTemDias" ${temDias ? 'checked' : ''}
+             onchange="virarRecorteDaRegra()">
+      <span>Só em certos dias da semana</span></label>
+    <div id="rgDiasCampos" style="margin:8px 0 0;display:${temDias ? '' : 'none'}">
+      <div class="regua" id="rgDias" style="justify-content:flex-start">${
+        DIAS_CURTOS.map((d, i) => `<button type="button" data-dia="${i}"
+           class="${r && (r.dias||[]).includes(i) ? 'on' : ''}"
+           onclick="this.classList.toggle('on')">${d}</button>`).join('')}</div>
+    </div>
+
+    <div class="linha-fina" style="margin:16px 0"></div>
+    <label class="check">
+      <input type="checkbox" id="rgTemHora" ${temHora ? 'checked' : ''}
+             onchange="virarRecorteDaRegra()">
+      <span>Só numa faixa de horário</span></label>
+    <div id="rgHoraCampos" class="dupla" style="margin:8px 0 0;display:${
+      temHora ? '' : 'none'}">
+      <div class="campo"><label for="rgHoraIni">Das</label>
+        <input type="time" id="rgHoraIni"
+               value="${temHora ? hhmm(r.horaIni) : '08:00'}"></div>
+      <div class="campo"><label for="rgHoraFim">Até</label>
+        <input type="time" id="rgHoraFim"
+               value="${temHora ? hhmm(r.horaFim) : '12:00'}"></div>
+    </div>
+
+    <div class="linha-fina" style="margin:16px 0"></div>
+    <label class="check">
+      <input type="checkbox" id="rgTemVig" ${temVig ? 'checked' : ''}
+             onchange="virarRecorteDaRegra()">
+      <span>Só num período</span></label>
+    <div id="rgVigCampos" class="dupla" style="margin:8px 0 0;display:${
+      temVig ? '' : 'none'}">
+      <div class="campo"><label for="rgDe">A partir de</label>
+        <input type="date" id="rgDe" value="${(r && r.de) || ''}"></div>
+      <div class="campo"><label for="rgAte">Até</label>
+        <input type="date" id="rgAte" value="${(r && r.ate) || ''}"></div>
+    </div>
+
+    <div class="linha-fina" style="margin:16px 0"></div>
+    <label class="check">
+      <input type="checkbox" id="rgAtivo" ${!r || r.ativo !== false ? 'checked' : ''}>
+      <span>Regra ligada</span></label>
+    <p style="font-size:12.5px;color:var(--txt3);margin:8px 0 0">
+      Desligar guarda a regra sem aplicá-la — serve para a promoção que volta
+      todo ano, sem precisar cadastrar de novo.</p>
+    <div id="rgRecado"></div>`,
+    [['Cancelar','fecharModal()',''],
+     ['Salvar', `salvarRegraDePreco('${servicoId}', ${r ? `'${r.id}'` : 'null'})`,
+      'btn-p']]);
+}
+
+function virarRecorteDaRegra(){
+  const ver = (id, ligado) => {
+    const e = document.getElementById(id);
+    if(e) e.style.display = ligado ? '' : 'none';
+  };
+  const liga = id => !!(document.getElementById(id) || {}).checked;
+  ver('rgDiasCampos', liga('rgTemDias'));
+  ver('rgHoraCampos', liga('rgTemHora'));
+  ver('rgVigCampos',  liga('rgTemVig'));
+}
+
+const minutosDe = txt => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(txt || '').trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+function salvarRegraDePreco(servicoId, id){
+  const v = i => (document.getElementById(i) || {}).value || '';
+  const liga = i => !!(document.getElementById(i) || {}).checked;
+  const recado = html => {
+    const e = document.getElementById('rgRecado');
+    if(e) e.innerHTML = `<div class="aviso" style="margin:14px 0 0">${html}</div>`;
+  };
+
+  const preco = Number(v('rgPreco'));
+  if(!Number.isFinite(preco) || preco < 0){
+    recado('<b>Diga o preço desta regra.</b>'); return;
+  }
+
+  const dias = !liga('rgTemDias') ? null
+    : [...document.querySelectorAll('#rgDias button.on')]
+        .map(b => Number(b.dataset.dia)).sort((a,b) => a-b);
+  if(dias && !dias.length){
+    recado('<b>Escolha pelo menos um dia</b>, ou desligue o recorte por dia.');
+    return;
+  }
+
+  let horaIni = null, horaFim = null;
+  if(liga('rgTemHora')){
+    horaIni = minutosDe(v('rgHoraIni'));
+    horaFim = minutosDe(v('rgHoraFim'));
+    /* ⚠ A MESMA TRAVA DO BANCO, e de propósito repetida aqui. O `check`
+       `preco_regra_faixa` do 33 recusaria "das 14h às 10h" — mas recusaria com
+       uma mensagem do Postgres, depois de a pessoa ter preenchido tudo. Aqui
+       ela sabe na hora, e na língua dela. */
+    if(horaIni == null || horaFim == null || horaFim <= horaIni){
+      recado('<b>A faixa de horário está invertida.</b> O "até" tem que ser '
+           + 'depois do "das".'); return;
+    }
+  }
+
+  let de = null, ate = null;
+  if(liga('rgTemVig')){
+    de  = v('rgDe')  || null;
+    ate = v('rgAte') || null;
+    if(!de && !ate){
+      recado('<b>Diga a partir de quando, até quando, ou os dois.</b>'); return;
+    }
+    if(de && ate && ate < de){
+      recado('<b>O período está invertido.</b> O "até" é antes do "a partir '
+           + 'de".'); return;
+    }
+  }
+
+  const campos = { salaoId: salaoAtual, servicoId, preco,
+    profissionalId: v('rgProf') || null,
+    dias, horaIni, horaFim, de, ate, ativo: liga('rgAtivo') };
+
+  bd.precos_regras = bd.precos_regras || [];
+  if(id){
+    const r = bd.precos_regras.find(x => x.id === id);
+    if(r) Object.assign(r, campos);
+  } else {
+    bd.precos_regras.push(Object.assign({ id: id() }, campos));
+  }
+  salvar();
+  fecharModal();
+  abrirServico(acharServico(servicoId));
+}
+
+function apagarRegraDePreco(id){
+  const r = (bd.precos_regras || []).find(x => x.id === id);
+  if(!r) return;
+  if(!confirm('Excluir esta regra de preço?\n\n' + real(r.preco) + ' — '
+              + frasedaRegra(r) + '\n\nOs horários já marcados não mudam: o '
+              + 'preço deles foi congelado na marcação.')) return;
+  const sv = r.servicoId;
+  bd.precos_regras = bd.precos_regras.filter(x => x.id !== id);
+  salvar();
+  fecharModal();
+  abrirServico(acharServico(sv));
+}
+
+function listaDeRegras(servicoId){
+  const lista = regrasDe(servicoId);
+  if(!lista.length){
+    return `<p style="font-size:12.5px;color:var(--txt3);margin:0">
+      Nenhuma regra ainda.</p>`;
+  }
+  /* A ordem da lista é a ordem em que elas ganham, e a primeira leva a
+     etiqueta. Sem isso o dono cadastra três regras que se cruzam e não tem
+     como saber qual vale numa terça às 10h — que é exatamente a pergunta que
+     ele vai fazer. */
+  return lista.map((r, i) => `
+    <div class="bloco" style="display:flex;align-items:center;gap:10px;
+                              margin-bottom:8px">
+      <b style="flex:0 0 auto;font-size:15px">${real(r.preco)}</b>
+      <span style="flex:1;min-width:0;font-size:12.5px;color:var(--txt2)">
+        ${escapar(frasedaRegra(r))}
+        ${i === 0 && lista.length > 1
+          ? '<span class="selo-combo">GANHA DAS OUTRAS</span>' : ''}
+        ${r.ativo === false ? ' <b>(desligada)</b>' : ''}</span>
+      <button type="button" class="btn btn-peq"
+              onclick="editarRegraDePreco('${r.id}')">Editar</button>
+      <button type="button" class="btn btn-peq"
+              onclick="apagarRegraDePreco('${r.id}')">Excluir</button>
+    </div>`).join('');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -7153,10 +7507,14 @@ function pintarSalao(){
 
       <div class="dupla">
         <div class="campo"><label for="cTel">Telefone</label>
-          <input id="cTel" value="${escapar(sl.telefone || '')}" placeholder="(11) 3333-4444"></div>
+          <input id="cTel" value="${escapar(sl.telefone || '')}" placeholder="(11) 3333-4444"
+                 oninput="explicarModulos()"></div>
         <div class="campo"><label for="cZap">WhatsApp</label>
-          <input id="cZap" value="${sl.whatsapp || ''}" placeholder="(11) 99999-8888">
-          <span class="ajuda">É por onde sai a confirmação do cliente.</span></div>
+          <input id="cZap" value="${escapar(sl.whatsapp || '')}" placeholder="(11) 99999-8888"
+                 oninput="explicarModulos()">
+          <span class="ajuda">É por onde sai a confirmação do cliente e por
+            onde chegam os pedidos dos produtos. Sem ele, a loja não aparece
+            no link.</span></div>
       </div>
 
       <!-- ── A REGRA DA COMISSÃO ──────────────────────────────────────
@@ -7456,11 +7814,54 @@ function pintarSalao(){
            tons de tudo o que nao for escolhido a' mao, e nao a cor do papel.
            (Sem crase e sem acento em alguns pontos: comentario dentro de
            template literal.) -->
-      <div class="rot" style="margin:18px 0 8px">Base clara ou escura</div>
+      <!-- ══════════ O FUNDO DA PAGINA, TUDO NUM LUGAR SO' ══════════
+           ⚠ ESTE BLOCO E' UMA JUNCAO, e o motivo e' uma reclamacao repetida:
+           "o fundo so' tem claro e escuro". Era verdade do que ele VIA — as
+           tres pecas do fundo moravam em tres lugares diferentes desta tela:
+
+             a base clara/escura ...... aqui em cima
+             a cor do papel ........... la' embaixo, na lista das onze cores
+             gradiente e imagem ....... mais embaixo ainda, em "Tipo de fundo"
+
+           Quem procurava "o fundo" achava a primeira, com duas opcoes, e
+           parava de procurar. Renomear o rotulo nao resolveu, porque o
+           problema nao era o nome: era a distancia.
+
+           Agora e' uma pergunta so', respondida de cima para baixo: que base,
+           que tipo, e qual cor.
+           (Sem crase e sem acento em alguns pontos: template literal.) -->
+      <div class="rot" style="margin:18px 0 8px">O fundo da página</div>
+      <p class="secao-sub" style="margin:-4px 0 9px">Tudo o que fica atras do
+        conteudo. Comece pela base, depois escolha o tipo.</p>
+
+      <div class="secao" style="margin:0 0 6px">Base clara ou escura</div>
       <div class="regua" id="reguaTema" style="justify-content:flex-start"></div>
       <p class="secao-sub" style="margin-top:9px">Decide o tom de tudo o que
-        você não escolher à mão. A cor do fundo em si, o gradiente e a imagem
-        estão logo abaixo.</p>
+        você não escolher à mão — inclusive dos textos.</p>
+
+      <div class="secao" style="margin:14px 0 6px">Cor sólida, gradiente ou imagem</div>
+      <div class="regua" id="reguaFundoTipo" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaFundoTipo" style="margin-top:9px"></p>
+
+      <!-- A cor do papel e' UMA das onze cores soltas, e continua sendo: ela
+           entra na mesma peneira, no mesmo salvar e na mesma prevía. O que
+           muda e' onde a linha dela e' DESENHADA — aqui, junto das outras
+           perguntas sobre fundo, em vez de no meio de uma lista de onze. -->
+      <div id="corDoPapel" style="margin-top:10px"></div>
+
+      <div id="gradienteCampos" style="display:none;margin-top:10px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <input type="color" id="gradA" class="cor-livre"
+                 oninput="escolherGradiente()">
+          <span class="secao-sub" style="margin:0">ate'</span>
+          <input type="color" id="gradB" class="cor-livre"
+                 oninput="escolherGradiente()">
+        </div>
+        <p class="secao-sub" style="margin-top:6px">A primeira cor fica em
+          cima e a segunda embaixo. Duas cores proximas dao um fundo calmo;
+          duas distantes viram enfeite e disputam com o conteudo.</p>
+      </div>
+      <div class="linha-fina" style="margin:18px 0"></div>
 
       <!-- ══════════ TEMAS PRONTOS ══════════
            ⚠ Eles NAO sao um estado. Aplicar um so' PREENCHE os campos de cor
@@ -7483,25 +7884,6 @@ function pintarSalao(){
         sozinho a partir da cor da marca. Mexa so' no que voce quiser mudar.</p>
       <div id="coresSoltas"></div>
       <p class="secao-sub" id="avisoLegibilidade" style="margin-top:9px"></p>
-
-      <!-- ══════════ TIPO DE FUNDO ══════════
-           A imagem e o veu ja' existiam; o que faltava era o GRADIENTE e um
-           seletor que diga em portugues o que esta' valendo. -->
-      <div class="rot" style="margin:18px 0 8px">Tipo de fundo</div>
-      <div class="regua" id="reguaFundoTipo" style="justify-content:flex-start"></div>
-      <p class="secao-sub" id="explicaFundoTipo" style="margin-top:9px"></p>
-      <div id="gradienteCampos" style="display:none;margin-top:10px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <input type="color" id="gradA" class="cor-livre"
-                 oninput="escolherGradiente()">
-          <span class="secao-sub" style="margin:0">ate'</span>
-          <input type="color" id="gradB" class="cor-livre"
-                 oninput="escolherGradiente()">
-        </div>
-        <p class="secao-sub" style="margin-top:6px">A primeira cor fica em
-          cima e a segunda embaixo. Duas cores proximas dao um fundo calmo;
-          duas distantes viram enfeite e disputam com o conteudo.</p>
-      </div>
 
       <div class="rot" style="margin:18px 0 8px">Formato do logo</div>
       <div class="regua" id="reguaLogoForma" style="justify-content:flex-start"></div>
@@ -8188,14 +8570,20 @@ const CORES_SOLTAS = [
   ['papel',      'Fundo da página', 'O papel atrás de tudo. Vale a página inteira.'],
   ['secundaria', 'Cor secundária',  'Apoio da principal: fundos suaves e realces.'],
   ['botao',      'Botões',          'O botão de marcar e os de ação.'],
-  ['texto',      'Textos',          'O corpo do texto, no cartão e na lista.'],
+  ['texto',      'Textos',          'A rua do endereço e o corpo do texto, no cartão e na lista.'],
   /* O cinza dos detalhes. Vale a pena listar ONDE ele aparece, porque "texto
      secundário" não diz nada a quem está olhando a própria página: é a linha
      do bairro embaixo do endereço, o "NOSSOS SERVIÇOS" e o "CABELO", e o
      "30 min" no canto do cartão de serviço. */
-  ['discreto',   'Textos discretos','O bairro, os títulos de seção e a duração do serviço.'],
-  ['titulo',     'Títulos',         'Os nomes em destaque: serviço, seção, salão.'],
-  ['card',       'Cards',           'O fundo dos cartões que ficam sobre a página.'],
+  ['discreto',   'Textos discretos','O bairro, os títulos "NOSSOS SERVIÇOS" e "PRODUTOS EM DESTAQUE", e a duração do serviço.'],
+  /* ⚠ "SEÇÃO" SAIU DAQUI. O título de seção é o `.cat`, que pinta com
+     `--txt3` — o DISCRETO, logo acima. Esta linha dizia "serviço, seção,
+     salão", e quem queria mudar a cor do "NOSSOS SERVIÇOS" mexia aqui, via o
+     nome do salão mudar e o título continuar igual. Foi a reclamação: "não
+     consigo mudar a cor das letras: nossos serviços, ...". Medido no
+     navegador antes de trocar o texto. */
+  ['titulo',     'Títulos',         'O nome do salão e o nome de cada serviço e produto.'],
+  ['card',       'Cards',           'O fundo dos cartões de serviço e de produto, que ficam sobre a página.'],
   ['icone',      'Ícones',          'Os desenhos de traço, quando não acompanham o texto.'],
   ['destaque',   'Destaque e preço','O valor do serviço e o que precisa saltar.'],
   ['borda',      'Bordas',          'As linhas finas que separam um bloco do outro.'],
@@ -8261,23 +8649,38 @@ function pintarAparencia(){
   /* ⚠ CADA LINHA MOSTRA SE A COR É HERDADA OU ESCOLHIDA, e não só a cor.
      Sem isso o dono não tem como saber se aquele tom veio dele ou do
      cálculo — e não saberia o que o "voltar a herdar" vai desfazer. */
+  /* ⚠ UMA LINHA, DOIS LUGARES ONDE ELA PODE SER DESENHADA.
+
+     O `papel` é uma das onze e continua sendo: mesma peneira, mesmo salvar,
+     mesma prévia, mesma conferência de legibilidade. O que muda é ONDE a
+     linha aparece — junto das outras perguntas sobre fundo, lá em cima, em
+     vez de no meio de uma lista de onze onde ninguém a achava.
+
+     A função de desenhar é uma só justamente para as duas não divergirem:
+     quem mexer no "herdar" mexe nos dois de uma vez. */
+  const linhaDeCor = ([chave, rot, ajuda]) => {
+    const escolhida = aparencia.cores[chave];
+    const tem = corValida(escolhida);
+    return `<div class="cor-linha">
+      <input type="color" class="cor-livre"
+             value="${tem ? escolhida : aparencia.cor}"
+             oninput="escolherCorSolta('${chave}', this.value)"
+             aria-label="${escapar(rot)}">
+      <span class="cor-linha-txt">
+        <b>${escapar(rot)}</b>
+        <span>${tem ? escapar(ajuda) : 'acompanha a cor da marca'}</span>
+      </span>
+      ${tem ? `<button type="button" class="btn btn-peq"
+                       onclick="herdarCorSolta('${chave}')">herdar</button>` : ''}
+    </div>`;
+  };
+
+  const doPapel = CORES_SOLTAS.find(x => x[0] === 'papel');
+  const caixaPapel = document.getElementById('corDoPapel');
+  if(caixaPapel) caixaPapel.innerHTML = doPapel ? linhaDeCor(doPapel) : '';
+
   document.getElementById('coresSoltas').innerHTML =
-    CORES_SOLTAS.map(([chave, rot, ajuda]) => {
-      const escolhida = aparencia.cores[chave];
-      const tem = corValida(escolhida);
-      return `<div class="cor-linha">
-        <input type="color" class="cor-livre"
-               value="${tem ? escolhida : aparencia.cor}"
-               oninput="escolherCorSolta('${chave}', this.value)"
-               aria-label="${escapar(rot)}">
-        <span class="cor-linha-txt">
-          <b>${escapar(rot)}</b>
-          <span>${tem ? escapar(ajuda) : 'acompanha a cor da marca'}</span>
-        </span>
-        ${tem ? `<button type="button" class="btn btn-peq"
-                         onclick="herdarCorSolta('${chave}')">herdar</button>` : ''}
-      </div>`;
-    }).join('');
+    CORES_SOLTAS.filter(x => x[0] !== 'papel').map(linhaDeCor).join('');
   conferirLegibilidade();
 
   /* ── O TIPO DE FUNDO ──────────────────────────────────────────────────
@@ -8713,6 +9116,48 @@ function previaDosServicos(svs){
     </div>`).join('')}</div>`;
 }
 
+/* ── ⚠ AS ONZE CORES, DENTRO DA PRÉVIA ───────────────────────────────────
+   A prévia mostrava o tema do PAINEL, e não as cores do salão. Medido: seis
+   elementos de seis divergindo da página de verdade — fundo, nome, endereço,
+   título de seção, cartão e botão.
+
+   O efeito era pior que a divergência. O dono escolhia a cor do fundo, a
+   prévia não mexia, e ele concluía que NÃO DAVA para mudar. "Não consigo
+   mudar a cor das letras" e "o fundo só tem claro e escuro" eram isto: coisas
+   que a página já sabia pintar, e que a prévia escondia.
+
+   Só entra aqui a cor que o dono ESCOLHEU. A que ele não escolheu não vira
+   variável, e o CSS fica com o valor de reserva — que é exatamente o que a
+   prévia mostrava antes. Salão que nunca abriu esta tela vê a prévia de
+   sempre.
+
+   ⚠ E O NOME DA VARIÁVEL É `--fone-<chave>`, igual à chave da cor. Um mapa de
+   tradução no meio seria mais um lugar para desalinhar: a décima segunda cor
+   que alguém acrescentar já chega na prévia sem tocar nesta função. */
+/* ⚠ O BOTÃO DA PRÉVIA SEGUE A COR DE "BOTÕES", e não a da marca.
+
+   Na página, `botao` escreve `--acao`, e é `--acao` que pinta o botão de
+   agendar. Na prévia o equivalente é `--fone-marca` — e ele estava preso em
+   `aparencia.cor`. Medido: o dono punha os botões em marrom e a prévia
+   continuava roxa.
+
+   Aqui a relação é a mesma dos dois lados: escolheu cor de botão, é ela;
+   não escolheu, é a cor da marca. E a letra é recalculada em cima da cor
+   NOVA — senão marrom escuro com letra preta, ou dourado com letra branca. */
+function corDoBotaoNaPrevia(){
+  const c = (aparencia.cores || {}).botao;
+  return corValida(c) ? c : aparencia.cor;
+}
+
+function coresDaPrevia(){
+  const c = aparencia.cores || {};
+  let fora = '';
+  for(const [chave] of CORES_SOLTAS){
+    if(corValida(c[chave])) fora += `;--fone-${chave}:${c[chave]}`;
+  }
+  return fora;
+}
+
 /* A prévia. Não é decoração: escolher cor sem ver onde ela cai é escolher no
    escuro, e o dono só descobriria o resultado abrindo o próprio link no
    celular. Aqui ele vê antes de salvar. */
@@ -8728,7 +9173,8 @@ function pintarPreviaFone(){
   alvo.innerHTML =
     `<div class="fone ${escuro ? 'fone-escuro' : ''}${
           aparencia.veu < 35 ? ' pouco-veu' : ''}"
-          style="--fone-marca:${escapar(aparencia.cor)};--fone-marca-txt:${letraSobre(aparencia.cor)}">
+          style="--fone-marca:${escapar(corDoBotaoNaPrevia())};--fone-marca-txt:${
+            letraSobre(corDoBotaoNaPrevia())}${coresDaPrevia()}">
        ${imagemDoSalao(sl, 'fundo')
          ? `<div class="fone-fundo" style="background-image:url('${imagemDoSalao(sl, 'fundo')}');
                   --veu:${aparencia.veu / 100}"></div>`
@@ -9386,6 +9832,64 @@ function usaLojaNoLink(sl){
   return !NAO.includes(String(v).trim().toLowerCase());
 }
 
+/* O número por onde a página da cliente manda o pedido.
+
+   ⚠ A MESMA REGRA DO `zapDoSalao()` DO agendar.html, LETRA POR LETRA — e
+   não a do `numeroWhatsapp()` aqui de cima, que aceita número estrangeiro de
+   12 dígitos sem o 55. Parecem a mesma coisa e divergem justamente no caso
+   em que o painel diria "está tudo certo" e a página esconderia a loja. Este
+   espelho existe para responder o que a PÁGINA vai fazer, então copia a
+   régua dela. */
+function zapDaCasa(sl, cru){
+  const s = sl || acharSalao(salaoAtual) || {};
+  const so = String(cru != null ? cru : (s.whatsapp || s.telefone || ''))
+    .replace(/\D/g, '');
+  if(so.length === 10 || so.length === 11) return '55' + so;
+  if(so.length >= 12 && so.startsWith('55')) return so;
+  return '';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   POR QUE OS PRODUTOS NÃO APARECEM NO LINK
+
+   Foi a reclamação, com essas palavras: "não estou enxergando os produtos".
+   A página da cliente esconde a loja INTEIRA em três casos, e o painel não
+   dizia nenhum deles:
+
+     1. a loja está desligada em "O que a sua página oferece";
+     2. o salão não tem número de WhatsApp que dê para abrir — o carrinho
+        manda o pedido por lá, e sem número não há para onde mandar;
+     3. nenhum produto ativo está marcado "Vender na página do salão", que
+        nasce desligado de propósito.
+
+   Esconder está certo nos três: um carrinho que não tem para onde ir é pior
+   que carrinho nenhum. O defeito era o SILÊNCIO — o dono cadastra, abre o
+   link, não vê nada, e não tem de onde tirar o porquê.
+
+   Na mesma ordem em que a página confere, para a frase apontar o primeiro
+   obstáculo e não um que só apareceria depois de resolver o de antes.
+   `opc` deixa a aba Dados perguntar com o que está DIGITADO, antes do Salvar.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function porqueALojaNaoAparece(sl, opc){
+  const s = sl || acharSalao(salaoAtual);
+  if(!s) return '';
+  const o = opc || {};
+  const loja = o.loja != null ? o.loja : usaLojaNoLink(s);
+  if(!loja)
+    return 'A loja está <b>desligada</b> na sua página. Para ligar: '
+         + '<b>Meu salão → Dados → Produtos à venda → Sim</b>.';
+  if(!zapDaCasa(s, o.zap))
+    return 'Os produtos <b>não aparecem</b> na sua página porque o salão está '
+         + 'sem WhatsApp — é por ele que o pedido do carrinho chega. Preencha '
+         + 'em <b>Meu salão → Dados → WhatsApp</b> e salve.';
+  const aVenda = (bd.produtos || []).filter(p => p.salaoId === s.id
+    && p.ativo !== false && p.vendaOnline);
+  if(!aVenda.length)
+    return 'Nenhum produto está marcado para aparecer na sua página. Abra o '
+         + 'produto e marque <b>Vender na página do salão</b>.';
+  return '';
+}
+
 /* Mesma dupla de variáveis da comanda, e pelo mesmo motivo: a escolha vive na
    tela até o Salvar, e `modulosDoSalao` impede que a escolha de um salão vaze
    para o outro quando o dono troca de casa no seletor. */
@@ -9427,6 +9931,22 @@ function explicarModulos(){
     : '<b>Os dois desligados:</b> a página vira um cartão de visita — nome, '
       + 'foto, endereço e o botão do WhatsApp. Serve para publicar o link '
       + 'enquanto você ainda monta o catálogo.';
+
+  /* Com a loja LIGADA, a frase acima promete a vitrine — e ela pode não vir.
+     Pergunta com o que está digitado nos campos desta mesma aba, e não com o
+     que foi salvo: quem acabou de preencher o WhatsApp tem que ver o aviso
+     sumir, e não continuar lendo que falta um número que está na tela. */
+  if(l){
+    const campo = id => {
+      const e = document.getElementById(id);
+      return e ? e.value.trim() : null;
+    };
+    const zap = campo('cZap'), tel = campo('cTel');
+    const digitado = zap == null && tel == null ? undefined : (zap || tel || '');
+    const porque = porqueALojaNaoAparece(null, { loja: true, zap: digitado });
+    if(porque) alvo.innerHTML += `<span class="aviso atencao" id="avisoLojaModulos"
+      style="display:block;margin-top:10px">${porque}</span>`;
+  }
 }
 
 function escolherModServico(v){ modServicoEscolhido = !!v; pintarModulos(); }

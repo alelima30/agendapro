@@ -318,18 +318,36 @@ const foto = await p.evaluate(() => {
   const f = Array.from(document.querySelectorAll('#capaLoja .pr-foto'))
     .find(x => (x.getAttribute('style') || '').includes('--pr-foto'));
   if(!f) return null;
-  const e = getComputedStyle(f);
-  const b = getComputedStyle(f, '::before');
-  return { tamanho: e.backgroundSize, url: e.backgroundImage,
-           borraoTamanho: b.backgroundSize, borraoFiltro: b.filter,
-           borraoTemFoto: (b.backgroundImage || '').includes('url(') };
+  const atras = getComputedStyle(f, '::before');
+  const frente = getComputedStyle(f, '::after');
+  const temFoto = e => (e.backgroundImage || '').includes('url(');
+  return {
+    atrasFoto: temFoto(atras), atrasTam: atras.backgroundSize,
+    atrasFiltro: atras.filter, atrasZ: atras.zIndex,
+    frenteFoto: temFoto(frente), frenteTam: frente.backgroundSize,
+    frenteFiltro: frente.filter, frenteZ: frente.zIndex,
+  };
 });
 console.log('      FOTO: ' + JSON.stringify(foto));
 verdade('a foto do produto aparece inteira, sem corte',
-  foto && foto.tamanho === 'contain', JSON.stringify(foto));
+  foto && foto.frenteFoto && foto.frenteTam === 'contain',
+  JSON.stringify(foto));
 verdade('e o fundo é uma cópia borrada dela mesma, não uma tarja cinza',
-  foto && foto.borraoTamanho === 'cover' && /blur/.test(foto.borraoFiltro)
-       && foto.borraoTemFoto, JSON.stringify(foto));
+  foto && foto.atrasFoto && foto.atrasTam === 'cover'
+       && /blur/.test(foto.atrasFiltro), JSON.stringify(foto));
+/* ⚠ A REGRA QUE FALTAVA, E QUE DEIXOU O DEFEITO PASSAR.
+
+   A primeira versão media `background-size: contain` no elemento e a
+   existência do `blur` no `::before`. As duas coisas eram VERDADE, e a tela
+   mostrava três manchas coloridas: a nítida era o fundo do elemento, e o
+   navegador pinta o fundo ANTES do conteúdo — o borrão cobria tudo.
+
+   O teste provava que as duas camadas existem. Nunca que a de cima é a
+   nítida, que é a única coisa que importa. */
+verdade('e a NÍTIDA fica na frente do borrão, que é o que faz ver o produto',
+  foto && Number(foto.frenteZ) > Number(foto.atrasZ)
+       && !/blur/.test(foto.frenteFiltro),
+  JSON.stringify(foto));
 igual('o pé continua sendo o de agendar', m.peRotulo.trim(), 'Agendar horário');
 igual('e a cor é a do salão, não uma cor cravada', m.acao, COR.toUpperCase());
 verdade('nada rola de lado', !m.rolaDeLado);

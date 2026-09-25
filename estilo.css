@@ -778,12 +778,47 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 }
 
 .previa-fone{display:flex;flex-direction:column;align-items:center;margin-top:20px}
+/* ══════════════════════════════════════════════════════════════════════════
+   ⚠ A PRÉVIA TEM QUE OBEDECER ÀS ONZE CORES — E NÃO OBEDECIA
+
+   A prévia herdava o tema do PAINEL. Medido, com as onze cores escolhidas:
+
+       elemento           na página    na prévia
+       fundo              #102030      #fbf8f1
+       nome do salão      #203040      #172033
+       endereço           #405060      #172033
+       título de seção    #708090      #94a3b8
+       fundo do cartão    #c0d0e0      #000000
+       botão              #804020      #6d28d9
+
+   Seis de seis. A prévia mostrava o tema de fábrica enquanto a página mostrava
+   as cores do salão, e nenhuma das duas estava "quebrada" — cada uma, sozinha,
+   parecia certa.
+
+   O efeito para quem usa é pior do que a divergência: ele escolhe a cor do
+   fundo, a prévia não mexe, e ele conclui que NÃO DÁ para mudar. Foi
+   exatamente a reclamação — "não consigo mudar a cor das letras", "o fundo só
+   tem claro e escuro" — sobre coisas que a página já sabia pintar.
+
+   Agora cada pedaço da prévia lê uma variável `--fone-*`, que o
+   `pintarPreviaFone()` escreve a partir das cores escolhidas. O valor de
+   reserva de cada uma é exatamente o que estava escrito aqui antes: sem
+   escolha nenhuma, a prévia é a de sempre.
+   ══════════════════════════════════════════════════════════════════════════ */
 .fone{
   width:236px;border-radius:22px;padding:18px 14px 16px;
-  border:1px solid var(--borda);background:var(--painel2);
+  border:1px solid var(--borda);
+  background:var(--fone-papel, var(--painel2));
+  color:var(--fone-texto, inherit);
   box-shadow:var(--sombra);overflow:hidden;
 }
-.fone-escuro{background:#141416;border-color:#2A2A2E;color:#F2F2F3}
+/* O escuro continua sendo a BASE: ele vale quando o dono não escolheu papel
+   nem texto, e sai da frente assim que escolher. Por isso os `var()` aqui
+   também, e não as cores cravadas de antes. */
+.fone-escuro{
+  background:var(--fone-papel, #141416); border-color:#2A2A2E;
+  color:var(--fone-texto, #F2F2F3);
+}
 .fone-topo{text-align:center;margin-bottom:14px}
 .fone-topo img, .fone-selo{
   width:54px;height:54px;border-radius:15px;margin:0 auto 9px;display:block;
@@ -793,8 +828,9 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   background:var(--fone-marca);color:var(--fone-marca-txt);font-weight:700;font-size:24px;
   display:flex;align-items:center;justify-content:center;
 }
-.fone-topo b{display:block;font-size:14.5px;line-height:1.25}
-.fone-topo span{font-size:11.5px;opacity:.6}
+.fone-topo b{display:block;font-size:14.5px;line-height:1.25;
+  color:var(--fone-titulo, inherit)}
+.fone-topo span{font-size:11.5px;opacity:.6;color:var(--fone-texto, inherit)}
 /* A prévia repete o metal e o brilho da página da cliente. Se ela mostrasse
    um botão chapado, mentiria justamente sobre a escolha que existe para
    mostrar — e o dono só descobriria abrindo o próprio link no celular. */
@@ -1005,13 +1041,14 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   border:1px solid var(--ac-line); border-radius:12px; padding:10px;
   background:var(--ac-soft); margin-bottom:11px; position:relative; z-index:1;
 }
-.fone-boas-t{ display:block; font-size:11.5px; color:var(--ac-600); margin-bottom:7px }
+.fone-boas-t{ display:block; font-size:11.5px;
+  color:var(--fone-destaque, var(--ac-600)); margin-bottom:7px }
 .fone-boas .fone-cta{ margin-bottom:0 }
 /* 11px é o piso, aqui como em qualquer outro texto do painel: a prévia é
    pequena, mas quem a lê é a mesma pessoa, no mesmo celular. */
 .fone-rot{
   font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
-  color:var(--txt3); margin:0 0 7px;
+  color:var(--fone-discreto, var(--txt3)); margin:0 0 7px;
 }
 .fone-eq{
   width:30px; height:30px; flex:none; border-radius:50%;
@@ -1019,7 +1056,8 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   display:grid; place-items:center; font-size:12px; font-weight:650;
 }
 .fone-topo i{
-  display:block; font-style:normal; font-size:11px; color:var(--txt3);
+  display:block; font-style:normal; font-size:11px;
+  color:var(--fone-discreto, var(--txt3));
   margin-top:1px;
 }
 
@@ -1029,8 +1067,10 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   background:var(--borda) center/cover no-repeat;
 }
 .fone-escuro .fone-sv-foto{background-color:#26262A}
-.fone-sv-txt b{display:block;font-size:12px;line-height:1.3}
-.fone-preco{font-size:12.5px;font-weight:700;color:var(--fone-marca)}
+.fone-sv-txt b{display:block;font-size:12px;line-height:1.3;
+  color:var(--fone-titulo, inherit)}
+.fone-preco{font-size:12.5px;font-weight:700;
+  color:var(--fone-destaque, var(--fone-marca))}
 
 /* ── A MOLDURA CURVADA, DENTRO DA PRÉVIA ──────────────────────────────────
    O mesmo desenho do `.sv-cartao` da página da cliente, em 106px de largura.
@@ -1047,9 +1087,11 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 .fone-grade{ display:grid; grid-template-columns:1fr 1fr; gap:7px }
 .fone-cartao{
   position:relative; border-radius:11px; overflow:hidden;
-  background:var(--painel); box-shadow:var(--sombra-xs); padding-bottom:2px;
+  background:var(--fone-card, var(--painel));
+  box-shadow:var(--sombra-xs); padding-bottom:2px;
 }
-.fone-escuro .fone-cartao{ background:#1D1D20 }
+.fone-escuro .fone-cartao{ background:var(--fone-card, #1D1D20) }
+.fone-cartao-txt b{ color:var(--fone-titulo, inherit) }
 .fone-cartao-foto{
   aspect-ratio:1 / 1; background:var(--borda) center/cover no-repeat;
   display:block;
@@ -1494,20 +1536,40 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
 .pr-foto{
   position:relative; overflow:hidden;
   display:grid; place-items:center; aspect-ratio:1/1;
-  background:var(--painel2) var(--pr-foto, none) center/contain no-repeat;
+  background:var(--painel2);
   color:var(--txt3);
 }
+/* ⚠ SÃO DUAS CAMADAS, E A NÍTIDA NÃO PODE SER O FUNDO DO PRÓPRIO ELEMENTO.
+
+   Eu tinha posto a foto em `contain` como `background` do `.pr-foto` e o
+   borrão num `::before`. Não funciona, e o motivo é a ordem de pintura do
+   navegador: o fundo de um elemento é pintado ANTES do conteúdo dele, e
+   pseudo-elemento é conteúdo. O borrão cobria a foto inteira.
+ 
+   O resultado na tela dele foram três cartões de mancha colorida, sem produto
+   nenhum reconhecível — e não deu erro em lugar nenhum.
+ 
+   Pior: o teste que eu escrevi para isto media `background-size: contain` e a
+   existência do `filter: blur` no `::before`. As duas coisas eram verdade. Ele
+   provava que as duas camadas EXISTEM, e nunca que a de cima é a nítida.
+ 
+   Agora são dois pseudo-elementos, e quem decide quem fica na frente é o
+   `z-index`, não a ordem de pintura: `::before` borrado atrás, `::after`
+   nítido na frente. É a mesma montagem do carrossel da capa, onde a nítida é
+   um `<img>` de verdade — lá o elemento sobe sozinho. */
 .pr-foto::before{
   content:""; position:absolute; inset:-14px;   /* sangra: o borrão não vaza */
   background:var(--pr-foto, none) center/cover no-repeat;
   filter:blur(18px) saturate(1.2) brightness(.82);
-  /* Sem foto não há o que borrar, e um `none` desenhado é um retângulo
-     transparente por cima do fundo — inofensivo, mas é pintura à toa em cada
-     cartão de um salão que ainda não subiu imagem nenhuma. */
   z-index:0;
 }
-/* O ícone de reserva e qualquer coisa dentro ficam ACIMA do borrão. */
-.pr-foto > *{ position:relative; z-index:1 }
+.pr-foto::after{
+  content:""; position:absolute; inset:0;
+  background:var(--pr-foto, none) center/contain no-repeat;
+  z-index:1;
+}
+/* O ícone de reserva fica acima das duas camadas. */
+.pr-foto > *{ position:relative; z-index:2 }
 .pr-foto .ic-svg{ width:30px; height:30px }
 .pr-pe{
   display:flex; align-items:center; gap:9px; padding:9px 10px 10px;
@@ -2351,6 +2413,11 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 }
 .sv-cartao-linha{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap }
 .sv-cartao-preco{ font-size:16px; font-weight:700; color:var(--ac-600) }
+/* "a partir de" miúdo e na cor de apoio: é qualificador do número, não o
+   número. Do mesmo tamanho ele competiria com o preço e a cliente leria duas
+   informações onde há uma. */
+.sv-cartao-apartir{ font-size:10.5px; font-weight:600; color:var(--txt3);
+  letter-spacing:.02em; text-transform:lowercase }
 .sv-cartao-dur{ font-size:12.5px; color:var(--txt3) }
 
 /* Serviço sem foto não ganha um buraco cinza: o cartão vira uma linha e

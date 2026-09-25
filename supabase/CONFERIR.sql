@@ -208,6 +208,57 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a peneira ainda é ::boolean: um caractere estranho no cfg '
                || 'derruba a página inteira da cliente'
            else '' end
+  union all
+  /* O preço avançado. Cinco peças, e as duas últimas falham caladas: sem o
+     GATILHO, a regra vale só para quem marca pelo link, e a recepção continua
+     cobrando o preço do catálogo. Foi medido antes de existir: R$ 40 de
+     diferença no mesmo atendimento, decidido por quem clicou.
+
+     E sem tirar o DEFAULT 0 da coluna o gatilho não roda para a linha
+     lançada sem preço — ela nasce zerada, e zero não é nulo. Sem o gatilho E
+     com o default, é pior: o link grava nulo de propósito numa coluna que não
+     aceita nulo, e a marcação é recusada. O 99_remendo.sql saiu assim uma
+     vez, e só uma linha lançada de verdade mostrou. */
+  select 14, 'preço por dia, horário e vigência',
+         case
+           when to_regclass('public.precos_regras') is null then 'FALTA'
+           when to_regprocedure(
+                  'public.preco_do_servico(uuid, uuid, timestamp with time zone)')
+                is null then 'FALTA'
+           when to_regprocedure(
+                  'public.preco_dos_servicos(uuid, uuid[], timestamp with time zone)')
+                is null then 'FALTA'
+           when not exists (select 1 from pg_trigger
+                             where tgname = 'tg_preco_agend_servico'
+                               and not tgisinternal) then 'FALTA'
+           when (select column_default from information_schema.columns
+                  where table_schema = 'public'
+                    and table_name = 'agendamento_servicos'
+                    and column_name = 'preco') is not null then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regclass('public.precos_regras') is null
+             then 'falta a tabela — o painel não tem onde gravar as regras'
+           when to_regprocedure(
+                  'public.preco_do_servico(uuid, uuid, timestamp with time zone)')
+                is null
+             then 'falta a escada: o preço volta a ser uma coluna por leitor'
+           when to_regprocedure(
+                  'public.preco_dos_servicos(uuid, uuid[], timestamp with time zone)')
+                is null
+             then 'falta a conta com horário: marcar pelo link dá erro'
+           when not exists (select 1 from pg_trigger
+                             where tgname = 'tg_preco_agend_servico'
+                               and not tgisinternal)
+             then 'falta o gatilho: a regra vale para o link e a recepção '
+               || 'continua cobrando o catálogo'
+           when (select column_default from information_schema.columns
+                  where table_schema = 'public'
+                    and table_name = 'agendamento_servicos'
+                    and column_name = 'preco') is not null
+             then 'a coluna do preço ainda nasce com zero: a linha lançada '
+               || 'sem preço fica R$ 0,00 em vez do preço da regra'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

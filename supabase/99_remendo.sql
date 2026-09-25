@@ -20,6 +20,41 @@ begin
   end if;
 end $trava_choque$;
 
+create table if not exists public.precos_regras (
+  id              uuid primary key default gen_random_uuid(),
+  salao_id        uuid not null references public.saloes(id) on delete cascade,
+  servico_id      uuid not null references public.servicos(id) on delete cascade,
+  profissional_id uuid references public.profissionais(id) on delete cascade,
+  preco           numeric(10,2) not null check (preco >= 0),
+  de              date,
+  ate             date,
+  dias            smallint[],
+  hora_ini        int,
+  hora_fim        int,
+  ativo           boolean not null default true,
+  criado_em       timestamptz not null default now(),
+  constraint preco_regra_vigencia  check (de is null or ate is null or ate >= de),
+  constraint preco_regra_faixa     check (
+    (hora_ini is null and hora_fim is null)
+    or (hora_ini is not null and hora_fim is not null
+        and hora_ini >= 0 and hora_fim <= 1440 and hora_fim > hora_ini)),
+  constraint preco_regra_dias      check (
+    dias is null or (array_length(dias, 1) between 1 and 7
+                     and 0 <= all(dias) and 7 > all(dias)))
+);
+create index if not exists ix_preco_regra_servico
+  on public.precos_regras (servico_id) where ativo;
+comment on table public.precos_regras is
+  'Preço por vigência, dia da semana e faixa de horário. Recortes opcionais e combináveis; a regra mais específica ganha. Ver preco_do_servico().';
+alter table public.precos_regras enable row level security;
+drop policy if exists pr_ler on public.precos_regras;
+create policy pr_ler on public.precos_regras for select to authenticated
+  using (public.e_equipe(salao_id));
+drop policy if exists pr_gerir on public.precos_regras;
+create policy pr_gerir on public.precos_regras for all to authenticated
+  using (public.e_gestor(salao_id))
+  with check (public.e_gestor(salao_id));
+
 create or replace function public.so_digitos(p_texto text)
 returns text language sql immutable set search_path = public as $$
   select nullif(regexp_replace(coalesce(p_texto, ''), '[^0-9]', '', 'g'), '')
@@ -716,6 +751,148 @@ create trigger tg_notif_agend_confirmado
 revoke all on function public.confirma_automatico(uuid) from public;
 grant execute on function public.confirma_automatico(uuid) to anon, authenticated;
 
+create table if not exists public.precos_regras (
+  id              uuid primary key default gen_random_uuid(),
+  salao_id        uuid not null references public.saloes(id) on delete cascade,
+  servico_id      uuid not null references public.servicos(id) on delete cascade,
+  profissional_id uuid references public.profissionais(id) on delete cascade,
+  preco           numeric(10,2) not null check (preco >= 0),
+  de              date,
+  ate             date,
+  dias            smallint[],
+  hora_ini        int,
+  hora_fim        int,
+  ativo           boolean not null default true,
+  criado_em       timestamptz not null default now(),
+  constraint preco_regra_vigencia  check (de is null or ate is null or ate >= de),
+  constraint preco_regra_faixa     check (
+    (hora_ini is null and hora_fim is null)
+    or (hora_ini is not null and hora_fim is not null
+        and hora_ini >= 0 and hora_fim <= 1440 and hora_fim > hora_ini)),
+  constraint preco_regra_dias      check (
+    dias is null or (array_length(dias, 1) between 1 and 7
+                     and 0 <= all(dias) and 7 > all(dias)))
+);
+create index if not exists ix_preco_regra_servico
+  on public.precos_regras (servico_id) where ativo;
+comment on table public.precos_regras is
+  'Preço por vigência, dia da semana e faixa de horário. Recortes opcionais e combináveis; a regra mais específica ganha. Ver preco_do_servico().';
+alter table public.precos_regras enable row level security;
+drop policy if exists pr_ler on public.precos_regras;
+create policy pr_ler on public.precos_regras for select to authenticated
+  using (public.e_equipe(salao_id));
+drop policy if exists pr_gerir on public.precos_regras;
+create policy pr_gerir on public.precos_regras for all to authenticated
+  using (public.e_gestor(salao_id))
+  with check (public.e_gestor(salao_id));
+grant select, insert, update, delete on public.precos_regras to authenticated;
+create or replace function public.preco_regra_que_vale(
+  p_servico uuid, p_profissional uuid, p_quando timestamptz)
+returns numeric language sql stable set search_path = public as $$
+  with onde as (
+    select sa.fuso
+      from public.servicos sv
+      join public.saloes sa on sa.id = sv.salao_id
+     where sv.id = p_servico
+  ),
+  quando as (
+    select (p_quando at time zone o.fuso)::date            as dia,
+           extract(dow from (p_quando at time zone o.fuso))::smallint as dow,
+           (extract(hour from (p_quando at time zone o.fuso)) * 60
+            + extract(minute from (p_quando at time zone o.fuso)))::int as min
+      from onde o
+  )
+  select r.preco
+    from public.precos_regras r, quando q
+   where r.ativo
+     and r.servico_id = p_servico
+     and (r.profissional_id is null or r.profissional_id = p_profissional)
+     and (r.de   is null or q.dia >= r.de)
+     and (r.ate  is null or q.dia <= r.ate)
+     and (r.dias is null or array_length(r.dias, 1) is null or q.dow = any(r.dias))
+     and (r.hora_ini is null or (q.min >= r.hora_ini and q.min < r.hora_fim))
+   order by (case when r.profissional_id is not null then 8 else 0 end)
+          + (case when r.dias is not null
+                   and array_length(r.dias, 1) is not null then 4 else 0 end)
+          + (case when r.hora_ini is not null then 2 else 0 end)
+          + (case when r.de is not null or r.ate is not null then 1 else 0 end)
+            desc,
+            r.criado_em desc, r.id desc
+   limit 1
+$$;
+comment on function public.preco_regra_que_vale(uuid, uuid, timestamptz) is
+  'O preço da regra mais específica que casa com este horário, ou NULL quando nenhuma casa. Não é o menor preço: é a regra com mais recortes.';
+create or replace function public.preco_do_servico(
+  p_servico uuid, p_profissional uuid, p_quando timestamptz)
+returns numeric language sql stable set search_path = public as $$
+  select coalesce(
+    public.preco_regra_que_vale(p_servico, p_profissional, p_quando),
+    (select sp.preco from public.servicos_profissionais sp
+      where sp.servico_id = p_servico and sp.profissional_id = p_profissional),
+    (select sv.preco from public.servicos sv where sv.id = p_servico),
+    0)::numeric(10,2)
+$$;
+comment on function public.preco_do_servico(uuid, uuid, timestamptz) is
+  'Quanto custa este serviço, com esta pessoa, neste horário. Escada: regra de preço, preço do par, preço do serviço.';
+create or replace function public.preco_dos_servicos(
+  p_profissional uuid, p_servicos uuid[], p_quando timestamptz)
+returns numeric language sql stable set search_path = public as $$
+  select coalesce(sum(public.preco_do_servico(s, p_profissional, p_quando)), 0)
+           ::numeric(10,2)
+    from unnest(p_servicos) as s
+$$;
+comment on function public.preco_dos_servicos(uuid, uuid[], timestamptz) is
+  'A soma da escada de preço para os serviços pedidos, neste horário.';
+create or replace function public.preco_dos_servicos(
+  p_profissional uuid, p_servicos uuid[])
+returns numeric language sql stable set search_path = public as $$
+  select public.preco_dos_servicos(p_profissional, p_servicos, now())
+$$;
+comment on function public.preco_dos_servicos(uuid, uuid[]) is
+  'A soma da escada de preço para AGORA. Prefira a versão com o horário: com regra de preço, o mesmo serviço custa diferente na terça de manhã e no sábado.';
+create or replace function public.tg_preco_do_agendamento()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_prof   uuid;
+  v_inicio timestamptz;
+begin
+  if new.preco is not null then return new; end if;
+  select a.profissional_id, a.inicio into v_prof, v_inicio
+    from public.agendamentos a where a.id = new.agendamento_id;
+  if v_prof is null or v_inicio is null then new.preco := 0; return new; end if;
+  new.preco := public.preco_do_servico(new.servico_id, v_prof, v_inicio);
+  return new;
+end $$;
+alter table public.agendamento_servicos alter column preco drop default;
+drop trigger if exists tg_preco_agend_servico on public.agendamento_servicos;
+create trigger tg_preco_agend_servico
+  before insert on public.agendamento_servicos
+  for each row execute function public.tg_preco_do_agendamento();
+comment on function public.tg_preco_do_agendamento() is
+  'Reescreve o preço da linha do agendamento com a escada do banco. É o que faz a regra valer também para o que a recepção marca.';
+create or replace function public.preco_minimo_do_servico(
+  p_servico uuid, p_ate date)
+returns numeric language sql stable set search_path = public as $$
+  select least(
+    (select sv.preco from public.servicos sv where sv.id = p_servico),
+    (select min(r.preco) from public.precos_regras r
+      where r.ativo and r.servico_id = p_servico
+        and (r.de  is null or r.de  <= p_ate)
+        and (r.ate is null or r.ate >= current_date)))::numeric(10,2)
+$$;
+comment on function public.preco_minimo_do_servico(uuid, date) is
+  'O menor preço que pode acontecer para este serviço dentro da janela aberta da agenda. Serve para o "a partir de" da capa.';
+revoke all on function public.preco_regra_que_vale(uuid, uuid, timestamptz) from public;
+revoke all on function public.preco_do_servico(uuid, uuid, timestamptz)     from public;
+revoke all on function public.preco_dos_servicos(uuid, uuid[], timestamptz) from public;
+revoke all on function public.preco_minimo_do_servico(uuid, date)           from public;
+grant execute on function public.preco_regra_que_vale(uuid, uuid, timestamptz)
+  to authenticated;
+grant execute on function public.preco_do_servico(uuid, uuid, timestamptz)
+  to authenticated;
+grant execute on function public.preco_dos_servicos(uuid, uuid[], timestamptz)
+  to authenticated;
+
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();
 alter table public.lista_espera
@@ -791,7 +968,7 @@ begin
       using errcode = 'check_violation';
   end if;
   v_duracao := public.duracao_dos_servicos(p_profissional, p_servicos);
-  v_valor   := public.preco_dos_servicos(p_profissional, p_servicos);
+  v_valor   := public.preco_dos_servicos(p_profissional, p_servicos, p_inicio);
   v_fim     := p_inicio + make_interval(mins => v_duracao);
   v_perfil := auth.uid();
   v_cliente := public.ficha_do_cliente(v_salao, v_nome, v_tel);
@@ -851,7 +1028,7 @@ begin
   end;
   for s in
     select sv.id, coalesce(sp.duracao_min, sv.duracao_min) + sv.intervalo_min as dur,
-           coalesce(sp.preco, sv.preco) as preco,
+           null::numeric as preco,
            coalesce(sv.comissao_pct, pr.comissao_pct, 0) as com
       from unnest(p_servicos) with ordinality as pedido(id, pos)
       join public.servicos sv on sv.id = pedido.id
@@ -1137,6 +1314,28 @@ grant execute on function public.vitrine(text) to anon, authenticated;
 
 alter table public.servicos
   add column if not exists dias smallint[];
+create table if not exists public.precos_regras (
+  id              uuid primary key default gen_random_uuid(),
+  salao_id        uuid not null references public.saloes(id) on delete cascade,
+  servico_id      uuid not null references public.servicos(id) on delete cascade,
+  profissional_id uuid references public.profissionais(id) on delete cascade,
+  preco           numeric(10,2) not null check (preco >= 0),
+  de              date,
+  ate             date,
+  dias            smallint[],
+  hora_ini        int,
+  hora_fim        int,
+  ativo           boolean not null default true,
+  criado_em       timestamptz not null default now(),
+  constraint preco_regra_vigencia  check (de is null or ate is null or ate >= de),
+  constraint preco_regra_faixa     check (
+    (hora_ini is null and hora_fim is null)
+    or (hora_ini is not null and hora_fim is not null
+        and hora_ini >= 0 and hora_fim <= 1440 and hora_fim > hora_ini)),
+  constraint preco_regra_dias      check (
+    dias is null or (array_length(dias, 1) between 1 and 7
+                     and 0 <= all(dias) and 7 > all(dias)))
+);
 alter table public.produtos
   add column if not exists preco_visivel boolean not null default true;
 create or replace function public.vitrine(p_slug text)
@@ -1203,7 +1402,44 @@ language sql stable security definer set search_path = public as $$
                'descricao', v.descricao, 'duracaoMin', v.duracao_min,
                'preco', v.preco, 'foto', v.foto,
                'dias', case when v.dias is null or cardinality(v.dias) = 0
-                            then null else to_jsonb(v.dias) end)
+                            then null else to_jsonb(v.dias) end,
+               'precoPorProf', (
+                 select jsonb_object_agg(sp.profissional_id, sp.preco)
+                   from public.servicos_profissionais sp
+                   join public.profissionais p2 on p2.id = sp.profissional_id
+                  where sp.servico_id = v.id and sp.preco is not null
+                    and sp.preco <> v.preco and p2.ativo and p2.aceita_online),
+               'regras', (
+                 select jsonb_agg(jsonb_build_object(
+                          'profissionalId', r.profissional_id, 'preco', r.preco,
+                          'de', r.de, 'ate', r.ate,
+                          'dias', case when r.dias is null
+                                         or cardinality(r.dias) = 0
+                                       then null else to_jsonb(r.dias) end,
+                          'horaIni', r.hora_ini, 'horaFim', r.hora_fim)
+                        order by (case when r.profissional_id is not null then 8 else 0 end)
+                               + (case when r.dias is not null
+                                        and cardinality(r.dias) > 0 then 4 else 0 end)
+                               + (case when r.hora_ini is not null then 2 else 0 end)
+                               + (case when r.de is not null or r.ate is not null
+                                       then 1 else 0 end) desc,
+                                 r.criado_em desc, r.id desc)
+                   from public.precos_regras r
+                  where r.servico_id = v.id and r.ativo
+                    and (r.ate is null or r.ate >= public.hoje_no_salao(s.id))
+                    and (r.de  is null or r.de  <= public.hoje_no_salao(s.id)
+                                               + public.dias_liberados(s.id))),
+               'precoMin', least(
+                 v.preco,
+                 (select min(r2.preco) from public.precos_regras r2
+                   where r2.ativo and r2.servico_id = v.id
+                     and (r2.de  is null or r2.de  <= public.hoje_no_salao(s.id)
+                                                    + public.dias_liberados(s.id))
+                     and (r2.ate is null or r2.ate >= public.hoje_no_salao(s.id))),
+                 (select min(sp.preco) from public.servicos_profissionais sp
+                   join public.profissionais p3 on p3.id = sp.profissional_id
+                  where sp.servico_id = v.id and sp.preco is not null
+                    and p3.ativo and p3.aceita_online)))
              order by v.categoria nulls last, v.nome)
         from public.servicos v
        where v.salao_id = s.id and v.ativo and v.aceita_online
@@ -1224,6 +1460,75 @@ language sql stable security definer set search_path = public as $$
   from public.saloes s
   where s.slug = p_slug and s.status = 'ativo'
 $$;
+
+create or replace function public.porque_nao_agenda(
+  p_profissional uuid, p_data date, p_servicos uuid[])
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  v_salao   uuid;
+  v_hoje    date;
+  v_jornada int;
+  v_online  int;
+  v_pedido  int;
+  v_motivo  text;
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0 then
+    return 'Escolha pelo menos um serviço.';
+  end if;
+  select p.salao_id into v_salao
+    from public.profissionais p
+    join public.saloes sa on sa.id = p.salao_id
+   where p.id = p_profissional
+     and p.ativo and p.aceita_online
+     and sa.status = 'ativo';
+  if v_salao is null then
+    return 'Este profissional não está atendendo pela agenda online.';
+  end if;
+  if not public.profissional_na_cota(p_profissional) then
+    return 'Este profissional não está atendendo pela agenda online.';
+  end if;
+  if not public.recurso_bool(v_salao, 'agenda_online') then
+    return 'Este salão não está aceitando marcação pela internet.';
+  end if;
+  if exists (
+    select 1 from unnest(p_servicos) as pedido(id)
+     where not exists (
+       select 1 from public.servicos s
+        where s.id = pedido.id and s.salao_id = v_salao
+          and s.ativo and s.aceita_online))
+  then
+    return 'Um dos serviços escolhidos não está disponível.';
+  end if;
+  if not public.profissional_faz(p_profissional, p_servicos) then
+    return 'Este profissional não faz todos os serviços escolhidos.';
+  end if;
+  v_hoje := public.hoje_no_salao(v_salao);
+  if p_data < v_hoje then
+    return 'Essa data já passou.';
+  end if;
+  if p_data > v_hoje + public.dias_liberados(v_salao) then
+    return format('A agenda está liberada até %s.',
+                  to_char(v_hoje + public.dias_liberados(v_salao), 'DD/MM/YYYY'));
+  end if;
+  v_motivo := public.servico_fora_do_dia(p_servicos, p_data);
+  if v_motivo is not null then
+    return v_motivo;
+  end if;
+  v_jornada := public.minutos_de_jornada(p_profissional, p_data);
+  if v_jornada > 0 then
+    v_online := public.minutos_online_no_dia(p_profissional, p_data);
+    v_pedido := public.duracao_dos_servicos(p_profissional, p_servicos);
+    if (v_online + v_pedido) * 100 > v_jornada * public.teto_online_pct(v_salao) then
+      return 'Este dia já está quase todo marcado. '
+          || 'Chame o salão no WhatsApp que a gente encaixa você.';
+    end if;
+  end if;
+  if public.rajada_online(v_salao) >= public.teto_online_rajada(v_salao) then
+    return 'A marcação pela internet está congestionada agora. '
+        || 'Tente daqui a pouco, ou chame o salão no WhatsApp.';
+  end if;
+  return null;
+end $$;
 
 create or replace function public.servico_fora_do_periodo(
   p_servicos uuid[], p_de date, p_ate date)
@@ -1323,6 +1628,28 @@ returns int language sql stable set search_path = public as $$
               else 0 end
 $$;
 
+create or replace function public.minutos_de_jornada(
+  p_profissional uuid, p_data date)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(sum(extract(epoch from (j.fim - j.inicio)) / 60), 0)::int
+    from public.jornada_costurada(p_profissional, p_data) j
+$$;
+
+create or replace function public.minutos_online_no_dia(
+  p_profissional uuid, p_data date)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(sum(
+           extract(epoch from (a.fim - a.inicio)) / 60), 0)::int
+    from public.agendamentos a
+    join public.profissionais p on p.id = a.profissional_id
+    join public.saloes s        on s.id = p.salao_id
+   where a.profissional_id = p_profissional
+     and a.origem = 'online'
+     and a.arquivado_em is null
+     and a.status in ('pendente','confirmado','em_atendimento','concluido')
+     and (a.inicio at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date = p_data
+$$;
+
 create or replace function public.modelo_de(p_tipo text)
 returns text language sql immutable set search_path = public as $$
   select case p_tipo
@@ -1340,6 +1667,17 @@ returns boolean language sql stable set search_path = public as $$
     (select (cfg->>p_chave)::boolean from public.saloes
       where id = p_salao and cfg->>p_chave in ('true','false')),
     p_padrao)
+$$;
+
+create or replace function public.rajada_online(p_salao uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int
+    from public.agendamentos a
+    join public.clientes c on c.id = a.cliente_id
+   where a.salao_id = p_salao
+     and a.origem = 'online'
+     and a.criado_em > now() - interval '10 minutes'
+     and c.criado_em > now() - interval '24 hours'
 $$;
 
 create or replace function public.servico_fora_do_dia(
@@ -1368,6 +1706,20 @@ begin
     || 'ou chame o salão no WhatsApp.',
     v_nome, public.dias_por_extenso(v_dias));
 end $$;
+
+create or replace function public.teto_online_pct(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select greatest(10, least(100,
+    coalesce((select (cfg->>'tetoOnlinePct')::int from public.saloes
+               where id = p_salao and cfg->>'tetoOnlinePct' ~ '^[0-9]+$'), 70)))
+$$;
+
+create or replace function public.teto_online_rajada(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select greatest(1, least(100,
+    coalesce((select (cfg->>'tetoOnlineRajada')::int from public.saloes
+               where id = p_salao and cfg->>'tetoOnlineRajada' ~ '^[0-9]+$'), 10)))
+$$;
 
 create or replace function public.texto_agendamento(
   p_agendamento uuid, p_tipo text)

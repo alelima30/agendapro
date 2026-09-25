@@ -511,6 +511,29 @@ const http_ = http.createServer(async (req, res) => {
       }
 
       const tabela = alvo;
+
+      /* ── TABELA QUE NÃO EXISTE: 404 COM PGRST205, COMO O DE VERDADE ──────
+         O mesmo caso da função logo acima, com tabela. O PostgREST casa o
+         caminho contra o cache de schema antes de falar com o banco e, sem
+         achar, responde 404 com `PGRST205` e «Could not find the table
+         'public.x' in the schema cache».
+
+         A bancada mandava o SQL direto e devolvia o 42P01 do Postgres —
+         outro código, outra frase. E o `dados.js` não traduzia o 205, só o
+         202 (função) e o 204 (coluna): quem salvasse uma regra de preço
+         entre publicar a tela e colar o 33 leria a frase crua, em inglês.
+         Nada podia pegar isso enquanto a bancada não soubesse produzir o
+         código. */
+      const existe = await comPapel(req, cli => cli.query(
+        `select to_regclass('public.' || $1) is not null as ok`, [tabela]));
+      if(!existe.rows[0].ok){
+        const e = new Error("Could not find the table 'public." + tabela
+          + "' in the schema cache");
+        e.status = 404;
+        e.code = 'PGRST205';
+        throw e;
+      }
+
       const filtros = [], valores = [];
       let ordem = null, limite = null;
       for(const [k,v] of u.searchParams){

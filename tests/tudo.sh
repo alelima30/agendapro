@@ -200,6 +200,8 @@ rodar "os dois módulos"      node "$AQUI/modulos.test.mjs"
 rodar "a fita do carrinho"   node "$AQUI/fita.test.mjs"
 rodar "sua conta"            node "$AQUI/conta.test.mjs"
 rodar "todas as telas"       node "$AQUI/telas.test.mjs"
+rodar "preço avançado"       node "$AQUI/preco.test.mjs"
+rodar "aviso da loja"         node "$AQUI/loja-aviso.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

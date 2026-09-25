@@ -96,6 +96,7 @@ preparar() {
   carregar "$RAIZ/supabase/30_painel.sql"
   carregar "$RAIZ/supabase/31_dias_servico.sql"
   carregar "$RAIZ/supabase/32_produto_cadastro.sql"
+  carregar "$RAIZ/supabase/33_preco_regras.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

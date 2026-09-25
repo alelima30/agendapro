@@ -37,3 +37,35 @@ insert into public.clientes (id, salao_id, nome, telefone, criado_em) values
   ('dddddddd-9999-0000-0000-00000000000d',
    'aaaaaaaa-9999-0000-0000-000000000001', 'Dividida (balcão)', '(51) 99999-0000',
    '2026-01-01 13:00-03');
+
+-- ===========================================================================
+-- E A INSTALAÇÃO DE HOJE NÃO TEM O PREÇO AVANÇADO: ele nasceu agora, no 33.
+--
+-- Sem desfazer isso aqui, o banco do teste já vem com a escada pronta — o
+-- 00_tudo.sql traz — e o remendo seria aprovado mesmo saindo SEM ela. Foi
+-- exatamente o que aconteceu: o remendo levava o `agendar()` que pergunta o
+-- preço à escada e não levava a escada, e nada acusou.
+--
+-- É a mesma razão do telefone aqui em cima, escrita no cabeçalho deste
+-- arquivo: teste que roda só em banco limpo aprova remendo vazio.
+-- ===========================================================================
+drop trigger if exists tg_preco_agend_servico on public.agendamento_servicos;
+drop function if exists public.tg_preco_do_agendamento();
+drop function if exists public.preco_minimo_do_servico(uuid, date);
+drop function if exists public.preco_dos_servicos(uuid, uuid[], timestamptz);
+drop function if exists public.preco_do_servico(uuid, uuid, timestamptz);
+drop function if exists public.preco_regra_que_vale(uuid, uuid, timestamptz);
+drop table if exists public.precos_regras;
+
+-- O `default 0` é o que faz o gatilho parecer dispensável: com ele no lugar,
+-- uma linha sem preço nasce ZERADA em vez de nascer nula, e o gatilho — que
+-- só preenche nulo — nunca roda. Tirar o default é metade do módulo 33.
+alter table public.agendamento_servicos alter column preco set default 0;
+
+-- Uma profissional e um serviço, para o conferidor ter em que medir preço.
+insert into public.profissionais (id, salao_id, nome, ativo, aceita_online)
+values ('bbbbbbbb-9999-0000-0000-000000000001',
+        'aaaaaaaa-9999-0000-0000-000000000001', 'Rita', true, true);
+insert into public.servicos (id, salao_id, nome, duracao_min, preco, ativo)
+values ('cccccccc-9999-0000-0000-000000000001',
+        'aaaaaaaa-9999-0000-0000-000000000001', 'Corte', 60, 90, true);

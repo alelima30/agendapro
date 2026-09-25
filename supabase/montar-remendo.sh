@@ -91,6 +91,19 @@ motores = [f for f in sorted(os.listdir('supabase'))
 assert motores, 'ninguém define horarios_livres() — o remendo sairia sem o motor'
 livres = recortar(open('supabase/' + motores[-1], encoding='utf-8').read(),
                   'create or replace function public.horarios_livres(')
+# ⚠ A TABELA DAS REGRAS DE PREÇO, E NÃO SÓ AS FUNÇÕES.
+#
+# O fechamento automático da cadeia lá embaixo puxa FUNÇÃO de módulo tardio, e
+# só função. Desde que o `agendar()` passou a perguntar o preço à escada do 33,
+# o remendo carrega a `preco_regra_que_vale()` — que faz `select ... from
+# precos_regras`. Corpo de função SQL é validado na hora de criar: num banco
+# que ainda não tem a tabela, o remendo inteiro morre na criação dessa função.
+#
+# Então a tabela vem junto, antes de tudo. É o mesmo motivo do `arquivado_em`
+# aqui em cima: sem a COLUNA, o que vem depois referencia campo que não existe.
+precos_tab = recortar_ate(open('supabase/33_preco_regras.sql', encoding='utf-8').read(),
+                          'create table if not exists public.precos_regras',
+                          'with check (public.e_gestor(salao_id));')
 
 # ⚠ E O MÓDULO DO MOTOR VEM INTEIRO, não só a `horarios_livres()`.
 #
@@ -220,8 +233,29 @@ assert pacotes, 'ninguém define pacote_que_cobre() — o remendo sairia quebrad
 confirmacao = [f for f in modulos if define(f, 'confirma_automatico')]
 assert confirmacao, 'ninguém define confirma_automatico() — o remendo sairia quebrado'
 
+# ⚠ E A ESCADA DE PREÇO INTEIRA, PELO MESMO MOTIVO, MAIS UM.
+#
+# O fechamento da cadeia lá embaixo já traz as FUNÇÕES da escada. Só que o
+# módulo 33 tem duas coisas que não são chamada de função e que o fechamento
+# não tem como enxergar:
+#
+#   · o gatilho `tg_preco_agend_servico`, que preenche o preço da linha; e
+#   · o `alter table agendamento_servicos alter column preco drop default`.
+#
+# Os dois andam juntos. O `agendar()` grava `null::numeric` de propósito, para
+# o banco decidir o preço; a coluna é `not null`, e NULO EXPLÍCITO NÃO CAI NO
+# DEFAULT. Sem o gatilho e sem tirar o `default 0`, o insert morre com
+# "null value in column preco violates not-null constraint" — não é preço
+# errado, é a marcação pelo link recusada.
+#
+# É o mesmo caso do gatilho da confirmação logo acima: tudo instalado, nada
+# acusando na colagem, e o estrago só aparece com uma cliente na frente.
+precos = [f for f in modulos if define(f, 'preco_do_servico')]
+assert precos, 'ninguém define preco_do_servico() — o remendo sairia quebrado'
+
 partes = [
     limpar(arquivar),
+    limpar(precos_tab),
     limpar(digitos),
     limpar(primeiro),
     limpar(telefone),
@@ -231,7 +265,7 @@ partes = [
     "grant execute on function public.horarios_livres(uuid, date, uuid[]) to anon, authenticated;",
     limpar(ficha),
     "revoke all on function public.ficha_do_cliente(uuid, text, text) from public;",
-] + [limpar(x) for f in pacotes + confirmacao
+] + [limpar(x) for f in pacotes + confirmacao + precos
                 for x in inteiro_com_consertos(f)] + [
     limpar(open('supabase/09_cliente.sql', encoding='utf-8').read()),
 ] + [limpar(v) for v in vitrines]
@@ -256,12 +290,32 @@ def recortar_re(fonte, nome):
     m = re.search(r'create or replace function\s+public\.' + nome + r'\s*\(', fonte)
     return fonte[m.start():fonte.index('$$;', m.start()) + 3]
 
+# ⚠ QUEM DECIDE É O ÚLTIMO DONO, E NÃO "TODOS OS DONOS".
+#
+# Aqui estava `all(int(f[:2]) >= 10 for f in donos)`: a função só entrava no
+# remendo se NENHUM módulo cedo a definisse. A ideia era "o que nasce no 01-09
+# a instalação já tem" — e ela erra no caso que mais importa.
+#
+# O `preco_dos_servicos` nasce no 05_agenda.sql com DUAS colunas e é reescrito
+# no 33_preco_regras.sql com TRÊS, pegando o horário. O `agendar()` do remendo
+# chama a de três. Para o `all` havia um dono cedo, então "já está no banco" —
+# e o remendo saía chamando uma assinatura que ele não trazia.
+#
+# Medido: `grep -c "create or replace function public.preco_dos_servicos"
+# supabase/99_remendo.sql` devolvia 0, com a chamada lá dentro na linha 829.
+# Num banco resgatado pelo remendo, a primeira cliente que marcasse pelo link
+# levaria `function public.preco_dos_servicos(uuid, uuid[], timestamptz) does
+# not exist` — o link parava de receber marcação.
+#
+# Pelo ÚLTIMO dono: se a versão que vale hoje mora num módulo tardio, ela vem.
+# É a mesma regra da vitrine e do motor aqui em cima, e agora vale para todas
+# sem ninguém precisar lembrar de escrever o nome de cada uma.
 def faltantes(texto):
     tem = set(re.findall(r'create or replace function\s+public\.(\w+)', texto))
     fora = []
     for nome in sorted(set(re.findall(r'public\.(\w+)\s*\(', texto)) - tem):
         donos = [f for f in todos_mods if define(f, nome)]
-        if donos and all(int(f[:2]) >= 10 for f in donos):
+        if donos and int(donos[-1][:2]) >= 10:
             fora.append((nome, donos[-1]))
     return fora
 

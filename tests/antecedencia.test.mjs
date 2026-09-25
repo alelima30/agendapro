@@ -98,10 +98,13 @@ const maisDias = (data, n) => {
 
 /* Quantos minutos faltam para a meia-noite DO SALÃO. Serve para o degrau
    abaixo, e é lido do relógio de lá, não do relógio desta máquina. */
-const ateMeiaNoite = () => {
+/* ⚠ COM OS SEGUNDOS, e não em minutos inteiros. Ver "O DEGRAU DOS SEGUNDOS"
+   logo abaixo — a régua contava o relógio num grão mais grosso que o motor. */
+const agoraNoSalao = () => {
   const la = new Date(new Date().toLocaleString('en-US', { timeZone: FUSO }));
-  return 24 * 60 - (la.getHours() * 60 + la.getMinutes());
+  return la.getHours() * 60 + la.getMinutes() + la.getSeconds() / 60;
 };
+const ateMeiaNoite = () => 24 * 60 - agoraNoSalao();
 
 /* ⚠ O DEGRAU DA MEIA-NOITE, e por que o teto não pode ser sempre `min + 15`.
 
@@ -134,14 +137,27 @@ const ateMeiaNoite = () => {
    Nenhuma fórmula sobre `min` sozinho acerta isso, porque o que decide é
    onde cai o PRÓXIMO PONTO DA GRADE — e isso depende do minuto do relógio,
    não só da antecedência. Então a régua agora calcula esse ponto, do jeito
-   que o motor calcula, e só então decide se cabe hoje. */
+   que o motor calcula, e só então decide se cabe hoje.
+
+   ⚠ O DEGRAU DOS SEGUNDOS — a terceira vez na mesma borda.
+
+   A régua lia o relógio em minutos INTEIROS; o motor compara com `now()`,
+   que tem segundos. Às 21:15:30, com 120 de antecedência, a régua achava
+   que o ponto das 23:15 ainda servia (exatamente 120 minutos, na conta
+   dela) e exigia um horário a no máximo 135. O motor, certo, já descartava
+   as 23:15 — é antes de 23:15:30 —, o das 23:30 terminaria depois da
+   meia-noite, e ele devolveu o começo de amanhã, a 164. A medida reprovou
+   apontando para o motor outra vez.
+
+   A pista estava na própria saída: 0→14, 15→29, 30→44. Catorze e não
+   quinze é o relógio a meio minuto de um ponto da grade. Contando os
+   segundos, a régua e o motor olham para o mesmo instante. */
 const DUR = 30, PASSO = 15;
 
 /* O primeiro ponto da grade de 15 minutos em ou depois de `min` minutos
    daqui, contado no relógio do salão — que é onde a grade está ancorada. */
 const proximoNaGrade = (min) => {
-  const la = new Date(new Date().toLocaleString('en-US', { timeZone: FUSO }));
-  const agoraMin = la.getHours() * 60 + la.getMinutes();
+  const agoraMin = agoraNoSalao();
   return Math.ceil((agoraMin + min) / PASSO) * PASSO - agoraMin;
 };
 

@@ -48,6 +48,41 @@
 alter table public.servicos
   add column if not exists dias smallint[];
 
+/* ── ⚠ E A TABELA DAS REGRAS DE PREÇO, PELA MESMÍSSIMA RAZÃO ──────────────
+   A `vitrine()` logo abaixo lê `precos_regras` para montar o "a partir de" e
+   a lista de regras que a página usa. Corpo de função SQL compila na hora:
+   sem a tabela já existente, a `vitrine()` nem chega a ser criada e o install
+   inteiro para com "relation public.precos_regras does not exist".
+
+   Aconteceu exatamente assim — nos dois pacotes, e também na colagem em linha
+   única. Declarar só no 33 não resolve: nas duas montagens o 25 roda antes.
+
+   O dono da funcionalidade continua sendo o 33: é lá que estão o RLS, as
+   policies, os grants, a escada de preço e o gatilho. Aqui fica só o que a
+   `vitrine()` precisa enxergar para compilar. */
+create table if not exists public.precos_regras (
+  id              uuid primary key default gen_random_uuid(),
+  salao_id        uuid not null references public.saloes(id) on delete cascade,
+  servico_id      uuid not null references public.servicos(id) on delete cascade,
+  profissional_id uuid references public.profissionais(id) on delete cascade,
+  preco           numeric(10,2) not null check (preco >= 0),
+  de              date,
+  ate             date,
+  dias            smallint[],
+  hora_ini        int,
+  hora_fim        int,
+  ativo           boolean not null default true,
+  criado_em       timestamptz not null default now(),
+  constraint preco_regra_vigencia  check (de is null or ate is null or ate >= de),
+  constraint preco_regra_faixa     check (
+    (hora_ini is null and hora_fim is null)
+    or (hora_ini is not null and hora_fim is not null
+        and hora_ini >= 0 and hora_fim <= 1440 and hora_fim > hora_ini)),
+  constraint preco_regra_dias      check (
+    dias is null or (array_length(dias, 1) between 1 and 7
+                     and 0 <= all(dias) and 7 > all(dias)))
+);
+
 /* Pelo mesmo motivo, a do 32_produto_cadastro.sql: o preço pode ficar
    escondido da cliente sem o produto sumir da loja. Padrão `true`, que é o
    que a loja sempre fez — nenhum produto que já existe muda de comportamento. */
@@ -337,7 +372,75 @@ language sql stable security definer set search_path = public as $$
                'descricao', v.descricao, 'duracaoMin', v.duracao_min,
                'preco', v.preco, 'foto', v.foto,
                'dias', case when v.dias is null or cardinality(v.dias) = 0
-                            then null else to_jsonb(v.dias) end)
+                            then null else to_jsonb(v.dias) end,
+
+               /* ── ⚠ O PREÇO DE VERDADE, E POR QUE ELE PRECISOU VIR ───────
+                  Aqui saía só `v.preco`, o do catálogo. E o `agendar()` cobra
+                  a escada: regra, preço do par, catálogo. MEDIDO na bancada,
+                  com o corte a R$ 90 no catálogo e R$ 130 com a profissional:
+
+                      a vitrine mostrava ......... R$  90
+                      o agendar() marcava por .... R$ 130
+
+                  Quarenta reais de surpresa no balcão — e a tela não estava
+                  errada por descuido: ela nunca soube que existia um segundo
+                  preço. Esta é a pior das divergências de dinheiro do
+                  projeto, porque é a única que a CLIENTE paga.
+
+                  `precoPorProf` são só os pares que DIFEREM do catálogo: um
+                  salão onde todo mundo cobra igual não carrega nada a mais.
+
+                  `regras` já vêm NA ORDEM EM QUE GANHAM. A página pega a
+                  primeira que casar e pronto — sem repetir em JavaScript a
+                  conta de especificidade do 33, que é onde um espelho desses
+                  diverge do original com o tempo.
+
+                  `precoMin` é o menor que pode acontecer na janela aberta da
+                  agenda, contando pares e regras. É o "a partir de" da capa,
+                  onde ainda não há dia nem profissional escolhidos. */
+               'precoPorProf', (
+                 select jsonb_object_agg(sp.profissional_id, sp.preco)
+                   from public.servicos_profissionais sp
+                   join public.profissionais p2 on p2.id = sp.profissional_id
+                  where sp.servico_id = v.id and sp.preco is not null
+                    and sp.preco <> v.preco and p2.ativo and p2.aceita_online),
+               'regras', (
+                 select jsonb_agg(jsonb_build_object(
+                          'profissionalId', r.profissional_id, 'preco', r.preco,
+                          'de', r.de, 'ate', r.ate,
+                          'dias', case when r.dias is null
+                                         or cardinality(r.dias) = 0
+                                       then null else to_jsonb(r.dias) end,
+                          'horaIni', r.hora_ini, 'horaFim', r.hora_fim)
+                        order by (case when r.profissional_id is not null then 8 else 0 end)
+                               + (case when r.dias is not null
+                                        and cardinality(r.dias) > 0 then 4 else 0 end)
+                               + (case when r.hora_ini is not null then 2 else 0 end)
+                               + (case when r.de is not null or r.ate is not null
+                                       then 1 else 0 end) desc,
+                                 r.criado_em desc, r.id desc)
+                   from public.precos_regras r
+                  where r.servico_id = v.id and r.ativo
+                    and (r.ate is null or r.ate >= public.hoje_no_salao(s.id))
+                    and (r.de  is null or r.de  <= public.hoje_no_salao(s.id)
+                                               + public.dias_liberados(s.id))),
+               /* ⚠ A CONTA VEM ESCRITA AQUI, e não por uma chamada ao
+                  `preco_minimo_do_servico()` do 33. Mesma pedra da tabela
+                  logo acima: o corpo desta função compila agora, e o 33 só
+                  roda daqui a oito arquivos. A função lá continua existindo
+                  para quem precisar dela de fora; esta é a cópia que a
+                  vitrine precisa enxergar sem depender da ordem. */
+               'precoMin', least(
+                 v.preco,
+                 (select min(r2.preco) from public.precos_regras r2
+                   where r2.ativo and r2.servico_id = v.id
+                     and (r2.de  is null or r2.de  <= public.hoje_no_salao(s.id)
+                                                    + public.dias_liberados(s.id))
+                     and (r2.ate is null or r2.ate >= public.hoje_no_salao(s.id))),
+                 (select min(sp.preco) from public.servicos_profissionais sp
+                   join public.profissionais p3 on p3.id = sp.profissional_id
+                  where sp.servico_id = v.id and sp.preco is not null
+                    and p3.ativo and p3.aceita_online)))
              order by v.categoria nulls last, v.nome)
         from public.servicos v
        where v.salao_id = s.id and v.ativo and v.aceita_online

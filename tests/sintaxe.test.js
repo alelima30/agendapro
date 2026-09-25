@@ -502,8 +502,26 @@ console.log('\nFunção definida em mais de um módulo: qual versão viaja');
      · o 09_cliente.sql inteiro chamava `pacote_que_cobre()` e
        `pacote_fora_do_dia()`, do 27. Toda marcação de cliente LOGADA morria.
 
-   A regra que este bloco cobra: se a função existe em algum módulo e SÓ existe
-   em módulos de número 10 ou maior, o remendo tem que trazer a definição dela.
+   A regra que este bloco cobra: se a versão que VALE HOJE de uma função mora
+   num módulo de número 10 ou maior, o remendo tem que trazer a definição dela.
+
+   ⚠ "A QUE VALE HOJE", E NÃO "TODAS". Aqui estava
+   `onde.get(n).every(f => Number(f.slice(0,2)) >= 10)` — a função só era
+   cobrada se NENHUM módulo cedo a definisse. Parece a mesma coisa e não é:
+
+     · o `preco_dos_servicos` nasce no 05_agenda.sql com duas colunas e é
+       reescrito no 33_preco_regras.sql com três, pegando o horário;
+     · o `agendar()` do remendo chama a de TRÊS;
+     · havia um dono cedo, então este bloco deixava passar.
+
+   O remendo saiu chamando uma assinatura que ele não trazia, e este teste
+   aprovou. Medido depois: 0 definições no arquivo, a chamada na linha 829, e
+   `function public.preco_dos_servicos(uuid, uuid[], timestamptz) does not
+   exist` na primeira marcação pelo link.
+
+   O gerador tinha o mesmo ponto cego, escrito com as mesmas palavras. Um
+   guardião que repete a suposição do que ele guarda não guarda nada — foi a
+   suposição, e não o descuido, que passou nos dois lugares.
    ═══════════════════════════════════════════════════════════════════════════ */
 console.log('\nO remendo traz tudo o que chama');
 {
@@ -528,7 +546,7 @@ console.log('\nO remendo traz tudo o que chama');
     }
 
     const faltando = [...chamadas].filter(n => onde.has(n)
-      && onde.get(n).every(f => Number(f.slice(0, 2)) >= 10)).sort();
+      && Number(onde.get(n).at(-1).slice(0, 2)) >= 10).sort();
 
     dizer(faltando.length === 0,
       'o 99_remendo.sql define toda função de módulo tardio que ele chama',
