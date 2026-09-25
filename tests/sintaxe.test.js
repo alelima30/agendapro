@@ -556,6 +556,36 @@ console.log('\nO remendo traz tudo o que chama');
   }
 }
 
+/* ── TODA MUTAÇÃO ACHA O TRECHO QUE ELA QUEBRA ─────────────────────────────
+   Os tests/mutacoes-*.sh trocam um trecho exato do código e conferem que
+   o teste reprova. Quando o código muda e o trecho some, a mutação não roda
+   — o script avisa "NÃO RODOU", mas só quando alguém roda o script, e
+   ninguém roda as dez a cada mudança. Numa reorganização da tela de
+   Aparência apareceram catorze assim, sete delas paradas havia rodadas.
+
+   Aqui a conferência é a cada suíte: cada `troca ARQUIVO "de"` precisa
+   achar o trecho exatamente UMA vez. */
+console.log('\nToda mutação ainda acha o trecho que ela quebra');
+{
+  const dq = t => t.replace(/\\([\\"$`])/g, '$1');
+  const perdidas = [];
+  let contadas = 0;
+  for(const f of fs.readdirSync(__dirname).filter(n => /^mutacoes-.*\.sh$/.test(n)).sort()){
+    const txt = fs.readFileSync(path.join(__dirname, f), 'utf8');
+    for(const m of txt.matchAll(/troca (\S+) \\\n  ("((?:[^"\\]|\\.)*)"|'([^']*)') \\\n/gs)){
+      const alvo = path.join(RAIZ, m[1]);
+      if(!fs.existsSync(alvo)) continue;
+      const de = m[3] !== undefined ? dq(m[3]) : m[4];
+      const n = fs.readFileSync(alvo, 'utf8').split(de).length - 1;
+      contadas++;
+      if(n !== 1) perdidas.push(`${f} → ${m[1]} (${n}x): ${de.slice(0, 60).replace(/\n/g, '⏎')}`);
+    }
+  }
+  dizer(contadas > 100 && perdidas.length === 0,
+    `as ${contadas} mutações acham o trecho, uma vez cada`,
+    perdidas.join('\n      ') || 'poucas mutações encontradas: a busca mudou de forma?');
+}
+
 console.log('\n' + (falhas
   ? `✗ ${falhas} problema(s) de sintaxe.`
   : `✓ ${ok} verificações de sintaxe.`));

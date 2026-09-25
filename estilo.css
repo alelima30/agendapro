@@ -154,6 +154,11 @@
   --lat-card:var(--painel);
   --borda:#E7E2D9; --borda-forte:#D3CCC0;
   --txt:var(--n-900); --txt2:var(--n-600); --txt3:var(--n-400);
+  /* O cinza dos ícones de traço da página da cliente, quando ninguém
+     escolheu "Cor dos ícones". É o mesmo do texto, mas guardado à parte: o
+     --txt2 é reescrito quando o dono escolhe a cor do texto, e o pino do
+     endereço não pode ir junto. */
+  --ico-texto:var(--n-600); --ico-discreto:var(--n-400);
   --ok:var(--su-500); --alerta:var(--wa-500); --erro:var(--er-500);
 
   /* A ação primária é o azul da marca, com letra branca. */
@@ -212,6 +217,7 @@
   --mesa:#0B1220;
   --borda:#25324A; --borda-forte:#35455F;
   --txt:#E8EEF7; --txt2:#A3B2C7; --txt3:#6F8098;
+  --ico-texto:#A3B2C7; --ico-discreto:#6F8098;
 
   --az-texto:var(--az-300);
   --ac-500:var(--az-300); --ac-600:var(--az-300); --ac-700:var(--az-200);
@@ -382,6 +388,27 @@
    em lugar específico — a lateral, por exemplo — continuam ganhando, e a
    escolha do dono não invade tela nenhuma que já tinha dono. */
 .ic-svg{ color:var(--ico, inherit) }
+/* ══ DE QUEM É A COR DE CADA ÍCONE, NA PÁGINA DA CLIENTE ═════════════════
+   Três donos, e cada escolha de Aparência pinta só o que é dela:
+
+   · ícone de traço solto na página — "Cor dos ícones" (--ico). Sem escolha,
+     o cinza do tema, e NÃO a cor do texto ao lado: medido, mudar "Textos"
+     mudava o pino do endereço junto.
+   · ícone de destaque — atalhos e a janela que eles abrem: "Ícones de
+     destaque" (--ico-destaque). Sem escolha, a cor da marca (--ac-marca), e
+     não o "Texto de destaque", que é cor de letra.
+   · ícone dentro de botão, selo ou status — a cor é de quem o desenha: a
+     letra do botão, o verde do ABERTO. "Cor dos ícones" pintava o calendário
+     de dentro do "Agendar horário" e podia sumir com ele.
+
+   Nada disto casa no painel: lá não há --ico, e estas classes são da página. */
+.marca-end .rua .ic-svg,
+.opcao .ic.ic-neutro .ic-svg{ color:var(--ico, var(--ico-texto)) }
+[data-moldura="elegante"] .sv-cartao-relogio .ic-svg{ color:var(--ico, var(--ico-discreto)) }
+.recurso-ic .ic-svg, .folha-ic .ic-svg, .folha-nota > span .ic-svg, .folha-item-ic .ic-svg,
+.boas-cta .ic-svg, .boas-b2 .ic-svg, .atalho-ic .ic-svg, .sv-cartao-ir .ic-svg,
+.carrinho-fita .ic-svg, .status-seta .ic-svg, .pr-add .ic-svg, .espera .ic-svg,
+#btPrincipal .ic-svg, .avatar-salao .ic-svg, .app .btn .ic-svg{ color:inherit }
 
 .aba-ic .ic-svg{ width:16px; height:16px }
 
@@ -2133,6 +2160,46 @@ body.sem-brilho .marca-selo{ animation:none }
    é o que a pessoa lê depois de achar a linha pelo nome. */
 .cor-linha-txt span{ font-size:12.5px; color:var(--txt3); line-height:1.35 }
 
+/* ── O CAMPO HEX (ligarHex, no app.html) ──────────────────────────────────
+   Ao lado do quadrado, com o código da cor que está nele. Largura fixa de
+   sete caracteres em fonte de números iguais, para a coluna não dançar
+   enquanto se digita. Vermelho enquanto o que foi digitado não é uma cor;
+   ao sair do campo ele volta ao código do quadrado. */
+.cor-hex{
+  flex:none; width:88px; height:36px; padding:0 9px;
+  border:1px solid var(--borda); border-radius:9px;
+  background:var(--painel); color:var(--txt);
+  font:inherit; font-size:13.5px; font-variant-numeric:tabular-nums;
+  letter-spacing:.02em; text-transform:uppercase;
+}
+.cor-hex:focus{ outline:2px solid var(--ac-600); outline-offset:1px }
+.cor-hex.torto{ border-color:var(--er-500, #DC2626); color:var(--er-500, #DC2626) }
+.cor-hex:disabled{ opacity:.5 }
+@media (max-width:420px){ .cor-hex{ width:78px; padding:0 7px } }
+
+/* ── A TELA DE APARÊNCIA EM SEÇÕES ────────────────────────────────────────
+   Uma seção por tipo de configuração, cada uma com título, uma linha do que
+   ela muda e só os controles dela. O índice do topo leva direto a cada uma;
+   nada fica escondido, para a prévia ao lado continuar mostrando tudo. */
+.ap-indice{ display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 6px }
+.ap-indice button{
+  border:1px solid var(--borda); background:var(--painel); color:var(--txt2);
+  border-radius:99px; padding:6px 11px; font:inherit; font-size:13px; font-weight:600;
+  cursor:pointer;
+}
+.ap-indice button:hover{ border-color:var(--ac-600); color:var(--ac-600) }
+.ap-sec{ padding:18px 0 6px; border-top:1px solid var(--borda); margin-top:14px;
+  scroll-margin-top:84px }
+.ap-sec-t{ display:flex; align-items:center; gap:9px; margin:0; font-size:16.5px;
+  font-weight:750; letter-spacing:-.01em; color:var(--txt) }
+.ap-sec-ic{ font-size:18px; line-height:1 }
+.ap-sec-sub{ margin:3px 0 12px; font-size:13px; color:var(--txt3) }
+/* O subtítulo de um elemento dentro da seção ("Fundo da página", "Botão de
+   agendar", "Fita do carrinho"): em Gradientes, é o "aplicado em". */
+.ap-sub{ margin:16px 0 6px; font-size:12px; font-weight:750; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--txt3) }
+.ap-sec > .ap-sub:first-of-type{ margin-top:4px }
+
 /* A bolinha do tema pronto: a cor principal dele, para a escolha ser pelo
    olho e não pela leitura de dez nomes. */
 .bolinha-tema{
@@ -2510,7 +2577,7 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 /* O serviço que a pessoa já escolheu tocando na capa. Ela pode voltar para
    cá pelo botão de trás do navegador, e sem esta marca o cartão parece não
    ter sido tocado — ela toca de novo achando que falhou. */
-.sv-cartao.sel{ border-color:var(--ac-600); box-shadow:0 0 0 2px var(--ac-soft) }
+.sv-cartao.sel{ border-color:var(--ac-marca, var(--ac-600)); box-shadow:0 0 0 2px var(--ac-soft) }
 
 /* ── "Ver todos os serviços" ─────────────────────────────────────────────
    A capa mostra os destaques; este botão é a porta para o resto. Sem ele, o
@@ -2551,7 +2618,7 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
 .atalho-txt span{ font-size:13.5px; color:var(--txt2); line-height:1.35 }
 /* Cores diferentes porque são coisas diferentes: uma é a agenda, a outra é
    dinheiro já pago. Iguais, os dois cartões viram um bloco só para o olho. */
-.atalho.a-agenda .atalho-ic{ background:var(--ac-600) }
+.atalho.a-agenda .atalho-ic{ background:var(--ico-destaque, var(--ac-marca, var(--ac-600))) }
 .atalho.a-pacote .atalho-ic{ background:var(--su-500) }
 
 /* ── Os pacotes dela ─────────────────────────────────────────────────────
@@ -3522,7 +3589,7 @@ body.tem-gradiente .boas, body.tem-papel .boas{
   transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
   -webkit-tap-highlight-color:transparent;
 }
-.recurso-ic{ display:inline-flex; color:var(--at-tinta, var(--ac-600)) }
+.recurso-ic{ display:inline-flex; color:var(--at-tinta, var(--ico-destaque, var(--ac-marca, var(--ac-600)))) }
 .recurso-ic svg{ width:24px; height:24px }
 .recurso-rot{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 /* O Horários é o destaque da fileira, como no pedido: fundo suave na cor da
@@ -3533,9 +3600,9 @@ body.tem-gradiente .boas, body.tem-papel .boas{
      roxa desaparecia — no print dele havia um vão entre Pagamentos e
      Informações. Agora é o cartão tingido com a marca: um cartão como os
      outros dois, que se lê sobre qualquer fundo que o dono escolher. */
-  background:color-mix(in srgb, var(--at-tinta, var(--ac-600)) 13%, var(--painel));
-  border-color:color-mix(in srgb, var(--at-tinta, var(--ac-600)) 38%, var(--painel));
-  color:var(--at-tinta, var(--ac-600));
+  background:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 13%, var(--painel));
+  border-color:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 38%, var(--painel));
+  color:var(--at-tinta, var(--ac-marca, var(--ac-600)));
 }
 /* ── A COR DE CADA ATALHO, ESCOLHIDA EM APARÊNCIA ─────────────────────────
    `--at-tinta` pinta o ícone e o nome. Sem escolha, `--at-pagamentos` não
@@ -3646,7 +3713,7 @@ body.com-folha{ overflow:hidden }
 .folha-cabeca{ display:flex; align-items:center; gap:12px; margin:6px 44px 14px 0 }
 .folha-ic{
   width:44px; height:44px; border-radius:50%; flex:none; display:grid; place-items:center;
-  color:var(--ac-600); background:var(--ac-soft);
+  color:var(--ico-destaque, var(--ac-marca, var(--ac-600))); background:var(--ac-soft);
 }
 .folha-ic svg{ width:24px; height:24px }
 .folha-cabeca h3{ font-size:18px; line-height:1.2; margin:0 }
@@ -3686,7 +3753,7 @@ body.com-folha{ overflow:hidden }
   padding:12px 14px; border-radius:14px; background:var(--ac-soft);
   color:var(--txt2); font-size:13px; line-height:1.45;
 }
-.folha-nota > span{ display:inline-flex; color:var(--ac-600); flex:none; margin-top:1px }
+.folha-nota > span{ display:inline-flex; color:var(--ico-destaque, var(--ac-marca, var(--ac-600))); flex:none; margin-top:1px }
 .folha-nota svg{ width:18px; height:18px }
 .folha-nota p{ margin:0 }
 .folha-nota a{ color:var(--ac-600); font-weight:600 }
@@ -3701,7 +3768,7 @@ body.com-folha{ overflow:hidden }
 .folha-item:first-child{ border-top:0 }
 .folha-item-ic{
   width:36px; height:36px; border-radius:12px; flex:none; display:grid; place-items:center;
-  background:var(--ac-soft); color:var(--ac-600);
+  background:var(--ac-soft); color:var(--ico-destaque, var(--ac-marca, var(--ac-600)));
 }
 .folha-item-ic svg{ width:20px; height:20px }
 .folha-item-txt{ flex:1; min-width:0; display:flex; flex-direction:column }
@@ -3786,7 +3853,14 @@ body.com-folha{ overflow:hidden }
 .fone-recurso[data-recurso="horarios"]    { --fone-at-tinta:var(--fone-at-horarios) }
 .fone-recurso[data-recurso="informacoes"] { --fone-at-tinta:var(--fone-at-informacoes) }
 .fone-recurso [data-ico], .fone-recurso svg{ width:13px; height:13px;
-  color:var(--fone-at-tinta, var(--fone-ac, var(--fone-marca))) }
+  color:var(--fone-at-tinta, var(--fone-iconeDestaque, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca))))) }
+/* O pino do endereço na prévia: é nele que "Cor dos ícones" aparece. */
+.fone-topo span{ display:inline-flex; align-items:center; gap:3px; justify-content:center }
+/* ⚠ Com `.fone-topo` na frente: o `.fone-topo span` lá de cima pinta o
+   texto do endereço e, mais forte, ganhava do pino — a "Cor dos ícones"
+   não aparecia na prévia. */
+.fone-topo .fone-pino, .fone-topo .fone-pino svg{ width:11px; height:11px; flex:none;
+  color:var(--fone-icone, var(--fone-ico-texto, currentColor)); opacity:1 }
 /* Com "Letras claras" os cartões da página são escuros — a prévia mostrava
    os três botões brancos, e o dono aprovava uma fileira que não ia ao ar.
    Borda e letra são as do tema escuro da página (--borda e --txt2). */
@@ -3795,9 +3869,9 @@ body.com-folha{ overflow:hidden }
 /* ⚠ O DESTAQUE DEPOIS DO ESCURO, e com a mesma força: o contrário deixava a
    letra do Horários no cinza dos outros dois, e não na cor da marca. */
 .fone .fone-recurso.destaque{
-  background:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac, var(--fone-marca))) 13%, var(--fone-card, var(--painel)));
-  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac, var(--fone-marca))) 38%, var(--fone-card, var(--painel)));
-  color:var(--fone-at-tinta, var(--fone-ac, var(--fone-marca)));
+  background:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca)))) 13%, var(--fone-card, var(--painel)));
+  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca)))) 38%, var(--fone-card, var(--painel)));
+  color:var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca))));
 }
 /* O estilo dos atalhos na prévia — as mesmas regras do [data-atalhos] da
    página, com a sombra na escala da prévia (sombraDaPrevia). `borda` é o

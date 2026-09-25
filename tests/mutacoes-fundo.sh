@@ -55,8 +55,8 @@ PY
 
 echo "1. o quadrado volta a mostrar a cor da marca"
 troca app.html \
-  'value="${tem ? escolhida : corHerdada(chave)}"' \
-  'value="${tem ? escolhida : aparencia.cor}"' \
+  "    const valor = String(tem ? escolhida : corHerdada(chave)).toLowerCase();" \
+  "    const valor = String(tem ? escolhida : aparencia.cor).toLowerCase();" \
   && rodar "fundo bege, quadrado azul"
 
 echo "2. as letras param de acompanhar o fundo"
@@ -67,14 +67,14 @@ troca app.html \
 
 echo "3. o gradiente decide as letras só pela ponta de cima"
 troca app.html \
-  "    if(corValida(a) && corValida(b)) fundos = [a, b];" \
-  "    if(corValida(a) && corValida(b)) fundos = [a];" \
+  "    if(c.length) fundos = c;" \
+  "    if(c.length) fundos = [c[0]];" \
   && rodar "a ponta de baixo ilegível"
 
 echo "4. o gradiente decide as letras só pela ponta de baixo"
 troca app.html \
-  "    if(corValida(a) && corValida(b)) fundos = [a, b];" \
-  "    if(corValida(a) && corValida(b)) fundos = [b];" \
+  "    if(c.length) fundos = c;" \
+  "    if(c.length) fundos = [c[c.length - 1]];" \
   && rodar "a ponta de cima ilegível"
 
 echo "5. escolher Gradiente volta a não guardar nada"
@@ -109,8 +109,8 @@ troca app.html \
 
 echo "10. a prévia para de desenhar o gradiente"
 troca app.html \
-  '    fora += `;--fone-grad:linear-gradient(180deg, ${a} 0%, ${b} 100%)`;' \
-  "" \
+  "  if(aparencia.fundoTipo === 'gradiente' && g.length)" \
+  "  if(false)" \
   && rodar "Gradiente escolhido, prévia lisa"
 
 echo "11. a prévia volta ao fundo do painel quando nada foi escolhido"
@@ -127,8 +127,8 @@ troca app.html \
 
 echo "13. o padrão do cartão escuro volta ao número antigo"
 troca app.html \
-  "  escuro: { papel:'#0B1220', card:'#131C2E', titulo:'#E8EEF7'," \
-  "  escuro: { papel:'#0B1220', card:'#131A26', titulo:'#E8EEF7'," \
+  "  escuro: { papel:'#131C2E', card:'#131C2E', titulo:'#E8EEF7'," \
+  "  escuro: { papel:'#131C2E', card:'#131A26', titulo:'#E8EEF7'," \
   && rodar "painel e página discordando do cartão"
 
 echo "14. o CSS da prévia perde o gradiente"

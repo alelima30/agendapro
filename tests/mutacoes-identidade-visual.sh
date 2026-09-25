@@ -106,13 +106,13 @@ rodar "escolha do dono aplicada antes do cálculo"
 
 echo "6. o gradiente não tira a foto de fundo"
 troca agendar.html \
-  "aplicarFundo(tipo === 'gradiente' ? null : fundo);" \
-  "aplicarFundo(fundo);" \
+  "  const fundo = (tipoFundo === 'imagem' || tipoFundo === 'cor') ? fotoAnexada : null;" \
+  "  const fundo = fotoAnexada;" \
   && rodar "foto e gradiente empilhados"
 
 echo "7. gradiente torto é aceito sem conferir"
 troca agendar.html \
-  "  if(!corValida(a) || !corValida(b)){" \
+  "  if(!(cores.length === 2 || cores.length === 3) || !cores.every(corValida)){" \
   "  if(false){" \
   && rodar "gradiente sem conferência"
 

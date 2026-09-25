@@ -183,14 +183,17 @@ const daTela = await p.evaluate(() => ({
      fita do carrinho usa a mesma classe, lá embaixo, e não é uma das onze.
      Contar por classe media "quantos seletores de cor existem", que é outra
      pergunta. */
-  temCores: document.querySelectorAll(
-    '#coresSoltas .cor-linha, #corDoPapel .cor-linha').length,
+  /* E hoje nem "dois lugares": desde que a tela virou seções (Fundo,
+     Textos, Ícones, Bordas…), cada cor mora na seção dela. Conta-se a linha
+     pela chave, onde quer que esteja. */
+  temCores: document.querySelectorAll('.ap-controles .cor-linha[data-chave]').length,
+  chavesUnicas: new Set([...document.querySelectorAll('.ap-controles .cor-linha[data-chave]')]
+    .map(e => e.dataset.chave)).size,
   /* E o papel tem que estar no bloco do FUNDO. "O fundo só tem claro e
      escuro" foi dito sobre uma tela em que a cor do papel morava no meio de
      uma lista de onze, três blocos abaixo da pergunta sobre fundo. */
-  papelJuntoDoFundo: !!document.querySelector('#corDoPapel .cor-linha'),
-  papelForaDaLista: !document.querySelector(
-    '#coresSoltas input[aria-label="Fundo da página"]'),
+  papelJuntoDoFundo: !!document.querySelector('#apFundo #corDoPapel .cor-linha[data-chave="papel"]'),
+  papelForaDaLista: document.querySelectorAll('.cor-linha[data-chave="papel"]').length === 1,
   temFundoTipo: !!document.getElementById('reguaFundoTipo'),
   temLogoForma: !!document.getElementById('reguaLogoForma'),
   gradEscondido: getComputedStyle(
@@ -198,7 +201,10 @@ const daTela = await p.evaluate(() => ({
 }));
 console.log('      ' + JSON.stringify(daTela));
 verdade('a tela de Aparência ganhou o seletor de modo', daTela.temModo);
-igual('as onze cores aparecem uma a uma', daTela.temCores, 11);
+// Doze: as onze de antes e os "Ícones de destaque", que separaram os ícones
+// dos atalhos da cor do texto de destaque. Cada uma uma vez só.
+igual('as doze cores aparecem uma a uma', daTela.temCores, 12);
+igual('nenhuma repetida', daTela.chavesUnicas, 12);
 verdade('e a cor do papel fica junto das outras perguntas sobre fundo',
   daTela.papelJuntoDoFundo && daTela.papelForaDaLista,
   'ela ficou na lista das onze, longe de onde se pergunta pelo fundo');

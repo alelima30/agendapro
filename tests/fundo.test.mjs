@@ -406,7 +406,7 @@ secao('7 · Arrastar o seletor de cor: o quadrado continua o mesmo');
     };
     return {
       papel: arrastar('#corDoPapel .cor-linha[data-chave="papel"] input', 'papel'),
-      texto: arrastar('#coresSoltas .cor-linha[data-chave="texto"] input', 'texto'),
+      texto: arrastar('#coresTextos .cor-linha[data-chave="texto"] input', 'texto'),
     };
   });
   verdade('o quadrado do fundo continua na tela durante os quatro movimentos', r.papel.sempreNaTela);

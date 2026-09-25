@@ -4863,6 +4863,11 @@ function aplicarAparencia(s){
      Então o texto usa uma versão puxada da cor, não a cor crua. */
   p('--ac-500', escuro ? mexer(cor, 0.30) : mexer(cor, -0.18));
   p('--ac-600', escuro ? mexer(cor, 0.30) : mexer(cor, -0.28));
+  /* A mesma cor, guardada à parte ANTES de o "Texto de destaque" poder
+     reescrever o --ac-600. É dela que saem os ícones de destaque e o
+     Horários quando ninguém escolheu — assim mudar a cor de um texto não
+     muda ícone nem borda. Sem destaque escolhido, as duas são iguais. */
+  p('--ac-marca', escuro ? mexer(cor, 0.30) : mexer(cor, -0.28));
   p('--ac-700', escuro ? mexer(cor, 0.44) : mexer(cor, -0.40));
   p('--ac-soft', `rgba(${r},${g},${b},${escuro ? '.15' : '.10'})`);
   p('--ac-line', `rgba(${r},${g},${b},${escuro ? '.34' : '.28'})`);
@@ -5163,6 +5168,9 @@ function aplicarCoresSoltas(s, p, escuro){
   }
   const icone = vale('icone');
   if(icone) p('--ico', icone);
+  // Os ícones da marca: atalhos e a janela que eles abrem (estilo.css).
+  const iconeDestaque = vale('iconeDestaque');
+  if(iconeDestaque) p('--ico-destaque', iconeDestaque);
   const destaque = vale('destaque');
   if(destaque){
     p('--ac-600', destaque);

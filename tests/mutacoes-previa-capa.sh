@@ -116,14 +116,14 @@ troca app.html \
 
 echo "11. a prévia ignora a cor da moldura"
 troca app.html \
-  "  let cor = c.moldura;" \
-  "  let cor = null;" \
+  "  const cor = corValida(c.moldura) ? c.moldura : corDoAnelPadrao();" \
+  "  const cor = corDoAnelPadrao();" \
   && rodar "anel amarelo no link, escuro na prévia"
 
 echo "12. o premium da prévia usa o cartão como reserva do anel"
 troca app.html \
-  "    cor = aparencia.modo === 'premium'" \
-  "    cor = false" \
+  "  return aparencia.modo === 'premium'" \
+  "  return false" \
   && rodar "reserva diferente da página"
 
 echo "13. a forma da logo some da prévia"
@@ -140,14 +140,14 @@ troca estilo.css \
 
 echo "15. a cor escrita da marca na prévia deixa de ser puxada"
 troca app.html \
-  "  return corValida(c.destaque) ? c.destaque : mexer(cor, escuro ? 0.30 : -0.28);" \
-  "  return corValida(c.destaque) ? c.destaque : cor;" \
+  "  return mexer(cor, escuro ? 0.30 : -0.28);" \
+  "  return cor;" \
   && rodar "Bem-vindo e Horários com a cor crua"
 
 echo "16. a prévia ignora o Destaque escolhido"
 troca app.html \
-  "  return corValida(c.destaque) ? c.destaque : mexer(cor, escuro ? 0.30 : -0.28);" \
-  "  return mexer(cor, escuro ? 0.30 : -0.28);" \
+  "  return corValida(c.destaque) ? c.destaque : corDaMarcaEscrita();" \
+  "  return corDaMarcaEscrita();" \
   && rodar "destaque dourado no link, azul na prévia"
 
 echo "17. a prévia ignora a Secundária no Bem-vindo"
@@ -170,10 +170,10 @@ troca estilo.css \
 
 echo "20. o Horários da prévia perde a letra da marca"
 troca estilo.css \
-  "  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac, var(--fone-marca))) 38%, var(--fone-card, var(--painel)));
-  color:var(--fone-at-tinta, var(--fone-ac, var(--fone-marca)));
+  "  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca)))) 38%, var(--fone-card, var(--painel)));
+  color:var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca))));
 }" \
-  "  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac, var(--fone-marca))) 38%, var(--fone-card, var(--painel)));
+  "  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca)))) 38%, var(--fone-card, var(--painel)));
 }" \
   && rodar "letra do Horários cinza"
 

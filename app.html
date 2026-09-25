@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.102c70';
+const VERSAO_APP = 'v9.912835';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7830,6 +7830,25 @@ function pintarSalao(){
       <div class="ap-grade">
       <div class="ap-controles">
 
+      <!-- A TELA EM SECOES. Cada tipo de configuracao mora num lugar so:
+           Marca, Fundo, Textos, Icones, Bordas, Gradientes, Botoes e
+           atalhos, Capa. Os blocos sao os de antes, com os mesmos ids e as
+           mesmas funcoes; mudou o lugar e o nome de cada um.
+           (Sem crase: este HTML e lido como template literal.) -->
+      <nav class="ap-indice" aria-label="Seções da aparência">
+        <button type="button" onclick="irParaSecaoAp('apMarca')">🏷️ Marca</button>
+        <button type="button" onclick="irParaSecaoAp('apFundo')">🖼️ Fundo</button>
+        <button type="button" onclick="irParaSecaoAp('apTextos')">🔤 Textos</button>
+        <button type="button" onclick="irParaSecaoAp('apIcones')">🔵 Ícones</button>
+        <button type="button" onclick="irParaSecaoAp('apBordas')">🎨 Bordas</button>
+        <button type="button" onclick="irParaSecaoAp('apGradientes')">🌈 Gradientes</button>
+        <button type="button" onclick="irParaSecaoAp('apBotoes')">🔘 Botões e atalhos</button>
+        <button type="button" onclick="irParaSecaoAp('apCapa')">📷 Capa e fotos</button>
+      </nav>
+
+      <section class="ap-sec" id="apMarca">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🏷️</span>Marca</h4>
+        <p class="ap-sec-sub">A cor principal. Tudo o que você não escolher abaixo sai dela.</p>
       <!-- ══════════ MODO DE EXIBICAO ══════════
            Vem PRIMEIRO porque decide se o resto vale. O modo Atual e' o
            padrao de quem nunca escolheu: a tela de hoje, sem nada novo
@@ -7848,6 +7867,23 @@ function pintarSalao(){
           ou escolha exatamente a sua</label>
       </div>
 
+      <!-- ══════════ TEMAS PRONTOS ══════════
+           ⚠ Eles NAO sao um estado. Aplicar um so' PREENCHE os campos de cor
+           aqui embaixo; nada fica marcado como "tema X", e o dono muda o que
+           quiser depois sem sair de tema nenhum. Guardar qual tema foi usado
+           criaria duas verdades sobre a mesma tela — a do tema e a das cores
+           — e elas passariam a discordar no primeiro ajuste. -->
+      <div class="rot" style="margin:18px 0 8px">Temas prontos</div>
+      <p class="secao-sub" style="margin:-4px 0 9px">Um toque preenche as cores
+        abaixo. Depois e' so' mexer no que voce quiser — nada fica preso ao
+        tema.</p>
+      <div class="fitas" id="temasProntos"></div>
+
+      </section>
+
+      <section class="ap-sec" id="apFundo">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🖼️</span>Fundo</h4>
+        <p class="ap-sec-sub">Atrás de tudo: a página e os cartões.</p>
       <!-- ══════════ O FUNDO DA PAGINA ══════════
            Terceira versao deste bloco, e a reclamacao foi a mesma nas tres:
            "o fundo so tem claro e escuro". Na segunda as pecas ja estavam
@@ -7876,6 +7912,91 @@ function pintarSalao(){
         <div class="fitas" id="papeisProntos" style="margin-top:10px"></div>
       </div>
 
+      <div id="imagemCampos" style="display:none;margin-top:10px">
+        ${cartao('fundo', 'Imagem do fundo',
+          'Foto de ambiente funciona melhor que foto com gente ou letreiro — '
+        + 'o que aparece dela é a atmosfera, não o detalhe.',
+          'Em pé, tipo 9 por 16. JPG, PNG ou WEBP.')}
+
+        <!-- A regua vai a 135 porque o valor e INVERTIDO: 135 menos a
+             posicao vira o veu. Em 40 o veu e 95 (quase so fundo liso); em
+             135 e 0, e a foto aparece inteira. O fim da regua era 95 — veu
+             40 — e com isso a foto nunca aparecia por completo.
+             (Sem crase: template literal.) -->
+        <div class="rot" style="margin:16px 0 8px">Quanto a imagem aparece</div>
+        <input type="range" id="fxVeu" class="desliza" min="40" max="135" step="1"
+               oninput="escolherAparencia('veu', 135 - Number(this.value))">
+        <p class="secao-sub" style="margin-top:6px">Para a direita a imagem
+          aparece mais; para a esquerda ela some atrás do fundo liso.
+          <b>No fim da régua a foto aparece inteira, sem nada por cima</b> — e
+          aí os cartões ficam mais fechados sozinhos, para o preço não se
+          perder na imagem.</p>
+
+        <div class="rot" style="margin:16px 0 8px">Cartões sobre a imagem</div>
+        <div class="regua" id="reguaCartoes" style="justify-content:flex-start"></div>
+        <p class="secao-sub" id="explicaCartoes" style="margin-top:9px"></p>
+      </div>
+
+      <div class="ap-sub">Cartões e fundos suaves</div>
+      <div id="coresFundo" class="cores-grupo"></div>
+      </section>
+
+      <section class="ap-sec" id="apTextos">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🔤</span>Textos</h4>
+        <p class="ap-sec-sub">A cor das letras. Cada uma pinta só o seu tipo de texto.</p>
+      <!-- O claro e escuro, agora com o nome do que ele faz na tela: a cor
+           das letras (e dos cartoes, que acompanham). Escolhido sozinho pelo
+           fundo; o dono troca se quiser. -->
+      <div class="rot" style="margin:0 0 8px">Letras claras ou escuras</div>
+      <div class="regua" id="reguaTema" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaTema" style="margin-top:9px"></p>
+
+      <div id="coresTextos" class="cores-grupo"></div>
+      <p class="secao-sub" id="avisoLegibilidade" style="margin-top:9px"></p>
+      <div class="rot" style="margin:18px 0 8px">Letra do nome</div>
+      <div class="regua" id="reguaLetra" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaLetra" style="margin-top:9px"></p>
+
+      </section>
+
+      <section class="ap-sec" id="apIcones">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🔵</span>Ícones</h4>
+        <p class="ap-sec-sub">Os desenhos de traço. Não mudam com o texto nem com as bordas.</p>
+      <div id="coresIcones" class="cores-grupo"></div>
+      <p class="secao-sub" style="margin-top:9px">Os ícones de dentro dos botões
+        acompanham a letra do botão. Pagamentos, Horários e Informações
+        também podem ter cor própria, em <b>Botões e atalhos</b>.</p>
+      </section>
+
+      <section class="ap-sec" id="apBordas">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🎨</span>Bordas</h4>
+        <p class="ap-sec-sub">Linhas, contornos e molduras.</p>
+      <div id="coresBordas" class="cores-grupo"></div>
+      <div class="rot" style="margin:18px 0 8px">Espessura da moldura do logo</div>
+      <div class="regua" id="reguaLogoBorda" style="justify-content:flex-start"></div>
+      <p class="secao-sub" style="margin-top:9px">O anel em volta da logo,
+        quando há foto de capa. A cor dele é a <b>Moldura do logo</b>, logo
+        acima.</p>
+
+      <!-- ⚠ EIXO SEPARADO DO "Cartões sobre a foto", DE PROPÓSITO.
+
+           Aquele ali decide o quanto o cartão FECHA sobre a foto de capa
+           (vidro × opaco). Este decide a FORMA do cartão de serviço. São
+           perguntas diferentes, e juntá-las num controle só tornaria
+           impossível pedir "moldura elegante com fundo de vidro". -->
+      <div class="rot" style="margin:18px 0 8px">Moldura dos serviços</div>
+      <div class="regua" id="reguaMoldura" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaMoldura" style="margin-top:9px"></p>
+
+      </section>
+
+      <section class="ap-sec" id="apGradientes">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🌈</span>Gradientes</h4>
+        <p class="ap-sec-sub">Os degradês da página, cada um no elemento onde ele aparece.</p>
+      <div class="ap-sub" style="margin-top:4px">Fundo da página</div>
+      <p class="secao-sub" id="gradAplicado" style="margin:0 0 6px"></p>
+      <button type="button" class="func-mais" id="gradUsar"
+              onclick="escolherFundoTipo('gradiente')">Usar gradiente no fundo da página</button>
       <div id="gradienteCampos" style="display:none;margin-top:10px">
         <div class="cor-linha">
           <input type="color" id="gradA" class="cor-livre"
@@ -7910,86 +8031,22 @@ function pintarSalao(){
           Com a cor do meio, o começo e o fim podem ser escuros e o meio vivo.</p>
       </div>
 
-      <div id="imagemCampos" style="display:none;margin-top:10px">
-        ${cartao('fundo', 'Imagem do fundo',
-          'Foto de ambiente funciona melhor que foto com gente ou letreiro — '
-        + 'o que aparece dela é a atmosfera, não o detalhe.',
-          'Em pé, tipo 9 por 16. JPG, PNG ou WEBP.')}
+      <div class="ap-sub">Botão de agendar</div>
+      <div class="rot" style="margin:12px 0 8px">Brilho no botão</div>
+      <div class="regua" id="reguaBrilho" style="justify-content:flex-start"></div>
+      <p class="secao-sub" style="margin-top:9px">O botão principal tem
+        acabamento de metal — um degradê feito da <b>cor dos botões</b> (em
+        Botões e atalhos) —, com uma faixa de luz passando de
+        tempos em tempos. Quem pediu ao celular para reduzir animações não vê
+        o movimento — o acabamento fica de qualquer forma.</p>
 
-        <!-- A regua vai a 135 porque o valor e INVERTIDO: 135 menos a
-             posicao vira o veu. Em 40 o veu e 95 (quase so fundo liso); em
-             135 e 0, e a foto aparece inteira. O fim da regua era 95 — veu
-             40 — e com isso a foto nunca aparecia por completo.
-             (Sem crase: template literal.) -->
-        <div class="rot" style="margin:16px 0 8px">Quanto a imagem aparece</div>
-        <input type="range" id="fxVeu" class="desliza" min="40" max="135" step="1"
-               oninput="escolherAparencia('veu', 135 - Number(this.value))">
-        <p class="secao-sub" style="margin-top:6px">Para a direita a imagem
-          aparece mais; para a esquerda ela some atrás do fundo liso.
-          <b>No fim da régua a foto aparece inteira, sem nada por cima</b> — e
-          aí os cartões ficam mais fechados sozinhos, para o preço não se
-          perder na imagem.</p>
-
-        <div class="rot" style="margin:16px 0 8px">Cartões sobre a imagem</div>
-        <div class="regua" id="reguaCartoes" style="justify-content:flex-start"></div>
-        <p class="secao-sub" id="explicaCartoes" style="margin-top:9px"></p>
-      </div>
-
-      <!-- O claro e escuro, agora com o nome do que ele faz na tela: a cor
-           das letras (e dos cartoes, que acompanham). Escolhido sozinho pelo
-           fundo; o dono troca se quiser. -->
-      <div class="secao" style="margin:16px 0 6px">Letras</div>
-      <div class="regua" id="reguaTema" style="justify-content:flex-start"></div>
-      <p class="secao-sub" id="explicaTema" style="margin-top:9px"></p>
-      <div class="linha-fina" style="margin:18px 0"></div>
-
-      <!-- ══════════ TEMAS PRONTOS ══════════
-           ⚠ Eles NAO sao um estado. Aplicar um so' PREENCHE os campos de cor
-           aqui embaixo; nada fica marcado como "tema X", e o dono muda o que
-           quiser depois sem sair de tema nenhum. Guardar qual tema foi usado
-           criaria duas verdades sobre a mesma tela — a do tema e a das cores
-           — e elas passariam a discordar no primeiro ajuste. -->
-      <div class="rot" style="margin:18px 0 8px">Temas prontos</div>
-      <p class="secao-sub" style="margin:-4px 0 9px">Um toque preenche as cores
-        abaixo. Depois e' so' mexer no que voce quiser — nada fica preso ao
-        tema.</p>
-      <div class="fitas" id="temasProntos"></div>
-
-      <!-- ══════════ AS NOVE CORES ══════════
-           Cada uma nasce HERDANDO da cor da marca. So' o que o dono trocar de
-           proposito vira valor fixo — e por isso cada linha tem um "voltar a
-           herdar". -->
-      <div class="rot" style="margin:18px 0 8px">Cores, uma a uma</div>
-      <p class="secao-sub" style="margin:-4px 0 9px">Tudo aqui ja' funciona
-        sozinho a partir da cor da marca. Mexa so' no que voce quiser mudar.</p>
-      <div id="coresSoltas"></div>
-      <p class="secao-sub" id="avisoLegibilidade" style="margin-top:9px"></p>
-
-      <div class="rot" style="margin:18px 0 8px">Formato do logo</div>
-      <div class="regua" id="reguaLogoForma" style="justify-content:flex-start"></div>
-
-      <!-- A espessura do anel em volta da logo. A COR dele esta' nas cores,
-           uma a uma, em "Moldura do logo" — duas perguntas diferentes, cada
-           uma no lugar onde ja' se pergunta aquilo. -->
-      <!-- A forma da caixa do carrossel. Fica junto do logo e da moldura
-           porque e' a mesma pergunta: que forma as coisas tem nesta pagina. -->
-      <div class="rot" style="margin:18px 0 8px">Formato do slide</div>
-      <div class="regua" id="reguaSlideForma" style="justify-content:flex-start"></div>
-      <p class="secao-sub" id="explicaSlideForma" style="margin-top:9px"></p>
-
-      <div class="rot" style="margin:18px 0 8px">Moldura do logo</div>
-      <div class="regua" id="reguaLogoBorda" style="justify-content:flex-start"></div>
-      <p class="secao-sub" style="margin-top:9px">A espessura do anel em volta
-        da logo, quando há foto de capa. A cor dele você escolhe acima, em
-        <b>Cores, uma a uma</b>.</p>
 
       <!-- ══════════ A FITA DO CARRINHO ══════════
            A barra que aparece no pe' quando a cliente poe um produto no
            carrinho. Ela so' existe em salao que vende — por isso vem DEPOIS
            das escolhas que todo mundo usa, e nao no meio delas.
            (Sem crase e sem acento: comentario dentro de template literal.) -->
-      <div class="linha-fina" style="margin:22px 0 14px"></div>
-      <div class="rot" style="margin:0 0 4px">A fita do carrinho</div>
+      <div class="ap-sub">Fita do carrinho</div>
       <p class="secao-sub" style="margin-bottom:12px">A barra que aparece no
         pé da tela quando a cliente põe um produto no pedido. Ela é metálica,
         como o botão de agendar — aqui você decide o quanto.</p>
@@ -8029,22 +8086,12 @@ function pintarSalao(){
                 id="fitaCorHerdar" onclick="escolherFitaCor('')">herdar</button>
       </div>
 
-      <div class="rot" style="margin:18px 0 8px">Preços na capa</div>
-      <div class="regua" id="reguaPreco" style="justify-content:flex-start"></div>
-      <p class="secao-sub" id="explicaPreco" style="margin-top:9px"></p>
+      </section>
 
-      <div class="rot" style="margin:18px 0 8px">Enquadramento da foto</div>
-      <input type="range" id="fxFoco" class="desliza" min="0" max="100" step="1"
-             oninput="escolherAparencia('capaFoco', Number(this.value))">
-      <p class="secao-sub" style="margin-top:6px">Arraste para escolher que
-        parte da foto do salão aparece na faixa do topo. Foto em pé recortada
-        no meio corta a cabeça de quem está nela — puxe para a esquerda para
-        mostrar mais de cima.</p>
-
-      <div class="rot" style="margin:18px 0 8px">Divisão da foto</div>
-      <div class="regua" id="reguaCapaForma" style="justify-content:flex-start"></div>
-      <p class="secao-sub" id="explicaCapaForma" style="margin-top:9px"></p>
-
+      <section class="ap-sec" id="apBotoes">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🔘</span>Botões e atalhos</h4>
+        <p class="ap-sec-sub">O botão de agendar e os atalhos abaixo do endereço.</p>
+      <div id="coresBotoes" class="cores-grupo"></div>
       <!-- OS ATALHOS DA CAPA: Pagamentos, Horarios e Informacoes, logo abaixo
            do endereco. So a APARENCIA deles muda aqui; o que cada um abre e
            quando aparece continua igual. "Com borda" e o desenho de antes e
@@ -8122,30 +8169,41 @@ function pintarSalao(){
         <p class="secao-sub" id="explicaSombra" style="margin-top:9px"></p>
       </div>
 
-      <!-- ⚠ EIXO SEPARADO DO "Cartões sobre a foto", DE PROPÓSITO.
+      </section>
 
-           Aquele ali decide o quanto o cartão FECHA sobre a foto de capa
-           (vidro × opaco). Este decide a FORMA do cartão de serviço. São
-           perguntas diferentes, e juntá-las num controle só tornaria
-           impossível pedir "moldura elegante com fundo de vidro". -->
-      <div class="rot" style="margin:18px 0 8px">Moldura dos serviços</div>
-      <div class="regua" id="reguaMoldura" style="justify-content:flex-start"></div>
-      <p class="secao-sub" id="explicaMoldura" style="margin-top:9px"></p>
+      <section class="ap-sec" id="apCapa">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">📷</span>Capa e fotos</h4>
+        <p class="ap-sec-sub">A foto do topo, a logo, o slide e os preços.</p>
+      <div class="rot" style="margin:18px 0 8px">Enquadramento da foto</div>
+      <input type="range" id="fxFoco" class="desliza" min="0" max="100" step="1"
+             oninput="escolherAparencia('capaFoco', Number(this.value))">
+      <p class="secao-sub" style="margin-top:6px">Arraste para escolher que
+        parte da foto do salão aparece na faixa do topo. Foto em pé recortada
+        no meio corta a cabeça de quem está nela — puxe para a esquerda para
+        mostrar mais de cima.</p>
 
-      <div class="rot" style="margin:18px 0 8px">Letra do nome</div>
-      <div class="regua" id="reguaLetra" style="justify-content:flex-start"></div>
-      <p class="secao-sub" id="explicaLetra" style="margin-top:9px"></p>
+      <div class="rot" style="margin:18px 0 8px">Divisão da foto</div>
+      <div class="regua" id="reguaCapaForma" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaCapaForma" style="margin-top:9px"></p>
+
+      <div class="rot" style="margin:18px 0 8px">Formato do logo</div>
+      <div class="regua" id="reguaLogoForma" style="justify-content:flex-start"></div>
+
+      <!-- A forma da caixa do carrossel. Fica junto do logo e da moldura
+           porque e' a mesma pergunta: que forma as coisas tem nesta pagina. -->
+      <div class="rot" style="margin:18px 0 8px">Formato do slide</div>
+      <div class="regua" id="reguaSlideForma" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaSlideForma" style="margin-top:9px"></p>
 
       <div class="rot" style="margin:18px 0 8px">Slide da capa</div>
       <div class="regua" id="reguaSlide" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaSlide" style="margin-top:9px"></p>
 
-      <div class="rot" style="margin:18px 0 8px">Brilho no botão</div>
-      <div class="regua" id="reguaBrilho" style="justify-content:flex-start"></div>
-      <p class="secao-sub" style="margin-top:9px">O botão principal ganha
-        acabamento de metal na sua cor, com uma faixa de luz passando de
-        tempos em tempos. Quem pediu ao celular para reduzir animações não vê
-        o movimento — o acabamento fica de qualquer forma.</p>
+      <div class="rot" style="margin:18px 0 8px">Preços na capa</div>
+      <div class="regua" id="reguaPreco" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaPreco" style="margin-top:9px"></p>
+
+      </section>
 
       <div class="card-acoes" style="margin-top:18px">
         <button class="btn btn-p" onclick="salvarAparencia()">Salvar aparência</button>
@@ -8779,14 +8837,14 @@ const CORES_SOLTAS = [
      onde moram os títulos de seção. Por isso o `conferirLegibilidade()`
      passou a medir o texto contra o papel também, e não só contra o card. */
   ['papel',      'Fundo da página', 'O papel atrás de tudo. Vale a página inteira.'],
-  ['secundaria', 'Cor secundária',  'Apoio da principal: fundos suaves e realces.'],
-  ['botao',      'Botões',          'O botão de marcar e os de ação.'],
-  ['texto',      'Textos',          'A rua do endereço e o corpo do texto, no cartão e na lista.'],
+  ['secundaria', 'Fundos suaves',   'O tom claro atrás do Bem-vindo e da inicial do serviço sem foto.'],
+  ['botao',      'Cor dos botões',  'O botão de agendar e os de ação. O degradê metálico sai desta cor.'],
+  ['texto',      'Texto principal', 'A rua do endereço e o corpo do texto, no cartão e na lista.'],
   /* O cinza dos detalhes. Vale a pena listar ONDE ele aparece, porque "texto
      secundário" não diz nada a quem está olhando a própria página: é a linha
      do bairro embaixo do endereço, o "NOSSOS SERVIÇOS" e o "CABELO", e o
      "30 min" no canto do cartão de serviço. */
-  ['discreto',   'Textos discretos','O bairro, os títulos "NOSSOS SERVIÇOS" e "PRODUTOS EM DESTAQUE", e a duração do serviço.'],
+  ['discreto',   'Texto secundário','O bairro, os títulos "NOSSOS SERVIÇOS" e "PRODUTOS EM DESTAQUE", e a duração do serviço.'],
   /* ⚠ "SEÇÃO" SAIU DAQUI. O título de seção é o `.cat`, que pinta com
      `--txt3` — o DISCRETO, logo acima. Esta linha dizia "serviço, seção,
      salão", e quem queria mudar a cor do "NOSSOS SERVIÇOS" mexia aqui, via o
@@ -8794,11 +8852,28 @@ const CORES_SOLTAS = [
      consigo mudar a cor das letras: nossos serviços, ...". Medido no
      navegador antes de trocar o texto. */
   ['titulo',     'Títulos',         'O nome do salão e o nome de cada serviço e produto.'],
-  ['card',       'Cards',           'O fundo dos cartões de serviço e de produto, que ficam sobre a página.'],
-  ['icone',      'Ícones',          'Os desenhos de traço, quando não acompanham o texto.'],
-  ['destaque',   'Destaque e preço','O valor do serviço e o que precisa saltar.'],
-  ['borda',      'Bordas',          'As linhas finas que separam um bloco do outro.'],
+  ['card',       'Cartões',         'O fundo dos cartões de serviço e de produto, que ficam sobre a página.'],
+  /* ⚠ OS ÍCONES SÃO DOIS, E NENHUM DOS DOIS SEGUE O TEXTO. Medido antes de
+     separar: mudar "Textos" mudava o pino do endereço (o ícone herdava a cor
+     da letra ao lado), e mudar "Destaque e preço" mudava os ícones dos três
+     atalhos. Agora cada ícone tem dono: os de traço soltos na página são
+     "Cor dos ícones"; os da marca (atalhos e a janela que eles abrem) são
+     "Ícones de destaque". Ícone dentro de botão segue a letra do botão. */
+  ['icone',      'Cor dos ícones',  'Os de traço, soltos na página: o pino do endereço, o relógio da duração, o ícone da equipe.'],
+  ['iconeDestaque', 'Ícones de destaque', 'Os de Pagamentos, Horários e Informações, e os da janela que eles abrem.'],
+  ['destaque',   'Texto de destaque e preço', 'O valor do serviço, o "Bem-vindo!" e o que precisa saltar. Só texto.'],
+  ['borda',      'Cor das bordas',  'As linhas finas que separam um bloco do outro, e o contorno dos cartões.'],
   ['moldura',    'Moldura do logo', 'O anel em volta da logo, na capa.'],
+];
+/* Onde cada cor aparece na tela. Uma chave, um grupo — o `papel` fica no
+   bloco do fundo, junto das outras perguntas sobre o fundo. */
+const GRUPOS_DE_COR = [
+  ['corDoPapel',  ['papel']],
+  ['coresFundo',  ['card', 'secundaria']],
+  ['coresTextos', ['titulo', 'texto', 'discreto', 'destaque']],
+  ['coresIcones', ['icone', 'iconeDestaque']],
+  ['coresBordas', ['borda', 'moldura']],
+  ['coresBotoes', ['botao']],
 ];
 
 function pintarAparencia(){
@@ -8924,6 +8999,8 @@ function pintarAparencia(){
     // por cima dele, e ele continua sendo o mesmo elemento.
     if(q.value.toLowerCase() !== valor) q.value = valor;
     el.querySelector('.cor-linha-ajuda').textContent = tem ? ajuda
+      : chave === 'icone' ? 'automático — o cinza do texto, sem acompanhar a cor que você der a ele'
+      : chave === 'moldura' ? 'automático — a cor dos cartões, que recorta a logo da foto'
       : doTema ? 'automático — toque no quadrado para escolher'
                : 'acompanha a cor da marca';
     el.querySelector('button').style.display = tem ? '' : 'none';
@@ -8937,10 +9014,9 @@ function pintarAparencia(){
       if(el) acertarLinha(el, item);
     }
   };
-  montarLinhas(document.getElementById('corDoPapel'),
-               CORES_SOLTAS.filter(x => x[0] === 'papel'));
-  montarLinhas(document.getElementById('coresSoltas'),
-               CORES_SOLTAS.filter(x => x[0] !== 'papel'));
+  for(const [caixa, chaves] of GRUPOS_DE_COR)
+    montarLinhas(document.getElementById(caixa),
+                 chaves.map(k => CORES_SOLTAS.find(x => x[0] === k)));
   conferirLegibilidade();
 
   /* ── O TIPO DE FUNDO ──────────────────────────────────────────────────
@@ -8952,8 +9028,8 @@ function pintarAparencia(){
      'Uma cor só, a que você quiser. Toque no quadrado para abrir todas as '
      + 'cores, ou escolha uma pronta.'],
     ['gradiente', 'Gradiente',
-     'Duas cores em degradê, de cima para baixo. Dá profundidade sem precisar '
-     + 'de foto.'],
+     'Duas ou três cores em degradê, de cima para baixo. As cores ficam na '
+     + 'seção Gradientes, logo abaixo.'],
     ['imagem', 'Imagem',
      'Uma foto sua atrás de tudo, com um véu por cima para o texto continuar '
      + 'legível.'],
@@ -8971,6 +9047,15 @@ function pintarAparencia(){
   mostrar('fundoSolido',    aparencia.fundoTipo === 'cor');
   mostrar('gradienteCampos', aparencia.fundoTipo === 'gradiente');
   mostrar('imagemCampos',   aparencia.fundoTipo === 'imagem');
+  /* Na seção Gradientes, o degradê do fundo diz se está aplicado. O tipo do
+     fundo continua sendo UMA escolha só (a régua de Fundo); o botão aqui é
+     um atalho para ela, e não uma segunda configuração. */
+  const comGrad = aparencia.fundoTipo === 'gradiente';
+  document.getElementById('gradAplicado').innerHTML = comGrad
+    ? 'Aplicado em: <b>fundo da página</b>. Para tirar, escolha outro tipo em Fundo.'
+    : 'Não está em uso: o fundo da página hoje é '
+      + (aparencia.fundoTipo === 'imagem' ? 'uma imagem.' : 'uma cor sólida.');
+  mostrar('gradUsar', !comGrad);
 
   const partes = coresDoGradiente(aparencia.gradiente || padraoGradiente());
   const comMeio = partes.length === 3;
@@ -9127,6 +9212,62 @@ function pintarAparencia(){
              onclick="escolherBrilho(${v})">${rot}</button>`).join('');
 
   pintarPreviaFone();
+  ligarHex();
+}
+
+/* O índice do topo da tela: leva à seção, sem esconder nenhuma. */
+function irParaSecaoAp(id){
+  const el = document.getElementById(id);
+  if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+/* ── O CAMPO HEX, AO LADO DE CADA QUADRADO DE COR ─────────────────────────
+   Todo seletor de cor desta tela ganha um campo de texto com o código
+   (#RRGGBB). O quadrado continua sendo o seletor do navegador — com a roda,
+   o RGB e o HSL que ele já oferece; o campo é para quem já sabe a cor da
+   marca de cor e quer colar.
+
+   ⚠ O CAMPO NÃO TEM LÓGICA PRÓPRIA. Digitou um código válido, ele escreve no
+   quadrado e dispara o MESMO evento que o arrasto dispara — então cada cor
+   continua passando pela função dela (escolherCorSolta, escolherGradiente,
+   escolherCorAtalho…), e a prévia se atualiza pelo caminho de sempre. Um
+   segundo caminho de gravar a cor seria o lugar onde as duas divergem.
+
+   ⚠ E ELE NASCE UMA VEZ, como as linhas de cor: o quadrado nunca é trocado,
+   e o campo em que a pessoa está digitando nunca é reescrito por baixo dela. */
+function hexDoTexto(v){
+  let t = String(v || '').trim().replace(/^#/, '');
+  if(/^[0-9a-f]{3}$/i.test(t)) t = t.split('').map(c => c + c).join('');
+  return /^[0-9a-f]{6}$/i.test(t) ? '#' + t.toLowerCase() : null;
+}
+function ligarHex(){
+  for(const cor of document.querySelectorAll('.ap-controles input[type="color"]')){
+    let hex = cor._hex;
+    if(!hex){
+      hex = document.createElement('input');
+      hex.type = 'text'; hex.className = 'cor-hex'; hex.maxLength = 7;
+      hex.spellcheck = false; hex.autocomplete = 'off';
+      hex.setAttribute('aria-label', 'Código HEX — ' + (cor.getAttribute('aria-label') || 'cor'));
+      const linha = cor.closest('.cor-linha');
+      const botao = linha && linha.querySelector(':scope > button');
+      if(botao) linha.insertBefore(hex, botao);
+      else cor.insertAdjacentElement('afterend', hex);
+      hex.addEventListener('input', () => {
+        const v = hexDoTexto(hex.value);
+        hex.classList.toggle('torto', !v && hex.value.trim() !== '');
+        if(!v || v === cor.value.toLowerCase()) return;
+        cor.value = v;
+        cor.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      const acertar = () => { hex.value = cor.value.toUpperCase(); hex.classList.remove('torto'); };
+      hex.addEventListener('blur', acertar);
+      hex.addEventListener('keydown', e => { if(e.key === 'Enter'){ acertar(); hex.blur(); } });
+      cor.addEventListener('input', () => { if(document.activeElement !== hex) acertar(); });
+      cor._hex = hex;
+    }
+    hex.disabled = cor.disabled;
+    if(document.activeElement !== hex) hex.value = cor.value.toUpperCase();
+  }
 }
 
 /* A letra que se lê melhor sobre a cor escolhida — a MESMA conta que a página
@@ -9384,6 +9525,14 @@ const PADRAO_TEMA = {
 function corHerdada(chave){
   const escuro = aparencia.tema === 'escuro';
   const c = aparencia.cores || {};
+  /* O destaque e os ícones de destaque, sem escolha, são a cor da marca
+     PUXADA para ler bem (a conta do `aplicarAparencia()`), e não a crua. E o
+     ícone de traço é o cinza do texto do tema — não o texto escolhido. */
+  if(chave === 'destaque' || chave === 'iconeDestaque') return corDaMarcaEscrita();
+  if(chave === 'icone') return PADRAO_TEMA[escuro ? 'escuro' : 'claro'].texto;
+  // O anel da logo, sem escolha, é o cartão (ou o papel, no premium) — a
+  // mesma reserva da página. O quadrado mostrava a cor da marca.
+  if(chave === 'moldura') return corDoAnelPadrao();
   /* O cinza sai do texto escolhido, quando há um — a mesma dedução do
      `aplicarCoresSoltas()` da página, com a mesma conta. */
   if(chave === 'discreto' && corValida(c.texto))
@@ -9730,9 +9879,14 @@ function coresDaPrevia(){
    fileira e o botão Horários. */
 function corEscritaDaMarca(){
   const c = aparencia.cores || {};
+  return corValida(c.destaque) ? c.destaque : corDaMarcaEscrita();
+}
+/* A mesma conta, SEM o "Texto de destaque": é o `--ac-marca` da página, de
+   onde saem os ícones de destaque e o Horários quando ninguém escolheu. */
+function corDaMarcaEscrita(){
   const escuro = aparencia.tema === 'escuro';
   const cor = corValida(aparencia.cor) ? aparencia.cor : '#1D4ED8';
-  return corValida(c.destaque) ? c.destaque : mexer(cor, escuro ? 0.30 : -0.28);
+  return mexer(cor, escuro ? 0.30 : -0.28);
 }
 function tonsDaMarcaNaPrevia(){
   const c = aparencia.cores || {};
@@ -9743,7 +9897,8 @@ function tonsDaMarcaNaPrevia(){
   const soft = corValida(c.secundaria)
     ? `rgba(${rgb(c.secundaria)},${escuro ? '.18' : '.12'})`
     : `rgba(${rgb(cor)},${escuro ? '.15' : '.10'})`;
-  return `;--fone-ac:${ac};--fone-ac-soft:${soft}`
+  return `;--fone-ac:${ac};--fone-ac-marca:${corDaMarcaEscrita()};--fone-ac-soft:${soft}`
+       + `;--fone-ico-texto:${PADRAO_TEMA[escuro ? 'escuro' : 'claro'].texto}`
        + `;--fone-ac-line:rgba(${rgb(cor)},${escuro ? '.34' : '.28'})`;
 }
 
@@ -9758,16 +9913,17 @@ function tonsDaMarcaNaPrevia(){
    escolheu, é a mesma reserva da página: o cartão no modo atual, o papel no
    premium (estilo.css, `.marca-selo`). */
 const ANEL_NA_PREVIA = { sem:'0px', fina:'1.7px', media:'2.8px', grossa:'5.1px' };
-function anelDaPrevia(){
+function corDoAnelPadrao(){
   const c = aparencia.cores || {};
   const escuro = aparencia.tema === 'escuro';
-  let cor = c.moldura;
-  if(!corValida(cor)){
-    cor = aparencia.modo === 'premium'
-      // O --bg de fábrica da página (estilo.css), e não o da coluna.
-      ? (corValida(c.papel) ? c.papel : (escuro ? '#0B1220' : '#F6F2E8'))
-      : (corValida(c.card) ? c.card : corHerdada('card'));
-  }
+  return aparencia.modo === 'premium'
+    // O --bg de fábrica da página (estilo.css), e não o da coluna.
+    ? (corValida(c.papel) ? c.papel : (escuro ? '#0B1220' : '#F6F2E8'))
+    : (corValida(c.card) ? c.card : corHerdada('card'));
+}
+function anelDaPrevia(){
+  const c = aparencia.cores || {};
+  const cor = corValida(c.moldura) ? c.moldura : corDoAnelPadrao();
   return `;--fone-anel:${ANEL_NA_PREVIA[aparencia.logoBorda] || '2.8px'};--fone-anel-cor:${cor}`;
 }
 
@@ -9854,7 +10010,7 @@ function pintarPreviaFone(){
          ${(() => {
             const e = Endereco.completo(sl.endereco);
             return e.length
-              ? `<span>${escapar(e[0])}</span>${e[1] ? `<i>${escapar(e[1])}</i>` : ''}`
+              ? `<span><span class="fone-pino" data-ico="local"></span>${escapar(e[0])}</span>${e[1] ? `<i>${escapar(e[1])}</i>` : ''}`
               : '<span>Agende seu horário</span>';
           })()}
        </div>

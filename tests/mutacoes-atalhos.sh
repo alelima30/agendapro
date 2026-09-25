@@ -188,14 +188,14 @@ troca estilo.css \
 
 echo "22. o ícone não acompanha a cor escolhida"
 troca estilo.css \
-  ".recurso-ic{ display:inline-flex; color:var(--at-tinta, var(--ac-600)) }" \
-  ".recurso-ic{ display:inline-flex; color:var(--ac-600) }" \
+  ".recurso-ic{ display:inline-flex; color:var(--at-tinta, var(--ico-destaque, var(--ac-marca, var(--ac-600)))) }" \
+  ".recurso-ic{ display:inline-flex; color:var(--ico-destaque, var(--ac-marca, var(--ac-600))) }" \
   && rodar "nome vermelho, ícone azul"
 
 echo "23. o tingido do Horários fica na cor da marca"
 troca estilo.css \
-  "  background:color-mix(in srgb, var(--at-tinta, var(--ac-600)) 13%, var(--painel));" \
-  "  background:color-mix(in srgb, var(--ac-600) 13%, var(--painel));" \
+  "  background:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 13%, var(--painel));" \
+  "  background:color-mix(in srgb, var(--ac-marca, var(--ac-600)) 13%, var(--painel));" \
   && rodar "letra vermelha sobre lilás"
 
 echo "24. herdar não tira a cor"

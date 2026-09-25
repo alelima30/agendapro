@@ -140,7 +140,7 @@ troca agendar.html \
 
 echo "15. o botão Horários com cor cravada"
 troca estilo.css \
-  "  background:color-mix(in srgb, var(--ac-600) 13%, var(--painel));" \
+  "  background:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 13%, var(--painel));" \
   "  background:#EDE9FE;" \
   && rodar "salão verde com botão roxo"
 
@@ -158,7 +158,7 @@ troca agendar.html \
 
 echo "18. o botão Horários volta ao tom transparente"
 troca estilo.css \
-  "  background:color-mix(in srgb, var(--ac-600) 13%, var(--painel));" \
+  "  background:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 13%, var(--painel));" \
   "  background:var(--ac-soft);" \
   && rodar "Horários sumindo sobre fundo roxo"
 
