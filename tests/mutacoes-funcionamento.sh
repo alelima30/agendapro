@@ -140,12 +140,8 @@ troca agendar.html \
 
 echo "15. o botão Horários com cor cravada"
 troca estilo.css \
-  "  background:var(--ac-soft); border-color:var(--ac-line); color:var(--ac-600);
-}
-.recurso:hover" \
-  "  background:#EDE9FE; border-color:#C4B5FD; color:#6D28D9;
-}
-.recurso:hover" \
+  "  background:color-mix(in srgb, var(--ac-600) 13%, var(--painel));" \
+  "  background:#EDE9FE;" \
   && rodar "salão verde com botão roxo"
 
 echo "16. o dia de hoje com cor cravada"
@@ -159,6 +155,26 @@ troca agendar.html \
   "  if(end.length) itens.push(['local', 'Endereço', escapar(end.join(' · '))," \
   "  if(end.length) itens.push(['local', 'Endereço', end.join(' · ')," \
   && rodar "HTML do dono rodando no celular da cliente"
+
+echo "18. o botão Horários volta ao tom transparente"
+troca estilo.css \
+  "  background:color-mix(in srgb, var(--ac-600) 13%, var(--painel));" \
+  "  background:var(--ac-soft);" \
+  && rodar "Horários sumindo sobre fundo roxo"
+
+echo "19. o cartão ABERTO volta ao tom transparente"
+troca estilo.css \
+  "  background:color-mix(in srgb, var(--st-cor) 11%, var(--painel));
+  border:1px solid var(--st-linha); color:var(--txt2);" \
+  "  background:var(--st-soft);
+  border:1px solid var(--st-linha); color:var(--txt2);" \
+  && rodar "ABERTO apagado sobre fundo roxo"
+
+echo "20. o cartão Bem-vindo volta ao tom transparente"
+troca estilo.css \
+  "body.tem-gradiente .boas, body.tem-papel .boas{" \
+  "body.tem-gradiente .boasx, body.tem-papel .boasx{" \
+  && rodar "Bem-vindo roxo sobre roxo"
 
 echo ""
 echo "$morta mortas, $viva vivas"

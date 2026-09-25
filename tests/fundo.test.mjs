@@ -122,8 +122,24 @@ async function pagina(){
     const hex = eval(h);
     const raiz = getComputedStyle(document.documentElement);
     const nome = document.querySelector('.marca-salao h2');
+    /* ⚠ O FUNDO É O QUE FICA ATRÁS DO CONTEÚDO, e não a cor do <body>.
+       A primeira versão deste teste lia o <body> — e o <body> estava certo,
+       escondido atrás da coluna da página, que no celular cobre tudo. O
+       teste passava, e no print dele o fundo escolhido aparecia só nas
+       margens do computador. Aqui sobe-se do nome do salão até o primeiro
+       elemento que pinta alguma coisa: é isso que o olho vê atrás do texto. */
+    const atrasDe = el => {
+      for(let e = el; e; e = e.parentElement){
+        const cs = getComputedStyle(e);
+        if(cs.backgroundImage !== 'none') return { imagem: cs.backgroundImage, quem: e.className || e.tagName };
+        const v = (/rgba?\(([^)]+)\)/.exec(cs.backgroundColor) || [, '0,0,0,0'])[1].split(',').map(Number);
+        if(v.length < 4 || v[3] > 0) return { cor: hex(cs.backgroundColor), quem: e.className || e.tagName };
+      }
+      return { cor: '' };
+    };
     return {
       fundo: hex(getComputedStyle(document.body).backgroundColor),
+      atras: atrasDe(nome),
       grad: raiz.getPropertyValue('--bg-grad').trim(),
       comGrad: document.body.classList.contains('tem-gradiente'),
       escuro: document.documentElement.getAttribute('data-tema') === 'escuro',
@@ -158,8 +174,11 @@ secao('1 · O bloco do fundo, no celular');
   verdade('"Base clara ou escura" não existe mais na tela', r.semBase);
   /* ⚠ ERA AZUL NO PRINT. O quadrado mostrava a cor da marca para uma página
      bege — a única cor que ele estava tentando escolher, errada. */
-  igual('o quadrado do fundo mostra o bege que está na página, e não a marca',
-    r.quadrado, '#F6F2E8');
+  /* Branco, que é o que a cliente vê atrás do conteúdo no celular (a coluna).
+     A primeira versão esperava o bege do <body> — o das margens de um
+     computador —, e o quadrado mostrava uma cor que ninguém via. */
+  igual('o quadrado do fundo mostra a cor que está atrás do conteúdo, e não a marca',
+    r.quadrado, '#FFFFFF');
   verdade('e diz que é automático, não que "acompanha a marca"',
     /automático/.test(r.frase) && !/marca/.test(r.frase), r.frase);
 
@@ -233,7 +252,7 @@ secao('3 · O que ele escolhe chega na página da cliente');
   igual('a cor', String((c1.cores || {}).papel).toUpperCase(), '#0B1220');
   igual('e as letras claras', c1.tema, 'escuro');
   const pg1 = await pagina();
-  igual('a página pinta o fundo escolhido', pg1.fundo, '#0B1220');
+  igual('a página pinta o fundo escolhido ATRÁS DO CONTEÚDO, no celular', pg1.atras.cor, '#0B1220');
   verdade('com as letras claras', pg1.escuro, JSON.stringify(pg1));
   verdade('e o nome do salão se lê sobre ele',
     pg1.nome && pg1.nome !== '#172033', pg1.nome);
@@ -250,8 +269,8 @@ secao('3 · O que ele escolhe chega na página da cliente');
   igual('escolher Gradiente e salvar sem mexer grava o gradiente que estava na tela',
     String(c2.gradiente || '').toLowerCase(), naTela.toLowerCase());
   const pg2 = await pagina();
-  verdade('e a página mostra o gradiente', pg2.comGrad && /linear-gradient/.test(pg2.grad),
-    JSON.stringify(pg2));
+  verdade('e a página mostra o gradiente atrás do conteúdo — e não só nas margens',
+    pg2.comGrad && /linear-gradient/.test(pg2.atras.imagem || ''), JSON.stringify(pg2.atras));
 
   ({ p, fechar } = await painel());
   await p.evaluate(() => escolherGradientePronto('#FDF2F6', '#F4CFDD'));
@@ -289,7 +308,7 @@ secao('4 · A foto: quem nunca escolheu fica com ela, quem escolheu cor não');
   igual('escolhendo Cor sólida, o banco guarda "solida"', (await cfgDe()).fundoTipo, 'solida');
   const semFoto = await pagina();
   verdade('e a foto sai do link', !semFoto.foto, JSON.stringify(semFoto));
-  igual('ficando a cor que ele escolheu', semFoto.fundo, '#FBE7EF');
+  igual('ficando a cor que ele escolheu, atrás do conteúdo', semFoto.atras.cor, '#FBE7EF');
 
   ({ p, fechar } = await painel());
   await p.evaluate(() => escolherFundoTipo('imagem'));
@@ -314,9 +333,10 @@ secao('5 · A prévia do painel pinta o mesmo fundo que a página');
   }, [acao, HEX]);
 
   /* ⚠ SEM NADA ESCOLHIDO, NO ESCURO. A prévia caía no cinza do painel
-     (#141416) em vez do azul-noite da página (#0B1220). */
-  igual('sem escolha, no escuro: o mesmo fundo de fábrica da página',
-    (await previa("escolherFundoTipo('cor'); escolherTema('escuro')")).cor, '#0B1220');
+     (#141416) em vez do que a página mostra atrás do conteúdo — a coluna,
+     #131C2E. */
+  igual('sem escolha, no escuro: o mesmo fundo que a página mostra atrás do conteúdo',
+    (await previa("escolherFundoTipo('cor'); escolherTema('escuro')")).cor, '#131C2E');
   igual('cor escolhida', (await previa("escolherPapelPronto('#F2E4DA')")).cor, '#F2E4DA');
   const g = await previa("escolherGradientePronto('#FBF6EC', '#E9D6B0')");
   verdade('gradiente: a prévia desenha as duas cores',
@@ -335,16 +355,119 @@ secao('6 · As cores de fábrica do painel são as da página');
   const { p, fechar } = await painel();
   const noPainel = await p.evaluate(() => PADRAO_TEMA);
   await fechar();
-  const MAPA = { '--bg':'papel', '--painel':'card', '--txt':'titulo',
+  const MAPA = { '--painel':'card', '--txt':'titulo',
                  '--txt2':'texto', '--txt3':'discreto', '--borda':'borda' };
   for(const tema of ['claro', 'escuro']){
     await porCfg({ tema });
     const pg = await pagina();
-    const naPagina = Object.fromEntries(Object.entries(MAPA)
-      .map(([v, k]) => [k, pg.padroes[v]]));
+    /* O papel de fábrica é o que fica atrás do conteúdo no celular — a
+       coluna, e não o <body> das margens. */
+    const naPagina = Object.assign({ papel: pg.atras.cor.toUpperCase() },
+      Object.fromEntries(Object.entries(MAPA).map(([v, k]) => [k, pg.padroes[v]])));
+    MAPA.papel = 'papel';
     igual('tema ' + tema + ': as seis cores batem', naPagina,
-      Object.fromEntries(Object.values(MAPA).map(k => [k, noPainel[tema][k].toUpperCase()])));
+      Object.fromEntries(['papel', 'card', 'titulo', 'texto', 'discreto', 'borda']
+        .map(k => [k, noPainel[tema][k].toUpperCase()])));
+    delete MAPA.papel;
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   7 — O SELETOR DE COR NÃO PERDE O QUADRADO NO MEIO DO ARRASTO
+
+   A queixa: "na cor sólida não consigo mexer, mais claro, mais escuro". O
+   seletor do navegador fica preso ao quadrado que o abriu, e a tela trocava
+   o quadrado por um novo a cada movimento. O primeiro arrasto pegava; o
+   resto ia para um quadrado que já não estava na tela.
+
+   A regra medida é a que o seletor precisa: depois de cada movimento, o
+   quadrado que está sendo arrastado CONTINUA sendo o mesmo elemento, e o
+   movimento seguinte chega. Chamar escolherCorSolta() à mão — como os
+   testes faziam — não teria visto nada: a função funcionava, o quadrado é
+   que sumia.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('7 · Arrastar o seletor de cor: o quadrado continua o mesmo');
+{
+  await porCfg({});
+  const { p, fechar } = await painel();
+  const r = await p.evaluate(() => {
+    escolherFundoTipo('cor');
+    const arrastar = (sel, chave) => {
+      const el = document.querySelector(sel);
+      const passos = ['#7a2a9a', '#6a2289', '#5a1a7a', '#4a126a'];
+      let sempreNaTela = true;
+      for(const cor of passos){
+        el.value = cor;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        if(!el.isConnected) sempreNaTela = false;
+      }
+      return { sempreNaTela, final: aparencia.cores[chave],
+               quadrado: document.querySelector(sel).value };
+    };
+    return {
+      papel: arrastar('#corDoPapel .cor-linha[data-chave="papel"] input', 'papel'),
+      texto: arrastar('#coresSoltas .cor-linha[data-chave="texto"] input', 'texto'),
+    };
+  });
+  verdade('o quadrado do fundo continua na tela durante os quatro movimentos', r.papel.sempreNaTela);
+  igual('e o último movimento é o que vale', r.papel.final, '#4a126a');
+  verdade('o mesmo nas cores, uma a uma (Textos)', r.texto.sempreNaTela && r.texto.final === '#4a126a',
+    JSON.stringify(r.texto));
+  await fechar();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   8 — GRADIENTE COM A COR DO MEIO
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('8 · Gradiente de três cores');
+{
+  let { p, fechar } = await painel();
+  const r = await p.evaluate(() => {
+    aparencia.gradiente = '#6D28D9,#1A1330';
+    escolherFundoTipo('gradiente');
+    const antes = document.getElementById('linhaGradM').style.display;
+    adicionarCorDoMeio();
+    const meio = document.getElementById('gradM').value;
+    const g = document.getElementById('gradM');
+    g.value = '#A000FF'; g.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('gradA').value = '#1A1330';
+    document.getElementById('gradA').dispatchEvent(new Event('input', { bubbles: true }));
+    return { antes, meio, grad: aparencia.gradiente,
+             visivel: document.getElementById('linhaGradM').style.display !== 'none',
+             previa: getComputedStyle(document.querySelector('#previaFone .fone')).backgroundImage };
+  });
+  igual('sem a cor do meio, a linha dela fica escondida', r.antes, 'none');
+  igual('ao acrescentar, ela nasce no meio das duas — nada muda na hora', r.meio, '#441e85');
+  verdade('e aparece para ser escolhida', r.visivel);
+  igual('as três cores ficam guardadas, na ordem', r.grad, '#1a1330,#a000ff,#1a1330');
+  verdade('a prévia desenha as três',
+    /26, 19, 48\) 0%/.test(r.previa) && /160, 0, 255\) 50%/.test(r.previa) && /26, 19, 48\) 100%/.test(r.previa),
+    r.previa);
+  await p.evaluate(() => salvarAparencia());
+  await p.waitForTimeout(1800);
+  await fechar();
+  igual('no banco, as três', (await cfgDe()).gradiente, '#1a1330,#a000ff,#1a1330');
+  const pg = await pagina();
+  verdade('a página da cliente pinta as três, na ordem',
+    /#1a1330 0%, #a000ff 50%, #1a1330 100%/i.test(pg.grad), pg.grad);
+  /* ⚠ E ATRÁS DO CONTEÚDO — com gradiente e SEM cor sólida salva, que é o
+     caso do print. Na seção 3 o salão ainda tinha um papel escolhido, e o
+     papel sozinho já tirava a coluna da frente: a mutação que esquecia o
+     gradiente nessa regra sobreviveu por isso. */
+  igual('sem cor sólida salva, nada de papel escolhido', (await cfgDe()).cores || {}, {});
+  verdade('e o gradiente aparece atrás do conteúdo, no celular — não só nas margens',
+    /linear-gradient/.test(pg.atras.imagem || ''), JSON.stringify(pg.atras));
+
+  /* ⚠ AS LETRAS OLHAM A COR DO MEIO TAMBÉM. Branco em cima e embaixo com
+     preto no meio: quem olhasse só as pontas escolheria letra escura, e o
+     meio da página ficaria ilegível. */
+  ({ p, fechar } = await painel());
+  igual('branco–preto–branco: a letra é escolhida pelo pior ponto, que é o meio',
+    await p.evaluate(() => { escolherGradientePronto('#FFFFFF,#111111,#FFFFFF'); return aparencia.tema; }),
+    'escuro');
+  igual('tirar a cor do meio volta às duas pontas',
+    await p.evaluate(() => { tirarCorDoMeio(); return aparencia.gradiente; }), '#FFFFFF,#FFFFFF');
+  await fechar();
 }
 
 igual('nenhum erro nas telas', erros, []);

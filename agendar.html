@@ -4710,12 +4710,16 @@ function aplicarGradiente(par){
   const raiz = document.documentElement;
   if(!par){ raiz.style.removeProperty('--bg-grad');
             document.body.classList.remove('tem-gradiente'); return; }
-  const [a, b] = String(par).split(',');
-  if(!corValida(a) || !corValida(b)){
+  /* Duas cores, ou três com a do meio ("a,meio,b"). Qualquer outra coisa —
+     uma cor só, quatro, uma torta — é ignorada inteira: meio gradiente não
+     existe, e a página fica no fundo liso. */
+  const cores = String(par).split(',').map(x => x.trim());
+  if(!(cores.length === 2 || cores.length === 3) || !cores.every(corValida)){
     raiz.style.removeProperty('--bg-grad');
     document.body.classList.remove('tem-gradiente'); return;
   }
-  raiz.style.setProperty('--bg-grad', `linear-gradient(180deg, ${a} 0%, ${b} 100%)`);
+  raiz.style.setProperty('--bg-grad', `linear-gradient(180deg, ${cores.map((c, i) =>
+    c + ' ' + Math.round(i * 100 / (cores.length - 1)) + '%').join(', ')})`);
   document.body.classList.add('tem-gradiente');
 }
 
@@ -5032,6 +5036,19 @@ function aplicarFita(s, c){
    com letra branca voltaria pela porta dos fundos. */
 function aplicarCoresSoltas(s, p, escuro){
   const c = s.cores || (s.cfg || {}).cores || {};
+  /* ⚠ COM O FUNDO ESCOLHIDO, A COLUNA DA PÁGINA FICA TRANSPARENTE.
+
+     A coluna (.app) tem o fundo dos cartões e cobre a tela inteira no
+     celular. O papel escolhido ia para o <body>, ATRÁS dela: aparecia só nas
+     margens de uma tela de computador, e no celular nunca. Foi o print dele:
+     "o fundo está aparecendo fora, e dentro está preto". O mesmo valia para o
+     gradiente. A imagem já tinha esta regra (body.tem-fundo) desde que o
+     mesmo defeito apareceu com ela; faltava para as outras duas.
+
+     Salão que nunca escolheu papel não ganha a classe, e a coluna continua
+     com o fundo de sempre. */
+  document.body.classList.toggle('tem-papel',
+    !!(c && typeof c === 'object' && corValida(c.papel)));
   if(!c || typeof c !== 'object') return;
   const vale = k => corValida(c[k]) ? c[k] : null;
 

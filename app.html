@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.ecea80';
+const VERSAO_APP = 'v9.fd60a3';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7883,6 +7883,21 @@ function pintarSalao(){
           <span class="cor-linha-txt"><b>Cor de cima</b>
             <span>onde o fundo começa</span></span>
         </div>
+        <!-- A COR DO MEIO. Pedido dele, olhando o proprio fundo: "o roxo ta
+             muito claro no comeco". Com duas cores, a de cima e o comeco da
+             pagina; com tres, o comeco pode ser escuro, o meio vivo e o fim
+             escuro de novo. Opcional: o gradiente de duas continua sendo o
+             padrao, e tirar a do meio volta a ele.
+             (Sem crase: este HTML e lido como template literal.) -->
+        <div class="cor-linha" id="linhaGradM" style="display:none">
+          <input type="color" id="gradM" class="cor-livre"
+                 oninput="escolherGradiente()" aria-label="Cor do meio">
+          <span class="cor-linha-txt"><b>Cor do meio</b>
+            <span>no meio da página</span></span>
+          <button type="button" class="btn btn-peq" onclick="tirarCorDoMeio()">tirar</button>
+        </div>
+        <button type="button" class="func-mais" id="botaoGradM"
+                onclick="adicionarCorDoMeio()">+ Adicionar cor do meio</button>
         <div class="cor-linha">
           <input type="color" id="gradB" class="cor-livre"
                  oninput="escolherGradiente()" aria-label="Cor de baixo">
@@ -7890,8 +7905,9 @@ function pintarSalao(){
             <span>onde o fundo termina</span></span>
         </div>
         <div class="fitas" id="gradientesProntos" style="margin-top:10px"></div>
-        <p class="secao-sub" style="margin-top:6px">Duas cores próximas dão um
-          fundo calmo; duas distantes viram enfeite e disputam com o conteúdo.</p>
+        <p class="secao-sub" style="margin-top:6px">Cores próximas dão um
+          fundo calmo; cores distantes viram enfeite e disputam com o conteúdo.
+          Com a cor do meio, o começo e o fim podem ser escuros e o meio vivo.</p>
       </div>
 
       <div id="imagemCampos" style="display:none;margin-top:10px">
@@ -8726,32 +8742,58 @@ function pintarAparencia(){
      No print dele, o Fundo da página aparecia AZUL — a cor da marca — sobre
      uma página bege. O quadrado mentia justamente na cor que ele estava
      tentando escolher. Ver `corHerdada()`. */
-  const linhaDeCor = ([chave, rot, ajuda]) => {
-    const escolhida = aparencia.cores[chave];
-    const tem = corValida(escolhida);
-    const doTema = chave in PADRAO_TEMA.claro;
-    return `<div class="cor-linha">
+  /* ⚠ AS LINHAS SÃO DESENHADAS UMA VEZ, E DEPOIS SÓ ACERTADAS.
+
+     Elas eram refeitas por `innerHTML` a cada movimento do seletor de cor —
+     e o seletor do navegador fica preso ao quadrado que o abriu. No primeiro
+     arrasto o quadrado era trocado por um novo, o seletor continuava aberto
+     preso ao antigo, fora da tela, e o resto do arrasto não chegava em lugar
+     nenhum. Foi a queixa: "na cor sólida não consigo mexer, mais claro, mais
+     escuro". Medido: depois do primeiro movimento, `isConnected` era falso
+     no quadrado do fundo e nos das onze cores; no gradiente e na cor da
+     marca, que nunca foram redesenhados, era verdadeiro — e esses funcionavam.
+
+     Agora cada linha nasce uma vez e, dali em diante, só o valor, a frase e
+     o botão "herdar" são acertados no lugar. O quadrado que está sendo
+     arrastado nunca é trocado. */
+  const linhaDeCor = ([chave, rot]) => `<div class="cor-linha" data-chave="${chave}">
       <input type="color" class="cor-livre"
-             value="${tem ? escolhida : corHerdada(chave)}"
              oninput="escolherCorSolta('${chave}', this.value)"
              aria-label="${escapar(rot)}">
       <span class="cor-linha-txt">
         <b>${escapar(rot)}</b>
-        <span>${tem ? escapar(ajuda)
-          : doTema ? 'automático — toque no quadrado para escolher'
-                   : 'acompanha a cor da marca'}</span>
+        <span class="cor-linha-ajuda"></span>
       </span>
-      ${tem ? `<button type="button" class="btn btn-peq"
-                       onclick="herdarCorSolta('${chave}')">herdar</button>` : ''}
+      <button type="button" class="btn btn-peq"
+              onclick="herdarCorSolta('${chave}')">herdar</button>
     </div>`;
+  const acertarLinha = (el, [chave, , ajuda]) => {
+    const escolhida = aparencia.cores[chave];
+    const tem = corValida(escolhida);
+    const doTema = chave in PADRAO_TEMA.claro;
+    const valor = String(tem ? escolhida : corHerdada(chave)).toLowerCase();
+    const q = el.querySelector('input');
+    // O quadrado que está sendo arrastado já tem este valor: não se escreve
+    // por cima dele, e ele continua sendo o mesmo elemento.
+    if(q.value.toLowerCase() !== valor) q.value = valor;
+    el.querySelector('.cor-linha-ajuda').textContent = tem ? ajuda
+      : doTema ? 'automático — toque no quadrado para escolher'
+               : 'acompanha a cor da marca';
+    el.querySelector('button').style.display = tem ? '' : 'none';
   };
-
-  const doPapel = CORES_SOLTAS.find(x => x[0] === 'papel');
-  const caixaPapel = document.getElementById('corDoPapel');
-  if(caixaPapel) caixaPapel.innerHTML = doPapel ? linhaDeCor(doPapel) : '';
-
-  document.getElementById('coresSoltas').innerHTML =
-    CORES_SOLTAS.filter(x => x[0] !== 'papel').map(linhaDeCor).join('');
+  const montarLinhas = (caixa, lista) => {
+    if(!caixa) return;
+    const ja = [...caixa.querySelectorAll('.cor-linha[data-chave]')].map(e => e.dataset.chave);
+    if(ja.join() !== lista.map(x => x[0]).join()) caixa.innerHTML = lista.map(linhaDeCor).join('');
+    for(const item of lista){
+      const el = caixa.querySelector(`.cor-linha[data-chave="${item[0]}"]`);
+      if(el) acertarLinha(el, item);
+    }
+  };
+  montarLinhas(document.getElementById('corDoPapel'),
+               CORES_SOLTAS.filter(x => x[0] === 'papel'));
+  montarLinhas(document.getElementById('coresSoltas'),
+               CORES_SOLTAS.filter(x => x[0] !== 'papel'));
   conferirLegibilidade();
 
   /* ── O TIPO DE FUNDO ──────────────────────────────────────────────────
@@ -8783,9 +8825,13 @@ function pintarAparencia(){
   mostrar('gradienteCampos', aparencia.fundoTipo === 'gradiente');
   mostrar('imagemCampos',   aparencia.fundoTipo === 'imagem');
 
-  const [a1, b1] = String(aparencia.gradiente || padraoGradiente()).split(',');
-  document.getElementById('gradA').value = a1;
-  document.getElementById('gradB').value = b1;
+  const partes = coresDoGradiente(aparencia.gradiente || padraoGradiente());
+  const comMeio = partes.length === 3;
+  document.getElementById('gradA').value = partes[0];
+  document.getElementById('gradB').value = partes[partes.length - 1];
+  document.getElementById('gradM').value = comMeio ? partes[1] : partes[0];
+  document.getElementById('linhaGradM').style.display = comMeio ? '' : 'none';
+  document.getElementById('botaoGradM').style.display = comMeio ? 'none' : '';
 
   /* Os atalhos. O seletor de cor do celular é uma roda que pede três toques
      para chegar num bege — um toque aqui resolve o caso comum, e o quadrado
@@ -8799,10 +8845,11 @@ function pintarAparencia(){
     `<button type="button" class="fita-param" onclick="escolherPapelPronto('${hex}')">
        ${bola(hex, papelAgora === hex.toUpperCase())}${escapar(rot)}</button>`).join('');
   const gp = document.getElementById('gradientesProntos');
-  if(gp) gp.innerHTML = gradientesProntos().map(([rot, a, b]) =>
-    `<button type="button" class="fita-param" onclick="escolherGradientePronto('${a}','${b}')">
-       ${bola(`linear-gradient(180deg,${a},${b})`,
-              String(aparencia.gradiente || '').toUpperCase() === (a + ',' + b).toUpperCase())
+  if(gp) gp.innerHTML = gradientesProntos().map(([rot, ...cores]) =>
+    `<button type="button" class="fita-param"
+             onclick="escolherGradientePronto('${cores.join(',')}')">
+       ${bola(`linear-gradient(180deg,${cores.join(',')})`,
+              String(aparencia.gradiente || '').toUpperCase() === cores.join(',').toUpperCase())
        }${escapar(rot)}</button>`).join('');
 
   const FORMAS = [['circular','Circular'], ['arredondado','Arredondado'],
@@ -9069,9 +9116,9 @@ function conferirLegibilidade(){
   const cartao = corValida(c.card) ? c.card : t.card;
   /* O fundo de verdade: a cor escolhida, as DUAS pontas do gradiente, ou a
      de fábrica. No gradiente a letra passa pelas duas, e a pior manda. */
-  const [ga, gb] = String(aparencia.gradiente || '').split(',');
-  const gradiente = aparencia.fundoTipo === 'gradiente' && corValida(ga) && corValida(gb);
-  const fundos = gradiente ? [ga, gb] : [corValida(c.papel) ? c.papel : t.papel];
+  const doGrad = coresDoGradiente(aparencia.gradiente);
+  const gradiente = aparencia.fundoTipo === 'gradiente' && doGrad.length > 0;
+  const fundos = gradiente ? doGrad : [corValida(c.papel) ? c.papel : t.papel];
   /* ⚠ COM O FUNDO ESCOLHIDO À MÃO, A LETRA HERDADA TAMBÉM É MEDIDA. Antes o
      "herdada: o cálculo garante" era verdade — as duas vinham do mesmo tom.
      Um fundo cinza-médio escolhido por ele não tem letra de fábrica que se
@@ -9117,10 +9164,38 @@ function conferirLegibilidade(){
 /* Guardado como "corA,corB" — duas cores num campo de texto, e não um objeto.
    É um par que só existe junto: separados, dariam dois estados possíveis
    (uma preenchida e a outra não) que não querem dizer nada. */
+/* O gradiente guardado como texto: "corA,corB" ou, com a cor do meio,
+   "corA,corMeio,corB". Duas ou três cores válidas, ou nada — um par pela
+   metade não quer dizer nada, e a página o ignora do mesmo jeito. */
+function coresDoGradiente(txt){
+  const c = String(txt || '').split(',').map(x => x.trim());
+  return (c.length === 2 || c.length === 3) && c.every(corValida) ? c : [];
+}
 function escolherGradiente(){
   const a = document.getElementById('gradA').value;
   const b = document.getElementById('gradB').value;
-  aparencia.gradiente = (corValida(a) && corValida(b)) ? (a + ',' + b) : null;
+  const comMeio = document.getElementById('linhaGradM').style.display !== 'none';
+  const cores = comMeio ? [a, document.getElementById('gradM').value, b] : [a, b];
+  aparencia.gradiente = cores.every(corValida) ? cores.join(',') : null;
+  ajustarLetras();
+  pintarAparencia();
+}
+/* A cor do meio nasce no meio mesmo — a mistura das duas pontas —, e não
+   numa cor inventada: o gradiente não muda na hora de acrescentar, e o dono
+   mexe a partir do que já estava vendo. */
+function adicionarCorDoMeio(){
+  const [a, b] = coresDoGradiente(aparencia.gradiente || padraoGradiente());
+  if(!a) return;
+  const meio = '#' + [1, 3, 5].map(i => Math.round(
+    (parseInt(a.substr(i, 2), 16) + parseInt(b.substr(i, 2), 16)) / 2)
+    .toString(16).padStart(2, '0')).join('');
+  aparencia.gradiente = [a, meio, b].join(',');
+  ajustarLetras();
+  pintarAparencia();
+}
+function tirarCorDoMeio(){
+  const c = coresDoGradiente(aparencia.gradiente);
+  if(c.length === 3) aparencia.gradiente = c[0] + ',' + c[2];
   ajustarLetras();
   pintarAparencia();
 }
@@ -9140,10 +9215,15 @@ function escolherGradiente(){
 
    ⚠ Estes números moram na página. Se um dia mudarem lá, mudam aqui — o
    fundo.test.mjs lê os dois e reprova a divergência. */
+/* ⚠ O PAPEL DE FÁBRICA É O DA COLUNA, e não o do <body>. A primeira versão
+   mediu o <body> (#F6F2E8, bege) — que só aparece nas margens de uma tela de
+   computador. No celular, onde a cliente está, o que fica atrás do conteúdo
+   é a coluna, na cor dos cartões: branco no claro, azul-noite no escuro. O
+   quadrado mostrava um bege que ninguém via. */
 const PADRAO_TEMA = {
-  claro:  { papel:'#F6F2E8', card:'#FFFFFF', titulo:'#172033',
+  claro:  { papel:'#FFFFFF', card:'#FFFFFF', titulo:'#172033',
             texto:'#475569', discreto:'#94A3B8', borda:'#E7E2D9' },
-  escuro: { papel:'#0B1220', card:'#131C2E', titulo:'#E8EEF7',
+  escuro: { papel:'#131C2E', card:'#131C2E', titulo:'#E8EEF7',
             texto:'#A3B2C7', discreto:'#6F8098', borda:'#25324A' },
 };
 
@@ -9176,8 +9256,8 @@ function temaPeloFundo(){
   const c = aparencia.cores || {};
   let fundos = null;
   if(aparencia.fundoTipo === 'gradiente'){
-    const [a, b] = String(aparencia.gradiente || '').split(',');
-    if(corValida(a) && corValida(b)) fundos = [a, b];
+    const c = coresDoGradiente(aparencia.gradiente);
+    if(c.length) fundos = c;
   } else if(aparencia.fundoTipo === 'cor' && corValida(c.papel)){
     fundos = [c.papel];
   }
@@ -9208,7 +9288,10 @@ function gradientesProntos(){
   return [['Pérola','#FFFFFF','#EFE9DF'], ['Rosé','#FDF2F6','#F4CFDD'],
           ['Champanhe','#FBF6EC','#E9D6B0'], ['Céu','#F3F8FF','#C9DCF5'],
           ['Tom da marca', mexer(aparencia.cor, 0.86), mexer(aparencia.cor, 0.58)],
-          ['Noite','#1F2430','#07090F']];
+          ['Noite','#1F2430','#07090F'],
+          // Três cores: escuro em cima e embaixo, a marca viva no meio.
+          ['Marca profunda', mexer(aparencia.cor, -0.62), mexer(aparencia.cor, -0.12),
+                             mexer(aparencia.cor, -0.7)]];
 }
 
 /* ⚠ ESCOLHER "GRADIENTE" JÁ GUARDA UM GRADIENTE. Os dois seletores apareciam
@@ -9228,10 +9311,13 @@ function escolherPapelPronto(hex){
   ajustarLetras();
   pintarAparencia();
 }
+/* Recebe as cores juntas, "a,b" ou "a,meio,b" — ou, como antes, duas
+   separadas, para quem já chamava assim. */
 function escolherGradientePronto(a, b){
-  if(!corValida(a) || !corValida(b)) return;
+  const cores = coresDoGradiente(b === undefined ? a : a + ',' + b);
+  if(!cores.length) return;
   aparencia.fundoTipo = 'gradiente';
-  aparencia.gradiente = a + ',' + b;
+  aparencia.gradiente = cores.join(',');
   ajustarLetras();
   pintarAparencia();
 }
@@ -9378,9 +9464,10 @@ function coresDaPrevia(){
      da página (#F6F2E8 e #0B1220, medidos). No escuro a diferença se via a
      olho — e é a cor que este bloco existe para escolher. */
   if(!corValida(c.papel)) fora += `;--fone-papel:${corHerdada('papel')}`;
-  const [a, b] = String(aparencia.gradiente || '').split(',');
-  if(aparencia.fundoTipo === 'gradiente' && corValida(a) && corValida(b))
-    fora += `;--fone-grad:linear-gradient(180deg, ${a} 0%, ${b} 100%)`;
+  const g = coresDoGradiente(aparencia.gradiente);
+  if(aparencia.fundoTipo === 'gradiente' && g.length)
+    fora += `;--fone-grad:linear-gradient(180deg, ${g.map((x, i) =>
+      x + ' ' + Math.round(i * 100 / (g.length - 1)) + '%').join(', ')})`;
   return fora;
 }
 

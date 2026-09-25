@@ -137,6 +137,48 @@ troca estilo.css \
   "" \
   && rodar "variável pronta, ninguém pintando"
 
+echo "15. as linhas de cor voltam a ser refeitas a cada movimento"
+troca app.html \
+  "    if(ja.join() !== lista.map(x => x[0]).join()) caixa.innerHTML = lista.map(linhaDeCor).join('');" \
+  "    caixa.innerHTML = lista.map(linhaDeCor).join('');" \
+  && rodar "o seletor perde o quadrado no meio do arrasto"
+
+echo "16. a página esquece a classe do papel escolhido"
+troca agendar.html \
+  "  document.body.classList.toggle('tem-papel'," \
+  "  document.body.classList.toggle('tem-papel-nao'," \
+  && rodar "cor sólida só nas margens do computador"
+
+echo "17. a coluna não sai da frente do gradiente"
+troca estilo.css \
+  "body.tem-gradiente .app, body.tem-papel .app{ background:transparent !important; box-shadow:none }" \
+  "body.tem-papel .app{ background:transparent !important; box-shadow:none }" \
+  && rodar "gradiente atrás da coluna, invisível no celular"
+
+echo "18. a página aceita só duas cores no gradiente"
+troca agendar.html \
+  "  if(!(cores.length === 2 || cores.length === 3) || !cores.every(corValida)){" \
+  "  if(!(cores.length === 2) || !cores.every(corValida)){" \
+  && rodar "cor do meio salva e ignorada no link"
+
+echo "19. as letras deixam de olhar a cor do meio"
+troca app.html \
+  "    if(c.length) fundos = c;" \
+  "    if(c.length) fundos = [c[0], c[c.length - 1]];" \
+  && rodar "meio escuro com letra escura"
+
+echo "20. a cor do meio nasce inventada"
+troca app.html \
+  "  aparencia.gradiente = [a, meio, b].join(',');" \
+  "  aparencia.gradiente = [a, '#FF0000', b].join(',');" \
+  && rodar "acrescentar a cor do meio muda o fundo sozinho"
+
+echo "21. o papel de fábrica volta ao bege das margens"
+troca app.html \
+  "  claro:  { papel:'#FFFFFF', card:'#FFFFFF', titulo:'#172033'," \
+  "  claro:  { papel:'#F6F2E8', card:'#FFFFFF', titulo:'#172033'," \
+  && rodar "quadrado bege, celular branco"
+
 echo ""
 echo "$morta mortas, $viva vivas"
 [ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"

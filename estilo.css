@@ -3405,6 +3405,19 @@ body.tem-gradiente{
   background-repeat:no-repeat;
   background-size:cover;
 }
+/* ⚠ E A COLUNA SAI DA FRENTE, como com a imagem (body.tem-fundo, lá em cima).
+   Sem isto o gradiente e a cor escolhida pintavam só o que fica atrás da
+   coluna — as margens de um computador — e o celular via a coluna inteira na
+   cor dos cartões. Os cartões continuam com o fundo deles. */
+body.tem-gradiente .app, body.tem-papel .app{ background:transparent !important; box-shadow:none }
+/* E o cartão de boas-vindas vira cartão de verdade. O fundo dele era o tom
+   transparente da marca: sobre a coluna branca, um lilás; sobre um fundo roxo
+   escolhido pelo dono, nada — e o "Bem-vindo!" roxo em cima de roxo sumia. Só
+   com fundo escolhido: quem nunca escolheu vê o cartão de sempre. */
+body.tem-gradiente .boas, body.tem-papel .boas{
+  background:color-mix(in srgb, var(--ac-600) 10%, var(--painel));
+  border-color:color-mix(in srgb, var(--ac-600) 30%, var(--painel));
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    HORÁRIOS, PAGAMENTOS E INFORMAÇÕES — a fileira, o status e a folha
@@ -3439,7 +3452,14 @@ body.tem-gradiente{
 /* O Horários é o destaque da fileira, como no pedido: fundo suave na cor da
    marca, letra na cor da marca. É o que a cliente mais procura aqui. */
 .recurso.destaque{
-  background:var(--ac-soft); border-color:var(--ac-line); color:var(--ac-600);
+  /* ⚠ OPACO. Era --ac-soft, um tom TRANSPARENTE: sobre o fundo de fábrica
+     ficava bonito, e sobre um fundo roxo o botão roxo-transparente com letra
+     roxa desaparecia — no print dele havia um vão entre Pagamentos e
+     Informações. Agora é o cartão tingido com a marca: um cartão como os
+     outros dois, que se lê sobre qualquer fundo que o dono escolher. */
+  background:color-mix(in srgb, var(--ac-600) 13%, var(--painel));
+  border-color:color-mix(in srgb, var(--ac-600) 38%, var(--painel));
+  color:var(--ac-600);
 }
 .recurso:hover{ box-shadow:0 6px 18px rgba(16,24,40,.08); transform:translateY(-1px) }
 .recurso:active, .recurso.tocado{ transform:scale(.97) }
@@ -3453,17 +3473,20 @@ body.tem-gradiente{
   display:flex; align-items:center; gap:10px; width:100%;
   padding:12px 14px; border-radius:16px; cursor:pointer; text-align:left;
   font:inherit; font-size:14px; line-height:1.25;
-  background:var(--st-soft); border:1px solid var(--st-linha); color:var(--txt2);
+  /* Opaco pelo mesmo motivo do botão Horários: o tom transparente some
+     sobre fundo colorido, e o "ABERTO" verde fica sem o que o separe do roxo. */
+  background:color-mix(in srgb, var(--st-cor) 11%, var(--painel));
+  border:1px solid var(--st-linha); color:var(--txt2);
   transition:transform .18s ease, box-shadow .18s ease;
   -webkit-tap-highlight-color:transparent;
 }
 .status-casa.aberto{
   --st-cor:var(--su-500, #15803D); --st-soft:var(--su-soft, rgba(21,128,61,.10));
-  --st-linha:color-mix(in srgb, var(--st-cor) 28%, transparent);
+  --st-linha:color-mix(in srgb, var(--st-cor) 30%, var(--painel));
 }
 .status-casa.fechado{
   --st-cor:var(--er-500, #DC2626); --st-soft:var(--er-soft, rgba(220,38,38,.09));
-  --st-linha:color-mix(in srgb, var(--st-cor) 26%, transparent);
+  --st-linha:color-mix(in srgb, var(--st-cor) 28%, var(--painel));
 }
 .status-casa:hover{ box-shadow:0 6px 18px rgba(16,24,40,.07) }
 .status-casa:active, .status-casa.tocado{ transform:scale(.985) }
@@ -3632,14 +3655,25 @@ body.com-folha{ overflow:hidden }
 }
 .fone-recurso [data-ico], .fone-recurso svg{ width:13px; height:13px; color:var(--fone-marca) }
 .fone-recurso.destaque{
-  background:color-mix(in srgb, var(--fone-marca) 12%, transparent);
-  border-color:color-mix(in srgb, var(--fone-marca) 30%, transparent);
+  background:color-mix(in srgb, var(--fone-marca) 13%, var(--fone-card, var(--painel)));
+  border-color:color-mix(in srgb, var(--fone-marca) 38%, var(--fone-card, var(--painel)));
   color:var(--fone-marca);
 }
+/* Com "Letras claras" os cartões da página são escuros — a prévia mostrava
+   os três botões brancos, e o dono aprovava uma fileira que não ia ao ar. */
+.fone-escuro .fone-recurso{ background:var(--fone-card, #1D1D20); border-color:#2A2A2E;
+  color:var(--fone-texto, #F2F2F3) }
+.fone-escuro .fone-recurso.destaque{
+  background:color-mix(in srgb, var(--fone-marca) 22%, var(--fone-card, #1D1D20));
+  border-color:color-mix(in srgb, var(--fone-marca) 45%, var(--fone-card, #1D1D20));
+  color:color-mix(in srgb, var(--fone-marca) 55%, #fff);
+}
+.fone-escuro .fone-status{ --fone-base:var(--fone-card, #1D1D20) }
 .fone-status{
   position:relative; z-index:1; display:flex; align-items:center; gap:6px;
   margin:0 0 10px; padding:6px 8px; border-radius:9px; font-size:9px;
-  background:var(--st-soft); border:1px solid var(--st-linha); color:var(--fone-texto, var(--txt2));
+  background:color-mix(in srgb, var(--st-cor) 11%, var(--fone-base, var(--fone-card, var(--painel))));
+  border:1px solid var(--st-linha); color:var(--fone-texto, var(--txt2));
 }
 .fone-status.aberto { --st-cor:var(--su-500, #15803D); --st-soft:var(--su-soft, rgba(21,128,61,.10)) }
 .fone-status.fechado{ --st-cor:var(--er-500, #DC2626); --st-soft:var(--er-soft, rgba(220,38,38,.09)) }

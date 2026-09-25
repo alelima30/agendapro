@@ -449,26 +449,84 @@ secao('4 · A folha de horários');
    5 — AS CORES DO SALÃO
    ══════════════════════════════════════════════════════════════════════════ */
 secao('5 · O componente acompanha a cor do salão');
-const rgb = hex => 'rgb(' + [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16)).join(', ') + ')';
+/* A cor como o NAVEGADOR a pinta, em RGB, venha a regra em que formato vier
+   (color-mix devolve "color(srgb …)"): um pixel de canvas lê qualquer um. */
+const PIXEL = `css => { const c = document.createElement('canvas'); c.width = c.height = 1;
+  const x = c.getContext('2d'); x.fillStyle = '#000'; x.fillStyle = css;
+  x.fillRect(0, 0, 1, 1); return [...x.getImageData(0, 0, 1, 1).data]; }`;
+const matiz = ([r, g, b]) => {
+  [r, g, b] = [r, g, b].map(v => v / 255);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if(!d) return null;
+  const h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return (h * 60 + 360) % 360;
+};
+const pertoDe = (a, b) => a !== null && Math.min(Math.abs(a - b), 360 - Math.abs(a - b)) <= 20;
+const lum = rgb => rgb.slice(0, 3).map(v => v / 255)
+  .map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+  .reduce((s, v, i) => s + [0.2126, 0.7152, 0.0722][i] * v, 0);
+const contraste = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05); };
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+
 for(const [nome, cor] of [['roxo', '#6D28D9'], ['verde', '#15803D'], ['vermelho', '#B91C1C']]){
   const c0 = await cfgDe();
   await dona.atualizar('saloes', SALAO, { cfg: Object.assign({}, c0, { cor }) });
   const { p, fechar } = await pagina(SP('2026-10-05T10:00'));
   await p.click('.status-casa');
   await p.waitForTimeout(400);
-  const r = await p.evaluate(() => {
-    const raiz = getComputedStyle(document.documentElement);
+  const r = await p.evaluate(px => {
+    const pixel = eval(px);
     return {
-      soft: raiz.getPropertyValue('--ac-soft').trim(),
-      botao: getComputedStyle(document.querySelector('.recurso.destaque')).backgroundColor,
-      hoje: getComputedStyle(document.querySelector('.semana-dia.hoje')).backgroundColor,
+      botao: pixel(getComputedStyle(document.querySelector('.recurso.destaque')).backgroundColor),
+      hoje: pixel(getComputedStyle(document.querySelector('.semana-dia.hoje')).backgroundColor),
     };
-  });
-  const [R, G, B] = [1, 3, 5].map(i => parseInt(cor.substr(i, 2), 16));
-  const daMarca = s => s.replace(/\s/g, '').startsWith(`rgba(${R},${G},${B},`);
-  verdade(nome + ': o botão Horários é pintado com a cor do salão', daMarca(r.botao), JSON.stringify(r));
-  verdade(nome + ': e o dia de hoje na folha também', daMarca(r.hoje), JSON.stringify(r));
+  }, PIXEL);
+  const h = matiz(hexRgb(cor));
+  verdade(nome + ': o botão Horários tem o matiz da cor do salão', pertoDe(matiz(r.botao), h),
+    JSON.stringify(r));
+  verdade(nome + ': e o dia de hoje na folha também', pertoDe(matiz(r.hoje), h), JSON.stringify(r));
   await fechar();
+}
+
+{
+  /* ⚠ O PRINT DELE: gradiente roxo forte, letras claras. O botão Horários era
+     roxo-transparente com letra roxa, sobre roxo — sumia, e ficava um vão
+     entre Pagamentos e Informações. O ABERTO verde quase não se lia. Medido
+     aqui como regra: opaco, e a letra se lendo sobre o próprio fundo. */
+  const c0 = await cfgDe();
+  await dona.atualizar('saloes', SALAO, { cfg: Object.assign({}, c0, {
+    cor: '#6D28D9', tema: 'escuro', fundoTipo: 'gradiente', gradiente: '#A000FF,#1A1330' }) });
+  const { p, fechar } = await pagina(SP('2026-10-05T10:00'));
+  const r = await p.evaluate(px => {
+    const pixel = eval(px);
+    const cor = (sel, prop) => pixel(getComputedStyle(document.querySelector(sel))[prop]);
+    return {
+      botaoFundo: cor('.recurso.destaque', 'backgroundColor'),
+      botaoLetra: cor('.recurso.destaque .recurso-rot', 'color'),
+      statusFundo: cor('.status-casa', 'backgroundColor'),
+      statusLetra: cor('.status-casa .status-rot', 'color'),
+      boasFundo: cor('.boas', 'backgroundColor'),
+      boasLetra: cor('.boas-oi', 'color'),
+    };
+  }, PIXEL);
+  verdade('sobre o gradiente roxo, o botão Horários é opaco — não some no fundo',
+    r.botaoFundo[3] === 255, JSON.stringify(r));
+  verdade('e a palavra "Horários" se lê sobre ele (3:1 ou mais)',
+    contraste(r.botaoLetra, r.botaoFundo) >= 3,
+    contraste(r.botaoLetra, r.botaoFundo).toFixed(2) + ':1 ' + JSON.stringify(r));
+  verdade('o cartão ABERTO também é opaco', r.statusFundo[3] === 255, JSON.stringify(r));
+  verdade('e o "ABERTO" se lê sobre ele',
+    contraste(r.statusLetra, r.statusFundo) >= 3,
+    contraste(r.statusLetra, r.statusFundo).toFixed(2) + ':1');
+  /* O cartão Bem-vindo tinha o mesmo defeito: tom transparente da marca, e o
+     "Bem-vindo!" roxo sumindo sobre o fundo roxo. */
+  verdade('o cartão Bem-vindo também é opaco', r.boasFundo[3] === 255, JSON.stringify(r));
+  verdade('e o "Bem-vindo!" se lê sobre ele',
+    contraste(r.boasLetra, r.boasFundo) >= 3,
+    contraste(r.boasLetra, r.boasFundo).toFixed(2) + ':1');
+  await fechar();
+  await dona.atualizar('saloes', SALAO, { cfg: c0 });
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
