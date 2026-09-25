@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.912835';
+const VERSAO_APP = 'v9.016fd2';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -8091,7 +8091,21 @@ function pintarSalao(){
       <section class="ap-sec" id="apBotoes">
         <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🔘</span>Botões e atalhos</h4>
         <p class="ap-sec-sub">O botão de agendar e os atalhos abaixo do endereço.</p>
+      <div class="ap-sub" style="margin-top:4px">Botão Agendar horário</div>
       <div id="coresBotoes" class="cores-grupo"></div>
+      <p class="secao-sub" style="margin-top:6px">O metal e o brilho dele ficam em
+        <b>Gradientes → Botão de agendar</b>.</p>
+
+      <!-- O BOTAO VER PRODUTOS. Ao lado do Agendar horario, no cartao de
+           boas-vindas, quando a casa vende. Discreto e o de sempre; "Igual ao
+           Agendar horario" e o botao cheio, de metal, na cor dos produtos.
+           (Sem crase: template literal.) -->
+      <div class="ap-sub">Botão Ver produtos</div>
+      <div class="regua" id="reguaBotaoProdutos" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaBotaoProdutos" style="margin-top:9px"></p>
+      <div id="coresProdutos" class="cores-grupo"></div>
+
+      <div class="ap-sub">Pagamentos, Horários e Informações</div>
       <!-- OS ATALHOS DA CAPA: Pagamentos, Horarios e Informacoes, logo abaixo
            do endereco. So a APARENCIA deles muda aqui; o que cada um abre e
            quando aparece continua igual. "Com borda" e o desenho de antes e
@@ -8748,6 +8762,8 @@ function lerAparencia(){
        a página já desenhava antes desta escolha existir. */
     capaForma: c.capaForma === 'reta' ? 'reta' : 'curva',
     atalhos: lerAtalhos(c.atalhos),
+    // O botão "Ver produtos": `discreto` (o de sempre) ou `metal`.
+    botaoProdutos: c.botaoProdutos === 'metal' ? 'metal' : 'discreto',
     veu:Number.isFinite(Number(c.veu)) ? Number(c.veu) : 84,
     /* `auto` para quem nunca escolheu — inclusive para todo salão criado
        antes disto existir. Não há o que migrar: o automático faz o que o
@@ -8864,6 +8880,12 @@ const CORES_SOLTAS = [
   ['destaque',   'Texto de destaque e preço', 'O valor do serviço, o "Bem-vindo!" e o que precisa saltar. Só texto.'],
   ['borda',      'Cor das bordas',  'As linhas finas que separam um bloco do outro, e o contorno dos cartões.'],
   ['moldura',    'Moldura do logo', 'O anel em volta da logo, na capa.'],
+  /* A cor dos produtos: o botão "Ver produtos", o carrinho de cada produto e o
+     "Ver todos os produtos". Sem escolha, a cor dos botões — a mesma do
+     Agendar horário. O preço continua sendo "Texto de destaque e preço", como
+     o de todo serviço: dois lugares pintando o mesmo preço seria a mistura que
+     a tela em seções existe para acabar. */
+  ['produtos',   'Cor dos produtos','O botão Ver produtos, o carrinho de cada produto e o Ver todos os produtos.'],
 ];
 /* Onde cada cor aparece na tela. Uma chave, um grupo — o `papel` fica no
    bloco do fundo, junto das outras perguntas sobre o fundo. */
@@ -8874,6 +8896,7 @@ const GRUPOS_DE_COR = [
   ['coresIcones', ['icone', 'iconeDestaque']],
   ['coresBordas', ['borda', 'moldura']],
   ['coresBotoes', ['botao']],
+  ['coresProdutos', ['produtos']],
 ];
 
 function pintarAparencia(){
@@ -9001,6 +9024,7 @@ function pintarAparencia(){
     el.querySelector('.cor-linha-ajuda').textContent = tem ? ajuda
       : chave === 'icone' ? 'automático — o cinza do texto, sem acompanhar a cor que você der a ele'
       : chave === 'moldura' ? 'automático — a cor dos cartões, que recorta a logo da foto'
+      : chave === 'produtos' ? 'acompanha a cor dos botões — a mesma do Agendar horário'
       : doTema ? 'automático — toque no quadrado para escolher'
                : 'acompanha a cor da marca';
     el.querySelector('button').style.display = tem ? '' : 'none';
@@ -9136,7 +9160,7 @@ function pintarAparencia(){
     /* ⚠ O `<input type="color">` NÃO ACEITA VAZIO. Sem escolha, ele mostra a
        cor do botão — que é o que a fita realmente vai usar — e quem diz se
        houve escolha é a frase ao lado, não o quadradinho. */
-    fc.value = aparencia.fitaCor || aparencia.cor;
+    fc.value = aparencia.fitaCor || corDoBotaoNaPrevia();   // a fita herda o BOTÃO, e não a marca
     document.getElementById('fitaCorAjuda').textContent = aparencia.fitaCor
       ? 'cor própria, escolhida por você' : 'acompanha a cor do botão';
     document.getElementById('fitaCorHerdar').style.display =
@@ -9203,6 +9227,12 @@ function pintarAparencia(){
     ['reta', 'Reta', 'A foto termina numa linha reta, de um lado ao outro.'],
   ], 'capaForma', 'explicaCapaForma');
   pintarAtalhos();
+  regua('reguaBotaoProdutos', [
+    ['discreto', 'Discreto', 'Contorno fino, sem fundo — como era. O Agendar horário '
+      + 'continua sendo o que chama mais atenção.'],
+    ['metal', 'Igual ao Agendar horário', 'Botão cheio, com o mesmo metal e o mesmo '
+      + 'brilho do Agendar horário, na cor dos produtos (logo abaixo).'],
+  ], 'botaoProdutos', 'explicaBotaoProdutos');
   regua('reguaMoldura', MOLDURAS, 'moldura', 'explicaMoldura');
   regua('reguaLetra', LETRAS, 'letra', 'explicaLetra');
   regua('reguaSlide', SLIDES, 'slideDe', 'explicaSlide');
@@ -9533,6 +9563,7 @@ function corHerdada(chave){
   // O anel da logo, sem escolha, é o cartão (ou o papel, no premium) — a
   // mesma reserva da página. O quadrado mostrava a cor da marca.
   if(chave === 'moldura') return corDoAnelPadrao();
+  if(chave === 'produtos') return corDoBotaoNaPrevia();
   /* O cinza sai do texto escolhido, quando há um — a mesma dedução do
      `aplicarCoresSoltas()` da página, com a mesma conta. */
   if(chave === 'discreto' && corValida(c.texto))
@@ -9761,12 +9792,23 @@ function previaDoSlide(sl){
       ? 'Nenhuma foto ou vídeo ainda — adicione em Identidade visual.'
       : 'Nenhum serviço com foto ainda.'}</div>`;
   }
+  /* ⚠ COMO NA PÁGINA: a forma escolhida em "Formato do slide", a foto inteira
+     sobre uma cópia borrada dela, o nome embaixo e as bolinhas. A prévia era
+     4:3 com um "1 de 5" que a página não tem — no print dele, o slide da
+     prévia era outro objeto. */
   const m = itens[0];
-  return `<div class="fone-slide">
+  const FORMA = { panoramico:'16 / 8', paisagem:'16 / 9', quadrado:'1 / 1', retrato:'4 / 5' };
+  const legenda = daGaleria ? (m.legenda || '')
+    : ((bd.servicos || []).find(s => s.foto === m.url) || {}).nome || '';
+  return `<div class="fone-slide" data-cfg="slide"
+               style="aspect-ratio:${FORMA[aparencia.slideForma] || '16 / 8'}">
     ${m.tipo === 'video'
       ? `<video src="${escapar(m.url)}" muted playsinline preload="metadata"></video>`
-      : `<img src="${escapar(m.url)}" alt="">`}
-    ${itens.length > 1 ? `<span class="fone-slide-n">1 de ${itens.length}</span>` : ''}
+      : `<span class="fone-slide-fundo" style="background-image:url('${escapar(m.url)}')"></span>
+         <img src="${escapar(m.url)}" alt="">`}
+    ${legenda ? `<span class="fone-slide-leg">${escapar(legenda)}</span>` : ''}
+    ${itens.length > 1 ? `<span class="fone-slide-pontos">${itens.slice(0, 6).map((_, i) =>
+      `<i${i ? '' : ' class="on"'}></i>`).join('')}</span>` : ''}
   </div>`;
 }
 
@@ -9958,10 +10000,10 @@ function previaDaInfo(sl){
     botoes.push(['info', 'Informações', false, 'informacoes']);
   if(!botoes.length) return '';
   const est = func ? Funcionamento.estado(func, Funcionamento.agora(sl.fuso)) : null;
-  return `<div class="fone-recursos" style="--n:${botoes.length}">${botoes.map(([ico, rot, d, qual]) =>
+  return `<div class="fone-recursos" data-cfg="atalhos" style="--n:${botoes.length}">${botoes.map(([ico, rot, d, qual]) =>
       `<span class="fone-recurso${d ? ' destaque' : ''}" data-recurso="${qual}"><span data-ico="${ico}"></span>${rot}</span>`
     ).join('')}</div>`
-    + (est ? `<div class="fone-status ${est.aberto ? 'aberto' : 'fechado'}">
+    + (est ? `<div class="fone-status ${est.aberto ? 'aberto' : 'fechado'}" data-cfg="status">
         <i></i><b>${est.aberto ? 'ABERTO' : 'FECHADO'}</b><span class="fone-status-sep"></span><span class="fone-status-txt">${
           escapar(est.detalhe)}</span><span class="fone-status-seta"></span></div>` : '');
 }
@@ -9982,17 +10024,52 @@ function pintarPreviaFone(){
   const eq = !comServicos ? [] : (bd.profissionais || [])
     .filter(x => x.salaoId === salaoAtual && x.ativo !== false).slice(0, 2);
   const lojaNoAr = usaLojaNoLink(sl) && !porqueALojaNaoAparece(sl);
-  const cta = comServicos ? 'Agendar horário'
-            : lojaNoAr    ? 'Ver produtos'
-            : zapDaCasa(sl) ? 'Falar no WhatsApp' : '';
+  /* ⚠ OS PRODUTOS ENTRAM NA PRÉVIA COMO NA PÁGINA — as mesmas regras do
+     `desenharCapa()` e do `desenharLojaNaCapa()`. A prévia não mostrava nem o
+     "Ver produtos" do Bem-vindo nem a vitrine: no print dele, o link tinha
+     produtos e a prévia não ("tá diferente da prévia"). A lista vem em ordem
+     de nome, como a vitrine() entrega. */
+  const produtos = !lojaNoAr ? [] : (bd.produtos || [])
+    .filter(x => x.salaoId === salaoAtual && x.ativo !== false && x.vendaOnline)
+    .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'));
+  const temPr = produtos.length > 0;
+  const convite = (comServicos && temPr) ? 'Escolha o serviço, agende seu horário ou confira nossos produtos.'
+    : comServicos ? 'Escolha o serviço e agende seu horário em poucos toques.'
+    : temPr       ? 'Monte o seu pedido e mande pelo WhatsApp em poucos toques.'
+    : zapDaCasa(sl) ? 'Fale com a gente pelo WhatsApp — respondemos por lá.'
+    : 'Que bom ver você por aqui.';
+  /* Os botões: o primeiro é sempre o de metal; o "Ver produtos", quando vem
+     em segundo, é discreto — ou igual ao Agendar horário, se o dono escolheu.
+     A cor dele é a "Cor dos produtos", e sem ela a dos botões. */
+  const corProd = corValida((aparencia.cores || {}).produtos) ? aparencia.cores.produtos : null;
+  const metalProd = corProd || corDoBotaoNaPrevia();
+  const botoes = [];
+  if(comServicos) botoes.push(['agendar', 'Agendar horário']);
+  if(temPr) botoes.push(['produtos', 'Ver produtos']);
+  if(!botoes.length && zapDaCasa(sl)) botoes.push(['agendar', 'Falar no WhatsApp']);
+  const htmlBotoes = botoes.map(([q, rot], i) => {
+    const brilho = aparencia.brilho ? ' com-brilho' : '';
+    if(q !== 'produtos')
+      return `<div class="fone-cta${brilho}" data-cfg="agendar">${rot}</div>`;
+    if(i === 0 || aparencia.botaoProdutos === 'metal')
+      return `<div class="fone-cta fone-cta-prod${brilho}" data-cfg="produtos"
+                   style="--fone-marca:${metalProd};--fone-marca-txt:${letraSobre(metalProd)}">${rot}</div>`;
+    return `<div class="fone-cta2${corProd ? ' com-cor' : ''}" data-cfg="produtos">${rot}</div>`;
+  }).join('');
+  /* O véu engrossa os cartões só quando há FOTO de fundo, como o
+     `fundo-forte` da página. Antes valia para qualquer fundo com véu baixo
+     guardado, e a prévia de um fundo liso mostrava blocos brancos. */
+  const fotoNoFundo = !!imagemDoSalao(sl, 'fundo') && aparencia.fundoTipo === 'imagem';
+  const cartoesFechados = fotoNoFundo && (aparencia.cartoes === 'fechado'
+    || (aparencia.cartoes !== 'vidro' && aparencia.veu < 35));
 
   alvo.innerHTML =
     `<div class="fone ${escuro ? 'fone-escuro' : ''}${
-          aparencia.veu < 35 ? ' pouco-veu' : ''}${
+          cartoesFechados ? ' pouco-veu' : ''}${
           aparencia.fundoTipo === 'gradiente' ? ' com-grad' : ''}${
           corValida((aparencia.cores || {}).papel) ? ' com-papel' : ''}"
           data-modo="${aparencia.modo}" data-logo="${aparencia.logoForma}"
-          data-atalhos="${aparencia.atalhos.estilo}"
+          data-atalhos="${aparencia.atalhos.estilo}" data-cfg="fundo"
           style="--fone-marca:${escapar(corDoBotaoNaPrevia())};--fone-marca-txt:${
             letraSobre(corDoBotaoNaPrevia())}${coresDaPrevia()}${tonsDaMarcaNaPrevia()}${
             anelDaPrevia()}${sombraDaPrevia()}">
@@ -10000,17 +10077,18 @@ function pintarPreviaFone(){
          ? `<div class="fone-fundo" style="background-image:url('${imagemDoSalao(sl, 'fundo')}');
                   --veu:${aparencia.veu / 100}"></div>`
          : ''}
-       ${sl.capa ? `<div class="fone-capa${aparencia.capaForma === 'reta' ? ' reta' : ''}"
+       ${sl.capa ? `<div class="fone-capa${aparencia.capaForma === 'reta' ? ' reta' : ''}" data-cfg="capa"
                           style="background-image:url('${sl.capa}');
                           --foco:${aparencia.capaFoco}%"></div>` : ''}
        <div class="fone-topo" data-letra="${aparencia.letra}">
-         ${sl.logo ? `<img src="${escapar(sl.logo)}" alt="">`
-                   : `<div class="fone-selo">${escapar((sl.nome || 'A').charAt(0))}</div>`}
-         <b>${escapar(sl.nome || 'Seu salão')}</b>
+         ${sl.logo ? `<img src="${escapar(sl.logo)}" alt="" data-cfg="logo">`
+                   : `<div class="fone-selo" data-cfg="logo">${escapar((sl.nome || 'A').charAt(0))}</div>`}
+         <b data-cfg="nome">${escapar(sl.nome || 'Seu salão')}</b>
          ${(() => {
             const e = Endereco.completo(sl.endereco);
             return e.length
-              ? `<span><span class="fone-pino" data-ico="local"></span>${escapar(e[0])}</span>${e[1] ? `<i>${escapar(e[1])}</i>` : ''}`
+              ? `<span data-cfg="endereco"><span class="fone-pino" data-ico="local" data-cfg="pino"></span>${
+                  escapar(e[0])}</span>${e[1] ? `<i data-cfg="endereco">${escapar(e[1])}</i>` : ''}`
               : '<span>Agende seu horário</span>';
           })()}
        </div>
@@ -10019,18 +10097,31 @@ function pintarPreviaFone(){
             serviços, equipe. Estava com o slide antes do botão, e prévia que
             embaralha a ordem engana justamente sobre o que a cliente vê
             primeiro — que é a coisa que mais importa nesta tela. -->
-       <div class="fone-boas">
-         <b class="fone-boas-t">Bem-vindo!</b>
-         ${cta ? `<div class="fone-cta ${aparencia.brilho ? 'com-brilho' : ''}">${cta}</div>` : ''}
+       <div class="fone-boas" data-cfg="boas">
+         <b class="fone-boas-t" data-cfg="destaque">Bem-vindo!</b>
+         <p class="fone-boas-sub" data-cfg="endereco">${escapar(convite)}</p>
+         ${htmlBotoes}
        </div>
        ${previaDoSlide(sl)}
-       ${comServicos ? `<div class="fone-svs">
-         <div class="fone-rot">Nossos serviços</div>
+       ${comServicos ? `<div class="fone-svs" data-cfg="servicos">
+         <div class="fone-rot" data-cfg="rotulos">Nossos serviços</div>
          ${svs.length ? previaDosServicos(svs)
          : '<p class="fone-nada">Cadastre serviços para vê-los aqui.</p>'}
        </div>` : ''}
-       ${eq.length ? `<div class="fone-svs">
-         <div class="fone-rot">Quem atende</div>
+       ${temPr ? `<div class="fone-svs" data-cfg="produtos">
+         <div class="fone-rot" data-cfg="rotulos">Produtos em destaque</div>
+         <div class="fone-grade">${produtos.slice(0, 2).map(x => `
+           <div class="fone-cartao fone-pr${aparencia.moldura === 'elegante' ? '' : ' reta'}">
+             <div class="fone-cartao-foto"${x.foto ? ` style="background-image:url('${escapar(x.foto)}')"` : ''}>${
+               x.foto ? '' : '<span data-ico="presente"></span>'}</div>
+             <div class="fone-cartao-txt"><b>${escapar(x.nome)}</b>
+               <span class="fone-preco" data-cfg="preco">${x.preco == null ? 'sob consulta' : real(Number(x.preco))}</span></div>
+             <span class="fone-pr-add"><span data-ico="carrinho"></span></span>
+           </div>`).join('')}</div>
+         <div class="fone-ver-todos">Ver todos os produtos <span>${produtos.length}</span></div>
+       </div>` : ''}
+       ${eq.length ? `<div class="fone-svs" data-cfg="servicos">
+         <div class="fone-rot" data-cfg="rotulos">Quem atende</div>
          ${eq.map(x => `<div class="fone-sv">
             <div class="fone-eq"${x.foto ? ` style="background-image:url('${escapar(x.foto)}')"` : ''}>${
               x.foto ? '' : escapar((x.nome || '?').charAt(0).toUpperCase())}</div>
@@ -10043,7 +10134,7 @@ function pintarPreviaFone(){
             no celular, com um produto no carrinho — tres passos para conferir
             uma escolha de dois segundos.
             (Sem crase e sem acento: comentario em template literal.) -->
-       <div class="fone-fita${aparencia.fitaBrilho ? ' com-brilho' : ''}"
+       <div class="fone-fita${aparencia.fitaBrilho ? ' com-brilho' : ''}" data-cfg="fita"
             data-metal="${aparencia.fitaMetal}"
             data-tempo="${aparencia.fitaTempo}"
             data-borda="${aparencia.fitaBorda}"
@@ -10056,7 +10147,69 @@ function pintarPreviaFone(){
        </div>
      </div>
      <p class="secao-sub" style="text-align:center;margin-top:8px">
-       Prévia — é assim que a cliente vê</p>`;
+       Prévia — é assim que a cliente vê.<br>
+       <b>Toque em qualquer parte do celular</b> para ir direto à configuração dela.</p>`;
+  if(!alvo._toque){
+    alvo.addEventListener('click', e => {
+      const el = e.target.closest('[data-cfg]');
+      if(el && alvo.contains(el)) irParaConfig(el.dataset.cfg);
+    });
+    alvo._toque = true;
+  }
+}
+
+/* ── TOCAR NA PRÉVIA LEVA À CONFIGURAÇÃO ─────────────────────────────────
+   "É possível clicar em cima do Agendar horário e ir direto para a
+   configuração dele? Ou clicar na moldura e configurar?" Cada pedaço do
+   celular desenhado tem um `data-cfg`, e o toque rola a tela até os
+   controles que mudam aquele pedaço e acende eles por um instante. O dono
+   não precisa saber em que seção mora cada coisa: aponta para ela.
+
+   O toque pega o pedaço MAIS DE DENTRO: tocar no nome do salão leva aos
+   títulos, e não ao fundo do celular que está atrás dele. */
+const CONFIG_DA_PREVIA = {
+  fundo:    ['#reguaFundoTipo', '#corDoPapel .cor-linha'],
+  capa:     ['#fxFoco', '#reguaCapaForma'],
+  logo:     ['.cor-linha[data-chave="moldura"]', '#reguaLogoBorda', '#reguaLogoForma'],
+  nome:     ['.cor-linha[data-chave="titulo"]', '#reguaLetra'],
+  endereco: ['.cor-linha[data-chave="texto"]', '.cor-linha[data-chave="discreto"]'],
+  pino:     ['.cor-linha[data-chave="icone"]'],
+  atalhos:  ['#reguaAtalhos', '#atCorPagamentos', '#atCorHorarios', '#atCorInformacoes'],
+  // O verde e o vermelho são do horário; o que se escolhe nele é o cartão
+  // que o tinge.
+  status:   ['.cor-linha[data-chave="card"]'],
+  boas:     ['.cor-linha[data-chave="secundaria"]', '.cor-linha[data-chave="card"]'],
+  destaque: ['.cor-linha[data-chave="destaque"]'],
+  agendar:  ['.cor-linha[data-chave="botao"]', '#reguaBrilho'],
+  produtos: ['#reguaBotaoProdutos', '.cor-linha[data-chave="produtos"]'],
+  slide:    ['#reguaSlide', '#reguaSlideForma'],
+  servicos: ['#reguaMoldura', '.cor-linha[data-chave="borda"]', '.cor-linha[data-chave="card"]'],
+  rotulos:  ['.cor-linha[data-chave="discreto"]'],
+  preco:    ['.cor-linha[data-chave="destaque"]'],
+  fita:     ['#reguaFitaMetal', '#reguaFitaBorda', '#reguaFitaBrilho', '#reguaFitaTempo', '#fitaCor'],
+};
+function irParaConfig(chave){
+  const alvos = [];
+  for(const sel of CONFIG_DA_PREVIA[chave] || []){
+    const el = document.querySelector('.ap-controles ' + sel);
+    if(!el) continue;
+    // O quadrado de cor acende a linha inteira; a régua, junto do nome dela.
+    const bloco = el.closest('.cor-linha') || el;
+    alvos.push(bloco);
+    const rotulo = bloco.previousElementSibling;
+    if(bloco.classList.contains('regua') && rotulo && /\b(rot|secao)\b/.test(rotulo.className))
+      alvos.push(rotulo);
+  }
+  const visiveis = alvos.filter(el => el.offsetParent !== null);
+  if(!visiveis.length) return;
+  visiveis[0].scrollIntoView({ behavior:'smooth', block:'center' });
+  for(const el of visiveis){
+    el.classList.remove('ap-alvo');
+    void el.offsetWidth;            // recomeça o piscar se tocar de novo
+    el.classList.add('ap-alvo');
+    clearTimeout(el._alvoT);
+    el._alvoT = setTimeout(() => el.classList.remove('ap-alvo'), 2400);
+  }
 }
 
 function salvarAparencia(){
@@ -10073,6 +10226,7 @@ function salvarAparencia(){
     capaFoco: aparencia.capaFoco,
     capaForma: aparencia.capaForma,
     atalhos: aparencia.atalhos,
+    botaoProdutos: aparencia.botaoProdutos,
     veu: aparencia.veu,
     cartoes: aparencia.cartoes,
     moldura: aparencia.moldura,

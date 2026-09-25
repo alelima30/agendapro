@@ -168,7 +168,9 @@ language sql stable security definer set search_path = public as $$
       -- O estilo dos atalhos da capa. Só objeto passa; os números são
       -- peneirados na página (aplicarAtalhos). Nulo é o cartão com borda.
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
-                      then s.cfg->'atalhos' end
+                      then s.cfg->'atalhos' end,
+      -- O botão "Ver produtos": só 'metal' sai; nulo é o discreto de sempre.
+      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end
     ),
 
     'servicos', coalesce((

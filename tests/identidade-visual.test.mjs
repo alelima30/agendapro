@@ -201,10 +201,11 @@ const daTela = await p.evaluate(() => ({
 }));
 console.log('      ' + JSON.stringify(daTela));
 verdade('a tela de Aparência ganhou o seletor de modo', daTela.temModo);
-// Doze: as onze de antes e os "Ícones de destaque", que separaram os ícones
-// dos atalhos da cor do texto de destaque. Cada uma uma vez só.
-igual('as doze cores aparecem uma a uma', daTela.temCores, 12);
-igual('nenhuma repetida', daTela.chavesUnicas, 12);
+// Treze: as onze de antes, os "Ícones de destaque" (que separaram os ícones
+// dos atalhos da cor do texto de destaque) e a "Cor dos produtos" (o botão
+// Ver produtos e o carrinho). Cada uma uma vez só.
+igual('as treze cores aparecem uma a uma', daTela.temCores, 13);
+igual('nenhuma repetida', daTela.chavesUnicas, 13);
 verdade('e a cor do papel fica junto das outras perguntas sobre fundo',
   daTela.papelJuntoDoFundo && daTela.papelForaDaLista,
   'ela ficou na lista das onze, longe de onde se pergunta pelo fundo');

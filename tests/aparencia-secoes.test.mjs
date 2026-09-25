@@ -162,7 +162,7 @@ const medir = p => p.evaluate(([h, S]) => { const hex = eval(h);
    ══════════════════════════════════════════════════════════════════════════ */
 secao('1. A tela em seções, cada cor numa só');
 const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 'texto', 'discreto', 'destaque'],
-  apIcones:['icone', 'iconeDestaque'], apBordas:['borda', 'moldura'], apBotoes:['botao'] };
+  apIcones:['icone', 'iconeDestaque'], apBordas:['borda', 'moldura'], apBotoes:['botao', 'produtos'] };
 {
   const { p, fechar } = await painel();
   const t = await p.evaluate(() => ({

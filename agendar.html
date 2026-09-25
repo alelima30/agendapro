@@ -1132,6 +1132,8 @@ function bdDaVitrine(v){
       instagram: s.instagram || null,
       // A divisão da foto de capa: só `reta` chega; nulo é o arco de sempre.
       capaForma: s.capaForma || null,
+      // O botão "Ver produtos": 'metal' ou nulo (o discreto de sempre).
+      botaoProdutos: s.botaoProdutos || null,
       // O estilo dos atalhos (Pagamentos, Horários, Informações). Peneirado
       // no `aplicarAtalhos()`; nulo é o cartão com borda de sempre.
       atalhos: (s.atalhos && typeof s.atalhos === 'object') ? s.atalhos : null,
@@ -1962,8 +1964,15 @@ function desenharCapa(){
   const botoes = [];
   if(temSv) botoes.push(['servico', 'calendario', voc('acao')]);
   if(temPr) botoes.push(['loja', 'carrinho', 'Ver produtos']);
+  /* O "Ver produtos" em segundo lugar é discreto — a não ser que o dono
+     escolha, em Aparência, "Igual ao Agendar horário": aí é metal também, na
+     cor dos produtos (--prod-cor, quando escolhida). A classe boas-produtos
+     marca o botão em qualquer posição, para a cor dele valer sempre. */
+  const metalProd = (salao.botaoProdutos || cfg.botaoProdutos) === 'metal';
+  const classeDo = (t, i) => (i === 0 || (t === 'loja' && metalProd) ? 'boas-cta' : 'boas-b2')
+    + (t === 'loja' ? ' boas-produtos' : '');
   const acoes = botoes.map(([t, ico, rot], i) => `
-    <button class="${i === 0 ? 'boas-cta' : 'boas-b2'}" onclick="irPara('${t}')">
+    <button class="${classeDo(t, i)}" onclick="irPara('${t}')">
       <span data-ico="${ico}"></span> ${escapar(rot)}</button>`).join('');
   document.getElementById('capaBoas').innerHTML = `
     <div class="boas">
@@ -3928,7 +3937,7 @@ function desenharLojaNaCapa(){
          na mesma pagina, e duas formas diferentes para o mesmo gesto fazem a
          cliente achar que sao coisas diferentes.
          (Sem crase e sem acento: comentario dentro de template literal.) -->
-    <button class="ver-todos" onclick="irPara('loja')">
+    <button class="ver-todos ver-todos-produtos" onclick="irPara('loja')">
       <span data-ico="carrinho"></span>
       Ver todos os produtos
       <span class="ver-todos-n">${lista.length}</span>
@@ -5171,6 +5180,16 @@ function aplicarCoresSoltas(s, p, escuro){
   // Os ícones da marca: atalhos e a janela que eles abrem (estilo.css).
   const iconeDestaque = vale('iconeDestaque');
   if(iconeDestaque) p('--ico-destaque', iconeDestaque);
+  /* A cor dos produtos: o "Ver produtos", o carrinho de cada produto e o
+     "Ver todos os produtos". A letra é calculada em cima dela, como a do
+     botão — senão um dourado escolhido levaria letra branca. */
+  const produtos = vale('produtos');
+  document.body.classList.toggle('tem-cor-produtos', !!produtos);
+  if(produtos){
+    p('--prod-cor', produtos);
+    p('--prod-txt', letraSobre(produtos));
+    p('--prod-hover', mexer(produtos, escuro ? 0.14 : -0.14));
+  }
   const destaque = vale('destaque');
   if(destaque){
     p('--ac-600', destaque);

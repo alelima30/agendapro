@@ -312,6 +312,23 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a vitrine() é de antes do estilo dos atalhos: a prévia '
                || 'muda e o link não'
            else '' end
+  union all
+  /* O botão "Ver produtos" igual ao Agendar horário. Sem a chave, a prévia
+     mostra o botão cheio e o link continua com o discreto. */
+  select 18, 'botão Ver produtos na página',
+         case
+           when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%botaoProdutos%' then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.vitrine(text)') is null
+             then 'a vitrine() nem existe — rode o 00_tudo.sql'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%botaoProdutos%'
+             then 'a vitrine() é de antes do botão Ver produtos: a prévia '
+               || 'muda e o link não'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

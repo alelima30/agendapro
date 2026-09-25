@@ -1284,7 +1284,8 @@ language sql stable security definer set search_path = public as $$
       'gradiente', s.cfg->>'gradiente',
       'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end,
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
-                      then s.cfg->'atalhos' end
+                      then s.cfg->'atalhos' end,
+      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end
     ),
     'servicos', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1399,7 +1400,8 @@ language sql stable security definer set search_path = public as $$
                                               '[^A-Za-z0-9._]', '', 'g'), 30), ''),
       'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end,
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
-                      then s.cfg->'atalhos' end
+                      then s.cfg->'atalhos' end,
+      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end
     ),
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(

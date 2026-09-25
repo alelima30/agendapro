@@ -145,9 +145,8 @@ troca app.html \
 
 echo "15. a prévia ignora o estilo"
 troca app.html \
-  "          data-atalhos=\"\${aparencia.atalhos.estilo}\"
-" \
-  "" \
+  " data-atalhos=\"\${aparencia.atalhos.estilo}\" data-cfg=" \
+  " data-cfg=" \
   && rodar "prévia com borda, link sem moldura"
 
 echo "16. a prévia do Sem moldura mantém a caixa"

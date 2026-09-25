@@ -3027,7 +3027,9 @@ language sql stable security definer set search_path = public as $$
       -- O estilo dos atalhos da capa. Só objeto passa; os números são
       -- peneirados na página (aplicarAtalhos). Nulo é o cartão com borda.
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
-                      then s.cfg->'atalhos' end
+                      then s.cfg->'atalhos' end,
+      -- O botão "Ver produtos": só 'metal' sai; nulo é o discreto de sempre.
+      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end
     ),
 
     'servicos', coalesce((
@@ -10681,7 +10683,10 @@ language sql stable security definer set search_path = public as $$
          passa, sem cast nenhum: os números são peneirados na página. Nulo é
          o cartão com borda de sempre. */
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
-                      then s.cfg->'atalhos' end
+                      then s.cfg->'atalhos' end,
+      /* O botão "Ver produtos" igual ao Agendar horário. Só 'metal' sai;
+         nulo é o discreto de sempre. */
+      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────

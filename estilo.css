@@ -984,7 +984,7 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
    a compensação é pior que prévia nenhuma — ela desaconselha o ajuste que
    acabou de ser criado. */
 .fone.pouco-veu .fone-svs, .fone.pouco-veu .fone-boas{
-  background:color-mix(in srgb, var(--painel) 97%, transparent);
+  background:color-mix(in srgb, var(--fone-card, var(--painel)) 97%, transparent);
 }
 .fone.pouco-veu .fone-topo b{ text-shadow:0 1px 3px rgba(0,0,0,.28) }
 /* A prévia repete a letra escolhida. Sem isto ela mostraria o nome sempre na
@@ -1099,10 +1099,18 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   font-size:11.5px; color:var(--fone-discreto, var(--txt3)); text-align:center; line-height:1.4;
   border:1px dashed var(--fone-borda, var(--borda));
 }
-.fone-slide-n{
-  position:absolute; right:6px; bottom:6px; padding:2px 6px; border-radius:5px;
-  background:rgba(0,0,0,.6); color:#fff; font-size:11px; font-weight:640;
-}
+/* O slide da prévia como o da página: foto inteira sobre a cópia borrada,
+   nome embaixo, bolinhas por cima. */
+.fone-slide-fundo{ position:absolute; inset:-12px; background:center/cover no-repeat;
+  filter:blur(12px) saturate(1.25) brightness(.72) }
+.fone-slide img{ position:relative; object-fit:contain }
+.fone-slide-leg{ position:absolute; left:0; right:0; bottom:0; padding:12px 8px 6px;
+  color:#fff; font-size:9.5px; font-weight:600; text-shadow:0 1px 2px rgba(0,0,0,.6);
+  background:linear-gradient(to top, rgba(0,0,0,.55), transparent) }
+.fone-slide-pontos{ position:absolute; left:0; right:0; bottom:5px; display:flex;
+  justify-content:center; gap:4px }
+.fone-slide-pontos i{ width:4px; height:4px; border-radius:2px; background:rgba(255,255,255,.55) }
+.fone-slide-pontos i.on{ width:11px; background:var(--fone-marca) }
 
 /* O cartão de boas-vindas, com o botão dentro — como na página de verdade. */
 /* Os tons vêm do salão (--fone-ac*, escritos pelo `tonsDaMarcaNaPrevia()`),
@@ -1119,6 +1127,57 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 .fone-boas-t{ display:block; font-size:11.5px;
   color:var(--fone-ac, var(--ac-600)); margin-bottom:7px }
 .fone-boas .fone-cta{ margin-bottom:0 }
+/* O convite do Bem-vindo e o segundo botão, como na página (.boas-sub e
+   .boas-b2). */
+.fone-boas-sub{ margin:-3px 0 8px; font-size:9.5px; line-height:1.4;
+  color:var(--fone-texto, var(--fone-ico-texto, var(--txt2))) }
+.fone-boas .fone-cta + .fone-cta, .fone-boas .fone-cta + .fone-cta2{ margin-top:6px }
+.fone-cta2{
+  padding:10px; border-radius:12px; text-align:center; font-size:12.5px; font-weight:600;
+  background:var(--fone-card, var(--painel)); color:var(--fone-titulo, currentColor);
+  border:1px solid color-mix(in srgb, var(--fone-titulo, currentColor) 24%, transparent);
+}
+.fone-cta2.com-cor{ color:var(--fone-produtos);
+  border-color:color-mix(in srgb, var(--fone-produtos) 55%, var(--fone-card, var(--painel))) }
+/* Os produtos em destaque: o mesmo cartão dos serviços (com a onda na
+   moldura curvada, reto na clássica), o carrinho redondo e o "ver todos". */
+.fone-pr.reta .fone-cartao-foto{ -webkit-mask-image:none; mask-image:none; margin-bottom:0 }
+.fone-pr .fone-cartao-foto{ display:grid; place-items:center; color:var(--fone-discreto, var(--txt3)) }
+/* Produto sem foto: o fundo é o cartão um tom acima, como o .pr-foto da
+   página — e não o cinza #26262A das fotos de serviço do escuro antigo. */
+.fone .fone-pr .fone-cartao-foto{
+  background-color:color-mix(in srgb, var(--fone-card, var(--painel)) 93%, #fff) }
+.fone-pr .fone-cartao-foto [data-ico], .fone-pr .fone-cartao-foto svg{ width:18px; height:18px }
+.fone-pr .fone-cartao-txt{ padding-right:30px }
+.fone-pr-add{ position:absolute; right:6px; bottom:6px; width:22px; height:22px; border-radius:50%;
+  display:grid; place-items:center;
+  background:color-mix(in srgb, var(--fone-produtos, var(--fone-ac-marca, var(--fone-marca))) 15%, transparent);
+  color:var(--fone-produtos, var(--fone-ac-marca, var(--fone-marca))) }
+.fone-pr-add [data-ico], .fone-pr-add svg{ width:12px; height:12px }
+.fone-ver-todos{ margin-top:7px; padding:8px; border-radius:10px; text-align:center;
+  font-size:11px; font-weight:650; background:var(--fone-card, var(--painel));
+  color:var(--fone-produtos, var(--fone-ac, var(--ac-600)));
+  border:1px solid color-mix(in srgb, var(--fone-produtos, var(--fone-ac, var(--ac-600))) 35%, transparent) }
+.fone-ver-todos span{ margin-left:4px; padding:0 5px; border-radius:99px;
+  background:color-mix(in srgb, currentColor 14%, transparent) }
+
+/* ── TOCAR NA PRÉVIA ──────────────────────────────────────────────────────
+   Cada pedaço do celular leva à configuração dele (irParaConfig). O contorno
+   aparece só no pedaço mais de dentro sob o mouse — o `:has` impede que o
+   celular inteiro acenda junto com o botão que está nele. */
+#previaFone [data-cfg]{ cursor:pointer }
+#previaFone [data-cfg]:hover:not(:has([data-cfg]:hover)){
+  outline:2px dashed var(--ac-600); outline-offset:2px;
+}
+/* O controle que o toque encontrou acende por um instante. */
+.ap-alvo{ animation:ap-alvo 2.4s ease-out 1; border-radius:10px }
+@keyframes ap-alvo{
+  0%, 55%{ box-shadow:0 0 0 3px var(--ac-600); background-color:var(--ac-soft) }
+  100%   { box-shadow:0 0 0 3px transparent; background-color:transparent }
+}
+@media (prefers-reduced-motion: reduce){
+  .ap-alvo{ animation:none; box-shadow:0 0 0 3px var(--ac-600) }
+}
 /* 11px é o piso, aqui como em qualquer outro texto do painel: a prévia é
    pequena, mas quem a lê é a mesma pessoa, no mesmo celular. */
 .fone-rot{
@@ -1144,8 +1203,10 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 .fone-escuro .fone-sv-foto{background-color:#26262A}
 .fone-sv-txt b{display:block;font-size:12px;line-height:1.3;
   color:var(--fone-titulo, inherit)}
+/* O preço é "Texto de destaque e preço": na página ele é o --ac-600 (a marca
+   puxada, ou o destaque escolhido), e não a cor do botão. */
 .fone-preco{font-size:12.5px;font-weight:700;
-  color:var(--fone-destaque, var(--fone-marca))}
+  color:var(--fone-ac, var(--fone-destaque, var(--fone-marca)))}
 
 /* ── A MOLDURA CURVADA, DENTRO DA PRÉVIA ──────────────────────────────────
    O mesmo desenho do `.sv-cartao` da página da cliente, em 106px de largura.
@@ -2482,6 +2543,30 @@ body.sem-brilho .boas-cta::after{ animation:none; opacity:0 }
   border:1px solid var(--borda-forte); font-weight:560; font-size:15px;
 }
 .boas-b2:hover{ background:var(--painel2) }
+/* ── A COR DOS PRODUTOS (Aparência → Botões e atalhos) ────────────────────
+   Só com cor escolhida: sem a classe, o "Ver produtos" e o carrinho são os
+   de sempre. No botão de metal, a cor entra no lugar da do botão — o mesmo
+   desenho do Agendar horário, em outra cor. No discreto, pinta a letra e o
+   contorno. O preço continua sendo "Texto de destaque e preço". */
+body.tem-cor-produtos .boas-cta.boas-produtos{
+  --acao:var(--prod-cor); --acao-txt:var(--prod-txt); --acao-hover:var(--prod-hover);
+}
+body.tem-cor-produtos .boas-b2.boas-produtos{
+  color:var(--prod-cor); border-color:color-mix(in srgb, var(--prod-cor) 55%, var(--painel));
+}
+body.tem-cor-produtos .pr-add{
+  background:color-mix(in srgb, var(--prod-cor) 14%, transparent); color:var(--prod-cor);
+}
+body.tem-cor-produtos .pr-add.tem, body.tem-cor-produtos .pr-n{
+  background:var(--prod-cor); color:var(--prod-txt);
+}
+body.tem-cor-produtos .pr-add.tem .pr-n{ background:var(--painel); color:var(--prod-cor) }
+body.tem-cor-produtos .ver-todos-produtos{
+  color:var(--prod-cor); border-color:color-mix(in srgb, var(--prod-cor) 40%, var(--painel));
+}
+body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
+  color:var(--prod-cor); background:color-mix(in srgb, var(--prod-cor) 14%, transparent);
+}
 /* Os ícones herdam a cor da letra do botão — inclusive quando ela vira preta
    por causa de uma cor de marca clara, como o dourado. */
 .boas-cta .ic-svg, .boas-b2 .ic-svg{ width:19px; height:19px }
