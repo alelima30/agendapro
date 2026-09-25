@@ -1412,7 +1412,12 @@ function destaquesDaCapa(todos){
     .sort((a, b) => (b.foto ? 1 : 0) - (a.foto ? 1 : 0))
     .slice(0, TETO_DA_CAPA);
 }
-const profsDoSalao = () => bd.profissionais.filter(p =>
+/* ⚠ SEM AGENDAMENTO, NINGUÉM "ATENDE" PELO LINK. A mesma peneira do
+   `servicosDoSalao()` logo acima, no mesmo lugar único: com o módulo de
+   serviços desligado, a equipe some da capa e de qualquer tela que a liste.
+   Pedido dele, com estas palavras: "quando desativo serviços e agendamento
+   tem que sumir meus horários e quem atende". */
+const profsDoSalao = () => !casaFazServicos() ? [] : bd.profissionais.filter(p =>
   p.salaoId === salao.id && p.ativo);
 const acharServico = i => bd.servicos.find(s => s.id === i);
 
@@ -1710,7 +1715,9 @@ function desenhar(){
   cabeca.style.display = historico.length && tela !== 'pronto' ? '' : 'none';
 
   const eu = document.getElementById('btEu');
-  if(sessao && tela !== 'meus'){
+  /* O botão com o nome da cliente leva a "Meus horários". Sem agendamento na
+     casa, ele levaria a uma lista que o salão desligou. */
+  if(sessao && tela !== 'meus' && casaFazServicos()){
     eu.style.display = '';
     eu.textContent = (sessao.nome || '').split(' ')[0] + ' ';
   } else { eu.style.display = 'none'; }
@@ -1865,8 +1872,11 @@ function desenharCapa(){
       <h2>${escapar(salao.nome)}</h2>
       ${end.length
         ? `<div class="marca-end">
-             <div class="rua"><span data-ico="local"></span>${end[0]}</div>
-             ${end[1] ? `<div class="lugar">${end[1]}</div>` : ''}
+             <!-- ESCAPADO: o endereco e digitado pelo dono, e qualquer um
+                  cria um salao. Sem isto, um HTML na Rua rodava no celular
+                  de toda cliente que abrisse o link. -->
+             <div class="rua"><span data-ico="local"></span>${escapar(end[0])}</div>
+             ${end[1] ? `<div class="lugar">${escapar(end[1])}</div>` : ''}
            </div>`
         : `<p class="sub">Agende seu horário</p>`}
     </div>`;
@@ -1961,7 +1971,7 @@ function desenharCapa(){
      hora de confirmar e nada dizia quantas sessões sobravam. Quem pagou por
      cinco escovas não tinha onde conferir que ainda tem duas. */
   const atalhos = [];
-  if(sessao){
+  if(sessao && casaFazServicos()){
     atalhos.push([ 'meus', 'calendario', 'Meus horários',
                    'Consulte ou cancele o que já está marcado', 'a-agenda' ]);
   }
@@ -2128,8 +2138,14 @@ function desenharCapa(){
 
   montarSlides(svs);
 
-  document.getElementById('rotuloEquipe').textContent = voc('atende');
-  document.getElementById('capaEquipe').innerHTML = profsDoSalao().map(p => `
+  /* O rótulo sai junto com a lista: "Quem atende" em cima de nada é pior do
+     que não ter a seção. Vale para o módulo desligado e para a casa que
+     ainda não cadastrou ninguém. */
+  const equipe = profsDoSalao();
+  const rotEq = document.getElementById('rotuloEquipe');
+  rotEq.textContent = voc('atende');
+  rotEq.style.display = equipe.length ? '' : 'none';
+  document.getElementById('capaEquipe').innerHTML = equipe.map(p => `
     <div class="opcao" style="cursor:default">
       <span class="ic" style="background:${escapar(p.cor)}">${
         p.foto ? `<img src="${escapar(p.foto)}" alt="">` : escapar(p.nome[0])}</span>
@@ -2137,7 +2153,7 @@ function desenharCapa(){
         <span class="dd">${resumoJornada(p)}</span></span>
     </div>`).join('');
 
-  const meus = sessao ? meusAgendamentos().filter(a => a.data >= hoje()
+  const meus = sessao && casaFazServicos() ? meusAgendamentos().filter(a => a.data >= hoje()
                         && ATIVOS.includes(a.status)) : [];
   document.getElementById('capaAviso').innerHTML = meus.length
     ? `<div class="recado ok">Você tem ${meus.length} horário(s) marcado(s) aqui.
@@ -4505,7 +4521,15 @@ function aplicarAparencia(s){
      onde a prévia do painel e a página da cliente deixam de discordar. */
   const c = s.cfg || {};
   const tema  = s.tema  || c.tema  || '';
-  const fundo = s.fundo || c.fundo || null;
+  /* ⚠ A FOTO SÓ ENTRA QUANDO O TIPO DEIXA. Ver "O TIPO DE FUNDO DECIDE SE A
+     FOTO ENTRA" mais abaixo — calculado AQUI em cima porque o `fundo-forte`
+     dos cartões também depende dele: cartão fechado por causa de uma foto que
+     não está na tela é cartão fechado sem motivo. */
+  const tipoFundo = s.fundoTipo || c.fundoTipo || 'cor';
+  const fotoAnexada = s.fundo || c.fundo || null;
+  /* `cor` é o que a vitrine() devolve para quem NUNCA escolheu: a foto vale.
+     `solida` é o que o painel grava quando o dono ESCOLHE cor sólida: não. */
+  const fundo = (tipoFundo === 'imagem' || tipoFundo === 'cor') ? fotoAnexada : null;
   const brilho = (s.brilho !== undefined ? s.brilho : c.brilho) !== false;
 
   if(tema === 'escuro') raiz.setAttribute('data-tema', 'escuro');
@@ -4562,12 +4586,19 @@ function aplicarAparencia(s){
      desligar o que já estava ligado.
 
      O tipo só MANDA quando o dono escolheu de propósito: pedir `gradiente`
-     tira a foto, pedir `imagem` a traz de volta. */
+     tira a foto, pedir `imagem` a traz de volta — e pedir `cor` também tira.
+
+     ⚠ ESTE ÚLTIMO CASO NÃO EXISTIA. A cor sólida escolhida à mão era gravada
+     como `cor` — o mesmo valor que a vitrine() devolve para quem nunca
+     escolheu —, e a regra de cima deixava a foto antiga entrar. O dono
+     apertava "Cor sólida", escolhia um rosa, e o link continuava com a foto
+     de meses atrás por cima. Agora a escolha chega como `solida`, e só ela
+     tira a foto; `cor` continua sendo "nunca mexeu". */
   const c2 = s.cfg || {};
-  const tipo = s.fundoTipo || c2.fundoTipo || 'cor';
+  const tipo = tipoFundo;
   const grad = s.gradiente || c2.gradiente || null;
   aplicarGradiente(tipo === 'gradiente' ? grad : null);
-  aplicarFundo(tipo === 'gradiente' ? null : fundo);
+  aplicarFundo(fundo);
   // O brilho do botão é escolha do salão. Vem ligado por padrão porque é o
   // que o dono espera ao ver a prévia; quem achar demais desliga na tela de
   // Aparência, e aí a classe some junto com a animação.

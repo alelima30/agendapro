@@ -626,6 +626,110 @@ verdade('a aba Produtos do painel continua lá, mesmo com a loja desligada',
 
 igual('nenhum erro no painel', errosP, []);
 
+/* ══════════════════════════════════════════════════════════════════════════
+   6 — SEM AGENDAMENTO, SOMEM "MEUS HORÁRIOS" E "QUEM ATENDE"
+
+   Pedido dele: "quando desativo serviços e agendamento tem que sumir meus
+   horários e quem atende". Os dois continuavam na capa com o módulo
+   desligado — a equipe listada com o horário de cada uma, e o atalho para
+   uma agenda que o salão tinha acabado de tirar do link.
+
+   Medido com uma cliente que JÁ marcou antes (sessão no aparelho), porque é
+   para ela que o atalho e o botão com o nome aparecem. Sem sessão, os dois
+   nem existem, e o teste passaria sem provar nada.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('6 · Sem agendamento, somem Meus horários e Quem atende');
+
+/* ⚠ O BOTÃO COM O NOME É MEDIDO NA TELA DA LOJA, e não na capa. A capa
+   esconde o cabeçalho inteiro (ela tem o topo próprio, com a foto), então lá
+   o botão fica invisível com ou sem agendamento — a primeira versão deste
+   teste mediu o cabeçalho e acusou a regra. A loja existe nos dois casos e
+   mostra o cabeçalho: é onde a cliente veria o botão e tocaria nele. */
+const olharCliente = pg => pg.evaluate(async () => {
+  sessao = { perfilId:'x', nome:'Bia Souza', telefone:'11999990000' };
+  desenhar();
+  const vis = e => !!e && getComputedStyle(e).display !== 'none' && e.offsetHeight > 0;
+  const naCapa = {
+    quemAtende: vis(document.getElementById('rotuloEquipe')),
+    equipe: document.querySelectorAll('#capaEquipe .opcao').length,
+    meusHorarios: [...document.querySelectorAll('#capaAtalhos .atalho b')]
+      .some(b => /Meus horários/.test(b.textContent)),
+    texto: document.getElementById('p-capa').innerText,
+  };
+  irPara('loja');
+  await new Promise(r => setTimeout(r, 300));
+  return Object.assign(naCapa, {
+    naLoja: tela,
+    cabecalho: vis(document.querySelector('header.cabeca')),
+    botaoNome: vis(document.getElementById('btEu')),
+  });
+});
+
+await ligar(true, undefined);
+p = await capa();
+const comAgenda = await olharCliente(p);
+await p.context().close();
+verdade('com agendamento: "Quem atende" e a equipe aparecem',
+  comAgenda.quemAtende && comAgenda.equipe >= 1, JSON.stringify(comAgenda));
+verdade('"Meus horários" aparece para quem já marcou', comAgenda.meusHorarios);
+verdade('na loja o cabeçalho aparece — senão o botão abaixo não provaria nada',
+  comAgenda.naLoja === 'loja' && comAgenda.cabecalho, JSON.stringify(comAgenda));
+verdade('e nele o botão com o nome dela', comAgenda.botaoNome);
+
+await ligar(false, undefined);
+p = await capa();
+const semAgenda = await olharCliente(p);
+await p.context().close();
+verdade('sem agendamento: "Quem atende" some', !semAgenda.quemAtende,
+  JSON.stringify(semAgenda));
+igual('e a lista da equipe junto', semAgenda.equipe, 0);
+verdade('"Meus horários" some', !semAgenda.meusHorarios);
+verdade('e o botão com o nome, que levava a ele — com o cabeçalho visível',
+  semAgenda.cabecalho && !semAgenda.botaoNome, JSON.stringify(semAgenda));
+verdade('nenhuma das duas palavras sobra na capa',
+  !/Quem atende|Meus horários/i.test(semAgenda.texto), semAgenda.texto.slice(0, 300));
+
+/* E A PRÉVIA DO PAINEL CONCORDA. Ela mostrava serviços, equipe e o botão de
+   agendar mesmo com o módulo desligado — a mesma mentira que fez o dono
+   achar, das outras vezes, que a escolha não tinha funcionado. */
+const olharPrevia = async () => {
+  const ctx = await nav.newContext({ viewport:{ width:1360, height:900 } });
+  const pp = await ctx.newPage();
+  pp.on('pageerror', e => errosP.push(e.message));
+  await pp.addInitScript(([b, s]) => {
+    window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
+    localStorage.setItem('agendapro.sessao', JSON.stringify(s));
+  }, [BASE, dona.sessao()]);
+  await pp.goto(BASE + '/app.html');
+  await pp.waitForFunction(() => typeof irPara === 'function'
+    && typeof bd !== 'undefined' && bd && Array.isArray(bd.saloes), null,
+    { timeout: 20000 });
+  await pp.waitForTimeout(1200);
+  await pp.evaluate(() => { if(typeof pdFechar === 'function') pdFechar(true); });
+  await pp.evaluate(() => { irPara('salao'); trocarAbaSalao('aparencia'); });
+  await pp.waitForTimeout(800);
+  const r = await pp.evaluate(() => {
+    const f = document.querySelector('#previaFone .fone');
+    return { texto: f.innerText,
+             cta: (f.querySelector('.fone-cta') || {}).textContent || '' };
+  });
+  await ctx.close();
+  return r;
+};
+const previaSem = await olharPrevia();
+verdade('na prévia sem agendamento: nem serviços nem equipe',
+  !/Nossos serviços|Quem atende/i.test(previaSem.texto), previaSem.texto.slice(0, 300));
+igual('e o botão é o que a página mostra: ver os produtos', previaSem.cta.trim(), 'Ver produtos');
+
+await ligar(true, undefined);
+const previaCom = await olharPrevia();
+verdade('com agendamento, a prévia volta a mostrar os dois',
+  /Nossos serviços/i.test(previaCom.texto) && /Quem atende/i.test(previaCom.texto),
+  previaCom.texto.slice(0, 300));
+igual('e o botão de agendar', previaCom.cta.trim(), 'Agendar horário');
+igual('nenhum erro nas telas da seção 6', errosP, []);
+igual('nenhum erro na página da cliente', erros, []);
+
 await nav.close();
 console.log(`\n${passou} passaram, ${falhou} falharam`);
 process.exit(falhou ? 1 : 0);

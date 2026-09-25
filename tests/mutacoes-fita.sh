@@ -29,7 +29,7 @@ restaurar(){
 }
 trap restaurar EXIT
 
-viva=0; morta=0
+viva=0; morta=0; perdida=0
 # Reinstalar o 25 sozinho é seguro: ele é o ÚLTIMO a definir a vitrine(), e o
 # `sintaxe.test.js` cobra que continue sendo.
 rodar(){ # $1 = nome, $2 = "sql" quando precisa reinstalar
@@ -57,6 +57,13 @@ if n != 1:
     print('!! o trecho aparece %d vezes em %s' % (n, arq)); sys.exit(9)
 open(arq, 'w', encoding='utf-8').write(s.replace(de, para, 1))
 PY
+  local r=$?
+  # ⚠ MUTAÇÃO QUE NÃO RODA NÃO É MUTAÇÃO MORTA. O trecho sumiu ou passou a
+  # aparecer duas vezes, e o placar seguia dizendo "N mortas, 0 vivas" com
+  # uma a menos. Aconteceu no mutacoes-modulos.sh: a nº 5 ficou sem rodar por
+  # sessões inteiras, porque o "!!" passava no meio da saída sem contar.
+  [ $r -eq 0 ] || { echo "  ✗ NÃO RODOU — conserte o trecho procurado"; perdida=$((perdida+1)); }
+  return $r
 }
 
 echo "1. a vitrine para de devolver o metal escolhido"
@@ -145,4 +152,5 @@ troca estilo.css \
 
 echo ""
 echo "$morta mortas, $viva vivas"
-[ "$viva" -eq 0 ]
+[ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"
+[ "$viva" -eq 0 ] && [ "$perdida" -eq 0 ]

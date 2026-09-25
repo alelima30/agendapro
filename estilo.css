@@ -928,11 +928,21 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   position:absolute;inset:0;z-index:0;border-radius:22px;
   background:center/cover no-repeat;
 }
+/* O véu é da cor do FUNDO escolhido, como na página da cliente — e não do
+   painel. O painel manda sempre o --fone-papel (ver coresDaPrevia). */
 .fone-fundo::after{
-  content:"";position:absolute;inset:0;background:var(--painel2);
+  content:"";position:absolute;inset:0;background:var(--fone-papel, var(--painel2));
   opacity:var(--veu, .84);
 }
-.fone-escuro .fone-fundo::after{ background:#141416 }
+.fone-escuro .fone-fundo::after{ background:var(--fone-papel, #141416) }
+/* O gradiente na prévia. Ela não desenhava gradiente nenhum: o dono escolhia
+   "Gradiente", o celular ao lado continuava liso, e a conclusão natural era
+   que a opção não funcionava. Mais específico que o .fone-escuro de cima de
+   propósito — o gradiente escolhido ganha do fundo de fábrica. */
+/* ⚠ `background-image`, e não o atalho `background`. O atalho zera a cor de
+   baixo, e a prévia ficava transparente; na página a cor do papel continua
+   atrás do gradiente — e é ela que o identidade-visual.test.mjs compara. */
+.fone.com-grad{ background-image:var(--fone-grad, none) }
 .fone-topo, .fone-cta, .fone-svs, .fone-boas{ position:relative; z-index:1 }
 
 /* Com pouco véu, a prévia engrossa os cartões igual à página da cliente.
@@ -2087,7 +2097,9 @@ body.sem-brilho .marca-selo{ animation:none }
 .bolinha-tema{
   width:13px; height:13px; border-radius:50%; margin-right:8px;
   display:inline-block; flex:none;
-  box-shadow:0 0 0 1px rgba(0,0,0,.12) inset;
+  /* .26 e não .12: com os fundos prontos, branco, marfim e cinza entraram
+     nesta bolinha, e a .12 elas sumiam sobre o bege do próprio painel. */
+  box-shadow:0 0 0 1px rgba(0,0,0,.26) inset;
 }
 
 /* ── AS FITAS QUE INSEREM UM PARÂMETRO NO RECADO ─────────────────────────

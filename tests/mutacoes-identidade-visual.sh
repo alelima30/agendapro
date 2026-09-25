@@ -31,7 +31,7 @@ restaurar(){
 }
 trap restaurar EXIT
 
-viva=0; morta=0
+viva=0; morta=0; perdida=0
 rodar(){ # $1 = nome da mutação
   bash versao.sh >/dev/null 2>&1
   if node "$T" >/tmp/mv-saida.txt 2>&1; then
@@ -51,6 +51,13 @@ if de not in s:
     print('!! trecho não encontrado em ' + arq); sys.exit(9)
 open(arq, 'w', encoding='utf-8').write(s.replace(de, para, 1))
 PY
+  local r=$?
+  # ⚠ MUTAÇÃO QUE NÃO RODA NÃO É MUTAÇÃO MORTA. O trecho sumiu ou passou a
+  # aparecer duas vezes, e o placar seguia dizendo "N mortas, 0 vivas" com
+  # uma a menos. Aconteceu no mutacoes-modulos.sh: a nº 5 ficou sem rodar por
+  # sessões inteiras, porque o "!!" passava no meio da saída sem contar.
+  [ $r -eq 0 ] || { echo "  ✗ NÃO RODOU — conserte o trecho procurado"; perdida=$((perdida+1)); }
+  return $r
 }
 
 echo "1. o modo Atual também marca o <html>"
@@ -140,3 +147,5 @@ troca estilo.css \
 echo
 echo "  $morta morreram, $viva sobreviveram"
 [ "$viva" -eq 0 ] || echo "  ⚠ mutação viva é buraco na suíte — ou defeito de projeto"
+[ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"
+[ "$viva" -eq 0 ] && [ "$perdida" -eq 0 ]

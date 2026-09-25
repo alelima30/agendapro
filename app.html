@@ -1755,7 +1755,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.cd166d';
+const VERSAO_APP = 'v9.76fbb3';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7803,64 +7803,83 @@ function pintarSalao(){
           ou escolha exatamente a sua</label>
       </div>
 
-      <!-- ══════════ A BASE, E NAO "O FUNDO" ══════════
-           O rotulo dizia so' "Fundo", e a regua embaixo dele tem duas opcoes.
-           Foi lido exatamente como estava escrito: "o fundo so' tem preto e
-           bege claro". E' verdade e nao e' o todo — o fundo tambem tem cor
-           livre (em "Cores, uma a uma"), gradiente e imagem (em "Tipo de
-           fundo"), logo abaixo.
+      <!-- ══════════ O FUNDO DA PAGINA ══════════
+           Terceira versao deste bloco, e a reclamacao foi a mesma nas tres:
+           "o fundo so tem claro e escuro". Na segunda as pecas ja estavam
+           juntas, mas a PRIMEIRA pergunta do bloco ainda era "Base clara ou
+           escura" — e quem le de cima para baixo le isso como o limite do
+           fundo. Ele mandou print exatamente disso.
 
-           Renomear resolve sem mexer em nada: isto aqui decide a FAMILIA de
-           tons de tudo o que nao for escolhido a' mao, e nao a cor do papel.
-           (Sem crase e sem acento em alguns pontos: comentario dentro de
-           template literal.) -->
-      <!-- ══════════ O FUNDO DA PAGINA, TUDO NUM LUGAR SO' ══════════
-           ⚠ ESTE BLOCO E' UMA JUNCAO, e o motivo e' uma reclamacao repetida:
-           "o fundo so' tem claro e escuro". Era verdade do que ele VIA — as
-           tres pecas do fundo moravam em tres lugares diferentes desta tela:
+           Agora a ordem e a de quem pensa no fundo: que tipo (cor, gradiente,
+           imagem), e logo embaixo, no mesmo lugar, a cor ou a foto. O claro e
+           escuro deixou de ser pergunta sobre o fundo: virou "Letras", e se
+           ajusta sozinho pela cor que ele escolheu.
 
-             a base clara/escura ...... aqui em cima
-             a cor do papel ........... la' embaixo, na lista das onze cores
-             gradiente e imagem ....... mais embaixo ainda, em "Tipo de fundo"
-
-           Quem procurava "o fundo" achava a primeira, com duas opcoes, e
-           parava de procurar. Renomear o rotulo nao resolveu, porque o
-           problema nao era o nome: era a distancia.
-
-           Agora e' uma pergunta so', respondida de cima para baixo: que base,
-           que tipo, e qual cor.
-           (Sem crase e sem acento em alguns pontos: template literal.) -->
+           A imagem e o veu moravam em dois outros lugares desta tela (a foto
+           em Identidade visual, la no fim; o veu no meio das escolhas da
+           capa). Vieram para ca: escolher "Imagem" e ter que ir procurar onde
+           se anexa e a mesma distancia que fez o bloco precisar existir.
+           (Sem crase: este HTML e lido como template literal.) -->
       <div class="rot" style="margin:18px 0 8px">O fundo da página</div>
-      <p class="secao-sub" style="margin:-4px 0 9px">Tudo o que fica atras do
-        conteudo. Comece pela base, depois escolha o tipo.</p>
-
-      <div class="secao" style="margin:0 0 6px">Base clara ou escura</div>
-      <div class="regua" id="reguaTema" style="justify-content:flex-start"></div>
-      <p class="secao-sub" style="margin-top:9px">Decide o tom de tudo o que
-        você não escolher à mão — inclusive dos textos.</p>
-
-      <div class="secao" style="margin:14px 0 6px">Cor sólida, gradiente ou imagem</div>
+      <p class="secao-sub" style="margin:-4px 0 9px">Cor sólida, gradiente ou
+        imagem, na cor que você quiser. As letras se ajustam sozinhas.</p>
       <div class="regua" id="reguaFundoTipo" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaFundoTipo" style="margin-top:9px"></p>
 
-      <!-- A cor do papel e' UMA das onze cores soltas, e continua sendo: ela
-           entra na mesma peneira, no mesmo salvar e na mesma prevía. O que
-           muda e' onde a linha dela e' DESENHADA — aqui, junto das outras
-           perguntas sobre fundo, em vez de no meio de uma lista de onze. -->
-      <div id="corDoPapel" style="margin-top:10px"></div>
+      <div id="fundoSolido" style="margin-top:10px">
+        <div id="corDoPapel"></div>
+        <div class="fitas" id="papeisProntos" style="margin-top:10px"></div>
+      </div>
 
       <div id="gradienteCampos" style="display:none;margin-top:10px">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div class="cor-linha">
           <input type="color" id="gradA" class="cor-livre"
-                 oninput="escolherGradiente()">
-          <span class="secao-sub" style="margin:0">ate'</span>
-          <input type="color" id="gradB" class="cor-livre"
-                 oninput="escolherGradiente()">
+                 oninput="escolherGradiente()" aria-label="Cor de cima">
+          <span class="cor-linha-txt"><b>Cor de cima</b>
+            <span>onde o fundo começa</span></span>
         </div>
-        <p class="secao-sub" style="margin-top:6px">A primeira cor fica em
-          cima e a segunda embaixo. Duas cores proximas dao um fundo calmo;
-          duas distantes viram enfeite e disputam com o conteudo.</p>
+        <div class="cor-linha">
+          <input type="color" id="gradB" class="cor-livre"
+                 oninput="escolherGradiente()" aria-label="Cor de baixo">
+          <span class="cor-linha-txt"><b>Cor de baixo</b>
+            <span>onde o fundo termina</span></span>
+        </div>
+        <div class="fitas" id="gradientesProntos" style="margin-top:10px"></div>
+        <p class="secao-sub" style="margin-top:6px">Duas cores próximas dão um
+          fundo calmo; duas distantes viram enfeite e disputam com o conteúdo.</p>
       </div>
+
+      <div id="imagemCampos" style="display:none;margin-top:10px">
+        ${cartao('fundo', 'Imagem do fundo',
+          'Foto de ambiente funciona melhor que foto com gente ou letreiro — '
+        + 'o que aparece dela é a atmosfera, não o detalhe.',
+          'Em pé, tipo 9 por 16. JPG, PNG ou WEBP.')}
+
+        <!-- A regua vai a 135 porque o valor e INVERTIDO: 135 menos a
+             posicao vira o veu. Em 40 o veu e 95 (quase so fundo liso); em
+             135 e 0, e a foto aparece inteira. O fim da regua era 95 — veu
+             40 — e com isso a foto nunca aparecia por completo.
+             (Sem crase: template literal.) -->
+        <div class="rot" style="margin:16px 0 8px">Quanto a imagem aparece</div>
+        <input type="range" id="fxVeu" class="desliza" min="40" max="135" step="1"
+               oninput="escolherAparencia('veu', 135 - Number(this.value))">
+        <p class="secao-sub" style="margin-top:6px">Para a direita a imagem
+          aparece mais; para a esquerda ela some atrás do fundo liso.
+          <b>No fim da régua a foto aparece inteira, sem nada por cima</b> — e
+          aí os cartões ficam mais fechados sozinhos, para o preço não se
+          perder na imagem.</p>
+
+        <div class="rot" style="margin:16px 0 8px">Cartões sobre a imagem</div>
+        <div class="regua" id="reguaCartoes" style="justify-content:flex-start"></div>
+        <p class="secao-sub" id="explicaCartoes" style="margin-top:9px"></p>
+      </div>
+
+      <!-- O claro e escuro, agora com o nome do que ele faz na tela: a cor
+           das letras (e dos cartoes, que acompanham). Escolhido sozinho pelo
+           fundo; o dono troca se quiser. -->
+      <div class="secao" style="margin:16px 0 6px">Letras</div>
+      <div class="regua" id="reguaTema" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaTema" style="margin-top:9px"></p>
       <div class="linha-fina" style="margin:18px 0"></div>
 
       <!-- ══════════ TEMAS PRONTOS ══════════
@@ -7961,28 +7980,6 @@ function pintarSalao(){
         no meio corta a cabeça de quem está nela — puxe para a esquerda para
         mostrar mais de cima.</p>
 
-      <!-- A régua vai a 135 porque o valor é INVERTIDO: 135 menos a
-           posição vira o véu. Em 40 o véu é 95 (quase só fundo liso); em
-           135 é 0, e a foto aparece inteira. O fim da régua era 95 — véu
-           40 — e com isso a foto nunca aparecia por completo.
-
-           Sem crase neste comentário de propósito: ele mora DENTRO de um
-           template literal, e uma crase aqui encerra a string no meio.
-           Foi o que aconteceu, e o teste de sintaxe pegou. -->
-      <div class="rot" style="margin:18px 0 8px">Quanto o fundo aparece</div>
-      <input type="range" id="fxVeu" class="desliza" min="40" max="135" step="1"
-             oninput="escolherAparencia('veu', 135 - Number(this.value))">
-      <p class="secao-sub" style="margin-top:6px">Só vale se você anexou um
-        <b>Fundo da página</b> em Identidade visual. Para a direita a imagem
-        aparece mais; para a esquerda ela some atrás do fundo liso.
-        <b>No fim da régua a foto aparece inteira, sem branco por cima</b> — e
-        aí os cartões ficam mais fechados sozinhos, para o preço não se perder
-        na imagem.</p>
-
-      <div class="rot" style="margin:18px 0 8px">Cartões sobre a foto</div>
-      <div class="regua" id="reguaCartoes" style="justify-content:flex-start"></div>
-      <p class="secao-sub" id="explicaCartoes" style="margin-top:9px"></p>
-
       <!-- ⚠ EIXO SEPARADO DO "Cartões sobre a foto", DE PROPÓSITO.
 
            Aquele ali decide o quanto o cartão FECHA sobre a foto de capa
@@ -8030,12 +8027,8 @@ function pintarSalao(){
         'Deitada, tipo 3 por 2. JPG, PNG ou WEBP.')}
       <div class="linha-fina"></div>
       ${galeriaDoSalao(sl)}
-      <div class="linha-fina"></div>
-      ${cartao('fundo', 'Fundo da página',
-        'Fica atrás de tudo, com um véu por cima para o texto continuar '
-      + 'legível. Foto de ambiente funciona melhor que foto com gente ou '
-      + 'letreiro — o que aparece dela é a atmosfera, não o detalhe.',
-        'Em pé, tipo 9 por 16. JPG, PNG ou WEBP.')}
+      <!-- A imagem do fundo mora em O fundo da pagina, la em cima, junto
+           de Cor solida e Gradiente. -->
 
       </div><!-- /ap-controles -->
 
@@ -8524,7 +8517,15 @@ function lerAparencia(){
     fitaTempo: ['lenta','rapida'].includes(c.fitaTempo) ? c.fitaTempo : 'media',
     fitaCor: corValida(c.fitaCor) ? c.fitaCor : '',
     fitaBorda: ['suave','redonda'].includes(c.fitaBorda) ? c.fitaBorda : 'reta',
-    fundoTipo: ['gradiente','imagem'].includes(c.fundoTipo) ? c.fundoTipo : 'cor',
+    /* ⚠ SEM ESCOLHA, E COM FOTO ANEXADA, É "IMAGEM". A página da cliente
+       sempre mostrou essa foto — é a regra dela para quem nunca viu este
+       seletor. O painel mostrava "Cor sólida" aceso para esse mesmo salão,
+       e salvar qualquer outra coisa gravava "cor" por cima: a próxima vez que
+       a página passasse a levar "cor" a sério, a foto sumiria sem ninguém
+       ter pedido. O painel agora diz o que a página faz. */
+    fundoTipo: c.fundoTipo === 'solida' ? 'cor'
+      : ['gradiente','imagem'].includes(c.fundoTipo) ? c.fundoTipo
+      : (imagemDoSalao(sl, 'fundo') ? 'imagem' : 'cor'),
     gradiente: c.gradiente || null,
   };
 }
@@ -8606,10 +8607,22 @@ function pintarAparencia(){
              onclick="escolherCor('${hex}')"></button>`).join('');
   document.getElementById('corLivre').value = aparencia.cor;
 
+  /* ⚠ O VALOR GRAVADO CONTINUA `claro`/`escuro`, e só o RÓTULO mudou. A
+     página da cliente, os temas prontos e todo salão já salvo falam essa
+     língua; trocar a chave seria migrar dados para mudar uma palavra. */
   document.getElementById('reguaTema').innerHTML =
-    [['claro','Claro'],['escuro','Escuro']].map(([v, rot]) =>
+    [['claro','Letras escuras'],['escuro','Letras claras']].map(([v, rot]) =>
       `<button type="button" class="${aparencia.tema === v ? 'on' : ''}"
                onclick="escolherTema('${v}')">${rot}</button>`).join('');
+  const sugerido = temaPeloFundo();
+  document.getElementById('explicaTema').textContent =
+    (aparencia.tema === 'escuro'
+      ? 'Letras claras e cartões escuros.'
+      : 'Letras escuras e cartões claros.')
+    + (sugerido === null ? ''
+      : sugerido === aparencia.tema
+        ? ' Escolhido sozinho, porque combina com o fundo que você pôs.'
+        : ' Com este fundo, o que se lê melhor é o outro — confira na prévia.');
 
   /* ── O MODO, OS TEMAS, AS NOVE CORES E O FORMATO DO LOGO ───────────────
      Tudo desenhado a partir do `aparencia`, como o resto desta tela. */
@@ -8658,17 +8671,28 @@ function pintarAparencia(){
 
      A função de desenhar é uma só justamente para as duas não divergirem:
      quem mexer no "herdar" mexe nos dois de uma vez. */
+  /* ⚠ O QUADRADO MOSTRA A COR QUE ESTÁ NA TELA, e não a cor da marca.
+
+     Ele mostrava `aparencia.cor` para toda cor não escolhida, com a frase
+     "acompanha a cor da marca". Para o botão e o preço é verdade; para o
+     FUNDO, as letras, os cartões e as bordas, não: esses vêm do claro/escuro.
+     No print dele, o Fundo da página aparecia AZUL — a cor da marca — sobre
+     uma página bege. O quadrado mentia justamente na cor que ele estava
+     tentando escolher. Ver `corHerdada()`. */
   const linhaDeCor = ([chave, rot, ajuda]) => {
     const escolhida = aparencia.cores[chave];
     const tem = corValida(escolhida);
+    const doTema = chave in PADRAO_TEMA.claro;
     return `<div class="cor-linha">
       <input type="color" class="cor-livre"
-             value="${tem ? escolhida : aparencia.cor}"
+             value="${tem ? escolhida : corHerdada(chave)}"
              oninput="escolherCorSolta('${chave}', this.value)"
              aria-label="${escapar(rot)}">
       <span class="cor-linha-txt">
         <b>${escapar(rot)}</b>
-        <span>${tem ? escapar(ajuda) : 'acompanha a cor da marca'}</span>
+        <span>${tem ? escapar(ajuda)
+          : doTema ? 'automático — toque no quadrado para escolher'
+                   : 'acompanha a cor da marca'}</span>
       </span>
       ${tem ? `<button type="button" class="btn btn-peq"
                        onclick="herdarCorSolta('${chave}')">herdar</button>` : ''}
@@ -8684,34 +8708,55 @@ function pintarAparencia(){
   conferirLegibilidade();
 
   /* ── O TIPO DE FUNDO ──────────────────────────────────────────────────
-     `cor` é o de sempre: o papel do tema, claro ou escuro. Os outros dois
-     entram por cima dele, e por isso `cor` não some nem precisa de opção
-     "manter o atual" — ele É o atual. */
+     Cada tipo mostra os SEUS controles, ali mesmo, e esconde os dos outros
+     dois. Os três continuam gravados de uma vez — trocar de gradiente para
+     cor e voltar não perde o gradiente que ele já tinha montado. */
   const FUNDOS = [
     ['cor', 'Cor sólida',
-     'O papel limpo do tema que você escolheu acima. É o que o app já faz.'],
+     'Uma cor só, a que você quiser. Toque no quadrado para abrir todas as '
+     + 'cores, ou escolha uma pronta.'],
     ['gradiente', 'Gradiente',
-     'Duas cores em degradê. Bom para dar profundidade sem precisar de foto.'],
+     'Duas cores em degradê, de cima para baixo. Dá profundidade sem precisar '
+     + 'de foto.'],
     ['imagem', 'Imagem',
-     'A foto que você anexa mais abaixo, com o véu por cima para o texto '
-     + 'continuar legível.'],
+     'Uma foto sua atrás de tudo, com um véu por cima para o texto continuar '
+     + 'legível.'],
   ];
   document.getElementById('reguaFundoTipo').innerHTML = FUNDOS.map(([v, rot]) =>
     `<button type="button" class="${aparencia.fundoTipo === v ? 'on' : ''}"
-             onclick="escolherAparencia('fundoTipo','${v}')">${rot}</button>`).join('');
+             onclick="escolherFundoTipo('${v}')">${rot}</button>`).join('');
   const fAchado = FUNDOS.find(f => f[0] === aparencia.fundoTipo);
   document.getElementById('explicaFundoTipo').textContent = fAchado ? fAchado[2] : '';
 
-  const camposGrad = document.getElementById('gradienteCampos');
-  if(camposGrad){
-    camposGrad.style.display = aparencia.fundoTipo === 'gradiente' ? '' : 'none';
-    // Sem gradiente escolhido, os dois campos partem da cor da marca: o
-    // dono mexe a partir do que ele já reconhece, e não de dois cinzas.
-    const [a1, b1] = String(aparencia.gradiente || '').split(',');
-    document.getElementById('gradA').value = corValida(a1) ? a1 : aparencia.cor;
-    document.getElementById('gradB').value = corValida(b1)
-      ? b1 : mexer(aparencia.cor, 0.34);
-  }
+  const mostrar = (id, sim) => {
+    const e = document.getElementById(id);
+    if(e) e.style.display = sim ? '' : 'none';
+  };
+  mostrar('fundoSolido',    aparencia.fundoTipo === 'cor');
+  mostrar('gradienteCampos', aparencia.fundoTipo === 'gradiente');
+  mostrar('imagemCampos',   aparencia.fundoTipo === 'imagem');
+
+  const [a1, b1] = String(aparencia.gradiente || padraoGradiente()).split(',');
+  document.getElementById('gradA').value = a1;
+  document.getElementById('gradB').value = b1;
+
+  /* Os atalhos. O seletor de cor do celular é uma roda que pede três toques
+     para chegar num bege — um toque aqui resolve o caso comum, e o quadrado
+     continua lá para qualquer outra cor. */
+  const bola = (css, on) => `<span class="bolinha-tema" style="background:${css}${
+    on ? ';box-shadow:inset 0 0 0 1px rgba(0,0,0,.26),0 0 0 2px var(--painel),0 0 0 4px var(--txt)'
+       : ''}"></span>`;
+  const papelAgora = String(aparencia.cores.papel || '').toUpperCase();
+  const pp = document.getElementById('papeisProntos');
+  if(pp) pp.innerHTML = papeisProntos().map(([rot, hex]) =>
+    `<button type="button" class="fita-param" onclick="escolherPapelPronto('${hex}')">
+       ${bola(hex, papelAgora === hex.toUpperCase())}${escapar(rot)}</button>`).join('');
+  const gp = document.getElementById('gradientesProntos');
+  if(gp) gp.innerHTML = gradientesProntos().map(([rot, a, b]) =>
+    `<button type="button" class="fita-param" onclick="escolherGradientePronto('${a}','${b}')">
+       ${bola(`linear-gradient(180deg,${a},${b})`,
+              String(aparencia.gradiente || '').toUpperCase() === (a + ',' + b).toUpperCase())
+       }${escapar(rot)}</button>`).join('');
 
   const FORMAS = [['circular','Circular'], ['arredondado','Arredondado'],
                   ['quadrado','Quadrado']];
@@ -8973,15 +9018,26 @@ function conferirLegibilidade(){
   const alvo = document.getElementById('avisoLegibilidade');
   if(!alvo) return;
   const c = aparencia.cores || {};
-  const escuro = aparencia.tema === 'escuro';
-  const cartao = corValida(c.card)  ? c.card  : (escuro ? '#131A26' : '#FFFFFF');
-  const papel  = corValida(c.papel) ? c.papel : (escuro ? '#0B1220' : '#F6F2E8');
+  const t = PADRAO_TEMA[aparencia.tema === 'escuro' ? 'escuro' : 'claro'];
+  const cartao = corValida(c.card) ? c.card : t.card;
+  /* O fundo de verdade: a cor escolhida, as DUAS pontas do gradiente, ou a
+     de fábrica. No gradiente a letra passa pelas duas, e a pior manda. */
+  const [ga, gb] = String(aparencia.gradiente || '').split(',');
+  const gradiente = aparencia.fundoTipo === 'gradiente' && corValida(ga) && corValida(gb);
+  const fundos = gradiente ? [ga, gb] : [corValida(c.papel) ? c.papel : t.papel];
+  /* ⚠ COM O FUNDO ESCOLHIDO À MÃO, A LETRA HERDADA TAMBÉM É MEDIDA. Antes o
+     "herdada: o cálculo garante" era verdade — as duas vinham do mesmo tom.
+     Um fundo cinza-médio escolhido por ele não tem letra de fábrica que se
+     leia bem, e o tom automático só escolhe a MENOS pior. */
+  const fundoMexido = gradiente || corValida(c.papel);
 
   const queixas = [];
   const olhar = (chave, rot, piso) => {
-    if(!corValida(c[chave])) return;          // herdada: o cálculo garante
-    const rc = contrasteEntre(c[chave], cartao);
-    const rp = contrasteEntre(c[chave], papel);
+    const cor = corValida(c[chave]) ? c[chave]
+      : (fundoMexido && chave in t) ? corHerdada(chave) : null;
+    if(!cor) return;                          // herdada sobre fundo de fábrica
+    const rc = contrasteEntre(cor, cartao);
+    const rp = Math.min(...fundos.map(f => contrasteEntre(cor, f)));
     /* A pior das duas é a que manda: uma cor que se lê no cartão e some no
        papel é ilegível na metade da tela, e não "meio legível". */
     const pior = Math.min(rc, rp);
@@ -9018,11 +9074,124 @@ function escolherGradiente(){
   const a = document.getElementById('gradA').value;
   const b = document.getElementById('gradB').value;
   aparencia.gradiente = (corValida(a) && corValida(b)) ? (a + ',' + b) : null;
+  ajustarLetras();
+  pintarAparencia();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O FUNDO QUE ELE ESCOLHE, E AS LETRAS QUE ACOMPANHAM
+
+   ── AS CORES DE FÁBRICA, MEDIDAS NA PÁGINA ────────────────────────────────
+   Lidas do `getComputedStyle` da página da cliente, num salão sem nenhuma
+   cor escolhida, nos dois tons e nos dois modos (os modos não mudam nada
+   aqui). São o que a cliente vê quando o dono não mexeu — e portanto o que o
+   quadrado de cada cor tem que mostrar enquanto ele não mexer.
+
+   Só entram as que vêm do claro/escuro. Botão, preço, ícone, secundária e
+   moldura saem da cor da marca, e para essas o "acompanha a cor da marca"
+   continua verdadeiro.
+
+   ⚠ Estes números moram na página. Se um dia mudarem lá, mudam aqui — o
+   fundo.test.mjs lê os dois e reprova a divergência. */
+const PADRAO_TEMA = {
+  claro:  { papel:'#F6F2E8', card:'#FFFFFF', titulo:'#172033',
+            texto:'#475569', discreto:'#94A3B8', borda:'#E7E2D9' },
+  escuro: { papel:'#0B1220', card:'#131C2E', titulo:'#E8EEF7',
+            texto:'#A3B2C7', discreto:'#6F8098', borda:'#25324A' },
+};
+
+/* A cor que a página usa para `chave` quando o dono não escolheu nada. */
+function corHerdada(chave){
+  const escuro = aparencia.tema === 'escuro';
+  const c = aparencia.cores || {};
+  /* O cinza sai do texto escolhido, quando há um — a mesma dedução do
+     `aplicarCoresSoltas()` da página, com a mesma conta. */
+  if(chave === 'discreto' && corValida(c.texto))
+    return mexer(c.texto, escuro ? -0.25 : 0.30);
+  return PADRAO_TEMA[escuro ? 'escuro' : 'claro'][chave] || aparencia.cor;
+}
+
+/* ⚠ O CLARO/ESCURO PASSOU A SER ESCOLHIDO PELO FUNDO.
+
+   Era a primeira pergunta do bloco do fundo, e foi lida como o limite dele.
+   Mas o que ele decide de verdade é a cor das LETRAS e dos cartões — e essa
+   resposta depende do fundo: roxo escuro pede letra clara, rosa claro pede
+   letra escura. Perguntar as duas coisas separadas deixava o dono montar
+   letra escura sobre fundo escuro sem perceber.
+
+   A escolha é por contraste medido, e não por "a cor é escura?": compara a
+   letra padrão de cada lado contra o PIOR ponto do fundo (no gradiente, as
+   duas pontas) e fica com a que se lê melhor. Imagem não decide — a foto é
+   dele, e o véu é quem garante a leitura.
+
+   Devolve null quando o fundo é o de fábrica: aí não há nada a ajustar. */
+function temaPeloFundo(){
+  const c = aparencia.cores || {};
+  let fundos = null;
+  if(aparencia.fundoTipo === 'gradiente'){
+    const [a, b] = String(aparencia.gradiente || '').split(',');
+    if(corValida(a) && corValida(b)) fundos = [a, b];
+  } else if(aparencia.fundoTipo === 'cor' && corValida(c.papel)){
+    fundos = [c.papel];
+  }
+  if(!fundos) return null;
+  const pior = letra => Math.min(...fundos.map(f => contrasteEntre(letra, f)));
+  return pior(PADRAO_TEMA.escuro.titulo) > pior(PADRAO_TEMA.claro.titulo)
+    ? 'escuro' : 'claro';
+}
+function ajustarLetras(){
+  const t = temaPeloFundo();
+  if(t) aparencia.tema = t;
+}
+
+/* Sem gradiente escolhido, os dois campos partem de dois tons CLAROS da cor
+   da marca: o dono mexe a partir do que reconhece, e o ponto de partida já
+   é um fundo que se lê. O de antes era a marca pura em cima — roxo cheio
+   atrás de tudo, que ninguém escolheria de propósito. */
+function padraoGradiente(){
+  return mexer(aparencia.cor, 0.86) + ',' + mexer(aparencia.cor, 0.58);
+}
+function papeisProntos(){
+  return [['Branco','#FFFFFF'], ['Marfim','#F6F2E8'], ['Nude','#F2E4DA'],
+          ['Rosé','#FBE7EF'], ['Cinza','#ECEEF1'],
+          ['Tom da marca', mexer(aparencia.cor, 0.86)],
+          ['Grafite','#1F2430'], ['Noite','#0B1220'], ['Preto','#0A0A0B']];
+}
+function gradientesProntos(){
+  return [['Pérola','#FFFFFF','#EFE9DF'], ['Rosé','#FDF2F6','#F4CFDD'],
+          ['Champanhe','#FBF6EC','#E9D6B0'], ['Céu','#F3F8FF','#C9DCF5'],
+          ['Tom da marca', mexer(aparencia.cor, 0.86), mexer(aparencia.cor, 0.58)],
+          ['Noite','#1F2430','#07090F']];
+}
+
+/* ⚠ ESCOLHER "GRADIENTE" JÁ GUARDA UM GRADIENTE. Os dois seletores apareciam
+   preenchidos, mas `aparencia.gradiente` só nascia no primeiro arrasto — quem
+   gostasse do que viu e apertasse Salvar gravava nulo, e a página seguia lisa.
+   O que está na tela é o que vai para o banco. */
+function escolherFundoTipo(v){
+  aparencia.fundoTipo = v;
+  if(v === 'gradiente' && !aparencia.gradiente) aparencia.gradiente = padraoGradiente();
+  ajustarLetras();
+  pintarAparencia();
+}
+function escolherPapelPronto(hex){
+  if(!corValida(hex)) return;
+  aparencia.fundoTipo = 'cor';
+  aparencia.cores.papel = hex;
+  ajustarLetras();
+  pintarAparencia();
+}
+function escolherGradientePronto(a, b){
+  if(!corValida(a) || !corValida(b)) return;
+  aparencia.fundoTipo = 'gradiente';
+  aparencia.gradiente = a + ',' + b;
+  ajustarLetras();
   pintarAparencia();
 }
 
 function escolherCorSolta(chave, hex){
   if(corValida(hex)) aparencia.cores[chave] = hex;
+  if(chave === 'papel') ajustarLetras();
   pintarAparencia();
 }
 
@@ -9052,6 +9221,8 @@ function escolherAparencia(campo, valor){ aparencia[campo] = valor; pintarAparen
    "minhas fotos" sem ver o que muda é escolher no escuro. */
 function previaDoSlide(sl){
   const daGaleria = aparencia.slideDe === 'galeria';
+  // O slide "dos serviços" não existe sem serviços no link — nem o aviso dele.
+  if(!daGaleria && !usaServicosNoLink(sl)) return '';
   const itens = daGaleria
     ? listaGaleria(sl)
     : (bd.servicos || []).filter(s => s.foto && s.ativo !== false)
@@ -9155,6 +9326,14 @@ function coresDaPrevia(){
   for(const [chave] of CORES_SOLTAS){
     if(corValida(c[chave])) fora += `;--fone-${chave}:${c[chave]}`;
   }
+  /* ⚠ O PAPEL VAI SEMPRE, escolhido ou não. Sem ele a prévia caía no fundo
+     do PAINEL (o bege daqui no claro, um cinza #141416 no escuro), e não no
+     da página (#F6F2E8 e #0B1220, medidos). No escuro a diferença se via a
+     olho — e é a cor que este bloco existe para escolher. */
+  if(!corValida(c.papel)) fora += `;--fone-papel:${corHerdada('papel')}`;
+  const [a, b] = String(aparencia.gradiente || '').split(',');
+  if(aparencia.fundoTipo === 'gradiente' && corValida(a) && corValida(b))
+    fora += `;--fone-grad:linear-gradient(180deg, ${a} 0%, ${b} 100%)`;
   return fora;
 }
 
@@ -9166,16 +9345,28 @@ function pintarPreviaFone(){
   if(!alvo) return;
   const sl = acharSalao(salaoAtual) || {};
   const escuro = aparencia.tema === 'escuro';
-  const svs = (bd.servicos || []).filter(s => s.ativo !== false).slice(0, 2);
-  const eq = (bd.profissionais || [])
+  /* ⚠ OS MÓDULOS VALEM NA PRÉVIA TAMBÉM. Com "Serviços e agendamento"
+     desligado, a página da cliente não mostra serviços, equipe, nem o botão
+     de agendar — e a prévia mostrava os três. Prévia que promete o que a
+     página não tem é o defeito que esta tela já pagou caro para aprender.
+     Vale o que está SALVO: é o que a cliente vê. */
+  const comServicos = usaServicosNoLink(sl);
+  const svs = !comServicos ? []
+    : (bd.servicos || []).filter(s => s.ativo !== false).slice(0, 2);
+  const eq = !comServicos ? [] : (bd.profissionais || [])
     .filter(x => x.salaoId === salaoAtual && x.ativo !== false).slice(0, 2);
+  const lojaNoAr = usaLojaNoLink(sl) && !porqueALojaNaoAparece(sl);
+  const cta = comServicos ? 'Agendar horário'
+            : lojaNoAr    ? 'Ver produtos'
+            : zapDaCasa(sl) ? 'Falar no WhatsApp' : '';
 
   alvo.innerHTML =
     `<div class="fone ${escuro ? 'fone-escuro' : ''}${
-          aparencia.veu < 35 ? ' pouco-veu' : ''}"
+          aparencia.veu < 35 ? ' pouco-veu' : ''}${
+          aparencia.fundoTipo === 'gradiente' ? ' com-grad' : ''}"
           style="--fone-marca:${escapar(corDoBotaoNaPrevia())};--fone-marca-txt:${
             letraSobre(corDoBotaoNaPrevia())}${coresDaPrevia()}">
-       ${imagemDoSalao(sl, 'fundo')
+       ${imagemDoSalao(sl, 'fundo') && aparencia.fundoTipo === 'imagem'
          ? `<div class="fone-fundo" style="background-image:url('${imagemDoSalao(sl, 'fundo')}');
                   --veu:${aparencia.veu / 100}"></div>`
          : ''}
@@ -9188,7 +9379,7 @@ function pintarPreviaFone(){
          ${(() => {
             const e = Endereco.completo(sl.endereco);
             return e.length
-              ? `<span>${e[0]}</span>${e[1] ? `<i>${e[1]}</i>` : ''}`
+              ? `<span>${escapar(e[0])}</span>${e[1] ? `<i>${escapar(e[1])}</i>` : ''}`
               : '<span>Agende seu horário</span>';
           })()}
        </div>
@@ -9198,14 +9389,14 @@ function pintarPreviaFone(){
             primeiro — que é a coisa que mais importa nesta tela. -->
        <div class="fone-boas">
          <b class="fone-boas-t">Bem-vindo!</b>
-         <div class="fone-cta ${aparencia.brilho ? 'com-brilho' : ''}">Agendar horário</div>
+         ${cta ? `<div class="fone-cta ${aparencia.brilho ? 'com-brilho' : ''}">${cta}</div>` : ''}
        </div>
        ${previaDoSlide(sl)}
-       <div class="fone-svs">
+       ${comServicos ? `<div class="fone-svs">
          <div class="fone-rot">Nossos serviços</div>
          ${svs.length ? previaDosServicos(svs)
          : '<p class="fone-nada">Cadastre serviços para vê-los aqui.</p>'}
-       </div>
+       </div>` : ''}
        ${eq.length ? `<div class="fone-svs">
          <div class="fone-rot">Quem atende</div>
          ${eq.map(x => `<div class="fone-sv">
@@ -9270,7 +9461,17 @@ function salvarAparencia(){
        defeito. */
     fitaCor: aparencia.fitaCor || null,
     fitaBorda: aparencia.fitaBorda,
-    fundoTipo: aparencia.fundoTipo,
+    /* ⚠ "COR SÓLIDA" VAI PARA O BANCO COMO `solida`, E NÃO COMO `cor`.
+
+       A `vitrine()` devolve `cor` para quem nunca escolheu (coalesce no 06 e
+       no 25), e para esses a foto antiga continua valendo — é a promessa a
+       quem anexou foto antes deste seletor existir. Gravar `cor` para quem
+       ESCOLHEU cor sólida deixava as duas coisas indistinguíveis, e a foto
+       continuava por cima do rosa que ele acabou de escolher.
+
+       Um valor novo, e não uma mudança no SQL: o banco repassa o texto como
+       vem, e nenhum salão precisa colar arquivo nenhum para isto valer. */
+    fundoTipo: aparencia.fundoTipo === 'cor' ? 'solida' : aparencia.fundoTipo,
     gradiente: aparencia.gradiente,
   });
   salvar();

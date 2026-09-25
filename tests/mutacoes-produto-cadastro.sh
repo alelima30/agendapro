@@ -28,7 +28,7 @@ restaurar(){
 }
 trap restaurar EXIT
 
-viva=0; morta=0
+viva=0; morta=0; perdida=0
 # ⚠ MUTAÇÃO DE SQL PRECISA REINSTALAR O MÓDULO. E aqui dá para reinstalar o 32
 # sozinho porque ele é o ÚLTIMO a definir tudo o que define — foi conferido:
 # nenhum módulo depois dele toca `comissao_de`, `tg_comanda_estoque` ou
@@ -58,6 +58,13 @@ if de not in s:
     print('!! trecho não encontrado em ' + arq); sys.exit(9)
 open(arq, 'w', encoding='utf-8').write(s.replace(de, para, 1))
 PY
+  local r=$?
+  # ⚠ MUTAÇÃO QUE NÃO RODA NÃO É MUTAÇÃO MORTA. O trecho sumiu ou passou a
+  # aparecer duas vezes, e o placar seguia dizendo "N mortas, 0 vivas" com
+  # uma a menos. Aconteceu no mutacoes-modulos.sh: a nº 5 ficou sem rodar por
+  # sessões inteiras, porque o "!!" passava no meio da saída sem contar.
+  [ $r -eq 0 ] || { echo "  ✗ NÃO RODOU — conserte o trecho procurado"; perdida=$((perdida+1)); }
+  return $r
 }
 
 echo "1. o degrau novo da comissão some"
@@ -147,3 +154,5 @@ troca app.html \
 echo
 echo "  $morta morreram, $viva sobreviveram"
 [ "$viva" -eq 0 ] || echo "  ⚠ mutação viva é buraco na suíte — ou defeito de projeto"
+[ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"
+[ "$viva" -eq 0 ] && [ "$perdida" -eq 0 ]
