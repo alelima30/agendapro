@@ -66,7 +66,8 @@ secao('O carimbo de versão não pode mentir');
      pergunta para a qual ele existe: "que versão você está rodando?". */
   const ARQUIVOS = ['app.html','agendar.html','criar.html','entrar.html',
                     'index.html','nova-senha.html','estilo.css','dados.js',
-                    'demo.js','icones.js','imagens.js','endereco.js'];
+                    'demo.js','icones.js','imagens.js','endereco.js',
+                    'funcionamento.js'];
   const cru = ARQUIVOS.map(f =>
     fs.readFileSync(path.join(RAIZ, f), 'utf8')
       .replace(/const VERSAO_APP = '[^']*'/, "const VERSAO_APP = ''")).join('');

@@ -259,6 +259,24 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a coluna do preço ainda nasce com zero: a linha lançada '
                || 'sem preço fica R$ 0,00 em vez do preço da regra'
            else '' end
+  union all
+  /* Os horários de funcionamento, os pagamentos e a apresentação. Sem as
+     chaves na vitrine(), o painel grava a semana e a página da cliente nunca
+     fica sabendo: nenhum erro, só o cartão ABERTO/FECHADO que não aparece. */
+  select 15, 'horários, pagamentos e informações na página',
+         case
+           when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%funcionamento%' then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.vitrine(text)') is null
+             then 'a vitrine() nem existe — rode o 00_tudo.sql'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%funcionamento%'
+             then 'a vitrine() é de antes dos horários: o painel grava e a '
+               || 'página da cliente não mostra'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

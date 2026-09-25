@@ -831,6 +831,7 @@ body.carregando-tudo .tela{ display:none }
 <script src="icones.js"></script>
 <script src="imagens.js"></script>
 <script src="endereco.js"></script>
+<script src="funcionamento.js"></script>
 <script src="documento.js"></script>
 <script src="qr.js"></script>
 <script src="demo.js"></script>
@@ -1755,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.76fbb3';
+const VERSAO_APP = 'v9.ecea80';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7574,6 +7575,50 @@ function pintarSalao(){
           </select></div>
       </div>
 
+      <!-- ══════════ HORARIOS, PAGAMENTOS E SOBRE ══════════
+           O que a pagina da cliente mostra logo abaixo do endereco: os
+           botoes Pagamentos, Horarios e Informacoes, e o cartao ABERTO ou
+           FECHADO. Ficam aqui, colados no endereco, porque sao a mesma
+           pergunta: como a cliente chega, quando, e como paga.
+
+           Gravados pelo mesmo Salvar dados desta aba, no mesmo cfg de tudo.
+           Sem nada preenchido, a pagina nao mostra nada disso — nenhum
+           horario de exemplo, nenhuma forma de pagamento presumida.
+           (Sem crase: este HTML e lido como template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Horários de funcionamento</h3>
+      <p class="secao-sub">Quando a porta está aberta. A sua página mostra
+        <b>Aberto</b> ou <b>Fechado</b> sozinha, pelo relógio. Dia com almoço?
+        Use <b>+ Adicionar horário</b> para o segundo período.</p>
+      <div id="editorFuncionamento" class="func-editor"></div>
+      <p class="secao-sub" id="avisoFuncionamento" style="margin-top:8px"></p>
+
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Formas de pagamento</h3>
+      <p class="secao-sub">Aparecem no botão <b>Pagamentos</b> da sua página.
+        Sem nenhuma marcada, o botão não aparece.</p>
+      <div class="fitas" id="reguaPagamentos"></div>
+      <div class="campo" style="margin-top:10px"><label for="cPagObs">Observação
+          <span class="opcional">opcional</span></label>
+        <input id="cPagObs" maxlength="200"
+               value="${escapar(((sl.cfg || {}).pagamentos || {}).obs || '')}"
+               placeholder="Ex.: parcelamos em até 3x no cartão"></div>
+
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Sobre o estabelecimento</h3>
+      <p class="secao-sub">Aparece no botão <b>Informações</b>, junto do
+        endereço com o mapa e dos seus contatos.</p>
+      <div class="campo"><label for="cSobre">Apresentação
+          <span class="opcional">opcional</span></label>
+        <textarea id="cSobre" maxlength="600" rows="3"
+                  placeholder="Conte em poucas linhas o que a sua casa faz de melhor."
+        >${escapar((sl.cfg || {}).sobre || '')}</textarea></div>
+      <div class="campo"><label for="cInsta">Instagram
+          <span class="opcional">opcional</span></label>
+        <input id="cInsta" maxlength="60" autocapitalize="off" spellcheck="false"
+               value="${escapar((sl.cfg || {}).instagram ? '@' + (sl.cfg || {}).instagram : '')}"
+               placeholder="@seusalao"></div>
+
       <!-- ══════════ OS DOIS MODULOS DA CASA ══════════
            A pergunta mais larga de todas, e por isso a PRIMEIRA: ela decide o
            que a pagina da cliente mostra. Vem antes de "como voce trabalha"
@@ -8150,6 +8195,8 @@ function pintarSalao(){
   pintarAntecedencia();
   pintarConta();
   pintarModulos();
+  pintarFuncionamento();
+  pintarPagamentosEditor();
   pintarComanda();
   pintarConfirma();
   pintarTetoOnline();
@@ -9340,6 +9387,30 @@ function coresDaPrevia(){
 /* A prévia. Não é decoração: escolher cor sem ver onde ela cai é escolher no
    escuro, e o dono só descobriria o resultado abrindo o próprio link no
    celular. Aqui ele vê antes de salvar. */
+/* A fileira de Pagamentos, Horários e Informações, e o cartão ABERTO/FECHADO,
+   dentro da prévia. As MESMAS regras da página (desenharInfoDaCasa, no
+   agendar.html): só entra o que o dono cadastrou, e a conta do relógio é a
+   do funcionamento.js, a mesma que a cliente vê. Lê o que está SALVO — a
+   prévia mostra o link como ele está no ar. */
+function previaDaInfo(sl){
+  if(!window.Funcionamento) return '';
+  const c = sl.cfg || {};
+  const func = Funcionamento.normalizar(c.funcionamento);
+  const pag = Funcionamento.pagamentos(c.pagamentos);
+  const botoes = [];
+  if(pag)  botoes.push(['cartao', 'Pagamentos', false]);
+  if(func) botoes.push(['relogio', 'Horários', true]);
+  if(String(c.sobre || '').trim() || String(c.instagram || '').trim() || botoes.length)
+    botoes.push(['info', 'Informações', false]);
+  if(!botoes.length) return '';
+  const est = func ? Funcionamento.estado(func, Funcionamento.agora(sl.fuso)) : null;
+  return `<div class="fone-recursos" style="--n:${botoes.length}">${botoes.map(([ico, rot, d]) =>
+      `<span class="fone-recurso${d ? ' destaque' : ''}"><span data-ico="${ico}"></span>${rot}</span>`
+    ).join('')}</div>`
+    + (est ? `<div class="fone-status ${est.aberto ? 'aberto' : 'fechado'}">
+        <i></i><b>${est.aberto ? 'ABERTO' : 'FECHADO'}</b><span>${escapar(est.detalhe)}</span></div>` : '');
+}
+
 function pintarPreviaFone(){
   const alvo = document.getElementById('previaFone');
   if(!alvo) return;
@@ -9383,6 +9454,7 @@ function pintarPreviaFone(){
               : '<span>Agende seu horário</span>';
           })()}
        </div>
+       ${previaDaInfo(sl)}
        <!-- A ORDEM AQUI É A DA PÁGINA DE VERDADE: marca, botão, slide,
             serviços, equipe. Estava com o slide antes do botão, e prévia que
             embaralha a ordem engana justamente sobre o que a cliente vê
@@ -10269,10 +10341,187 @@ function escolherJanelaOutro(){
   pintarRecados();
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   HORÁRIOS DE FUNCIONAMENTO — O EDITOR
+
+   O mesmo par de variáveis das outras escolhas desta aba: o que está na tela
+   vive aqui até o Salvar, e `funcDoSalao` impede que a semana de um salão
+   vaze para o outro quando o dono troca de casa no seletor.
+
+   O formato é o do banco ("HH:MM", dia "0" = domingo) — ver funcionamento.js.
+   Dia fechado é lista vazia; o editor nunca inventa horário. Abrir um dia
+   copia o horário do dia aberto mais próximo ANTES dele — é o horário que o
+   próprio dono acabou de digitar, e é quase sempre o que ele digitaria de
+   novo. Sem nenhum dia aberto ainda, os campos nascem vazios.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let funcEscolhido = null, funcDoSalao = null, pagEscolhidas = null;
+
+function funcDoBanco(){
+  const cru = ((acharSalao(salaoAtual) || {}).cfg || {}).funcionamento;
+  const f = {};
+  for(let d = 0; d <= 6; d++){
+    const lista = cru && typeof cru === 'object' && Array.isArray(cru[d]) ? cru[d] : [];
+    f[d] = lista.filter(p => Array.isArray(p)).map(p => [String(p[0] || ''), String(p[1] || '')]);
+  }
+  return f;
+}
+
+function pintarFuncionamento(){
+  const alvo = document.getElementById('editorFuncionamento');
+  if(!alvo || !window.Funcionamento) return;
+  if(funcEscolhido === null || funcDoSalao !== salaoAtual){
+    funcEscolhido = funcDoBanco();
+    funcDoSalao = salaoAtual;
+    pagEscolhidas = null;
+  }
+  const F = Funcionamento;
+  alvo.innerHTML = F.ORDEM.map(d => {
+    const ps = funcEscolhido[d];
+    const aberto = ps.length > 0;
+    return `<div class="func-dia${aberto ? ' aberto' : ''}" data-dia="${d}">
+      <div class="func-topo">
+        <b>${F.NOMES[d]}</b>
+        <div class="regua regua-peq" role="group" aria-label="${F.NOMES[d]}">
+          <button type="button" class="${aberto ? '' : 'on'}" onclick="funcFechar(${d})">Fechado</button>
+          <button type="button" class="${aberto ? 'on' : ''}" onclick="funcAbrir(${d})">Aberto</button>
+        </div>
+      </div>
+      ${aberto ? ps.map((p, i) => `
+        <div class="func-periodo">
+          ${seletorHora(d, i, 0, p[0], 'Abertura, ' + F.NOMES[d])}
+          <span>até</span>
+          ${seletorHora(d, i, 1, p[1], 'Fechamento, ' + F.NOMES[d])}
+          ${ps.length > 1 ? `<button type="button" class="func-tirar" onclick="funcTirar(${d}, ${i})"
+                 aria-label="Tirar este horário"><span data-ico="fechar"></span></button>` : ''}
+        </div>`).join('') + `
+        <button type="button" class="func-mais" onclick="funcMais(${d})">+ Adicionar horário</button>`
+      : ''}
+    </div>`;
+  }).join('')
+  /* O atalho do caso mais comum: a mesma semana de segunda a sexta. Só
+     aparece quando há o que copiar. */
+  + (funcEscolhido[1].length ? `<button type="button" class="btn btn-peq" style="margin-top:4px"
+       onclick="funcRepetirSegunda()">Repetir o horário de segunda de terça a sexta</button>` : '');
+  if(window.aplicarIcones) aplicarIcones(alvo);
+  explicarFuncionamento();
+}
+
+/* ⚠ UMA LISTA, E NÃO O CAMPO DE HORA DO NAVEGADOR. O campo nativo mostra o
+   formato do aparelho — medido: "06:00 PM" mesmo com a página em português —,
+   e horário de funcionamento em AM/PM é o tipo de coisa que o dono digita
+   errado sem perceber. A lista é sempre 24h, de 15 em 15 minutos, e no
+   celular abre a roda nativa de escolha, que é rápida com o polegar.
+
+   Um horário gravado fora da grade (13:20, vindo de antes) entra na lista
+   como está: abrir a tela não pode trocar o que o dono escolheu. */
+const HORAS_DA_GRADE = Array.from({ length: 96 }, (_, k) =>
+  String(Math.floor(k / 4)).padStart(2, '0') + ':' + String((k % 4) * 15).padStart(2, '0'));
+function seletorHora(d, i, lado, valor, rotulo){
+  const ops = HORAS_DA_GRADE.slice();
+  if(valor && !ops.includes(valor)) { ops.push(valor); ops.sort(); }
+  return `<select class="func-hora" aria-label="${escapar(rotulo)}"
+            onchange="funcHora(${d}, ${i}, ${lado}, this.value)">
+    <option value="">--:--</option>
+    ${ops.map(h => `<option value="${h}"${h === valor ? ' selected' : ''}>${
+      lado === 1 && h === '00:00' ? '00:00 (meia-noite)' : h}</option>`).join('')}
+  </select>`;
+}
+
+function explicarFuncionamento(){
+  const alvo = document.getElementById('avisoFuncionamento');
+  if(!alvo || !funcEscolhido) return;
+  const queixas = Funcionamento.validar(funcEscolhido);
+  const algum = Object.values(funcEscolhido).some(ps => ps.length);
+  alvo.innerHTML = queixas.length
+    ? '<b style="color:var(--alerta)">Falta acertar:</b> ' + queixas.map(escapar).join(' ')
+    : !algum ? 'Nenhum dia aberto: a sua página não mostra horário nem o "Aberto/Fechado".'
+    : 'A página mostra "Aberto" ou "Fechado" sozinha, pelo relógio, no fuso do salão.';
+}
+
+function funcAbrir(d){
+  if(funcEscolhido[d].length) return;
+  const F = Funcionamento;
+  const pos = F.ORDEM.indexOf(d);
+  let copia = null;
+  for(let k = 1; k < 7 && !copia; k++){
+    const outro = funcEscolhido[F.ORDEM[(pos - k + 7) % 7]];
+    if(outro.length) copia = outro.map(p => p.slice());
+  }
+  funcEscolhido[d] = copia || [['', '']];
+  pintarFuncionamento();
+}
+function funcFechar(d){ funcEscolhido[d] = []; pintarFuncionamento(); }
+/* Sem redesenhar: redesenhar tiraria o foco do campo seguinte no meio da
+   digitação. Só a frase de baixo é refeita. */
+function funcHora(d, i, lado, valor){
+  if(funcEscolhido[d][i]) funcEscolhido[d][i][lado] = valor || '';
+  explicarFuncionamento();
+}
+function funcMais(d){ funcEscolhido[d].push(['', '']); pintarFuncionamento(); }
+function funcTirar(d, i){ funcEscolhido[d].splice(i, 1); pintarFuncionamento(); }
+function funcRepetirSegunda(){
+  for(const d of [2, 3, 4, 5]) funcEscolhido[d] = funcEscolhido[1].map(p => p.slice());
+  pintarFuncionamento();
+}
+
+/* O que vai para o banco: só os períodos de dia aberto, em ordem. Sem
+   nenhum dia aberto, `null` — "não informado", e a página esconde o status. */
+function funcParaGravar(){
+  if(!funcEscolhido) return undefined;
+  const saida = {};
+  let algum = false;
+  for(let d = 0; d <= 6; d++){
+    saida[d] = funcEscolhido[d]
+      .filter(p => p[0] && p[1])
+      .map(p => [p[0], p[1]])
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    if(saida[d].length) algum = true;
+  }
+  return algum ? saida : null;
+}
+
+/* ── AS FORMAS DE PAGAMENTO ─────────────────────────────────────────────── */
+function pagDoBanco(){
+  const p = Funcionamento.pagamentos(((acharSalao(salaoAtual) || {}).cfg || {}).pagamentos);
+  return p ? p.formas.slice() : [];
+}
+function pintarPagamentosEditor(){
+  const alvo = document.getElementById('reguaPagamentos');
+  if(!alvo || !window.Funcionamento) return;
+  if(pagEscolhidas === null) pagEscolhidas = pagDoBanco();
+  alvo.innerHTML = Funcionamento.PAGAMENTOS.map(([k, rot, ico]) => `
+    <button type="button" class="fita-param${pagEscolhidas.includes(k) ? ' on' : ''}"
+            aria-pressed="${pagEscolhidas.includes(k)}" onclick="alternarPagamento('${k}')">
+      <span data-ico="${ico}" class="ic-pequeno"></span>${rot}</button>`).join('');
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+function alternarPagamento(k){
+  pagEscolhidas = pagEscolhidas.includes(k)
+    ? pagEscolhidas.filter(x => x !== k) : pagEscolhidas.concat(k);
+  pintarPagamentosEditor();
+}
+function instagramLimpo(txt){
+  return String(txt || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
+    .replace(/^@+/, '').replace(/[/?#].*$/, '').replace(/[^A-Za-z0-9._]/g, '').slice(0, 30);
+}
+
 function salvarCadastroSalao(){
   const v = id => (document.getElementById(id).value || '').trim();
   const nome = v('cNome');
   if(nome.length < 2){ alert('O estabelecimento precisa de um nome.'); return; }
+
+  /* Horário torto segura o salvar inteiro, com o motivo escrito ao lado dos
+     horários. Salvar o resto e descartar o horário em silêncio faria o dono
+     achar que gravou a semana. */
+  const queixasHorario = window.Funcionamento && funcEscolhido
+    ? Funcionamento.validar(funcEscolhido) : [];
+  if(queixasHorario.length){
+    explicarFuncionamento();
+    const caixa = document.getElementById('editorFuncionamento');
+    if(caixa) caixa.scrollIntoView({ block:'center', behavior:'smooth' });
+    alert('Os horários de funcionamento têm um erro:\n\n' + queixasHorario.join('\n'));
+    return;
+  }
 
   const sl = acharSalao(salaoAtual);
   sl.nome     = nome;
@@ -10321,6 +10570,15 @@ function salvarCadastroSalao(){
        nada na tela explicando por quê. */
     usaServicos: modServicoEscolhido ?? true,
     loja:        modLojaEscolhida    ?? true,
+    /* ⚠ `undefined` NÃO APAGA: se o editor nem chegou a ser desenhado,
+       o `Object.assign` mantém o que já estava gravado. `null` apaga, e é
+       o que sai quando todos os dias estão fechados. */
+    ...(funcParaGravar() !== undefined ? { funcionamento: funcParaGravar() } : {}),
+    pagamentos: window.Funcionamento && pagEscolhidas !== null
+      ? Funcionamento.pagamentos({ formas: pagEscolhidas, obs: v('cPagObs') })
+      : (sl.cfg || {}).pagamentos || null,
+    sobre: v('cSobre').slice(0, 600) || null,
+    instagram: instagramLimpo(v('cInsta')) || null,
     tetoOnlinePct:    aparar(v('cTetoPct'),    10, 100, 70),
     tetoOnlineRajada: aparar(v('cTetoRajada'),  1, 100, 10),
   });

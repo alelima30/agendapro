@@ -35,7 +35,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 # num ciclo — muda o carimbo, muda o hash, que muda o carimbo.
 ARQUIVOS=(app.html agendar.html criar.html entrar.html index.html
           nova-senha.html estilo.css dados.js demo.js icones.js
-          imagens.js endereco.js)
+          imagens.js endereco.js funcionamento.js)
 
 RELEASE="${1:-}"
 if [ -z "$RELEASE" ]; then

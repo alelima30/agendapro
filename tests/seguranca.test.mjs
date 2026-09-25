@@ -260,6 +260,12 @@ const CAMPOS = /(nome|apelido|obs|motivo|legenda|descricao|categoria|telefone|lo
 const PODE_CRU = [
   { porque: 'o trecho já devolve HTML de propósito',
     vale: (e) => /\bmedidor\(|\bico\(|<[a-z]/i.test(e) },
+  /* "Segunda-feira", "Terça-feira"… — a lista fixa do funcionamento.js. O
+     padrão casa por causa do "NOMES" no nome da constante, e não por ser
+     texto de gente: ninguém digita o nome do dia. O `seletorHora()` entra
+     aqui também porque recebe o nome do dia e devolve HTML já escapado. */
+  { porque: 'nomes dos dias da semana, constante do código',
+    vale: (e) => /\b(F|Funcionamento)\.NOMES\[/.test(e) },
 ];
 
 const LINHA_PODE_CRU = [

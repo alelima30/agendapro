@@ -380,6 +380,10 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
     <!-- ══════ CAPA DO SALÃO ══════ -->
     <section class="passo" id="p-capa">
       <div id="capaMarca"></div>
+      <!-- Pagamentos, Horários, Informações e o cartão ABERTO/FECHADO, logo
+           abaixo do endereço. Vazio quando o dono não cadastrou nada: ver
+           desenharInfoDaCasa(). -->
+      <div id="capaInfo"></div>
       <div id="capaAviso"></div>
       <!-- O convite, logo abaixo do nome. Quem chega pelo WhatsApp veio para
            marcar: o caminho tem que estar à mão antes de qualquer rolagem. -->
@@ -693,6 +697,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
 <script src="icones.js"></script>
 <script src="imagens.js"></script>
 <script src="endereco.js"></script>
+<script src="funcionamento.js"></script>
 <script src="documento.js"></script>
 <script src="demo.js"></script>
 <script src="config.js"></script>
@@ -1119,6 +1124,12 @@ function bdDaVitrine(v){
       loja: s.loja !== false,
       fundoTipo: s.fundoTipo || 'cor',
       gradiente: s.gradiente || null,
+      // Horários, pagamentos e a apresentação: peneirados de novo na página
+      // (funcionamento.js), porque o que vem daqui é o que o dono digitou.
+      funcionamento: s.funcionamento || null,
+      pagamentos: s.pagamentos || null,
+      sobre: s.sobre || null,
+      instagram: s.instagram || null,
       cfg: { diasLiberados: s.diasLiberados },
     }],
     servicos: (v.servicos || []).map(x => ({
@@ -1682,6 +1693,9 @@ function meusOutrosSaloes(){
 
 /* ── Navegação ───────────────────────────────────────────────────────── */
 function irPara(nova, semHistorico){
+  // A folha de horários é da capa: trocar de tela com ela aberta a deixaria
+  // flutuando sobre a tela seguinte.
+  if(typeof fecharFolha === 'function') fecharFolha(true);
   if(!semHistorico && tela !== nova) historico.push(tela);
   tela = nova;
   document.querySelectorAll('.passo').forEach(p => p.classList.remove('on'));
@@ -1880,6 +1894,8 @@ function desenharCapa(){
            </div>`
         : `<p class="sub">Agende seu horário</p>`}
     </div>`;
+
+  desenharInfoDaCasa();
 
   // A foto do salão agora é a faixa do topo; repeti-la aqui seria a mesma
   // imagem duas vezes na mesma rolagem.
@@ -3639,6 +3655,221 @@ function desenharCarrinhoFita(){
    `real(null)` escreveria "R$ 0,00", que é pior do que não escrever nada
    porque parece uma promessa.
    ═══════════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════════
+   HORÁRIOS, PAGAMENTOS E INFORMAÇÕES — abaixo do endereço
+
+   Três botões e um cartão de status, e uma folha que sobe de baixo com o
+   detalhe de cada um. A conta de "aberto agora" e a peneira do que vem do
+   banco moram no funcionamento.js, junto com a prévia do painel: as duas
+   telas têm que dizer o mesmo sobre a mesma porta.
+
+   ⚠ SÓ APARECE O QUE O DONO CADASTROU. Sem horário, nem o botão Horários
+   nem o cartão; sem forma de pagamento, nem o botão Pagamentos. Nenhum
+   horário de exemplo: "aberto até 18:00" inventado é a casa prometendo uma
+   porta que ninguém combinou.
+
+   ⚠ E UM SALÃO QUE NÃO CADASTROU NADA NÃO VÊ A FILEIRA NENHUMA. O botão
+   Informações sozinho repetiria o endereço que já está escrito logo acima —
+   ele só entra quando há o que acrescentar (a apresentação, o Instagram) ou
+   quando já existe fileira, e aí completa os outros dois com mapa e
+   contatos. Assim nenhuma página que já está no ar muda sem o dono pedir.
+
+   ⚠ NENHUMA COR ESCRITA AQUI. Os botões e a folha usam as variáveis da cor
+   do salão (--ac-600, --ac-soft, --ac-line), e o status usa as de estado
+   (--su-500, --er-500), que já têm a versão clara e a escura. Salão roxo vê
+   roxo; salão verde vê verde.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function funcionamentoDoSalao(){
+  if(!salao || !window.Funcionamento) return null;
+  return Funcionamento.normalizar(salao.funcionamento || (salao.cfg || {}).funcionamento);
+}
+function pagamentosDoSalao(){
+  if(!salao || !window.Funcionamento) return null;
+  return Funcionamento.pagamentos(salao.pagamentos || (salao.cfg || {}).pagamentos);
+}
+function sobreDoSalao(){
+  return String((salao && (salao.sobre || (salao.cfg || {}).sobre)) || '').trim().slice(0, 600);
+}
+function instagramDoSalao(){
+  const cru = String((salao && (salao.instagram || (salao.cfg || {}).instagram)) || '');
+  return cru.replace(/^@+/, '').replace(/[^A-Za-z0-9._]/g, '').slice(0, 30);
+}
+
+let relogioDoStatus = null;
+
+function desenharInfoDaCasa(){
+  const alvo = document.getElementById('capaInfo');
+  if(!alvo) return;
+  const func = funcionamentoDoSalao();
+  const pag = pagamentosDoSalao();
+  const extra = !!(sobreDoSalao() || instagramDoSalao());
+
+  const botoes = [];
+  if(pag)  botoes.push(['pagamentos', 'cartao',  'Pagamentos']);
+  if(func) botoes.push(['horarios',   'relogio', 'Horários']);
+  if(extra || botoes.length) botoes.push(['informacoes', 'info', 'Informações']);
+
+  alvo.innerHTML = !botoes.length ? '' : `
+    <div class="recursos" style="--n:${botoes.length}">
+      ${botoes.map(([qual, ico, rot]) => `
+        <button type="button" class="recurso${qual === 'horarios' ? ' destaque' : ''}"
+                data-recurso="${qual}" onclick="abrirFolha('${qual}', this)">
+          <span class="recurso-ic" data-ico="${ico}"></span>
+          <span class="recurso-rot">${rot}</span>
+        </button>`).join('')}
+    </div>
+    <div id="statusCasa"></div>`;
+  desenharStatusDaCasa();
+  if(window.aplicarIcones) aplicarIcones(alvo);
+
+  /* O cartão se corrige sozinho: quem deixa a página aberta na hora do almoço
+     vê o "ABERTO" virar "FECHADO" sem recarregar. Um relógio só, refeito a
+     cada desenho — sem isso, cada volta à capa somaria mais um. */
+  clearInterval(relogioDoStatus);
+  relogioDoStatus = func ? setInterval(() => {
+    if(tela === 'capa') desenharStatusDaCasa();
+  }, 30000) : null;
+}
+
+function desenharStatusDaCasa(){
+  const alvo = document.getElementById('statusCasa');
+  if(!alvo) return;
+  const func = funcionamentoDoSalao();
+  const est = func ? Funcionamento.estado(func, Funcionamento.agora(fusoDoSalao())) : null;
+  alvo.innerHTML = !est ? '' : `
+    <button type="button" class="status-casa ${est.aberto ? 'aberto' : 'fechado'}"
+            onclick="abrirFolha('horarios', this)"
+            aria-label="${est.aberto ? 'Aberto' : 'Fechado'}. ${escapar(est.detalhe)}. Ver os horários">
+      <span class="status-ponto" aria-hidden="true"></span>
+      <b class="status-rot">${est.aberto ? 'ABERTO' : 'FECHADO'}</b>
+      <span class="status-sep" aria-hidden="true"></span>
+      <span class="status-txt">${escapar(est.detalhe)}</span>
+      <span class="status-seta" data-ico="direita" aria-hidden="true"></span>
+    </button>`;
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+
+/* ── A FOLHA ────────────────────────────────────────────────────────────────
+   Sobe de baixo, como nos aplicativos de entrega e de agendamento: o polegar
+   já está lá, e a página continua visível atrás, então ninguém se sente
+   levado para outro lugar. Fecha no X, tocando fora e no Esc.
+
+   Uma folha só para os três botões — o que muda é o miolo. */
+function abrirFolha(qual, origem){
+  fecharFolha(true);
+  if(origem && origem.classList){
+    origem.classList.add('tocado');
+    setTimeout(() => origem.classList.remove('tocado'), 260);
+  }
+  const miolo = qual === 'horarios'   ? folhaHorarios()
+              : qual === 'pagamentos' ? folhaPagamentos()
+              : folhaInformacoes();
+  if(!miolo) return;
+  const f = document.createElement('div');
+  f.className = 'folha-fundo';
+  f.id = 'folha';
+  f.innerHTML = `
+    <div class="folha" role="dialog" aria-modal="true" aria-labelledby="folhaTitulo"
+         data-folha="${qual}">
+      <div class="folha-alca" aria-hidden="true"></div>
+      <button type="button" class="folha-fechar" onclick="fecharFolha()"
+              aria-label="Fechar"><span data-ico="fechar"></span></button>
+      ${miolo}
+    </div>`;
+  f.addEventListener('click', e => { if(e.target === f) fecharFolha(); });
+  document.body.appendChild(f);
+  document.body.classList.add('com-folha');
+  if(window.aplicarIcones) aplicarIcones(f);
+  // Dois quadros: o primeiro pinta a folha lá embaixo, o segundo a faz subir.
+  requestAnimationFrame(() => requestAnimationFrame(() => f.classList.add('on')));
+  const x = f.querySelector('.folha-fechar');
+  if(x) x.focus({ preventScroll: true });
+}
+
+function fecharFolha(ja){
+  const f = document.getElementById('folha');
+  document.body.classList.remove('com-folha');
+  if(!f) return;
+  if(ja){ f.remove(); return; }
+  f.classList.remove('on');
+  setTimeout(() => f.remove(), 260);
+}
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && document.getElementById('folha')) fecharFolha();
+});
+
+const cabecaDaFolha = (ico, titulo, sub) => `
+  <div class="folha-cabeca">
+    <span class="folha-ic" data-ico="${ico}"></span>
+    <div><h3 id="folhaTitulo">${titulo}</h3><p>${sub}</p></div>
+  </div>`;
+
+function folhaHorarios(){
+  const func = funcionamentoDoSalao();
+  if(!func) return '';
+  const ag = Funcionamento.agora(fusoDoSalao());
+  const est = Funcionamento.estado(func, ag);
+  const zap = typeof zapDoSalao === 'function' ? zapDoSalao() : '';
+  return cabecaDaFolha('relogio', 'Horário de Funcionamento',
+                       'Confira nossos horários de atendimento')
+    + (est ? `<div class="folha-status ${est.aberto ? 'aberto' : 'fechado'}">
+         <span class="status-ponto"></span><b>${est.aberto ? 'Aberto agora' : 'Fechado agora'}</b>
+         <span>· ${escapar(est.detalhe)}</span></div>` : '')
+    + `<div class="semana">${Funcionamento.ORDEM.map(d => {
+        const ps = Funcionamento.periodosDoDia(func, d);
+        return `<div class="semana-dia${d === ag.dow ? ' hoje' : ''}${ps ? '' : ' fechado'}">
+          <span class="semana-nome">${Funcionamento.NOMES[d]}${
+            d === ag.dow ? '<small>hoje</small>' : ''}</span>
+          <span class="semana-horas">${ps ? ps.map(escapar).join('<br>') : 'Fechado'}</span>
+        </div>`;
+      }).join('')}</div>`
+    + (zap ? `<div class="folha-nota">
+         <span data-ico="info"></span>
+         <p>Os horários podem mudar em feriados. Em caso de dúvida,
+            <a href="https://wa.me/${zap}" target="_blank" rel="noopener">fale com a
+            gente pelo WhatsApp</a>.</p></div>` : '');
+}
+
+function folhaPagamentos(){
+  const pag = pagamentosDoSalao();
+  if(!pag) return '';
+  const lista = Funcionamento.PAGAMENTOS.filter(([k]) => pag.formas.includes(k));
+  return cabecaDaFolha('cartao', 'Formas de pagamento', 'Como você pode pagar aqui')
+    + (lista.length ? `<div class="folha-lista">${lista.map(([, rot, ico]) => `
+        <div class="folha-item"><span class="folha-item-ic" data-ico="${ico}"></span>
+          <b>${rot}</b></div>`).join('')}</div>` : '')
+    + (pag.obs ? `<div class="folha-nota"><span data-ico="info"></span>
+         <p>${escapar(pag.obs)}</p></div>` : '');
+}
+
+function folhaInformacoes(){
+  const sobre = sobreDoSalao();
+  const insta = instagramDoSalao();
+  const end = Endereco.completo(salao.endereco);
+  const linhaEnd = Endereco.linha(salao.endereco);
+  const zap = typeof zapDoSalao === 'function' ? zapDoSalao() : '';
+  const tel = String(salao.telefone || '').replace(/\D/g, '');
+  const itens = [];
+  if(end.length) itens.push(['local', 'Endereço', escapar(end.join(' · ')),
+    'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(linhaEnd),
+    'Ver no mapa']);
+  if(zap) itens.push(['whatsapp', 'WhatsApp', 'Fale com a gente',
+    'https://wa.me/' + zap, 'Abrir']);
+  if(tel.length >= 10) itens.push(['telefone', 'Telefone', escapar(salao.telefone),
+    'tel:+55' + tel.replace(/^55(?=\d{10,11}$)/, ''), 'Ligar']);
+  if(insta) itens.push(['externo', 'Instagram', '@' + escapar(insta),
+    'https://instagram.com/' + encodeURIComponent(insta), 'Abrir']);
+  if(!sobre && !itens.length) return '';
+  return cabecaDaFolha('info', escapar(salao.nome || 'Informações'), 'Informações do estabelecimento')
+    + (sobre ? `<p class="folha-sobre">${escapar(sobre).replace(/\n/g, '<br>')}</p>` : '')
+    + (itens.length ? `<div class="folha-lista">${itens.map(([ico, rot, txt, href, acao]) => `
+        <a class="folha-item" href="${href}" target="_blank" rel="noopener">
+          <span class="folha-item-ic" data-ico="${ico}"></span>
+          <span class="folha-item-txt"><b>${rot}</b><span>${txt}</span></span>
+          <span class="folha-item-acao">${acao}</span>
+        </a>`).join('')}</div>` : '');
+}
+
 function desenharLojaNaCapa(){
   const alvo = document.getElementById('capaLoja');
   if(!alvo) return;

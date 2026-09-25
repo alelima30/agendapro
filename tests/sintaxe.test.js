@@ -27,7 +27,7 @@ const RAIZ = path.dirname(__dirname);
 const TELAS = ['app.html', 'agendar.html', 'criar.html', 'entrar.html',
                'admin.html', 'index.html', 'nova-senha.html'];
 const AVULSOS = ['dados.js', 'demo.js', 'imagens.js', 'icones.js',
-                 'endereco.js', 'config.js', 'sw.js'];
+                 'endereco.js', 'funcionamento.js', 'config.js', 'sw.js'];
 
 let ok = 0, falhas = 0;
 const dizer = (bom, msg, extra) => {

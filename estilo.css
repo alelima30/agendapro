@@ -3405,3 +3405,244 @@ body.tem-gradiente{
   background-repeat:no-repeat;
   background-size:cover;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HORÁRIOS, PAGAMENTOS E INFORMAÇÕES — a fileira, o status e a folha
+
+   ⚠ NENHUMA COR CRAVADA. A marca entra por --ac-600/--ac-soft/--ac-line —
+   as mesmas que a página inteira usa e que o `aplicarAparencia()` reescreve
+   com a cor do salão —, o cartão por --painel e --borda, que o dono também
+   escolhe em "Cards" e "Bordas", e o status pelos tokens de estado
+   (--su-*, --er-*), que já têm a versão para o fundo escuro. Salão roxo vê
+   roxo; salão verde vê verde; o personalizado vê o dele.
+   ══════════════════════════════════════════════════════════════════════════ */
+#capaInfo{ margin:2px 0 14px }
+#capaInfo:empty{ display:none }
+
+.recursos{
+  display:grid; grid-template-columns:repeat(var(--n, 3), minmax(0, 1fr));
+  gap:10px; margin:0 0 12px;
+}
+.recurso{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:7px; min-height:78px; padding:12px 6px;
+  background:var(--painel); color:var(--txt2);
+  border:1px solid var(--borda); border-radius:16px;
+  font:inherit; font-size:13px; font-weight:600; line-height:1.2; cursor:pointer;
+  box-shadow:0 1px 2px rgba(16,24,40,.04);
+  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.recurso-ic{ display:inline-flex; color:var(--ac-600) }
+.recurso-ic svg{ width:24px; height:24px }
+.recurso-rot{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+/* O Horários é o destaque da fileira, como no pedido: fundo suave na cor da
+   marca, letra na cor da marca. É o que a cliente mais procura aqui. */
+.recurso.destaque{
+  background:var(--ac-soft); border-color:var(--ac-line); color:var(--ac-600);
+}
+.recurso:hover{ box-shadow:0 6px 18px rgba(16,24,40,.08); transform:translateY(-1px) }
+.recurso:active, .recurso.tocado{ transform:scale(.97) }
+.recurso:focus-visible, .status-casa:focus-visible{
+  outline:2px solid var(--ac-600); outline-offset:2px;
+}
+
+/* O cartão de status. O ponto pulsa uma vez ao aparecer — o suficiente para
+   o olho achar, e nada que fique piscando. */
+.status-casa{
+  display:flex; align-items:center; gap:10px; width:100%;
+  padding:12px 14px; border-radius:16px; cursor:pointer; text-align:left;
+  font:inherit; font-size:14px; line-height:1.25;
+  background:var(--st-soft); border:1px solid var(--st-linha); color:var(--txt2);
+  transition:transform .18s ease, box-shadow .18s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+.status-casa.aberto{
+  --st-cor:var(--su-500, #15803D); --st-soft:var(--su-soft, rgba(21,128,61,.10));
+  --st-linha:color-mix(in srgb, var(--st-cor) 28%, transparent);
+}
+.status-casa.fechado{
+  --st-cor:var(--er-500, #DC2626); --st-soft:var(--er-soft, rgba(220,38,38,.09));
+  --st-linha:color-mix(in srgb, var(--st-cor) 26%, transparent);
+}
+.status-casa:hover{ box-shadow:0 6px 18px rgba(16,24,40,.07) }
+.status-casa:active, .status-casa.tocado{ transform:scale(.985) }
+.status-ponto{
+  width:12px; height:12px; border-radius:50%; flex:none; background:var(--st-cor);
+  box-shadow:0 0 0 4px color-mix(in srgb, var(--st-cor) 18%, transparent);
+  animation:status-pulso 1.6s ease-out 1;
+}
+@keyframes status-pulso{
+  0%  { box-shadow:0 0 0 0 color-mix(in srgb, var(--st-cor) 45%, transparent) }
+  100%{ box-shadow:0 0 0 4px color-mix(in srgb, var(--st-cor) 18%, transparent) }
+}
+.status-rot{ color:var(--st-cor); font-weight:800; letter-spacing:.04em; font-size:15px }
+.status-sep{ width:1px; align-self:stretch; background:var(--st-linha); flex:none }
+.status-txt{ flex:1; min-width:0 }
+.status-seta{ display:inline-flex; color:var(--st-cor); flex:none }
+.status-seta svg{ width:18px; height:18px }
+
+/* ── A folha ──────────────────────────────────────────────────────────── */
+.folha-fundo{
+  position:fixed; inset:0; z-index:90;
+  background:rgba(8,10,18,0); transition:background .24s ease;
+}
+.folha-fundo.on{ background:rgba(8,10,18,.44) }
+.folha{
+  position:absolute; left:0; right:0; bottom:0;
+  max-width:480px; margin:0 auto; max-height:88vh; overflow:auto;
+  background:var(--painel); color:var(--txt);
+  border-radius:24px 24px 0 0;
+  padding:10px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+  box-shadow:0 -12px 40px rgba(0,0,0,.18);
+  transform:translateY(104%); transition:transform .3s cubic-bezier(.2,.8,.2,1);
+  overscroll-behavior:contain;
+}
+.folha-fundo.on .folha{ transform:none }
+body.com-folha{ overflow:hidden }
+.folha-alca{ width:42px; height:5px; border-radius:99px; background:var(--borda);
+             margin:0 auto 10px }
+.folha-fechar{
+  position:absolute; top:12px; right:12px; width:36px; height:36px;
+  display:grid; place-items:center; border-radius:50%; cursor:pointer;
+  background:color-mix(in srgb, var(--txt) 7%, transparent); color:var(--txt2);
+  border:0;
+}
+.folha-fechar svg{ width:18px; height:18px }
+.folha-cabeca{ display:flex; align-items:center; gap:12px; margin:6px 44px 14px 0 }
+.folha-ic{
+  width:44px; height:44px; border-radius:50%; flex:none; display:grid; place-items:center;
+  color:var(--ac-600); background:var(--ac-soft);
+}
+.folha-ic svg{ width:24px; height:24px }
+.folha-cabeca h3{ font-size:18px; line-height:1.2; margin:0 }
+.folha-cabeca p{ margin:2px 0 0; font-size:13px; color:var(--txt3) }
+
+.folha-status{
+  display:flex; align-items:center; gap:8px; margin:0 0 12px;
+  font-size:13.5px; color:var(--txt2);
+}
+.folha-status.aberto { --st-cor:var(--su-500, #15803D) }
+.folha-status.fechado{ --st-cor:var(--er-500, #DC2626) }
+.folha-status b{ color:var(--st-cor) }
+.folha-status .status-ponto{ width:9px; height:9px; animation:none;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--st-cor) 18%, transparent) }
+
+.semana{ border:1px solid var(--borda); border-radius:16px; overflow:hidden }
+.semana-dia{
+  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+  padding:12px 14px; font-size:14.5px; border-top:1px solid var(--borda);
+}
+.semana-dia:first-child{ border-top:0 }
+.semana-nome{ font-weight:600; color:var(--txt) }
+.semana-nome small{
+  margin-left:8px; padding:2px 7px; border-radius:99px; vertical-align:1px;
+  font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  background:var(--ac-600); color:var(--acao-txt, #fff);
+}
+.semana-horas{ text-align:right; color:var(--txt2); font-variant-numeric:tabular-nums;
+               line-height:1.45 }
+.semana-dia.fechado .semana-horas{ color:var(--er-500, #DC2626); font-weight:600 }
+/* O dia de hoje, na cor da marca — o fundo suave e a letra dela. */
+.semana-dia.hoje{ background:var(--ac-soft) }
+.semana-dia.hoje .semana-nome, .semana-dia.hoje .semana-horas{ color:var(--ac-600); font-weight:700 }
+
+.folha-nota{
+  display:flex; gap:10px; align-items:flex-start; margin-top:14px;
+  padding:12px 14px; border-radius:14px; background:var(--ac-soft);
+  color:var(--txt2); font-size:13px; line-height:1.45;
+}
+.folha-nota > span{ display:inline-flex; color:var(--ac-600); flex:none; margin-top:1px }
+.folha-nota svg{ width:18px; height:18px }
+.folha-nota p{ margin:0 }
+.folha-nota a{ color:var(--ac-600); font-weight:600 }
+
+.folha-sobre{ margin:0 0 14px; font-size:14.5px; line-height:1.55; color:var(--txt2) }
+.folha-lista{ border:1px solid var(--borda); border-radius:16px; overflow:hidden }
+.folha-item{
+  display:flex; align-items:center; gap:12px; padding:12px 14px;
+  border-top:1px solid var(--borda); color:var(--txt); text-decoration:none;
+  font-size:14.5px;
+}
+.folha-item:first-child{ border-top:0 }
+.folha-item-ic{
+  width:36px; height:36px; border-radius:12px; flex:none; display:grid; place-items:center;
+  background:var(--ac-soft); color:var(--ac-600);
+}
+.folha-item-ic svg{ width:20px; height:20px }
+.folha-item-txt{ flex:1; min-width:0; display:flex; flex-direction:column }
+.folha-item-txt span{ font-size:13px; color:var(--txt3); overflow-wrap:anywhere }
+.folha-item-acao{ font-size:13px; font-weight:700; color:var(--ac-600); flex:none }
+
+@media (prefers-reduced-motion: reduce){
+  .recurso, .status-casa, .folha, .folha-fundo{ transition:none }
+  .status-ponto{ animation:none }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   O EDITOR DOS HORÁRIOS, NO PAINEL
+
+   Um cartão por dia, com a régua Fechado/Aberto que o painel já usa em toda
+   escolha de dois lados. Os campos de hora são os do próprio celular — a
+   roda de hora do sistema é a que a pessoa já sabe usar.
+   ══════════════════════════════════════════════════════════════════════════ */
+.func-editor{ display:grid; gap:8px }
+.func-dia{
+  border:1px solid var(--borda); border-radius:var(--r, 14px);
+  padding:10px 12px; background:var(--painel);
+}
+.func-dia.aberto{ border-color:var(--ac-line) }
+.func-topo{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+            flex-wrap:wrap }
+.func-topo b{ font-size:14.5px }
+.regua.regua-peq button{ height:34px; font-size:13.5px; padding:0 11px }
+.func-periodo{ display:flex; align-items:center; gap:8px; margin-top:9px; flex-wrap:wrap }
+.func-periodo .func-hora{
+  flex:1 1 104px; min-width:0; height:42px; padding:0 10px;
+  border:1px solid var(--borda); border-radius:10px;
+  background:var(--painel); color:var(--txt); font:inherit; font-size:15px;
+  font-variant-numeric:tabular-nums;
+}
+.func-periodo span{ color:var(--txt3); font-size:13px }
+.func-tirar{
+  width:38px; height:38px; flex:none; display:grid; place-items:center;
+  border:1px solid var(--borda); border-radius:10px; background:var(--painel);
+  color:var(--txt2); cursor:pointer;
+}
+.func-tirar svg{ width:16px; height:16px }
+.func-mais{
+  margin-top:9px; border:0; background:none; padding:4px 0; cursor:pointer;
+  color:var(--ac-600); font:inherit; font-size:13.5px; font-weight:650;
+}
+/* As formas de pagamento marcadas: a fita acende na cor de ação do painel. */
+#reguaPagamentos .fita-param{ gap:7px }
+#reguaPagamentos .fita-param.on{
+  background:var(--ac-soft); border-color:var(--ac-600); color:var(--ac-600);
+}
+
+/* A fileira e o status dentro da prévia do painel — miniatura do que a página
+   desenha, com as mesmas variáveis da prévia (--fone-marca, --fone-card). */
+.fone-recursos{ position:relative; z-index:1; display:grid; gap:5px; margin:-4px 0 7px;
+  grid-template-columns:repeat(var(--n, 3), minmax(0, 1fr)) }
+.fone-recurso{
+  display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px;
+  border-radius:9px; font-size:8.5px; font-weight:600;
+  background:var(--fone-card, var(--painel)); border:1px solid var(--borda);
+  color:var(--fone-texto, var(--txt2));
+}
+.fone-recurso [data-ico], .fone-recurso svg{ width:13px; height:13px; color:var(--fone-marca) }
+.fone-recurso.destaque{
+  background:color-mix(in srgb, var(--fone-marca) 12%, transparent);
+  border-color:color-mix(in srgb, var(--fone-marca) 30%, transparent);
+  color:var(--fone-marca);
+}
+.fone-status{
+  position:relative; z-index:1; display:flex; align-items:center; gap:6px;
+  margin:0 0 10px; padding:6px 8px; border-radius:9px; font-size:9px;
+  background:var(--st-soft); border:1px solid var(--st-linha); color:var(--fone-texto, var(--txt2));
+}
+.fone-status.aberto { --st-cor:var(--su-500, #15803D); --st-soft:var(--su-soft, rgba(21,128,61,.10)) }
+.fone-status.fechado{ --st-cor:var(--er-500, #DC2626); --st-soft:var(--er-soft, rgba(220,38,38,.09)) }
+.fone-status{ --st-linha:color-mix(in srgb, var(--st-cor) 28%, transparent) }
+.fone-status i{ width:7px; height:7px; border-radius:50%; background:var(--st-cor); flex:none }
+.fone-status b{ color:var(--st-cor); letter-spacing:.03em }

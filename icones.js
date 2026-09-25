@@ -66,6 +66,10 @@ const D = {
   presente:   '<rect x="3" y="9" width="18" height="11.5" rx="2"/><path d="M3 13.5h18M12 9v11.5"/><path d="M12 9S10.5 3.5 8 4.5 9.5 9 12 9Zm0 0s1.5-5.5 4-4.5S14.5 9 12 9Z"/>',
   info:       '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
   alerta:     '<path d="M12 4.5 3 19.5h18Z"/><path d="M12 10v4M12 17.2v.2"/>',
+  /* Pix: um losango de quatro pontas, o desenho genérico de "transferência
+     instantânea" — sem imitar a marca registrada. Dinheiro: a cédula. */
+  pix:        '<path d="M12 3.5l3.2 3.2-3.2 3.2-3.2-3.2zM12 14.1l3.2 3.2-3.2 3.2-3.2-3.2zM3.5 12l3.2-3.2 3.2 3.2-3.2 3.2zM14.1 12l3.2-3.2 3.2 3.2-3.2 3.2z"/>',
+  dinheiro:   '<rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v5M18 9.5v5"/>',
   cartao:     '<rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6 14.5h3"/>',
   predio:     '<rect x="4.5" y="3" width="15" height="18" rx="2"/><path d="M9 7.5h2M13 7.5h2M9 11.5h2M13 11.5h2M10 21v-4h4v4"/>',
   etiqueta:   '<path d="M3.5 11V4.5H10L20 14.5 13.5 21 3.5 11Z"/><circle cx="7.5" cy="8.5" r="1.3"/>',

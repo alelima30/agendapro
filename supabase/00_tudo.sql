@@ -10650,6 +10650,24 @@ language sql stable security definer set search_path = public as $$
       'fitaBorda',  coalesce(s.cfg->>'fitaBorda', 'reta'),
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
       'gradiente', s.cfg->>'gradiente'
+    )
+    /* ── HORÁRIOS, PAGAMENTOS E A APRESENTAÇÃO ──────────────────────────────
+       Num SEGUNDO jsonb_build_object, somado ao primeiro com `||`. Função no
+       Postgres aceita no máximo 100 argumentos, e o objeto de cima já passa
+       de 70 — mais uma rodada de chaves ali e a vitrine() inteira deixaria
+       de compilar, levando junto a página de todos os salões.
+
+       Nenhum cast: o que não for objeto vira nulo, e a página peneira de novo
+       (funcionamento.js). `::jsonb` ou `::int` em texto do dono já derrubou a
+       vitrine inteira neste projeto, mais de uma vez. */
+    || jsonb_build_object(
+      'funcionamento', case when jsonb_typeof(s.cfg->'funcionamento') = 'object'
+                            then s.cfg->'funcionamento' end,
+      'pagamentos',    case when jsonb_typeof(s.cfg->'pagamentos') = 'object'
+                            then s.cfg->'pagamentos' end,
+      'sobre',     nullif(left(btrim(coalesce(s.cfg->>'sobre', '')), 600), ''),
+      'instagram', nullif(left(regexp_replace(coalesce(s.cfg->>'instagram', ''),
+                                              '[^A-Za-z0-9._]', '', 'g'), 30), '')
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────

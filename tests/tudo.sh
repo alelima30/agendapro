@@ -203,6 +203,7 @@ rodar "todas as telas"       node "$AQUI/telas.test.mjs"
 rodar "preço avançado"       node "$AQUI/preco.test.mjs"
 rodar "aviso da loja"         node "$AQUI/loja-aviso.test.mjs"
 rodar "fundo da página"       node "$AQUI/fundo.test.mjs"
+rodar "horários de funcionamento" node "$AQUI/funcionamento.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then
