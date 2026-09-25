@@ -205,6 +205,7 @@ rodar "aviso da loja"         node "$AQUI/loja-aviso.test.mjs"
 rodar "fundo da página"       node "$AQUI/fundo.test.mjs"
 rodar "horários de funcionamento" node "$AQUI/funcionamento.test.mjs"
 rodar "prévia igual à página"  node "$AQUI/previa-capa.test.mjs"
+rodar "estilo dos atalhos"    node "$AQUI/atalhos.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

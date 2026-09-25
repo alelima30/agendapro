@@ -3515,14 +3515,14 @@ body.tem-gradiente .boas, body.tem-papel .boas{
 .recurso{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:7px; min-height:78px; padding:12px 6px;
-  background:var(--painel); color:var(--txt2);
+  background:var(--painel); color:var(--at-tinta, var(--txt2));
   border:1px solid var(--borda); border-radius:16px;
   font:inherit; font-size:13px; font-weight:600; line-height:1.2; cursor:pointer;
   box-shadow:0 1px 2px rgba(16,24,40,.04);
   transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
   -webkit-tap-highlight-color:transparent;
 }
-.recurso-ic{ display:inline-flex; color:var(--ac-600) }
+.recurso-ic{ display:inline-flex; color:var(--at-tinta, var(--ac-600)) }
 .recurso-ic svg{ width:24px; height:24px }
 .recurso-rot{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 /* O Horários é o destaque da fileira, como no pedido: fundo suave na cor da
@@ -3533,14 +3533,49 @@ body.tem-gradiente .boas, body.tem-papel .boas{
      roxa desaparecia — no print dele havia um vão entre Pagamentos e
      Informações. Agora é o cartão tingido com a marca: um cartão como os
      outros dois, que se lê sobre qualquer fundo que o dono escolher. */
-  background:color-mix(in srgb, var(--ac-600) 13%, var(--painel));
-  border-color:color-mix(in srgb, var(--ac-600) 38%, var(--painel));
-  color:var(--ac-600);
+  background:color-mix(in srgb, var(--at-tinta, var(--ac-600)) 13%, var(--painel));
+  border-color:color-mix(in srgb, var(--at-tinta, var(--ac-600)) 38%, var(--painel));
+  color:var(--at-tinta, var(--ac-600));
 }
+/* ── A COR DE CADA ATALHO, ESCOLHIDA EM APARÊNCIA ─────────────────────────
+   `--at-tinta` pinta o ícone e o nome. Sem escolha, `--at-pagamentos` não
+   existe, a `--at-tinta` fica inválida, e cada `var(--at-tinta, …)` acima cai
+   na reserva — que é exatamente o desenho de antes. No Horários com borda,
+   o tingido do fundo acompanha a cor escolhida. */
+.recurso[data-recurso="pagamentos"]  { --at-tinta:var(--at-pagamentos) }
+.recurso[data-recurso="horarios"]    { --at-tinta:var(--at-horarios) }
+.recurso[data-recurso="informacoes"] { --at-tinta:var(--at-informacoes) }
 .recurso:hover{ box-shadow:0 6px 18px rgba(16,24,40,.08); transform:translateY(-1px) }
 .recurso:active, .recurso.tocado{ transform:scale(.97) }
 .recurso:focus-visible, .status-casa:focus-visible{
   outline:2px solid var(--ac-600); outline-offset:2px;
+}
+
+/* ── O ESTILO DOS ATALHOS, ESCOLHIDO EM APARÊNCIA ─────────────────────────
+   Sem `data-atalhos` nada daqui casa, e o cartão com borda de cima vale como
+   sempre valeu.
+
+   A borda fica TRANSPARENTE, e não some: com 1px a menos os três atalhos
+   mudariam de tamanho entre um estilo e outro, e o pedido é o mesmo
+   desenho nos dois. O Horários perde o fundo tingido junto com a caixa e
+   guarda só a letra na sua cor.
+
+   ⚠ A ORDEM É A REGRA. `[data-atalhos] .recurso` pesa o mesmo que
+   `.recurso.destaque` e `.recurso:hover`, lá em cima, e ganha dos dois por
+   vir DEPOIS — é isso que tira o tingido do Horários e mantém a sombra
+   escolhida com o mouse em cima. Subir este bloco desfaz as duas coisas (o
+   atalhos.test.mjs mede as duas). */
+[data-atalhos] .recurso{ border-color:transparent }
+/* "Sem moldura": ícone e texto direto sobre o fundo da página. Sem caixa,
+   sem sombra, sem o "levanta" de botão ao passar o mouse. */
+[data-atalhos="limpo"] .recurso{ background:transparent; box-shadow:none }
+[data-atalhos="limpo"] .recurso:hover{ transform:none }
+/* "Com assombreamento": o fundo do cartão, sem borda, e SÓ a sombra — nada
+   de contorno. Os quatro números vêm do painel (aplicarAtalhos). */
+[data-atalhos="sombra"] .recurso{
+  background:var(--painel);
+  box-shadow:0 var(--at-distancia, 4px) var(--at-desfoque, 16px)
+             color-mix(in srgb, var(--at-cor, #000) var(--at-opacidade, 10%), transparent);
 }
 
 /* O cartão de status. O ponto pulsa uma vez ao aparecer — o suficiente para
@@ -3713,6 +3748,18 @@ body.com-folha{ overflow:hidden }
   margin-top:9px; border:0; background:none; padding:4px 0; cursor:pointer;
   color:var(--ac-600); font:inherit; font-size:13.5px; font-weight:650;
 }
+/* Os controles da sombra dos atalhos. Apagados, e não escondidos, quando o
+   estilo não é "Com assombreamento": o dono vê que existem e o que liga. */
+.at-sombra{ transition:opacity .2s ease }
+.at-sombra.desligado{ opacity:.45 }
+.at-desliza{ display:grid; grid-template-columns:1fr auto; align-items:center;
+  column-gap:10px; margin-top:8px }
+.at-desliza label{ font-size:14px; font-weight:600 }
+.at-desliza b{ font-size:13px; font-weight:650; color:var(--txt2);
+  font-variant-numeric:tabular-nums }
+.at-desliza .desliza{ grid-column:1 / -1 }
+.at-sombra .desliza:disabled{ cursor:not-allowed }
+
 /* As formas de pagamento marcadas: a fita acende na cor de ação do painel. */
 #reguaPagamentos .fita-param{ gap:7px }
 #reguaPagamentos .fita-param.on{
@@ -3732,21 +3779,36 @@ body.com-folha{ overflow:hidden }
   display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px;
   border-radius:9px; font-size:8.5px; font-weight:600;
   background:var(--fone-card, var(--painel)); border:1px solid var(--fone-borda, var(--borda));
-  color:var(--fone-texto, var(--txt2));
+  color:var(--fone-at-tinta, var(--fone-texto, var(--txt2)));
 }
+/* A cor escolhida de cada atalho, como o `--at-tinta` da página. */
+.fone-recurso[data-recurso="pagamentos"]  { --fone-at-tinta:var(--fone-at-pagamentos) }
+.fone-recurso[data-recurso="horarios"]    { --fone-at-tinta:var(--fone-at-horarios) }
+.fone-recurso[data-recurso="informacoes"] { --fone-at-tinta:var(--fone-at-informacoes) }
 .fone-recurso [data-ico], .fone-recurso svg{ width:13px; height:13px;
-  color:var(--fone-ac, var(--fone-marca)) }
+  color:var(--fone-at-tinta, var(--fone-ac, var(--fone-marca))) }
 /* Com "Letras claras" os cartões da página são escuros — a prévia mostrava
    os três botões brancos, e o dono aprovava uma fileira que não ia ao ar.
    Borda e letra são as do tema escuro da página (--borda e --txt2). */
 .fone-escuro .fone-recurso{ border-color:var(--fone-borda, #25324A);
-  color:var(--fone-texto, #A3B2C7) }
+  color:var(--fone-at-tinta, var(--fone-texto, #A3B2C7)) }
 /* ⚠ O DESTAQUE DEPOIS DO ESCURO, e com a mesma força: o contrário deixava a
    letra do Horários no cinza dos outros dois, e não na cor da marca. */
 .fone .fone-recurso.destaque{
-  background:color-mix(in srgb, var(--fone-ac, var(--fone-marca)) 13%, var(--fone-card, var(--painel)));
-  border-color:color-mix(in srgb, var(--fone-ac, var(--fone-marca)) 38%, var(--fone-card, var(--painel)));
-  color:var(--fone-ac, var(--fone-marca));
+  background:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac, var(--fone-marca))) 13%, var(--fone-card, var(--painel)));
+  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac, var(--fone-marca))) 38%, var(--fone-card, var(--painel)));
+  color:var(--fone-at-tinta, var(--fone-ac, var(--fone-marca)));
+}
+/* O estilo dos atalhos na prévia — as mesmas regras do [data-atalhos] da
+   página, com a sombra na escala da prévia (sombraDaPrevia). `borda` é o
+   de cima e não entra aqui. */
+.fone[data-atalhos="limpo"] .fone-recurso,
+.fone[data-atalhos="sombra"] .fone-recurso{ border-color:transparent }
+.fone[data-atalhos="limpo"] .fone-recurso{ background:transparent; box-shadow:none }
+.fone[data-atalhos="sombra"] .fone-recurso{
+  background:var(--fone-card, var(--painel));
+  box-shadow:0 var(--fone-at-distancia, 2.3px) var(--fone-at-desfoque, 9.1px)
+             color-mix(in srgb, var(--fone-at-cor, #000) var(--fone-at-opacidade, 10%), transparent);
 }
 .fone-status{
   position:relative; z-index:1; display:flex; align-items:center; gap:6px;

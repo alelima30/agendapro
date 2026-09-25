@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.dcf0a0';
+const VERSAO_APP = 'v9.102c70';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -8045,6 +8045,83 @@ function pintarSalao(){
       <div class="regua" id="reguaCapaForma" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaCapaForma" style="margin-top:9px"></p>
 
+      <!-- OS ATALHOS DA CAPA: Pagamentos, Horarios e Informacoes, logo abaixo
+           do endereco. So a APARENCIA deles muda aqui; o que cada um abre e
+           quando aparece continua igual. "Com borda" e o desenho de antes e
+           continua sendo o padrao: quem nunca escolheu nao ve diferenca. -->
+      <div class="rot" style="margin:18px 0 4px">Estilo dos atalhos</div>
+      <p class="secao-sub" style="margin:0 0 8px">Pagamentos, Horários e
+        Informações, logo abaixo do endereço.</p>
+      <div class="regua" id="reguaAtalhos" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaAtalhos" style="margin-top:9px"></p>
+
+      <!-- A COR DE CADA ATALHO: icone e nome juntos. Vale nos tres estilos.
+           Sem escolha, o de sempre: icone na cor da marca, nome em cinza, e
+           o Horarios inteiro na cor da marca. -->
+      <div class="secao" style="margin:14px 0 2px">Cores dos atalhos</div>
+      <p class="secao-sub" style="margin:0">Ícone e nome de cada um.</p>
+      <div class="cor-linha" style="margin-top:8px">
+        <input type="color" id="atCorPagamentos" class="cor-bolha"
+               oninput="escolherCorAtalho('pagamentos', this.value)" aria-label="Cor de Pagamentos">
+        <span class="cor-linha-txt">
+          <b>Pagamentos</b>
+          <span id="atCorPagamentosAjuda"></span>
+        </span>
+        <button type="button" class="btn btn-peq" id="atCorPagamentosHerdar"
+                onclick="escolherCorAtalho('pagamentos', '')">herdar</button>
+      </div>
+      <div class="cor-linha" style="margin-top:8px">
+        <input type="color" id="atCorHorarios" class="cor-bolha"
+               oninput="escolherCorAtalho('horarios', this.value)" aria-label="Cor de Horários">
+        <span class="cor-linha-txt">
+          <b>Horários</b>
+          <span id="atCorHorariosAjuda"></span>
+        </span>
+        <button type="button" class="btn btn-peq" id="atCorHorariosHerdar"
+                onclick="escolherCorAtalho('horarios', '')">herdar</button>
+      </div>
+      <div class="cor-linha" style="margin-top:8px">
+        <input type="color" id="atCorInformacoes" class="cor-bolha"
+               oninput="escolherCorAtalho('informacoes', this.value)" aria-label="Cor de Informações">
+        <span class="cor-linha-txt">
+          <b>Informações</b>
+          <span id="atCorInformacoesAjuda"></span>
+        </span>
+        <button type="button" class="btn btn-peq" id="atCorInformacoesHerdar"
+                onclick="escolherCorAtalho('informacoes', '')">herdar</button>
+      </div>
+
+      <div id="atalhoSombra" class="at-sombra">
+        <div class="secao" style="margin:12px 0 8px">Intensidade da sombra</div>
+        <div class="regua" id="reguaSombra" style="justify-content:flex-start"></div>
+        <div class="at-desliza">
+          <label for="atDesfoque">Desfoque</label><b id="atDesfoqueV"></b>
+          <input type="range" id="atDesfoque" class="desliza" min="0" max="40" step="1"
+                 oninput="escolherSombra('desfoque', Number(this.value))">
+        </div>
+        <div class="at-desliza">
+          <label for="atOpacidade">Opacidade</label><b id="atOpacidadeV"></b>
+          <input type="range" id="atOpacidade" class="desliza" min="0" max="60" step="1"
+                 oninput="escolherSombra('opacidade', Number(this.value))">
+        </div>
+        <div class="at-desliza">
+          <label for="atDistancia">Distância (elevação)</label><b id="atDistanciaV"></b>
+          <input type="range" id="atDistancia" class="desliza" min="0" max="20" step="1"
+                 oninput="escolherSombra('distancia', Number(this.value))">
+        </div>
+        <div class="cor-linha" style="margin-top:10px">
+          <input type="color" id="atCor" class="cor-bolha"
+                 oninput="escolherSombra('cor', this.value)" aria-label="Cor da sombra">
+          <span class="cor-linha-txt">
+            <b>Cor da sombra</b>
+            <span id="atCorAjuda">preta, a de fábrica</span>
+          </span>
+          <button type="button" class="btn btn-peq" id="atCorPadrao"
+                  onclick="escolherSombra('cor', '#000000')">padrão</button>
+        </div>
+        <p class="secao-sub" id="explicaSombra" style="margin-top:9px"></p>
+      </div>
+
       <!-- ⚠ EIXO SEPARADO DO "Cartões sobre a foto", DE PROPÓSITO.
 
            Aquele ali decide o quanto o cartão FECHA sobre a foto de capa
@@ -8530,6 +8607,68 @@ const PRECOS = [
 let aparencia = null;      // { cor, tema, precoNaCapa, brilho }
 let aparenciaDoSalao = null;
 
+/* ── O ESTILO DOS ATALHOS (Pagamentos, Horários, Informações) ─────────────
+   Três desenhos, e só o desenho: o que cada atalho abre e quando aparece
+   continua igual.
+
+     borda   o cartão com borda de antes — o padrão, e quem nunca escolheu
+             fica nele sem diferença nenhuma;
+     limpo   "Sem moldura": só ícone e texto, sem caixa, sem borda, sem fundo;
+     sombra  "Com assombreamento": o mesmo desenho, sem borda nenhuma, com o
+             fundo do cartão e uma sombra ao redor. SÓ sombra — o pedido foi
+             explícito: não é moldura preta.
+
+   A intensidade é um atalho que PREENCHE os três números (como os temas
+   prontos preenchem as cores). Mexeu num número à mão, ela vira
+   "personalizada". A página nunca vê a intensidade: recebe os números. */
+const SOMBRAS = {
+  nenhuma: { desfoque:0,  opacidade:0,  distancia:0 },
+  suave:   { desfoque:16, opacidade:10, distancia:4 },
+  media:   { desfoque:24, opacidade:16, distancia:8 },
+  forte:   { desfoque:34, opacidade:26, distancia:12 },
+};
+const ESTILOS_ATALHO = [
+  ['borda',  'Com borda',
+   'O cartão com borda fina, como a página já era.'],
+  ['limpo',  'Sem moldura',
+   'Só o ícone e o nome, direto sobre o fundo da página: sem caixa, sem '
+   + 'borda, sem fundo próprio.'],
+  ['sombra', 'Com assombreamento',
+   'O mesmo desenho, sem borda nenhuma, com uma sombra suave em volta — '
+   + 'como se cada atalho flutuasse sobre a página.'],
+];
+/* As cores de cada atalho. Chave AUSENTE é "como sempre foi" — a mesma
+   regra das cores soltas: gravar a cor da marca aqui congelaria a escolha
+   de hoje, e trocar a marca depois não chegaria nos atalhos. */
+const CORES_ATALHO = [['pagamentos', 'Pagamentos'], ['horarios', 'Horários'],
+                      ['informacoes', 'Informações']];
+const INTENSIDADES = [['nenhuma', 'Nenhuma'], ['suave', 'Suave'],
+                      ['media', 'Média'], ['forte', 'Forte']];
+/* A mesma peneira da página: o que veio do banco pode ser qualquer coisa. */
+function lerAtalhos(cru){
+  const a = (cru && typeof cru === 'object') ? cru : {};
+  const sb = (a.sombra && typeof a.sombra === 'object') ? a.sombra : {};
+  const num = (v, max, pad) => {
+    const n = Number(v);
+    return (v === null || v === '' || !Number.isFinite(n)) ? pad : Math.min(max, Math.max(0, Math.round(n)));
+  };
+  const pad = SOMBRAS.suave;
+  return {
+    estilo: ['limpo', 'sombra'].includes(a.estilo) ? a.estilo : 'borda',
+    cores: Object.fromEntries(CORES_ATALHO
+      .map(([k]) => [k, a.cores && typeof a.cores === 'object' ? a.cores[k] : null])
+      .filter(([, v]) => corValida(v))),
+    sombra: {
+      intensidade: (sb.intensidade in SOMBRAS || sb.intensidade === 'personalizada')
+        ? sb.intensidade : 'suave',
+      desfoque:  num(sb.desfoque, 40, pad.desfoque),
+      opacidade: num(sb.opacidade, 60, pad.opacidade),
+      distancia: num(sb.distancia, 20, pad.distancia),
+      cor: corValida(sb.cor) ? sb.cor : '#000000',
+    },
+  };
+}
+
 function lerAparencia(){
   const sl = acharSalao(salaoAtual) || {};
   const c = sl.cfg || {};
@@ -8550,6 +8689,7 @@ function lerAparencia(){
     /* Onde a foto de capa encontra o fundo. Ausente vale `curva`, o arco que
        a página já desenhava antes desta escolha existir. */
     capaForma: c.capaForma === 'reta' ? 'reta' : 'curva',
+    atalhos: lerAtalhos(c.atalhos),
     veu:Number.isFinite(Number(c.veu)) ? Number(c.veu) : 84,
     /* `auto` para quem nunca escolheu — inclusive para todo salão criado
        antes disto existir. Não há o que migrar: o automático faz o que o
@@ -8977,6 +9117,7 @@ function pintarAparencia(){
       + 'meio dele. É como a página já era.'],
     ['reta', 'Reta', 'A foto termina numa linha reta, de um lado ao outro.'],
   ], 'capaForma', 'explicaCapaForma');
+  pintarAtalhos();
   regua('reguaMoldura', MOLDURAS, 'moldura', 'explicaMoldura');
   regua('reguaLetra', LETRAS, 'letra', 'explicaLetra');
   regua('reguaSlide', SLIDES, 'slideDe', 'explicaSlide');
@@ -9361,6 +9502,100 @@ function escolherBrilho(v){ aparencia.brilho = v;      pintarAparencia(); }
 // cima ficam separadas porque já eram chamadas assim de outros lugares.
 function escolherAparencia(campo, valor){ aparencia[campo] = valor; pintarAparencia(); }
 
+function escolherAtalhos(estilo){ aparencia.atalhos.estilo = estilo; pintarAparencia(); }
+/* Vazio é "herdar": a chave SAI do objeto, e o atalho volta a acompanhar a
+   marca. */
+function escolherCorAtalho(chave, hex){
+  const c = aparencia.atalhos.cores;
+  if(corValida(hex)) c[chave] = hex; else delete c[chave];
+  pintarAparencia();
+}
+function escolherIntensidade(nome){
+  Object.assign(aparencia.atalhos.sombra, SOMBRAS[nome], { intensidade: nome });
+  pintarAparencia();
+}
+/* Mexer num número à mão tira a intensidade pronta — a não ser que os três
+   voltem a bater com uma delas. A cor não conta: ela não é intensidade. */
+function escolherSombra(campo, valor){
+  const sb = aparencia.atalhos.sombra;
+  sb[campo] = valor;
+  if(campo !== 'cor'){
+    const bate = Object.keys(SOMBRAS).find(n => ['desfoque', 'opacidade', 'distancia']
+      .every(k => SOMBRAS[n][k] === sb[k]));
+    sb.intensidade = bate || 'personalizada';
+  }
+  pintarAparencia();
+}
+
+/* ⚠ OS CONTROLES NASCEM NO HTML E AQUI SÓ SÃO ACERTADOS. Refazer um
+   deslizante ou o quadrado de cor no meio do arrasto solta o dedo do dono —
+   foi o defeito do seletor de cor da Cor sólida. Só as réguas de botões são
+   redesenhadas. */
+function pintarAtalhos(){
+  const at = aparencia.atalhos, sb = at.sombra;
+  const r = document.getElementById('reguaAtalhos');
+  if(!r) return;
+  r.innerHTML = ESTILOS_ATALHO.map(([v, rot]) =>
+    `<button type="button" class="${at.estilo === v ? 'on' : ''}"
+             onclick="escolherAtalhos('${v}')">${rot}</button>`).join('');
+  const achado = ESTILOS_ATALHO.find(x => x[0] === at.estilo);
+  document.getElementById('explicaAtalhos').textContent = achado ? achado[2] : '';
+
+  const ligado = at.estilo === 'sombra';
+  document.getElementById('reguaSombra').innerHTML = INTENSIDADES.map(([v, rot]) =>
+    `<button type="button" class="${sb.intensidade === v ? 'on' : ''}"
+             ${ligado ? '' : 'disabled'} onclick="escolherIntensidade('${v}')">${rot}</button>`).join('');
+  const caixa = document.getElementById('atalhoSombra');
+  caixa.classList.toggle('desligado', !ligado);
+  caixa.setAttribute('aria-disabled', ligado ? 'false' : 'true');
+  for(const [id, k, un] of [['atDesfoque', 'desfoque', 'px'], ['atOpacidade', 'opacidade', '%'],
+                            ['atDistancia', 'distancia', 'px']]){
+    const el = document.getElementById(id);
+    if(Number(el.value) !== sb[k]) el.value = sb[k];
+    el.disabled = !ligado;
+    document.getElementById(id + 'V').textContent = sb[k] + ' ' + un;
+  }
+  const cor = document.getElementById('atCor');
+  if(cor.value.toLowerCase() !== sb.cor.toLowerCase()) cor.value = sb.cor;
+  cor.disabled = !ligado;
+  const preta = sb.cor.toLowerCase() === '#000000';
+  document.getElementById('atCorAjuda').textContent = preta ? 'preta, a de fábrica' : 'escolhida por você';
+  const pad = document.getElementById('atCorPadrao');
+  pad.style.display = preta ? 'none' : '';
+  pad.disabled = !ligado;
+  /* As cores: acertadas no lugar, como os deslizantes. Sem escolha, o
+     quadrado mostra a cor que o ícone já tem — a escrita da marca. O aviso
+     de contraste mede contra o que fica ATRÁS do nome: o cartão, ou o fundo
+     da página no "Sem moldura" (no gradiente, o pior ponto dele). */
+  const marca = corEscritaDaMarca();
+  const c = aparencia.cores || {};
+  const grad = aparencia.fundoTipo === 'gradiente' ? coresDoGradiente(aparencia.gradiente) : [];
+  const atras = at.estilo === 'limpo'
+    ? (grad.length ? grad : [corValida(c.papel) ? c.papel : corHerdada('papel')])
+    : [corValida(c.card) ? c.card : corHerdada('card')];
+  for(const [k] of CORES_ATALHO){
+    const id = 'atCor' + k[0].toUpperCase() + k.slice(1);
+    const el = document.getElementById(id);
+    const tem = corValida(at.cores[k]);
+    const v = (tem ? at.cores[k] : marca).toLowerCase();
+    if(el.value.toLowerCase() !== v) el.value = v;
+    const pouco = tem && Math.min(...atras.map(f => contrasteEntre(at.cores[k], f))) < 3;
+    document.getElementById(id + 'Ajuda').textContent = !tem
+      ? (k === 'horarios' ? 'acompanha a cor da marca' : 'ícone na cor da marca, nome em cinza')
+      : pouco ? 'escolhida por você · pouco contraste com o fundo, pode ficar difícil de ler'
+              : 'escolhida por você';
+    document.getElementById(id + 'Herdar').style.display = tem ? '' : 'none';
+  }
+
+  document.getElementById('explicaSombra').textContent = !ligado
+    ? 'Escolha “Com assombreamento” para ajustar a sombra.'
+    : sb.intensidade === 'personalizada'
+      ? 'Intensidade personalizada: os números acima são os seus.'
+      : sb.intensidade === 'nenhuma'
+        ? 'Sem sombra: os atalhos ficam com o fundo do cartão, sem borda.'
+        : 'Toque numa intensidade para começar, e ajuste os números se quiser.';
+}
+
 /* O slide, dentro da prévia. Mostra a PRIMEIRA mídia da fonte escolhida —
    que é a que quase todo mundo vê. Trocar de "fotos dos serviços" para
    "minhas fotos" sem ver o que muda é escolher no escuro. */
@@ -9493,12 +9728,18 @@ function coresDaPrevia(){
    PAINEL, que é a cor do sistema: salão dourado via "Bem-vindo!" azul na
    prévia e dourado no link. Pinta o título do Bem-vindo, os ícones da
    fileira e o botão Horários. */
+function corEscritaDaMarca(){
+  const c = aparencia.cores || {};
+  const escuro = aparencia.tema === 'escuro';
+  const cor = corValida(aparencia.cor) ? aparencia.cor : '#1D4ED8';
+  return corValida(c.destaque) ? c.destaque : mexer(cor, escuro ? 0.30 : -0.28);
+}
 function tonsDaMarcaNaPrevia(){
   const c = aparencia.cores || {};
   const escuro = aparencia.tema === 'escuro';
   const cor = corValida(aparencia.cor) ? aparencia.cor : '#1D4ED8';
   const rgb = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)).join(',');
-  const ac = corValida(c.destaque) ? c.destaque : mexer(cor, escuro ? 0.30 : -0.28);
+  const ac = corEscritaDaMarca();
   const soft = corValida(c.secundaria)
     ? `rgba(${rgb(c.secundaria)},${escuro ? '.18' : '.12'})`
     : `rgba(${rgb(cor)},${escuro ? '.15' : '.10'})`;
@@ -9530,6 +9771,17 @@ function anelDaPrevia(){
   return `;--fone-anel:${ANEL_NA_PREVIA[aparencia.logoBorda] || '2.8px'};--fone-anel-cor:${cor}`;
 }
 
+/* A sombra dos atalhos, na escala da prévia (234/412, como o anel da logo).
+   A opacidade e a cor não encolhem: são as mesmas da página. */
+function sombraDaPrevia(){
+  const sb = aparencia.atalhos.sombra, k = 234 / 412;
+  const cores = Object.entries(aparencia.atalhos.cores)
+    .filter(([, v]) => corValida(v)).map(([n, v]) => `;--fone-at-${n}:${v}`).join('');
+  return cores + `;--fone-at-desfoque:${(sb.desfoque * k).toFixed(1)}px`
+       + `;--fone-at-distancia:${(sb.distancia * k).toFixed(1)}px`
+       + `;--fone-at-opacidade:${Number(sb.opacidade)}%;--fone-at-cor:${sb.cor}`;
+}
+
 /* A prévia. Não é decoração: escolher cor sem ver onde ela cai é escolher no
    escuro, e o dono só descobriria o resultado abrindo o próprio link no
    celular. Aqui ele vê antes de salvar. */
@@ -9544,14 +9796,14 @@ function previaDaInfo(sl){
   const func = Funcionamento.normalizar(c.funcionamento);
   const pag = Funcionamento.pagamentos(c.pagamentos);
   const botoes = [];
-  if(pag)  botoes.push(['cartao', 'Pagamentos', false]);
-  if(func) botoes.push(['relogio', 'Horários', true]);
+  if(pag)  botoes.push(['cartao', 'Pagamentos', false, 'pagamentos']);
+  if(func) botoes.push(['relogio', 'Horários', true, 'horarios']);
   if(String(c.sobre || '').trim() || String(c.instagram || '').trim() || botoes.length)
-    botoes.push(['info', 'Informações', false]);
+    botoes.push(['info', 'Informações', false, 'informacoes']);
   if(!botoes.length) return '';
   const est = func ? Funcionamento.estado(func, Funcionamento.agora(sl.fuso)) : null;
-  return `<div class="fone-recursos" style="--n:${botoes.length}">${botoes.map(([ico, rot, d]) =>
-      `<span class="fone-recurso${d ? ' destaque' : ''}"><span data-ico="${ico}"></span>${rot}</span>`
+  return `<div class="fone-recursos" style="--n:${botoes.length}">${botoes.map(([ico, rot, d, qual]) =>
+      `<span class="fone-recurso${d ? ' destaque' : ''}" data-recurso="${qual}"><span data-ico="${ico}"></span>${rot}</span>`
     ).join('')}</div>`
     + (est ? `<div class="fone-status ${est.aberto ? 'aberto' : 'fechado'}">
         <i></i><b>${est.aberto ? 'ABERTO' : 'FECHADO'}</b><span class="fone-status-sep"></span><span class="fone-status-txt">${
@@ -9584,8 +9836,10 @@ function pintarPreviaFone(){
           aparencia.fundoTipo === 'gradiente' ? ' com-grad' : ''}${
           corValida((aparencia.cores || {}).papel) ? ' com-papel' : ''}"
           data-modo="${aparencia.modo}" data-logo="${aparencia.logoForma}"
+          data-atalhos="${aparencia.atalhos.estilo}"
           style="--fone-marca:${escapar(corDoBotaoNaPrevia())};--fone-marca-txt:${
-            letraSobre(corDoBotaoNaPrevia())}${coresDaPrevia()}${tonsDaMarcaNaPrevia()}${anelDaPrevia()}">
+            letraSobre(corDoBotaoNaPrevia())}${coresDaPrevia()}${tonsDaMarcaNaPrevia()}${
+            anelDaPrevia()}${sombraDaPrevia()}">
        ${imagemDoSalao(sl, 'fundo') && aparencia.fundoTipo === 'imagem'
          ? `<div class="fone-fundo" style="background-image:url('${imagemDoSalao(sl, 'fundo')}');
                   --veu:${aparencia.veu / 100}"></div>`
@@ -9662,6 +9916,7 @@ function salvarAparencia(){
     slideDe: aparencia.slideDe,
     capaFoco: aparencia.capaFoco,
     capaForma: aparencia.capaForma,
+    atalhos: aparencia.atalhos,
     veu: aparencia.veu,
     cartoes: aparencia.cartoes,
     moldura: aparencia.moldura,

@@ -321,7 +321,12 @@ language sql stable security definer set search_path = public as $$
                                               '[^A-Za-z0-9._]', '', 'g'), 30), ''),
       /* Onde a foto de capa encontra o fundo. Só `reta` sai daqui; ausente
          (nulo) é o arco de sempre, então salão que nunca escolheu não muda. */
-      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end
+      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end,
+      /* O estilo dos atalhos (Pagamentos, Horários, Informações). Só objeto
+         passa, sem cast nenhum: os números são peneirados na página. Nulo é
+         o cartão com borda de sempre. */
+      'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
+                      then s.cfg->'atalhos' end
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────

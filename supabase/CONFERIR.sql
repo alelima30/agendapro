@@ -295,6 +295,23 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a vitrine() é de antes da divisão da foto: "Reta" aparece '
                || 'na prévia e não no link'
            else '' end
+  union all
+  /* O estilo dos atalhos (sem moldura / com assombreamento). Sem a chave, a
+     prévia muda e o link continua com o cartão com borda. */
+  select 17, 'estilo dos atalhos na página',
+         case
+           when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%''atalhos''%' then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.vitrine(text)') is null
+             then 'a vitrine() nem existe — rode o 00_tudo.sql'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%''atalhos''%'
+             then 'a vitrine() é de antes do estilo dos atalhos: a prévia '
+               || 'muda e o link não'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

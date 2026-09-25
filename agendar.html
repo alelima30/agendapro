@@ -1132,6 +1132,9 @@ function bdDaVitrine(v){
       instagram: s.instagram || null,
       // A divisão da foto de capa: só `reta` chega; nulo é o arco de sempre.
       capaForma: s.capaForma || null,
+      // O estilo dos atalhos (Pagamentos, Horários, Informações). Peneirado
+      // no `aplicarAtalhos()`; nulo é o cartão com borda de sempre.
+      atalhos: (s.atalhos && typeof s.atalhos === 'object') ? s.atalhos : null,
       cfg: { diasLiberados: s.diasLiberados },
     }],
     servicos: (v.servicos || []).map(x => ({
@@ -4933,6 +4936,8 @@ function aplicarModo(s){
   if((s.capaForma || c.capaForma) === 'reta') raiz.setAttribute('data-capa', 'reta');
   else raiz.removeAttribute('data-capa');
 
+  aplicarAtalhos(s.atalhos || c.atalhos);
+
   /* ── A ESPESSURA DA MOLDURA ───────────────────────────────────────────
      Ausente vale `media`, que são os 5px de antes desta escolha existir.
 
@@ -4965,6 +4970,44 @@ function aplicarModo(s){
   else raiz.style.removeProperty('--slide-forma');
 
   aplicarFita(s, c);
+}
+
+/* ── O ESTILO DOS ATALHOS ─────────────────────────────────────────────────
+   Pagamentos, Horários e Informações: cartão com borda (o de sempre, sem
+   atributo), "Sem moldura" (`limpo`) ou "Com assombreamento" (`sombra`).
+   Só a aparência — o que cada um abre continua no `desenharInfoDaCasa()`.
+
+   ⚠ OS NÚMEROS SÃO PENEIRADOS AQUI, e não só no painel: chegam do banco, e
+   a página não confia em número que veio de fora. Fora da faixa vira o teto;
+   torto vira o da sombra suave; cor torta vira preto. */
+function aplicarAtalhos(a){
+  const raiz = document.documentElement;
+  /* A cor de cada um vale em QUALQUER estilo, inclusive no cartão com borda
+     de sempre — por isso vem antes do `return` de quem não tem estilo. */
+  const cores = (a && typeof a === 'object' && a.cores && typeof a.cores === 'object') ? a.cores : {};
+  for(const k of ['pagamentos', 'horarios', 'informacoes']){
+    if(corValida(cores[k])) raiz.style.setProperty('--at-' + k, cores[k]);
+    else raiz.style.removeProperty('--at-' + k);
+  }
+  const vars = ['--at-desfoque', '--at-opacidade', '--at-distancia', '--at-cor'];
+  const estilo = (a && typeof a === 'object' && ['limpo', 'sombra'].includes(a.estilo))
+    ? a.estilo : null;
+  if(!estilo){
+    raiz.removeAttribute('data-atalhos');
+    vars.forEach(v => raiz.style.removeProperty(v));
+    return;
+  }
+  raiz.setAttribute('data-atalhos', estilo);
+  if(estilo !== 'sombra'){ vars.forEach(v => raiz.style.removeProperty(v)); return; }
+  const sb = (a.sombra && typeof a.sombra === 'object') ? a.sombra : {};
+  const num = (v, max, pad) => {
+    const n = Number(v);
+    return (v === null || v === '' || !Number.isFinite(n)) ? pad : Math.min(max, Math.max(0, n));
+  };
+  raiz.style.setProperty('--at-desfoque',  num(sb.desfoque, 40, 16) + 'px');
+  raiz.style.setProperty('--at-opacidade', num(sb.opacidade, 60, 10) + '%');
+  raiz.style.setProperty('--at-distancia', num(sb.distancia, 20, 4) + 'px');
+  raiz.style.setProperty('--at-cor', corValida(sb.cor) ? sb.cor : '#000000');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

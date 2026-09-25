@@ -164,7 +164,11 @@ language sql stable security definer set search_path = public as $$
       'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
       'gradiente', s.cfg->>'gradiente',
       -- A divisão da foto de capa: só `reta` sai; nulo é o arco de sempre.
-      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end
+      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end,
+      -- O estilo dos atalhos da capa. Só objeto passa; os números são
+      -- peneirados na página (aplicarAtalhos). Nulo é o cartão com borda.
+      'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
+                      then s.cfg->'atalhos' end
     ),
 
     'servicos', coalesce((

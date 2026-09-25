@@ -266,6 +266,12 @@ const PODE_CRU = [
      aqui também porque recebe o nome do dia e devolve HTML já escapado. */
   { porque: 'nomes dos dias da semana, constante do código',
     vale: (e) => /\b(F|Funcionamento)\.NOMES\[/.test(e) },
+  /* `Number(...)` só devolve número — nenhuma tag atravessa. Entrou pela
+     opacidade da sombra dos atalhos: o "cidade" do padrão casa DENTRO de
+     "opacidade". Vale só quando o Number() embrulha a expressão INTEIRA e
+     sem outra chamada dentro: `${Number(a) + String(nome)}` não passa. */
+  { porque: 'número, convertido na própria interpolação',
+    vale: (e) => /^\$\{\s*Number\([^{}()]*\)\s*\}$/.test(e) },
 ];
 
 const LINHA_PODE_CRU = [
