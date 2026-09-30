@@ -332,7 +332,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
   </header>
 
   <div class="trilha" id="trilha" style="display:none">
-    <i id="t1"></i><i id="t2"></i><i id="t3"></i><i id="t4"></i>
+    <i id="t1"></i><i id="t2"></i><i id="t3"></i><i id="t4"></i><i id="t5"></i>
   </div>
 
   <main class="conteudo">
@@ -431,41 +431,69 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
       <h2>O que você quer fazer?</h2>
       <p class="sub">Pode escolher mais de um — a gente soma o tempo.</p>
 
-      <!-- "Para quem" fica AQUI, antes do horário, e não depois como faz a
-           concorrência. O motivo é prático: "eu e meu filho" dobra a duração,
-           e perguntar isso depois faria a pessoa escolher um horário que não
-           cabe nos dois. -->
-      <div class="bloco" id="blocoParaQuem">
-        <div class="rot">Para quem é o atendimento?</div>
-        <div class="segmento">
-          <button id="pq-mim"   onclick="escolherPara('mim')">Para mim</button>
-          <button id="pq-filho" onclick="escolherPara('filho')">Meu filho</button>
-          <button id="pq-ambos" onclick="escolherPara('ambos')">Eu e meu filho</button>
-        </div>
-        <div id="campoFilho" style="display:none;margin-top:11px">
-          <div class="campo" style="margin:0">
-            <label>Nome dele</label>
-            <input id="fFilho" placeholder="Ex.: João" oninput="escolha.filhoNome=this.value">
-          </div>
-          <p style="font-size:12.5px;color:var(--txt2);margin-top:7px">
-            Sem cadastro separado — fica vinculado a você, e o WhatsApp
-            continua sendo o seu.</p>
-        </div>
-      </div>
-
+      <!-- O "para quem" morava aqui, num segmento em cima dos serviços. Virou
+           a Etapa 2, logo depois desta — continua ANTES do horário, que é o
+           que importa: "eu também" dobra a duração, e perguntar isso depois
+           faria a pessoa escolher um horário que não cabe nos dois. -->
       <input class="busca" id="buscaServico" placeholder="Buscar serviço…"
              oninput="desenharServicos()">
       <div id="listaServicos"></div>
     </section>
 
-    <!-- ══════ 2 · PROFISSIONAL ══════ -->
+    <!-- ══════ 2 · PARA QUEM É O ATENDIMENTO ══════
+         Duas portas grandes, e só duas: para mim, ou para outra pessoa. O
+         parentesco e o nome só aparecem para quem escolheu a segunda — quem
+         marca para si (a maioria) não passa por pergunta nenhuma a mais. -->
+    <section class="passo" id="p-quem">
+      <div class="etapa-rot">Etapa 2</div>
+      <h2>Para quem é o atendimento?</h2>
+      <p class="sub">Escolha quem receberá o atendimento.</p>
+      <div class="quem-opcoes">
+        <button type="button" class="quem-card" id="quemMim" onclick="escolherQuem('mim')">
+          <span class="quem-ic" aria-hidden="true"><span data-ico="usuario"></span></span>
+          <span class="quem-txt"><b>Para mim</b>
+            <span>O atendimento será realizado em meu nome.</span></span>
+          <span class="quem-seta" aria-hidden="true"><span data-ico="direita"></span></span>
+        </button>
+        <button type="button" class="quem-card" id="quemOutra" onclick="escolherQuem('outra')">
+          <span class="quem-ic" aria-hidden="true"><span data-ico="equipe"></span></span>
+          <span class="quem-txt"><b>Para outra pessoa</b>
+            <span>Vou agendar para um familiar ou outra pessoa.</span></span>
+          <span class="quem-seta" aria-hidden="true"><span data-ico="direita"></span></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- A segunda tela da Etapa 2: a relação e o nome. Sem cadastro separado
+         — a pessoa fica vinculada a quem marca, e o WhatsApp continua sendo
+         o de quem marca. -->
+    <section class="passo" id="p-quemOutra">
+      <div class="etapa-rot">Etapa 2</div>
+      <h2>Quem receberá o atendimento?</h2>
+      <p class="sub">Selecione a relação com você e informe o nome da pessoa.</p>
+      <div class="rel-grade" id="gradeRelacao" role="group" aria-label="Relação com você"></div>
+      <div class="campo" style="margin-top:18px">
+        <label for="fAtendido">Nome da pessoa</label>
+        <input id="fAtendido" placeholder="Digite o nome" maxlength="60" autocomplete="off"
+               oninput="escreverAtendido(this.value)">
+      </div>
+      <!-- O "Eu e meu filho" de antes: dois horários seguidos, um para cada.
+           Continua existindo, aqui, para quem vai junto. -->
+      <label class="quem-junto">
+        <input type="checkbox" id="fJunto" onchange="escolha.junto = this.checked">
+        <span><b>Eu também quero ser atendido(a)</b>
+          Marcamos dois horários seguidos, um para cada.</span>
+      </label>
+    </section>
+
+    <!-- ══════ 3 · PROFISSIONAL ══════ -->
     <section class="passo" id="p-prof">
       <h2>Com quem?</h2>
       <p class="sub" id="subProf">—</p>
       <div id="listaProfs"></div>
     </section>
 
-    <!-- ══════ 3 · DIA E HORA ══════ -->
+    <!-- ══════ 4 · DIA E HORA ══════ -->
     <section class="passo" id="p-quando">
       <h2>Quando fica bom?</h2>
       <p class="sub" id="subQuando">—</p>
@@ -827,7 +855,7 @@ let vagasErro = '';
 
 // O que a pessoa está escolhendo agora
 let escolha = { servicos: [], profissionalId: null, data: null, inicio: null,
-                para: 'mim', filhoNome: '' };
+                para: 'mim', filhoNome: '', quem: null, relacao: null, junto: false };
 let agendamentoARemarcar = null;   // preenchido quando a pessoa clica em Remarcar
 // Estado do código de verificação
 let otp = { codigo: null, telefone: null, enviadoEm: 0, tentativas: 0 };
@@ -1490,10 +1518,90 @@ function duracaoNaAgenda(){
   return duracaoEscolhida() * (escolha.para === 'ambos' ? 2 : 1);
 }
 
-function escolherPara(v){
+/* ── ETAPA 2 · PARA QUEM É O ATENDIMENTO ────────────────────────────────
+   "Para mim" usa quem marca — o nome e o WhatsApp de quem está no link, sem
+   perguntar de novo — e segue direto. "Para outra pessoa" abre a relação e o
+   nome, e só segue com os dois.
+
+   Por dentro continua o `escolha.para` de sempre ('mim', 'filho', 'ambos'):
+   é ele que a agenda, a duração e a gravação já leem. 'filho' quer dizer
+   "outra pessoa" desde que a relação passou a ser escolhida, e 'ambos' é o
+   "eu também" — dois horários seguidos. */
+const RELACOES = [
+  ['filha', 'Filha', '👧'], ['filho', 'Filho', '👦'], ['mae', 'Mãe', '👩'], ['pai', 'Pai', '👨'],
+  ['avo_f', 'Avó', '👵'], ['avo_m', 'Avô', '👴'], ['conjuge', 'Cônjuge', '🧑‍🤝‍🧑'],
+  ['outra', 'Outra pessoa', '👤'],
+];
+// Trocar quem é atendido pode mudar a duração (o "eu também" dobra): o dia e
+// a hora escolhidos antes deixam de valer.
+function mudarPara(v){
+  if(escolha.para === v) return;
   escolha.para = v;
-  escolha.data = null; escolha.inicio = null;   // a duração mudou
-  desenhar();
+  escolha.data = null; escolha.inicio = null;
+}
+function escolherQuem(q){
+  escolha.quem = q;
+  if(q === 'mim'){ mudarPara('mim'); return irPara('prof'); }
+  irPara('quemOutra');
+}
+function desenharQuem(){
+  for(const [id, q] of [['quemMim', 'mim'], ['quemOutra', 'outra']]){
+    const b = document.getElementById(id);
+    if(b) b.classList.toggle('sel', escolha.quem === q);
+  }
+}
+function desenharQuemOutra(){
+  document.getElementById('gradeRelacao').innerHTML = RELACOES.map(([v, rot, emoji]) => `
+    <button type="button" class="rel-card${escolha.relacao === v ? ' sel' : ''}"
+            aria-pressed="${escolha.relacao === v}" onclick="escolherRelacao('${v}')">
+      <span class="rel-emoji" aria-hidden="true">${emoji}</span>
+      <span class="rel-rot">${rot}</span>
+    </button>`).join('');
+  const campo = document.getElementById('fAtendido');
+  if(campo && document.activeElement !== campo) campo.value = escolha.filhoNome || '';
+  const junto = document.getElementById('fJunto');
+  if(junto) junto.checked = !!escolha.junto;
+}
+function escolherRelacao(v){
+  escolha.relacao = v;
+  desenharQuemOutra();
+  acertarBotaoQuem();
+}
+// Escrever o nome não redesenha a tela (o campo perderia o foco): só o botão.
+function escreverAtendido(v){
+  escolha.filhoNome = v;
+  acertarBotaoQuem();
+}
+function faltaNoQuem(){
+  if(!escolha.relacao) return 'Escolha a relação com você';
+  if(!(escolha.filhoNome || '').trim()) return 'Digite o nome da pessoa';
+  return '';
+}
+function acertarBotaoQuem(){
+  const bp = document.getElementById('btPrincipal');
+  const falta = faltaNoQuem();
+  bp.disabled = !!falta;
+  bp.textContent = falta || 'Continuar';
+}
+function confirmarQuemOutra(){
+  if(faltaNoQuem()) return;
+  escolha.filhoNome = escolha.filhoNome.trim();
+  mudarPara(escolha.junto ? 'ambos' : 'filho');
+  irPara('prof');
+}
+/* O nome que vai para o agendamento leva a relação — "Ana (filha)" — e é
+   assim que o salão lê na agenda. Sem coluna nova no banco: o nome de quem é
+   atendido sempre morou em `atendido_nome`. "Outra pessoa" vai só o nome. */
+function nomeDoAtendido(){
+  const nome = (escolha.filhoNome || '').trim();
+  const r = RELACOES.find(x => x[0] === escolha.relacao);
+  return nome && r && r[0] !== 'outra' ? `${nome} (${r[1].toLowerCase()})` : nome;
+}
+// Remarcar não pergunta de novo: o horário novo é da mesma pessoa.
+function paraQuemDoAgendamento(a){
+  const nome = (a && a.atendidoNome) || '';
+  return nome ? { para: 'filho', filhoNome: nome, quem: 'outra', relacao: null, junto: false }
+              : { para: 'mim', filhoNome: '', quem: 'mim', relacao: null, junto: false };
 }
 /* ═══════════════════════════════════════════════════════════════════════════
    OS PACOTES DA CLIENTE
@@ -1726,7 +1834,7 @@ function trilhaAte(n){
   const t = document.getElementById('trilha');
   if(!n){ t.style.display = 'none'; return; }
   t.style.display = 'flex';
-  for(let i = 1; i <= 4; i++)
+  for(let i = 1; i <= 5; i++)
     document.getElementById('t'+i).classList.toggle('on', i <= n);
 }
 
@@ -1787,20 +1895,25 @@ function desenhar(){
                                bp.disabled = !escolha.servicos.length;
                                bp.textContent = escolha.servicos.length
                                  ? 'Continuar' : 'Selecione pelo menos 1 serviço'; }
-  if(tela === 'prof')        { desenharProfs();     trilhaAte(2);
+  /* A Etapa 2. Na primeira tela os cartões JÁ avançam — o botão de baixo
+     sairia repetindo o que o toque faz. Na segunda ele volta, e diz o que
+     falta, como nos outros passos. */
+  if(tela === 'quem')        { desenharQuem();      trilhaAte(2); rodape.style.display = 'none'; }
+  if(tela === 'quemOutra')   { desenharQuemOutra(); trilhaAte(2); acertarBotaoQuem(); }
+  if(tela === 'prof')        { desenharProfs();     trilhaAte(3);
                                bp.disabled = !escolha.profissionalId;
                                bp.textContent = escolha.profissionalId
                                  ? 'Continuar' : 'Escolha com quem'; }
-  if(tela === 'quando')      { desenharQuando();    trilhaAte(3);
+  if(tela === 'quando')      { desenharQuando();    trilhaAte(4);
                                bp.disabled = escolha.inicio === null;
                                bp.textContent = escolha.inicio === null
                                  ? 'Escolha um horário' : 'Continuar'; }
   if(tela === 'fila')        { bp.textContent='Entrar na lista'; trilhaAte(0); }
-  if(tela === 'dados')       { desenharDados();     bp.textContent='Continuar'; trilhaAte(4); }
+  if(tela === 'dados')       { desenharDados();     bp.textContent='Continuar'; trilhaAte(5); }
   if(tela === 'telefone')    { desenharTelefone();  bp.textContent='Enviar código'; trilhaAte(0); }
   if(tela === 'codigo')      { desenharCodigo();    bp.textContent='Confirmar código'; trilhaAte(0); }
   if(tela === 'nome')        { desenharNome();      bp.textContent='Continuar'; trilhaAte(0); }
-  if(tela === 'confirmar')   { desenharConfirmar(); bp.textContent='Confirmar agendamento'; trilhaAte(4); }
+  if(tela === 'confirmar')   { desenharConfirmar(); bp.textContent='Confirmar agendamento'; trilhaAte(5); }
   if(tela === 'pronto')      { bp.textContent='Ver meus horários'; trilhaAte(0);
                                bs.style.display=''; bs.textContent='Marcar outro'; }
   if(tela === 'meus')        { desenharMeus();      bp.textContent='Agendar novo horário'; trilhaAte(0); }
@@ -2388,14 +2501,6 @@ function cartaoDeServico(s, o){
 }
 
 function desenharServicos(){
-  // Marca o segmentado do "para quem".
-  for(const v of ['mim','filho','ambos']){
-    const b = document.getElementById('pq-' + v);
-    if(b) b.classList.toggle('sel', escolha.para === v);
-  }
-  const cf = document.getElementById('campoFilho');
-  if(cf) cf.style.display = (escolha.para === 'mim') ? 'none' : 'block';
-
   const termo = semAcento((document.getElementById('buscaServico')||{}).value);
   const todos = servicosDoSalao();
   const svs = termo
@@ -2989,8 +3094,8 @@ function desenharDados(){
   const resumo = `${escapar(nomesEscolhidos())} · ${dataLonga(escolha.data)} às ${hm(escolha.inicio)}`;
   document.getElementById('avisoDados').innerHTML =
     `<div class="recado ok">${resumo}${
-      escolha.para === 'ambos' ? '<br>Dois atendimentos seguidos.' :
-      escolha.para === 'filho' ? '<br>Atendimento para ' + escapar(escolha.filhoNome || 'seu filho') + '.' : ''}</div>`;
+      escolha.para === 'ambos' ? '<br>Dois atendimentos seguidos: você e ' + escapar(nomeDoAtendido()) + '.' :
+      escolha.para === 'filho' ? '<br>Atendimento para ' + escapar(nomeDoAtendido()) + '.' : ''}</div>`;
 }
 
 /* Um e-mail tem arroba, um ponto depois dela, e nenhum espaço. É toda a
@@ -3062,8 +3167,8 @@ function salvarDados(){
         + 'Confira, ou siga sem ele.');
     return;
   }
-  if(escolha.para !== 'mim' && !(escolha.filhoNome||'').trim()){
-    dizer('Diga o nome do seu filho para o barbeiro chamar certo.');
+  if((escolha.para === 'filho' || escolha.para === 'ambos') && !(escolha.filhoNome||'').trim()){
+    dizer('Falta o nome da pessoa que vai ser atendida — volte à Etapa 2.');
     return;
   }
 
@@ -3308,7 +3413,7 @@ function remarcarNaNuvem(token){
     return;
   }
   escolha = { servicos: ids.slice(), profissionalId: a.profissionalId,
-              data: null, inicio: null, para: 'mim', filhoNome: '' };
+              data: null, inicio: null, ...paraQuemDoAgendamento(a) };
   tokenARemarcar = token;
   esquecerVagas();
   irPara('quando');
@@ -4076,7 +4181,8 @@ function acaoPrincipal(){
     return;
   }
   if(tela === 'loja')      return enviarPedido();
-  if(tela === 'servico')   return irPara('prof');
+  if(tela === 'servico')   return irPara('quem');
+  if(tela === 'quemOutra') return confirmarQuemOutra();
   if(tela === 'prof')      return irPara('quando');
   if(tela === 'quando')    return irPara('dados');
   if(tela === 'dados')     return salvarDados();
@@ -4087,7 +4193,7 @@ function acaoPrincipal(){
   if(tela === 'confirmar') return confirmarAgendamento();
   if(tela === 'pronto')    return abrirMeus();
   if(tela === 'meus')      { escolha = {servicos:[], profissionalId:null, data:null,
-                                        inicio:null, para:'mim', filhoNome:''};
+                                        inicio:null, para: 'mim', filhoNome: '', quem: null, relacao: null, junto: false};
                              return irPara('servico'); }
   /* "Usar meu pacote" leva à escolha de serviço com os do pacote JÁ marcados
      — que é o gesto que ela veio fazer. Com mais de um pacote vivo, marcar os
@@ -4095,7 +4201,7 @@ function acaoPrincipal(){
      lista e ela escolhe. */
   if(tela === 'pacotes'){
     escolha = { servicos:[], profissionalId:null, data:null,
-                inicio:null, para:'mim', filhoNome:'' };
+                inicio:null, para: 'mim', filhoNome: '', quem: null, relacao: null, junto: false };
     if(meusPacotes.length === 1){
       const ids = meusPacotes[0].servicos || [];
       escolha.servicos = ids.filter(i => servicosDoSalao().some(s => s.id === i));
@@ -4126,7 +4232,7 @@ let destinoAposCodigo = 'confirmar';
 
 function acaoSecundaria(){
   if(tela === 'pronto'){
-    escolha = {servicos:[], profissionalId:null, data:null, inicio:null};
+    escolha = {servicos:[], profissionalId:null, data:null, inicio:null, para: 'mim', filhoNome: '', quem: null, relacao: null, junto: false};
     historico = [];
     irPara('servico', true);
   }
@@ -4300,7 +4406,7 @@ function confirmarAgendamento(){
     obs: recado,
   });
 
-  const filho = (escolha.filhoNome || '').trim();
+  const filho = nomeDoAtendido();
 
   // "Eu e meu filho" são DOIS agendamentos seguidos, não um em dobro. Assim a
   // agenda do barbeiro mostra duas cadeiras ocupadas, a comanda sai certa e a
@@ -4376,8 +4482,8 @@ function mostrarPronto(prof, unit, filho){
     `${dataLonga(escolha.data)} às <b>${hm(escolha.inicio)}</b>, com ${escapar(prof.nome)}.`
     + (escolha.para === 'ambos'
         ? `<br>Dois horários seguidos: você às ${hm(escolha.inicio)} e `
-          + `${filho || 'seu filho'} às ${hm(escolha.inicio + unit)}.`
-        : escolha.para === 'filho' ? `<br>Atendimento de ${filho}.` : '');
+          + `${escapar(filho || 'a outra pessoa')} às ${hm(escolha.inicio + unit)}.`
+        : escolha.para === 'filho' ? `<br>Atendimento de ${escapar(filho)}.` : '');
   document.getElementById('resumoPronto').innerHTML =
     document.getElementById('resumoFinal').innerHTML;
 
@@ -4422,8 +4528,8 @@ function mostrarPedidoEnviado(prof, unit, filho){
     `${dataLonga(escolha.data)} às <b>${hm(escolha.inicio)}</b>, com ${escapar(prof.nome)}.`
     + (escolha.para === 'ambos'
         ? `<br>Dois horários seguidos: você às ${hm(escolha.inicio)} e `
-          + `${filho || 'seu filho'} às ${hm(escolha.inicio + unit)}.`
-        : escolha.para === 'filho' ? `<br>Atendimento de ${filho}.` : '');
+          + `${escapar(filho || 'a outra pessoa')} às ${hm(escolha.inicio + unit)}.`
+        : escolha.para === 'filho' ? `<br>Atendimento de ${escapar(filho)}.` : '');
   document.getElementById('resumoPronto').innerHTML =
     document.getElementById('resumoFinal').innerHTML;
 
@@ -4455,7 +4561,7 @@ async function confirmarNaNuvem(profId, prof){
   const bp = document.getElementById('btPrincipal');
   const rotulo = bp.textContent;
   const unit = duracaoEscolhida();
-  const filho = (escolha.filhoNome || '').trim();
+  const filho = nomeDoAtendido();
   const recado = (document.getElementById('fRecado').value || '').trim();
 
   const inicioIso = instantes[profId + '|' + escolha.data + '|' + escolha.inicio];
@@ -4593,6 +4699,7 @@ function remarcar(agId){
   escolha = {
     servicos: (a.servicos||[]).map(s => s.servicoId),
     profissionalId: a.profissionalId, data: null, inicio: null,
+    ...paraQuemDoAgendamento(a),
   };
   agendamentoARemarcar = agId;
   irPara('quando');

@@ -113,6 +113,7 @@ verdade('e o serviço cadastrado aparece com o preço do banco',
 
 await p.click('#listaServicos button.sv-cartao'); await p.waitForTimeout(200);
 await p.click('#btPrincipal'); await p.waitForTimeout(300);
+await p.click('#quemMim'); await p.waitForTimeout(300);          // Etapa 2: para mim
 await p.click('#listaProfs button.opcao'); await p.waitForTimeout(200);
 await p.click('#btPrincipal'); await p.waitForTimeout(2500);
 igual('e chega nos horários', await tela(), 'quando');
@@ -442,6 +443,7 @@ await semFuncao.waitForTimeout(1500);
 await semFuncao.click('#btPrincipal'); await semFuncao.waitForTimeout(300);
 await semFuncao.click('#listaServicos button.sv-cartao'); await semFuncao.waitForTimeout(200);
 await semFuncao.click('#btPrincipal'); await semFuncao.waitForTimeout(300);
+await semFuncao.click('#quemMim'); await semFuncao.waitForTimeout(300);
 await semFuncao.click('#listaProfs button.opcao'); await semFuncao.waitForTimeout(200);
 await semFuncao.click('#btPrincipal'); await semFuncao.waitForTimeout(2000);
 

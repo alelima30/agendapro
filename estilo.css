@@ -4154,3 +4154,58 @@ body.com-folha{ overflow:hidden }
    reescrita a cada toque, e um ícone por `data-ico` dependeria de repintar. */
 .fone-status-seta{ width:5px; height:5px; flex:none; margin-right:2px;
   border:solid var(--st-cor); border-width:1.5px 1.5px 0 0; transform:rotate(45deg) }
+
+/* ── ETAPA 2 · PARA QUEM É O ATENDIMENTO ──────────────────────────────────
+   Duas portas grandes (Para mim / Para outra pessoa) e, na segunda tela, a
+   relação em grade de dois e o nome. Tudo nas cores do salão: o círculo do
+   ícone no tom suave da marca, a borda da escolhida na cor dos botões. */
+.etapa-rot{
+  font-size:12px; font-weight:750; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--ac-600); margin:2px 0 6px;
+}
+.quem-opcoes{ display:grid; gap:12px; margin-top:6px }
+.quem-card{
+  display:flex; align-items:center; gap:14px; width:100%; text-align:left;
+  min-height:92px; padding:16px 14px 16px 16px; cursor:pointer; font:inherit; color:var(--txt);
+  background:var(--painel); border:1.5px solid var(--borda); border-radius:var(--r-lg, 18px);
+  box-shadow:var(--sombra-xs, 0 1px 2px rgba(16,24,40,.05)); transition:.15s;
+}
+.quem-card:hover{ border-color:var(--acao) }
+.quem-card:active{ transform:scale(.99) }
+.quem-card.sel{ border-color:var(--acao); background:color-mix(in srgb, var(--acao) 6%, var(--painel)) }
+.quem-ic{
+  flex:none; width:56px; height:56px; border-radius:50%; display:grid; place-items:center;
+  background:var(--ac-soft); color:var(--acao);
+}
+.quem-ic .ic-svg{ width:26px; height:26px }
+.quem-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px }
+.quem-txt b{ font-size:17px; font-weight:750; letter-spacing:-.01em }
+.quem-txt span{ font-size:14px; line-height:1.4; color:var(--txt2) }
+.quem-seta{ flex:none; display:inline-flex; color:var(--txt2) }
+.quem-seta .ic-svg{ width:20px; height:20px }
+
+/* A relação: grade de dois, cada uma um cartão de toque com o desenho. */
+.rel-grade{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-top:4px }
+.rel-card{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+  min-height:96px; padding:12px 8px; cursor:pointer; font:inherit; color:var(--txt);
+  background:var(--painel); border:1.5px solid var(--borda); border-radius:var(--r, 14px);
+  transition:.15s;
+}
+.rel-card:hover{ border-color:var(--acao) }
+.rel-card.sel{
+  border-color:var(--acao); background:color-mix(in srgb, var(--acao) 8%, var(--painel));
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--acao) 30%, transparent);
+}
+.rel-emoji{ font-size:32px; line-height:1 }
+.rel-rot{ font-size:15px; font-weight:700 }
+.rel-card.sel .rel-rot{ color:var(--acao) }
+
+/* O "eu também" (dois horários seguidos): uma linha só, discreta. */
+.quem-junto{
+  display:flex; align-items:flex-start; gap:10px; margin-top:4px; padding:12px 14px;
+  border:1px solid var(--borda); border-radius:var(--r, 14px); background:var(--painel);
+  cursor:pointer; font-size:13.5px; line-height:1.4; color:var(--txt2);
+}
+.quem-junto input{ margin-top:2px; width:20px; height:20px; flex:none; accent-color:var(--acao) }
+.quem-junto b{ display:block; color:var(--txt); font-size:14.5px }

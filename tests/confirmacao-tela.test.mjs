@@ -141,6 +141,8 @@ await c.click('#listaServicos .sv-cartao');
 await c.waitForTimeout(700);
 await c.click('#btPrincipal');
 await c.waitForTimeout(1000);
+await c.click('#quemMim');                // Etapa 2: para mim
+await c.waitForTimeout(700);
 await c.click('#listaProfs .opcao');
 await c.waitForTimeout(700);
 await c.click('#btPrincipal');

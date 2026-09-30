@@ -415,12 +415,16 @@ verdade('e continua no topo depois de sair da capa',
   await mc.evaluate(() => !!document.querySelector('#avatarSalao img')));
 
 /* A cor escolhida manda na SELEÇÃO, não só no botão principal. Antes o dono
-   escolhia dourado e tudo o que ele via marcado continuava preto. */
+   escolhia dourado e tudo o que ele via marcado continuava preto. (Era o
+   "Para mim" do segmento; o "para quem" virou a Etapa 2, e a seleção que
+   fica nesta tela é a do serviço escolhido.) */
+await mc.click('#listaServicos .sv-cartao');
+await mc.waitForTimeout(300);
 const selecionado = await mc.evaluate(() => {
-  const b = document.getElementById('pq-mim');
-  return b ? getComputedStyle(b).backgroundColor : null;
+  const b = document.querySelector('#listaServicos .sv-cartao.sel');
+  return b ? getComputedStyle(b).borderTopColor : null;
 });
-igual('o "Para mim" selecionado usa a cor do salão, não o preto do sistema',
+igual('o serviço escolhido usa a cor do salão, não o preto do sistema',
   selecionado, 'rgb(200, 163, 60)');
 
 // E a marca do AgendaPro NÃO acompanha: ela é de outra empresa.

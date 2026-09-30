@@ -85,7 +85,12 @@ const avancar = async () => {
   const bt = await cli.$('#btPrincipal:not([disabled])');
   if(bt) { await bt.click(); await cli.waitForTimeout(1100); }
 };
-await avancar();                                   // → profissional (ou quando)
+await avancar();                                   // → Etapa 2
+// Etapa 2: para quem é o atendimento — para mim.
+if(await cli.isVisible('#p-quem')){
+  await cli.click('#quemMim');
+  await cli.waitForTimeout(900);
+}
 
 // Se a tela de profissional apareceu, escolhe o primeiro.
 if(await cli.isVisible('#p-prof')){

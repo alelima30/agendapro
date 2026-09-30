@@ -396,8 +396,10 @@ await c.click('.boas-cta');
 await c.waitForTimeout(1000);
 await c.click('#listaServicos .sv-cartao');
 await c.waitForTimeout(700);
-await c.click('#btPrincipal');            // serviço → profissional
+await c.click('#btPrincipal');            // serviço → Etapa 2
 await c.waitForTimeout(1000);
+await c.click('#quemMim');                // Etapa 2: para mim → profissional
+await c.waitForTimeout(700);
 await c.click('#listaProfs .opcao');
 await c.waitForTimeout(700);
 await c.click('#btPrincipal');            // profissional → quando
