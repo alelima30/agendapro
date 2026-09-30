@@ -119,10 +119,11 @@ troca estilo.css \
 
 echo "11. Cor dos ícones volta para o meio dos textos"
 troca app.html \
-  "  ['coresTextos', ['titulo', 'texto', 'discreto', 'destaque']],
-  ['coresIcones', ['icone', 'iconeDestaque']]," \
-  "  ['coresTextos', ['titulo', 'texto', 'discreto', 'destaque', 'icone']],
-  ['coresIcones', ['iconeDestaque']]," \
+  "  ['coresTextos', ['titulo', 'texto', 'discreto', 'destaque']]," \
+  "  ['coresTextos', ['titulo', 'texto', 'discreto', 'destaque', 'icone']]," \
+  && troca app.html \
+  "  ['coresIcones', ['icone', 'iconeDestaque']]," \
+  "  ['coresIcones', ['iconeDestaque']]," \
   && rodar "configurações misturadas"
 
 echo "12. a Moldura do logo volta para Textos"

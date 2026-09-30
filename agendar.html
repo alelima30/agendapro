@@ -5200,6 +5200,31 @@ function aplicarCoresSoltas(s, p, escuro){
     p('--borda', borda);
     p('--borda-forte', mexer(borda, escuro ? 0.16 : -0.16));
   }
+  /* Cada frase do topo com a sua cor. Sem escolha a variável não existe, e a
+     regra do estilo.css cai na cor que a frase sempre teve. */
+  const FRASES = { nomeSalao:'--cor-nome', rua:'--cor-rua', lugar:'--cor-lugar',
+    horario:'--cor-horario', bemVindo:'--cor-bemvindo', convite:'--cor-convite',
+    legenda:'--cor-legenda', tituloServicos:'--cor-tit-servicos', nomeServico:'--cor-nome-servico',
+    descServico:'--cor-desc-servico', precoServico:'--cor-preco-servico', duracao:'--cor-duracao',
+    verTodosServicos:'--cor-ver-servicos', tituloProdutos:'--cor-tit-produtos',
+    nomeProduto:'--cor-nome-produto', precoProduto:'--cor-preco-produto',
+    tituloEquipe:'--cor-tit-equipe', nomeEquipe:'--cor-nome-equipe' };
+  for(const [chave, variavel] of Object.entries(FRASES)){
+    const cor = vale(chave);
+    if(cor) p(variavel, cor);
+  }
+  /* A letra (e o ícone) dos botões do Bem-vindo. Com classe, como a cor dos
+     produtos: quem não escolheu fica com a letra que o botão sempre calculou. */
+  const letraAgendar = vale('letraAgendar'), letraProdutos = vale('letraProdutos');
+  document.body.classList.toggle('tem-letra-agendar', !!letraAgendar);
+  document.body.classList.toggle('tem-letra-produtos', !!letraProdutos);
+  if(letraAgendar) p('--cor-letra-agendar', letraAgendar);
+  if(letraProdutos) p('--cor-letra-produtos', letraProdutos);
+  // O Ver todos os produtos também por classe: sem escolha, a cor dele
+  // depende de haver cor de produtos (tem-cor-produtos) ou não.
+  const verProdutos = vale('verTodosProdutos');
+  document.body.classList.toggle('tem-cor-ver-produtos', !!verProdutos);
+  if(verProdutos) p('--cor-ver-produtos', verProdutos);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

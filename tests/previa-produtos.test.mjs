@@ -311,15 +311,16 @@ await porCfg({});
     ['o Agendar horário → Cor dos botões', '[data-cfg="agendar"]', '.cor-linha[data-chave="botao"]'],
     ['o Ver produtos → o botão Ver produtos', '[data-cfg="produtos"].fone-cta2', '#reguaBotaoProdutos'],
     ['a logo (a moldura) → Moldura do logo', '[data-cfg="logo"]', '.cor-linha[data-chave="moldura"]'],
-    ['o nome → Títulos', '[data-cfg="nome"]', '.cor-linha[data-chave="titulo"]'],
+    ['o nome → Nome do estabelecimento', '[data-cfg="nome"]', '.cor-linha[data-chave="nomeSalao"]'],
     ['um serviço → Moldura dos serviços', '.fone-cartao:not(.fone-pr)', '#reguaMoldura'],
     ['o slide → Slide da capa', '[data-cfg="slide"]', '#reguaSlide'],
     ['a foto de capa → Enquadramento', '[data-cfg="capa"]', '#fxFoco'],
     ['os atalhos → Estilo dos atalhos', '.fone-recurso', '#reguaAtalhos'],
     ['o pino → Cor dos ícones', '[data-cfg="pino"]', '.cor-linha[data-chave="icone"]'],
     ['a fita → Fita do carrinho', '[data-cfg="fita"]', '#reguaFitaMetal'],
-    ['o ABERTO → Cartões, que o tingem', '[data-cfg="status"]', '.cor-linha[data-chave="card"]'],
-    ['o preço → Texto de destaque e preço', '[data-cfg="preco"]', '.cor-linha[data-chave="destaque"]'],
+    // O ABERTO em si: o "Até amanhã" ao lado leva à cor dele (frases.test.mjs).
+    ['o ABERTO → Cartões, que o tingem', '[data-cfg="status"] > b', '.cor-linha[data-chave="card"]'],
+    ['o preço do produto → Preço do produto', '[data-cfg="precoProduto"]', '.cor-linha[data-chave="precoProduto"]'],
   ];
   for(const [rot, sel, esperado] of CASOS){
     const r = await tocar(sel, esperado);

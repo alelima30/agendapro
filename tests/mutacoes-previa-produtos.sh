@@ -65,7 +65,7 @@ troca app.html \
 
 echo "3. a prévia esquece o convite"
 troca app.html \
-  "         <p class=\"fone-boas-sub\" data-cfg=\"endereco\">\${escapar(convite)}</p>
+  "         <p class=\"fone-boas-sub\" data-cfg=\"convite\">\${escapar(convite)}</p>
 " \
   "" \
   && rodar "Bem-vindo sem texto"
@@ -84,7 +84,7 @@ troca app.html \
 
 echo "6. o slide perde o nome"
 troca app.html \
-  "    \${legenda ? \`<span class=\"fone-slide-leg\">\${escapar(legenda)}</span>\` : ''}
+  "    \${legenda ? \`<span class=\"fone-slide-leg\" data-cfg=\"legenda\">\${escapar(legenda)}</span>\` : ''}
 " \
   "" \
   && rodar "slide sem legenda"
@@ -190,8 +190,8 @@ troca app.html \
 
 echo "22. o Agendar horário perde o endereço"
 troca app.html \
-  "      return \`<div class=\"fone-cta\${brilho}\" data-cfg=\"agendar\">\${rot}</div>\`;" \
-  "      return \`<div class=\"fone-cta\${brilho}\">\${rot}</div>\`;" \
+  "      return \`<div class=\"fone-cta\${brilho}\" data-cfg=\"agendar\">\${ic}\${rot}</div>\`;" \
+  "      return \`<div class=\"fone-cta\${brilho}\">\${ic}\${rot}</div>\`;" \
   && rodar "tocar no botão leva ao Bem-vindo"
 
 echo "23. a logo leva ao lugar errado"

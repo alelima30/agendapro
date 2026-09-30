@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.12c5a7';
+const VERSAO_APP = 'v9.07ecbc';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7966,6 +7966,19 @@ function pintarSalao(){
       <p class="secao-sub" id="explicaTema" style="margin-top:9px"></p>
 
       <div id="coresTextos" class="cores-grupo"></div>
+      <!-- Cada frase do topo, com a sua cor. Sem escolha, cada uma segue a
+           cor de cima (Titulos, Texto principal...). -->
+      <div class="ap-sub">Cada frase do topo, com a sua cor</div>
+      <p class="secao-sub" style="margin:0 0 8px">Sem escolha, cada frase segue
+        a cor de cima. Escolha uma cor e só aquela frase muda. A letra do
+        Agendar horário e do Ver produtos fica em <b>Botões e atalhos</b>.</p>
+      <div id="coresFrases" class="cores-grupo"></div>
+      <div class="ap-sub">Slide e serviços</div>
+      <div id="coresFrasesServicos" class="cores-grupo"></div>
+      <div class="ap-sub">Produtos</div>
+      <div id="coresFrasesProdutos" class="cores-grupo"></div>
+      <div class="ap-sub">Quem atende</div>
+      <div id="coresFrasesEquipe" class="cores-grupo"></div>
       <p class="secao-sub" id="avisoLegibilidade" style="margin-top:9px"></p>
       <div class="rot" style="margin:18px 0 8px">Letra do nome</div>
       <div class="regua" id="reguaLetra" style="justify-content:flex-start"></div>
@@ -9037,17 +9050,63 @@ const CORES_SOLTAS = [
      o de todo serviço: dois lugares pintando o mesmo preço seria a mistura que
      a tela em seções existe para acabar. */
   ['produtos',   'Cor dos produtos','O botão Ver produtos, o carrinho de cada produto e o Ver todos os produtos.'],
+  /* ── CADA FRASE DO TOPO, COM A SUA COR ──────────────────────────────────
+     "Salão Megatop uma cor, a rua outra, bairro com cidade outra, o
+     Bem-vindo outra, a frase do convite outra." Cada uma, sem escolha,
+     ACOMPANHA a cor que a pintava até aqui (ver `FRASE_HERDA_DE`): quem nunca
+     mexer vê a mesma página, e "Títulos" continua mudando o nome junto com
+     os serviços até o dono dar uma cor só ao nome. */
+  ['nomeSalao',  'Nome do estabelecimento', 'O nome grande, embaixo da logo.'],
+  ['rua',        'Endereço (rua)',  'A rua e o número, embaixo do nome.'],
+  ['lugar',      'Bairro e cidade', 'A linha menor, embaixo da rua.'],
+  ['horario',    'Horário de hoje', 'O "Até amanhã às 00:00" ao lado do ABERTO.'],
+  ['bemVindo',   'Bem-vindo!',      'O título do quadro de boas-vindas.'],
+  ['convite',    'Frase do Bem-vindo', 'A frase "Escolha o serviço..." embaixo do Bem-vindo.'],
+  /* A letra dos dois botões do Bem-vindo, com o ícone junto. Sem escolha, a
+     do Agendar é branca ou preta — a que se lê melhor no botão, a conta de
+     sempre — e a do Ver produtos é a que o estilo dele já dava. */
+  ['letraAgendar',  'Letra do Agendar horário', 'A letra e o ícone do botão Agendar horário.'],
+  ['letraProdutos', 'Letra do Ver produtos',    'A letra e o ícone do botão Ver produtos.'],
+  /* ── E CADA FRASE DE BAIXO ─────────────────────────────────────────────
+     "Fez também de todas as frases abaixo?" O slide, os serviços, os
+     produtos e quem atende: cada frase com a sua cor, herdando a de sempre
+     enquanto não for escolhida — o mesmo trato das frases do topo. */
+  ['legenda',          'Nome na foto do slide',  'O nome escrito embaixo de cada foto do slide.'],
+  ['tituloServicos',   'Título dos serviços',     'O "Nossos serviços", em cima da lista.'],
+  ['nomeServico',      'Nome do serviço',         'O nome em cada cartão de serviço.'],
+  ['descServico',      'Descrição do serviço',    'O texto curto do serviço, na moldura curvada.'],
+  ['precoServico',     'Preço do serviço',        'O valor em cada cartão de serviço.'],
+  ['duracao',          'Duração do serviço',      'O "30 min" em cada cartão de serviço.'],
+  ['verTodosServicos', 'Ver todos os serviços',   'O botão embaixo dos serviços, quando há mais do que cabe.'],
+  ['tituloProdutos',   'Título dos produtos',     'O "Produtos em destaque", em cima da vitrine.'],
+  ['nomeProduto',      'Nome do produto',         'O nome em cada cartão de produto.'],
+  ['precoProduto',     'Preço do produto',        'O valor em cada cartão de produto.'],
+  ['verTodosProdutos', 'Ver todos os produtos',   'O botão embaixo da vitrine.'],
+  ['tituloEquipe',     'Título da equipe',        'O "Quem atende", em cima da equipe.'],
+  ['nomeEquipe',       'Nome de quem atende',     'O nome de cada pessoa da equipe.'],
 ];
+/* De quem cada frase herda enquanto não tiver cor própria: a mesma cor que a
+   pintava antes de poder ser escolhida sozinha. */
+const FRASE_HERDA_DE = { nomeSalao:'titulo', rua:'texto', lugar:'discreto',
+  horario:'texto', bemVindo:'destaque', convite:'texto',
+  tituloServicos:'discreto', nomeServico:'titulo', descServico:'discreto', precoServico:'destaque',
+  duracao:'discreto', verTodosServicos:'destaque', tituloProdutos:'discreto', nomeProduto:'titulo',
+  precoProduto:'destaque', tituloEquipe:'discreto', nomeEquipe:'titulo' };
 /* Onde cada cor aparece na tela. Uma chave, um grupo — o `papel` fica no
    bloco do fundo, junto das outras perguntas sobre o fundo. */
 const GRUPOS_DE_COR = [
   ['corDoPapel',  ['papel']],
   ['coresFundo',  ['card', 'secundaria']],
   ['coresTextos', ['titulo', 'texto', 'discreto', 'destaque']],
+  ['coresFrases', ['nomeSalao', 'rua', 'lugar', 'horario', 'bemVindo', 'convite']],
+  ['coresFrasesServicos', ['legenda', 'tituloServicos', 'nomeServico', 'descServico', 'precoServico',
+                           'duracao', 'verTodosServicos']],
+  ['coresFrasesProdutos', ['tituloProdutos', 'nomeProduto', 'precoProduto', 'verTodosProdutos']],
+  ['coresFrasesEquipe',   ['tituloEquipe', 'nomeEquipe']],
   ['coresIcones', ['icone', 'iconeDestaque']],
   ['coresBordas', ['borda', 'moldura']],
-  ['coresBotoes', ['botao']],
-  ['coresProdutos', ['produtos']],
+  ['coresBotoes', ['botao', 'letraAgendar']],
+  ['coresProdutos', ['produtos', 'letraProdutos']],
 ];
 
 function pintarAparencia(){
@@ -9177,6 +9236,12 @@ function pintarAparencia(){
       : chave === 'icone' ? 'automático — o cinza do texto, sem acompanhar a cor que você der a ele'
       : chave === 'moldura' ? 'automático — a cor dos cartões, que recorta a logo da foto'
       : chave === 'produtos' ? 'acompanha a cor dos botões — a mesma do Agendar horário'
+      : chave === 'letraAgendar' ? 'automático — branca ou preta, a que se lê melhor no botão'
+      : chave === 'letraProdutos' ? 'automático — a que o estilo do botão Ver produtos já dá'
+      : chave === 'legenda' ? 'automático — branco, sobre a sombra da foto'
+      : chave === 'verTodosProdutos' ? 'acompanha a cor dos produtos (ou o destaque, sem ela)'
+      : FRASE_HERDA_DE[chave] ? 'acompanha "' + CORES_SOLTAS.find(x => x[0] === FRASE_HERDA_DE[chave])[1]
+          + '" — toque no quadrado para dar uma cor só a esta frase'
       : doTema ? 'automático — toque no quadrado para escolher'
                : 'acompanha a cor da marca';
     el.querySelector('button').style.display = tem ? '' : 'none';
@@ -9679,24 +9744,61 @@ function conferirLegibilidade(){
   const fundoMexido = gradiente || corValida(c.papel);
 
   const queixas = [];
-  const olhar = (chave, rot, piso) => {
+  /* `onde` é para as frases do topo, que moram num lugar só: o quadro do
+     Bem-vindo é um cartão, e o nome e o endereço ficam sobre o fundo
+     escolhido — ou, sem escolha, sobre a coluna, que tem a cor dos cartões.
+     Medir o laranja do Bem-vindo contra o fundo roxo da página acusava uma
+     frase que se lê bem no quadro escuro onde ela está. */
+  const olhar = (chave, rot, piso, onde) => {
     const cor = corValida(c[chave]) ? c[chave]
       : (fundoMexido && chave in t) ? corHerdada(chave) : null;
     if(!cor) return;                          // herdada sobre fundo de fábrica
-    const rc = contrasteEntre(cor, cartao);
-    const rp = Math.min(...fundos.map(f => contrasteEntre(cor, f)));
+    const soCartao = onde === 'quadro' || (onde === 'topo' && !fundoMexido);
+    const soFundo = onde === 'topo' && fundoMexido;
+    const rc = soFundo ? Infinity : contrasteEntre(cor, cartao);
+    const rp = soCartao ? Infinity : Math.min(...fundos.map(f => contrasteEntre(cor, f)));
     /* A pior das duas é a que manda: uma cor que se lê no cartão e some no
        papel é ilegível na metade da tela, e não "meio legível". */
     const pior = Math.min(rc, rp);
     if(pior < piso){
       queixas.push(rot + ' (' + pior.toFixed(1) + ':1 '
-        + (rp < rc ? 'sobre o fundo' : 'sobre os cards') + ')');
+        + (rp < rc ? 'sobre o fundo' : onde === 'quadro' ? 'sobre o quadro' : 'sobre os cards') + ')');
     }
   };
   olhar('texto',    'o texto',     4.5);
   olhar('titulo',   'os títulos',  3);
   olhar('destaque', 'o preço',     3);
   olhar('icone',    'os ícones',   3);
+  // As frases do topo só entram escolhidas: herdadas, quem responde é o pai.
+  olhar('nomeSalao', 'o nome do estabelecimento', 3,   'topo');
+  olhar('rua',       'a rua',                     4.5, 'topo');
+  olhar('lugar',     'o bairro e a cidade',       2,   'topo');
+  olhar('horario',   'o horário de hoje',         4.5, 'quadro');
+  olhar('bemVindo',  'o Bem-vindo',               3,   'quadro');
+  olhar('convite',   'a frase do Bem-vindo',      4.5, 'quadro');
+  // As de baixo: os títulos de seção moram na coluna; o resto, nos cartões.
+  olhar('tituloServicos',   'o título dos serviços',     2,   'topo');
+  olhar('nomeServico',      'o nome do serviço',         3,   'quadro');
+  olhar('descServico',      'a descrição do serviço',    2,   'quadro');
+  olhar('precoServico',     'o preço do serviço',        3,   'quadro');
+  olhar('duracao',          'a duração do serviço',      2,   'quadro');
+  olhar('verTodosServicos', 'o Ver todos os serviços',   3,   'quadro');
+  olhar('tituloProdutos',   'o título dos produtos',     2,   'topo');
+  olhar('nomeProduto',      'o nome do produto',         3,   'quadro');
+  olhar('precoProduto',     'o preço do produto',        3,   'quadro');
+  olhar('verTodosProdutos', 'o Ver todos os produtos',   3,   'quadro');
+  olhar('tituloEquipe',     'o título da equipe',        2,   'topo');
+  olhar('nomeEquipe',       'o nome de quem atende',     3,   'quadro');
+  /* A letra dos botões mede contra o botão: o metal na cor dele, ou o
+     cartão, no Ver produtos discreto. */
+  const noBotao = (chave, rot, fundo) => {
+    if(!corValida(c[chave])) return;
+    const r = contrasteEntre(c[chave], fundo);
+    if(r < 4.5) queixas.push(rot + ' (' + r.toFixed(1) + ':1 sobre o botão)');
+  };
+  noBotao('letraAgendar', 'a letra do Agendar horário', corDoBotaoNaPrevia());
+  noBotao('letraProdutos', 'a letra do Ver produtos', aparencia.botaoProdutos === 'metal'
+    ? (corValida(c.produtos) ? c.produtos : corDoBotaoNaPrevia()) : cartao);
   /* ⚠ 2, E NÃO 4.5. Este cinza é apagado DE PROPÓSITO, e o padrão do próprio
      app está em 2,29:1 sobre o papel claro — medido. Cobrar 4.5 aqui faria a
      tela acusar a cor de fábrica assim que alguém a escolhesse, e um aviso
@@ -9793,6 +9895,18 @@ function corHerdada(chave){
   // mesma reserva da página. O quadrado mostrava a cor da marca.
   if(chave === 'moldura') return corDoAnelPadrao();
   if(chave === 'produtos') return corDoBotaoNaPrevia();
+  // A letra dos botões, sem escolha: a que o botão já dava.
+  if(chave === 'letraAgendar') return letraSobre(corDoBotaoNaPrevia());
+  if(chave === 'letraProdutos') return letraDoVerProdutos();
+  // A legenda do slide é branca sobre a sombra da foto, em qualquer tema; o
+  // Ver todos os produtos é a cor dos produtos, ou o destaque sem ela.
+  if(chave === 'legenda') return '#FFFFFF';
+  if(chave === 'verTodosProdutos') return corValida(c.produtos) ? c.produtos : corEscritaDaMarca();
+  // A frase sem cor própria mostra a cor que está nela: a do pai, escolhida
+  // ou calculada.
+  const pai = FRASE_HERDA_DE[chave];
+  if(pai) return pai === 'destaque' ? corEscritaDaMarca()
+    : corValida(c[pai]) ? c[pai] : corHerdada(pai);
   /* O cinza sai do texto escolhido, quando há um — a mesma dedução do
      `aplicarCoresSoltas()` da página, com a mesma conta. */
   if(chave === 'discreto' && corValida(c.texto))
@@ -10035,7 +10149,7 @@ function previaDoSlide(sl){
       ? `<video src="${escapar(m.url)}" muted playsinline preload="metadata"></video>`
       : `<span class="fone-slide-fundo" style="background-image:url('${escapar(m.url)}')"></span>
          <img src="${escapar(m.url)}" alt="">`}
-    ${legenda ? `<span class="fone-slide-leg">${escapar(legenda)}</span>` : ''}
+    ${legenda ? `<span class="fone-slide-leg" data-cfg="legenda">${escapar(legenda)}</span>` : ''}
     ${itens.length > 1 ? `<span class="fone-slide-pontos">${itens.slice(0, 6).map((_, i) =>
       `<i${i ? '' : ' class="on"'}></i>`).join('')}</span>` : ''}
   </div>`;
@@ -10058,15 +10172,18 @@ function previaDoSlide(sl){
    A elegante é desenhada de perto: grade de dois em dois, foto quadrada com a
    curva, descrição, duração e o botão redondo. Ela é a que está sendo
    escolhida, e é dela que o dono precisa de uma ideia fiel. */
+/* A descrição e a duração da prévia são o texto a 60%, uma aproximação do
+   cinza da página. Com cor escolhida, a prévia mostra a cor cheia. */
+const comCor = chave => corValida((aparencia.cores || {})[chave]) ? ' com-cor' : '';
 function previaDosServicos(svs){
   if(aparencia.moldura !== 'elegante'){
     return svs.map(s => `
       <div class="fone-sv">
         <div class="fone-sv-foto"${s.foto ? ` style="background-image:url('${escapar(s.foto)}')"` : ''}></div>
         <div class="fone-sv-txt">
-          <b>${escapar(s.nome)}</b>
+          <b data-cfg="nomeServico">${escapar(s.nome)}</b>
           ${aparencia.precoNaCapa
-            ? `<span class="fone-preco">${real(s.preco || 0)}</span>` : ''}
+            ? `<span class="fone-preco" data-cfg="precoServico">${real(s.preco || 0)}</span>` : ''}
         </div>
       </div>`).join('');
   }
@@ -10075,12 +10192,13 @@ function previaDosServicos(svs){
       <div class="fone-cartao-foto"${s.foto
         ? ` style="background-image:url('${escapar(s.foto)}')"` : ''}></div>
       <div class="fone-cartao-txt">
-        <b>${escapar(s.nome)}</b>
-        ${s.descricao ? `<span class="fone-cartao-desc">${escapar(s.descricao)}</span>` : ''}
+        <b data-cfg="nomeServico">${escapar(s.nome)}</b>
+        ${s.descricao ? `<span class="fone-cartao-desc${comCor('descServico')}" data-cfg="descServico">${
+          escapar(s.descricao)}</span>` : ''}
         <span class="fone-cartao-linha">
           ${aparencia.precoNaCapa
-            ? `<span class="fone-preco">${real(s.preco || 0)}</span>` : ''}
-          <span class="fone-cartao-dur">${s.duracaoMin || 30} min</span>
+            ? `<span class="fone-preco" data-cfg="precoServico">${real(s.preco || 0)}</span>` : ''}
+          <span class="fone-cartao-dur${comCor('duracao')}" data-cfg="duracao">${s.duracaoMin || 30} min</span>
         </span>
       </div>
       <span class="fone-cartao-ir"></span>
@@ -10115,6 +10233,15 @@ function previaDosServicos(svs){
    Aqui a relação é a mesma dos dois lados: escolheu cor de botão, é ela;
    não escolheu, é a cor da marca. E a letra é recalculada em cima da cor
    NOVA — senão marrom escuro com letra preta, ou dourado com letra branca. */
+/* A letra do "Ver produtos" que o estilo dele dá: no metal, branca ou preta
+   sobre a cor do botão; no discreto, a cor dos produtos (se escolhida) ou a
+   dos títulos — as mesmas regras da página. */
+function letraDoVerProdutos(){
+  const c = aparencia.cores || {};
+  const prod = corValida(c.produtos) ? c.produtos : null;
+  if(aparencia.botaoProdutos === 'metal') return letraSobre(prod || corDoBotaoNaPrevia());
+  return prod || (corValida(c.titulo) ? c.titulo : corHerdada('titulo'));
+}
 function corDoBotaoNaPrevia(){
   const c = (aparencia.cores || {}).botao;
   return corValida(c) ? c : aparencia.cor;
@@ -10233,7 +10360,7 @@ function previaDaInfo(sl){
       `<span class="fone-recurso${d ? ' destaque' : ''}" data-recurso="${qual}"><span data-ico="${ico}"></span>${rot}</span>`
     ).join('')}</div>`
     + (est ? `<div class="fone-status ${est.aberto ? 'aberto' : 'fechado'}" data-cfg="status">
-        <i></i><b>${est.aberto ? 'ABERTO' : 'FECHADO'}</b><span class="fone-status-sep"></span><span class="fone-status-txt">${
+        <i></i><b>${est.aberto ? 'ABERTO' : 'FECHADO'}</b><span class="fone-status-sep"></span><span class="fone-status-txt" data-cfg="horario">${
           escapar(est.detalhe)}</span><span class="fone-status-seta"></span></div>` : '');
 }
 
@@ -10278,12 +10405,14 @@ function pintarPreviaFone(){
   if(!botoes.length && zapDaCasa(sl)) botoes.push(['agendar', 'Falar no WhatsApp']);
   const htmlBotoes = botoes.map(([q, rot], i) => {
     const brilho = aparencia.brilho ? ' com-brilho' : '';
+    // O ícone vai junto, como na página: é a letra dele que se escolhe.
+    const ic = `<span data-ico="${q === 'produtos' ? 'carrinho' : comServicos ? 'calendario' : 'whatsapp'}"></span>`;
     if(q !== 'produtos')
-      return `<div class="fone-cta${brilho}" data-cfg="agendar">${rot}</div>`;
+      return `<div class="fone-cta${brilho}" data-cfg="agendar">${ic}${rot}</div>`;
     if(i === 0 || aparencia.botaoProdutos === 'metal')
       return `<div class="fone-cta fone-cta-prod${brilho}" data-cfg="produtos"
-                   style="--fone-marca:${metalProd};--fone-marca-txt:${letraSobre(metalProd)}">${rot}</div>`;
-    return `<div class="fone-cta2${corProd ? ' com-cor' : ''}" data-cfg="produtos">${rot}</div>`;
+                   style="--fone-marca:${metalProd};--fone-marca-txt:${letraSobre(metalProd)}">${ic}${rot}</div>`;
+    return `<div class="fone-cta2${corProd ? ' com-cor' : ''}" data-cfg="produtos">${ic}${rot}</div>`;
   }).join('');
   /* O véu engrossa os cartões só quando há FOTO de fundo, como o
      `fundo-forte` da página. Antes valia para qualquer fundo com véu baixo
@@ -10316,8 +10445,8 @@ function pintarPreviaFone(){
          ${(() => {
             const e = Endereco.completo(sl.endereco);
             return e.length
-              ? `<span data-cfg="endereco"><span class="fone-pino" data-ico="local" data-cfg="pino"></span>${
-                  escapar(e[0])}</span>${e[1] ? `<i data-cfg="endereco">${escapar(e[1])}</i>` : ''}`
+              ? `<span data-cfg="rua"><span class="fone-pino" data-ico="local" data-cfg="pino"></span>${
+                  escapar(e[0])}</span>${e[1] ? `<i data-cfg="lugar">${escapar(e[1])}</i>` : ''}`
               : '<span>Agende seu horário</span>';
           })()}
        </div>
@@ -10327,34 +10456,34 @@ function pintarPreviaFone(){
             embaralha a ordem engana justamente sobre o que a cliente vê
             primeiro — que é a coisa que mais importa nesta tela. -->
        <div class="fone-boas" data-cfg="boas">
-         <b class="fone-boas-t" data-cfg="destaque">Bem-vindo!</b>
-         <p class="fone-boas-sub" data-cfg="endereco">${escapar(convite)}</p>
+         <b class="fone-boas-t" data-cfg="bemVindo">Bem-vindo!</b>
+         <p class="fone-boas-sub" data-cfg="convite">${escapar(convite)}</p>
          ${htmlBotoes}
        </div>
        ${previaDoSlide(sl)}
        ${comServicos ? `<div class="fone-svs" data-cfg="servicos">
-         <div class="fone-rot" data-cfg="rotulos">Nossos serviços</div>
+         <div class="fone-rot" data-cfg="tituloServicos">Nossos serviços</div>
          ${svs.length ? previaDosServicos(svs)
          : '<p class="fone-nada">Cadastre serviços para vê-los aqui.</p>'}
        </div>` : ''}
        ${temPr ? `<div class="fone-svs" data-cfg="produtos">
-         <div class="fone-rot" data-cfg="rotulos">Produtos em destaque</div>
+         <div class="fone-rot" data-cfg="tituloProdutos">Produtos em destaque</div>
          <div class="fone-grade">${produtos.slice(0, 2).map(x => `
            <div class="fone-cartao fone-pr${aparencia.moldura === 'elegante' ? '' : ' reta'}">
              <div class="fone-cartao-foto"${x.foto ? ` style="background-image:url('${escapar(x.foto)}')"` : ''}>${
                x.foto ? '' : '<span data-ico="presente"></span>'}</div>
-             <div class="fone-cartao-txt"><b>${escapar(x.nome)}</b>
-               <span class="fone-preco" data-cfg="preco">${x.preco == null ? 'sob consulta' : real(Number(x.preco))}</span></div>
+             <div class="fone-cartao-txt"><b data-cfg="nomeProduto">${escapar(x.nome)}</b>
+               <span class="fone-preco" data-cfg="precoProduto">${x.preco == null ? 'sob consulta' : real(Number(x.preco))}</span></div>
              <span class="fone-pr-add"><span data-ico="carrinho"></span></span>
            </div>`).join('')}</div>
-         <div class="fone-ver-todos">Ver todos os produtos <span>${produtos.length}</span></div>
+         <div class="fone-ver-todos" data-cfg="verTodosProdutos">Ver todos os produtos <span>${produtos.length}</span></div>
        </div>` : ''}
        ${eq.length ? `<div class="fone-svs" data-cfg="servicos">
-         <div class="fone-rot" data-cfg="rotulos">Quem atende</div>
+         <div class="fone-rot" data-cfg="tituloEquipe">Quem atende</div>
          ${eq.map(x => `<div class="fone-sv">
             <div class="fone-eq"${x.foto ? ` style="background-image:url('${escapar(x.foto)}')"` : ''}>${
               x.foto ? '' : escapar((x.nome || '?').charAt(0).toUpperCase())}</div>
-            <div class="fone-sv-txt"><b>${escapar(x.apelido || x.nome)}</b></div>
+            <div class="fone-sv-txt"><b data-cfg="nomeEquipe">${escapar(x.apelido || x.nome)}</b></div>
           </div>`).join('')}
        </div>` : ''}
        <!-- ⚠ A FITA ENTRA NA PREVIA, e nao so' no link publicado.
@@ -10404,21 +10533,36 @@ const CONFIG_DA_PREVIA = {
   fundo:    ['#reguaFundoTipo', '#corDoPapel .cor-linha'],
   capa:     ['#fxFoco', '#reguaCapaForma'],
   logo:     ['.cor-linha[data-chave="moldura"]', '#reguaLogoBorda', '#reguaLogoForma'],
-  nome:     ['.cor-linha[data-chave="titulo"]', '#reguaLetra'],
-  endereco: ['.cor-linha[data-chave="texto"]', '.cor-linha[data-chave="discreto"]'],
+  // Cada frase do topo leva à cor DELA — e o nome, também à letra.
+  nome:     ['.cor-linha[data-chave="nomeSalao"]', '#reguaLetra'],
+  rua:      ['.cor-linha[data-chave="rua"]'],
+  lugar:    ['.cor-linha[data-chave="lugar"]'],
+  bemVindo: ['.cor-linha[data-chave="bemVindo"]'],
+  convite:  ['.cor-linha[data-chave="convite"]'],
   pino:     ['.cor-linha[data-chave="icone"]'],
   atalhos:  ['#reguaAtalhos', '#atCorPagamentos', '#atCorHorarios', '#atCorInformacoes'],
   // O verde e o vermelho são do horário; o que se escolhe nele é o cartão
   // que o tinge.
   status:   ['.cor-linha[data-chave="card"]'],
   boas:     ['.cor-linha[data-chave="secundaria"]', '.cor-linha[data-chave="card"]'],
-  destaque: ['.cor-linha[data-chave="destaque"]'],
-  agendar:  ['.cor-linha[data-chave="botao"]', '#reguaBrilho'],
-  produtos: ['#reguaBotaoProdutos', '.cor-linha[data-chave="produtos"]'],
+  agendar:  ['.cor-linha[data-chave="botao"]', '.cor-linha[data-chave="letraAgendar"]', '#reguaBrilho'],
+  produtos: ['#reguaBotaoProdutos', '.cor-linha[data-chave="produtos"]', '.cor-linha[data-chave="letraProdutos"]'],
+  horario:  ['.cor-linha[data-chave="horario"]'],
   slide:    ['#reguaSlide', '#reguaSlideForma'],
   servicos: ['#reguaMoldura', '.cor-linha[data-chave="borda"]', '.cor-linha[data-chave="card"]'],
-  rotulos:  ['.cor-linha[data-chave="discreto"]'],
-  preco:    ['.cor-linha[data-chave="destaque"]'],
+  // E as de baixo, cada uma à sua linha.
+  legenda:          ['.cor-linha[data-chave="legenda"]'],
+  tituloServicos:   ['.cor-linha[data-chave="tituloServicos"]'],
+  nomeServico:      ['.cor-linha[data-chave="nomeServico"]'],
+  descServico:      ['.cor-linha[data-chave="descServico"]'],
+  precoServico:     ['.cor-linha[data-chave="precoServico"]'],
+  duracao:          ['.cor-linha[data-chave="duracao"]'],
+  tituloProdutos:   ['.cor-linha[data-chave="tituloProdutos"]'],
+  nomeProduto:      ['.cor-linha[data-chave="nomeProduto"]'],
+  precoProduto:     ['.cor-linha[data-chave="precoProduto"]'],
+  verTodosProdutos: ['.cor-linha[data-chave="verTodosProdutos"]'],
+  tituloEquipe:     ['.cor-linha[data-chave="tituloEquipe"]'],
+  nomeEquipe:       ['.cor-linha[data-chave="nomeEquipe"]'],
   fita:     ['#reguaFitaMetal', '#reguaFitaBorda', '#reguaFitaBrilho', '#reguaFitaTempo', '#fitaCor'],
 };
 function irParaConfig(chave){
