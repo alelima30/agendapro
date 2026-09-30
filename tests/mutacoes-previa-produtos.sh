@@ -206,6 +206,12 @@ troca app.html \
   "    fc.value = aparencia.fitaCor || aparencia.cor;" \
   && rodar "quadrado azul, fita roxa"
 
+echo "25. \"Produtos em destaque\" volta a colar no \"Ver todos\""
+troca estilo.css \
+  "#capaLoja > .cat:first-child{ margin-top:26px }" \
+  "" \
+  && rodar "título grudado no botão de cima"
+
 echo ""
 echo "$morta mortas, $viva vivas"
 [ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"

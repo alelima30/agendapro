@@ -155,6 +155,9 @@ const lerPagina = p => p.evaluate(h => { const hex = eval(h);
     carrinho: q('.pr-add') ? hex(getComputedStyle(q('.pr-add')).color) : null,
     verTodos: q('.ver-todos-produtos') ? hex(getComputedStyle(q('.ver-todos-produtos')).color) : null,
     preco: q('.pr-txt span') ? hex(getComputedStyle(q('.pr-txt span')).color) : null,
+    // Do fim dos serviços (o "Ver todos os serviços") ao "Produtos em destaque".
+    folga: Math.round(q('#capaLoja > .cat').getBoundingClientRect().top
+                      - q('#capaServicos').getBoundingClientRect().bottom),
   };
 }, HEX);
 const lerPrevia = p => p.evaluate(h => { const hex = eval(h);
@@ -200,6 +203,11 @@ let real;
   igual('o nome no slide e as bolinhas', [prev.legenda, prev.pontos], [real.legenda, real.pontos]);
   igual('o véu baixo guardado não pinta blocos sobre fundo liso', prev.blocosComFundo, 0);
   igual('e o preço do produto na mesma cor do link', prev.preco, real.preco);
+  /* "PRODUTOS EM DESTAQUE tá muito perto do Ver todos, distanciar um
+     pouquinho." Era o primeiro filho do bloco, e o .cat:first-child zerava a
+     margem: colava no botão de cima. */
+  verdade('"Produtos em destaque" longe do "Ver todos os serviços" (≥ 24px)', real.folga >= 24,
+    `folga de ${real.folga}px`);
   await fechar();
 }
 await porCfg({ slideForma:'quadrado' });

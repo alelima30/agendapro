@@ -2684,6 +2684,11 @@ body.tem-letra-produtos .boas .boas-produtos{ color:var(--cor-letra-produtos) }
 #capaLoja > .cat{ color:var(--cor-tit-produtos, var(--txt3)) !important }
 #rotuloEquipe{ color:var(--cor-tit-equipe, var(--txt3)) !important }
 #capaEquipe .tt{ color:var(--cor-nome-equipe, var(--txt)) }
+/* "Produtos em destaque" é o PRIMEIRO filho do #capaLoja, e o
+   `.cat:first-child` da página zera a margem de cima de quem abre um bloco.
+   O título colava no "Ver todos os serviços" logo acima — "tá muito perto,
+   distanciar um pouquinho". */
+#capaLoja > .cat:first-child{ margin-top:26px }
 #capaServicos .ver-todos, #capaServicos .ver-todos .ver-todos-n{ color:var(--cor-ver-servicos, var(--ac-600)) }
 /* ⚠ DEPOIS das regras da cor dos produtos, com a mesma força: escolhido, o
    Ver todos os produtos ganha dela. */
