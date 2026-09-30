@@ -4300,3 +4300,73 @@ body.com-folha{ overflow:hidden }
 .fone .intro-nome{ font-size:14px; max-width:90% }
 .fone[data-logo="arredondado"] .intro-logo{ border-radius:15% }
 .fone[data-logo="quadrado"] .intro-logo{ border-radius:4% }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A TELA DE PRODUTOS (agendar.html → desenharLoja)
+
+   "Aplicar moldura curvada quando tiver configurável também em produtos;
+   pintar o Adicionar na cor do tema; 'Escolha pelo menos 1 produto' também
+   na cor do tema."
+
+   Com Curvada, a loja usa o cartão dos "Produtos em destaque" da capa
+   (.pr-cartao + .pr-foto com a onda, já no [data-moldura="elegante"] lá em
+   cima); aqui só o que é da loja: o corpo do cartão, com marca, descrição e o
+   botão. Com Clássica ela continua em fileiras.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.loja-cartao .loja-corpo{
+  flex:1; display:flex; flex-direction:column; gap:3px;
+  padding:6px 12px 12px; position:relative;   /* acima da fatia da onda */
+}
+.loja-nome{
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  font-size:14px; font-weight:650; line-height:1.3; color:var(--cor-nome-produto, var(--txt));
+}
+.loja-marca{ font-size:12px; color:var(--txt3) }
+.loja-desc{
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  font-size:12.5px; line-height:1.35; color:var(--txt2);
+}
+.loja-preco{ margin:3px 0 9px; font-size:15px; font-weight:750;
+  color:var(--cor-preco-produto, var(--ac-600)) }
+/* O botão desce para o pé do cartão: nome de uma linha ao lado de nome de
+   duas não pode deixar os Adicionar desalinhados na mesma fileira. */
+.loja-cartao .loja-add, .loja-cartao .loja-qtd{ margin-top:auto; width:100% }
+.loja-cartao .loja-qtd{ justify-content:space-between }
+
+/* O Adicionar: cheio, na cor do botão do salão. `#listaProdutos` na frente
+   para ganhar do botão secundário (.btn:not(.btn-primary)...), que é papel
+   com contorno. */
+#listaProdutos .loja-add{
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  background:var(--acao); color:var(--acao-txt); border:1px solid var(--acao);
+  font-weight:700; box-shadow:var(--sombra-marca, var(--sombra-xs));
+}
+#listaProdutos .loja-add:hover{ background:var(--acao-hover, var(--acao)); color:var(--acao-txt) }
+#listaProdutos .loja-add .ic-svg{ color:inherit }
+/* Com o produto no carrinho: − n +, no contorno e na letra da cor. */
+#listaProdutos .loja-qtd{ display:inline-flex; align-items:center; gap:9px }
+#listaProdutos .loja-qtd b{ min-width:1.4em; text-align:center }
+#listaProdutos .loja-qtd .btn{
+  color:var(--ac-600); font-weight:750; background:var(--painel);
+  border-color:color-mix(in srgb, var(--acao) 45%, var(--painel));
+}
+/* Com "Cor dos produtos" escolhida, a loja segue ela — como o carrinho da
+   capa e o "Ver produtos" (body.tem-cor-produtos, lá em cima). */
+body.tem-cor-produtos #listaProdutos .loja-add{
+  background:var(--prod-cor); color:var(--prod-txt); border-color:var(--prod-cor);
+}
+body.tem-cor-produtos #listaProdutos .loja-add:hover{ background:var(--prod-hover, var(--prod-cor)) }
+body.tem-cor-produtos #listaProdutos .loja-qtd .btn{
+  color:var(--prod-cor); border-color:color-mix(in srgb, var(--prod-cor) 45%, var(--painel));
+}
+
+/* O botão de baixo, desligado, na tela de produtos: um tom da cor do tema,
+   e não o cinza chapado dos outros passos. A letra é a `--ac-600`, a cor da
+   marca puxada para ler bem sobre o papel — a `--acao` pura sumiria num
+   dourado. `!important` porque o desligado de todo o sistema (lá em cima)
+   também usa. Só aqui: os outros passos continuam como estavam. */
+body[data-passo="loja"] #btPrincipal:disabled{
+  background:color-mix(in srgb, var(--acao) 12%, var(--painel)) !important;
+  color:var(--ac-600) !important;
+  border:1px solid color-mix(in srgb, var(--acao) 32%, var(--painel)) !important;
+}

@@ -4134,7 +4134,50 @@ function desenharLoja(){
     return;
   }
 
-  alvo.innerHTML = lista.map(p => {
+  /* ── O BOTÃO DE CADA PRODUTO, NA COR DO TEMA ───────────────────────────
+     "Pintar o Adicionar na cor do tema que está ativo." Era um botão branco
+     de contorno, igual em qualquer salão. Agora é cheio, na cor do botão do
+     salão (ou na cor dos produtos, quando o dono escolheu uma — estilo.css,
+     .loja-add); com o produto no carrinho vira − n +, no contorno da cor. */
+  const botaoDe = (p, n) => n
+    ? `<span class="loja-qtd" role="group" aria-label="Quantidade de ${escapar(p.nome)}">
+         <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',-1)" aria-label="Tirar um">−</button>
+         <b>${n}</b>
+         <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)" aria-label="Pôr mais um">+</button>
+       </span>`
+    : `<button class="btn btn-peq loja-add" onclick="mudarNoCarrinho('${p.id}',1)">
+         <span data-ico="carrinho" class="ic-pequeno"></span>
+         Adicionar</button>`;
+  const preco = p => p.preco == null
+    ? '<span style="color:var(--txt2);font-weight:600">sob consulta</span>'
+    : real(Number(p.preco));
+
+  /* ── ⚠ NA MOLDURA CURVADA, O CARTÃO DA CAPA ────────────────────────────
+     "Aplicar moldura curvada, quando tiver configurável, também em
+     produtos." Com Curvada escolhida em Aparência, a loja usa o mesmo cartão
+     dos "Produtos em destaque" da capa (.pr-cartao, a foto com a onda, dois
+     por linha), com o que só a loja tem embaixo: marca, descrição e o
+     Adicionar. Com Clássica, as fileiras de sempre — nada muda para quem
+     não escolheu a curva.
+
+     A forma quem decide é o CSS pelo data-moldura da raiz, como na capa;
+     aqui só se escolhe a estrutura (grade ou fileira), porque as duas são
+     HTML diferente. */
+  const curva = (salao.moldura || (salao.cfg || {}).moldura) === 'elegante';
+  const cartoes = curva
+    ? `<div class="pr-grade loja-grade">${lista.map(p => `<div class="pr-cartao loja-cartao">
+        <span class="pr-foto"${p.foto
+          ? ` style="--pr-foto:url('${escapar(p.foto)}')"` : ''}>
+          ${p.foto ? '' : '<span data-ico="presente"></span>'}</span>
+        <div class="loja-corpo">
+          <b class="loja-nome">${escapar(p.nome)}</b>
+          ${p.marca ? `<span class="loja-marca">${escapar(p.marca)}</span>` : ''}
+          ${p.descricao ? `<span class="loja-desc">${escapar(p.descricao)}</span>` : ''}
+          <b class="loja-preco">${preco(p)}</b>
+          ${botaoDe(p, carrinho[p.id] || 0)}
+        </div>
+      </div>`).join('')}</div>`
+    : lista.map(p => {
     const n = carrinho[p.id] || 0;
     return `<div class="bloco" style="display:flex;gap:12px;align-items:flex-start">
       <div style="flex:0 0 64px;width:64px;height:64px;border-radius:9px;
@@ -4151,21 +4194,14 @@ function desenharLoja(){
             ${escapar(p.descricao)}</p>` : ''}
         <div style="display:flex;align-items:center;justify-content:space-between;
                     gap:10px;margin-top:9px;flex-wrap:wrap">
-          <b>${p.preco == null
-              ? '<span style="color:var(--txt2);font-weight:600">sob consulta</span>'
-              : real(Number(p.preco))}</b>
-          ${n ? `<span style="display:inline-flex;align-items:center;gap:9px">
-                   <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',-1)">−</button>
-                   <b style="min-width:1.4em;text-align:center">${n}</b>
-                   <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)">+</button>
-                 </span>`
-               : `<button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)">
-                    <span data-ico="carrinho" class="ic-pequeno"></span>
-                    Adicionar</button>`}
+          <b>${preco(p)}</b>
+          ${botaoDe(p, n)}
         </div>
       </div>
     </div>`;
-  }).join('') + (itensNoCarrinho() ? `
+  }).join('');
+
+  alvo.innerHTML = cartoes + (itensNoCarrinho() ? `
     <div class="recado" style="margin-top:14px">
       <b>${itensNoCarrinho()} item(ns) · ${totalEscrito()}</b><br>
       Este valor é uma estimativa. Quem confirma o preço final, o que tem em
