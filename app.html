@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.a847cf';
+const VERSAO_APP = 'v9.edc620';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3185,6 +3185,27 @@ async function tirarDoPacote(vendaId, nome){
   }
 }
 
+/* ── A CATEGORIA DO PRODUTO ───────────────────────────────────────────────
+   Texto livre, e por isso passa por aqui: sem espaço sobrando nas pontas nem
+   dois no meio. A comparação entre elas ignora maiúscula — "Tratamento de
+   cabelo" e "tratamento de CABELO" são a mesma, e a forma que aparece é a
+   mais usada. A loja do link faz a mesma conta (agendar.html). */
+function limparCategoria(c){ return String(c || '').replace(/\s+/g, ' ').trim(); }
+function categoriasDosProdutos(){
+  const formas = new Map();   // chave em minúscula → { forma: quantas }
+  for(const p of doSalao(bd.produtos)){
+    const c = limparCategoria(p.categoria);
+    if(!c) continue;
+    const k = c.toLocaleLowerCase('pt');
+    const f = formas.get(k) || {};
+    f[c] = (f[c] || 0) + 1;
+    formas.set(k, f);
+  }
+  return [...formas.values()]
+    .map(f => Object.entries(f).sort((a, b) => b[1] - a[1])[0][0])
+    .sort((a, b) => a.localeCompare(b, 'pt'));
+}
+
 function pintarProdutos(){
   const lista = doSalao(bd.produtos);
   const alvo = document.getElementById('listaProdutos');
@@ -3227,7 +3248,10 @@ function pintarProdutos(){
       <td><span class="sv-mini">${p.foto
           ? `<img src="${escapar(p.foto)}" alt="" loading="lazy">`
           : `<span data-ico="presente"></span>`}</span
-        ><b>${escapar(p.nome)}</b>${p.ativo ? '' : ' <span class="tag t-canc">inativo</span>'}</td>
+        ><b>${escapar(p.nome)}</b>${p.ativo ? '' : ' <span class="tag t-canc">inativo</span>'}${
+          limparCategoria(p.categoria)
+            ? `<span class="tag-cat"><span data-ico="etiqueta"></span>${escapar(limparCategoria(p.categoria))}</span>`
+            : ''}</td>
       <td>${escapar(p.marca || '—')}</td>
       <td>${real(p.preco)}</td>
       <td>${p.estoque != null ? p.estoque : '—'}</td>
@@ -6857,6 +6881,18 @@ function abrirProduto(pid){
       <input id="pNome" value="${escapar(p ? p.nome : '')}" placeholder="Shampoo sem sal 300ml"></div>
     <div class="campo"><label>Marca</label>
       <input id="pMarca" value="${escapar(p ? (p.marca||'') : '')}" placeholder="opcional"></div>
+    <!-- A categoria vira etiqueta aqui na lista e o filtro da loja do link.
+         As que o salao ja usa aparecem como sugestao: "Tratamento de cabelo"
+         escrito de dois jeitos viraria dois filtros.
+         (Sem crase: este HTML mora num template literal.) -->
+    <div class="campo"><label for="pCat">Categoria</label>
+      <input id="pCat" list="pCatLista" maxlength="40" autocomplete="off"
+             value="${escapar(p ? limparCategoria(p.categoria) : '')}"
+             placeholder="Ex.: Tratamento de cabelo">
+      <datalist id="pCatLista">${categoriasDosProdutos()
+        .map(c => `<option value="${escapar(c)}">`).join('')}</datalist>
+      <span style="font-size:12px;color:var(--txt2)">Opcional. Na loja do link,
+        a cliente toca na categoria para ver só os produtos dela.</span></div>
     <div class="campo"><label>Descrição</label>
       <textarea id="pDesc" rows="2"
         placeholder="Para cabelo com química. Não resseca.">${escapar(p ? (p.descricao||'') : '')}</textarea>
@@ -7103,6 +7139,8 @@ async function salvarProduto(pid){
   const dados = {
     nome,
     marca: document.getElementById('pMarca').value || '',
+    // Vazio vira nulo: "sem categoria", e o produto aparece só em "Todos".
+    categoria: limparCategoria(document.getElementById('pCat').value) || null,
     descricao: document.getElementById('pDesc').value || '',
     preco: parseFloat(document.getElementById('pPreco').value) || 0,
     custo: parseFloat(document.getElementById('pCusto').value) || 0,

@@ -268,6 +268,10 @@ partes = [
 ] + [limpar(x) for f in pacotes + confirmacao + precos
                 for x in inteiro_com_consertos(f)] + [
     limpar(open('supabase/09_cliente.sql', encoding='utf-8').read()),
+    # A categoria do produto, que a vitrine devolve. Função SQL resolve as
+    # colunas na criação: sem ela, a vitrine do 25 não instala num banco que
+    # ainda não recebeu o 24 de agora.
+    "alter table public.produtos add column if not exists categoria text;",
 ] + [limpar(v) for v in vitrines]
 
 # ── ⚠ O FECHAMENTO DA CADEIA ──────────────────────────────────────────────

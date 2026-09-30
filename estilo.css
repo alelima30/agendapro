@@ -4481,3 +4481,30 @@ body[data-passo="pronto"] #btSecundario{
 /* O "Adicionar" do convite para instalar, que mora nesta mesma tela: sem
    espaço interno, o texto passava da borda do botão. */
 #convitePwa .btn-p{ padding:0 18px; min-height:44px }
+
+/* A categoria do produto no painel: a etiqueta embaixo do nome, no tom da
+   cor do sistema — como o chip do print que o dono mandou. */
+.tag-cat{
+  display:flex; width:max-content; max-width:100%; align-items:center; gap:6px;
+  margin-top:5px; padding:3px 10px 3px 8px; border-radius:var(--r-pill, 999px);
+  background:var(--ac-soft); color:var(--ac-600); font-size:12.5px; font-weight:600;
+}
+.tag-cat .ic-svg{ width:14px; height:14px; flex:none }
+
+/* As categorias da loja do link, embaixo da busca: uma fileira que rola de
+   lado por dentro (a página não), e a escolhida na cor do tema — ou na cor
+   dos produtos, quando o dono escolheu uma, como o Adicionar. */
+.loja-cats{
+  display:flex; gap:8px; overflow-x:auto; overscroll-behavior-x:contain;
+  margin:0 -2px 6px; padding:2px 2px 12px; scrollbar-width:none;
+}
+.loja-cats::-webkit-scrollbar{ display:none }
+.loja-cat{
+  flex:none; min-height:40px; padding:0 16px; border-radius:var(--r-pill, 999px);
+  border:1px solid var(--borda); background:var(--painel); color:var(--txt);
+  font-size:14px; font-weight:600; white-space:nowrap; cursor:pointer;
+}
+.loja-cat.on{ background:var(--acao); color:var(--acao-txt); border-color:var(--acao) }
+body.tem-cor-produtos .loja-cat.on{
+  background:var(--prod-cor); color:var(--prod-txt); border-color:var(--prod-cor);
+}

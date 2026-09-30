@@ -1243,6 +1243,8 @@ grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, 
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
                                          text, text, date, text) to anon, authenticated;
 
+alter table public.produtos add column if not exists categoria text;
+
 create or replace function public.vitrine(p_slug text)
 returns jsonb
 language sql stable security definer set search_path = public as $$
@@ -1415,6 +1417,7 @@ language sql stable security definer set search_path = public as $$
       select jsonb_agg(jsonb_build_object(
                'id', pr.id, 'nome', pr.nome, 'marca', pr.marca,
                'descricao', pr.descricao, 'foto', pr.foto,
+               'categoria', nullif(btrim(pr.categoria), ''),
                'preco', case when pr.preco_visivel then pr.preco else null end)
              order by pr.nome)
         from public.produtos pr

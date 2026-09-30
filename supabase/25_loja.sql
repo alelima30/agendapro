@@ -387,6 +387,8 @@ language sql stable security definer set search_path = public as $$
       select jsonb_agg(jsonb_build_object(
                'id', pr.id, 'nome', pr.nome, 'marca', pr.marca,
                'descricao', pr.descricao, 'foto', pr.foto,
+               -- A categoria vira o filtro embaixo da busca da loja.
+               'categoria', nullif(btrim(pr.categoria), ''),
                /* ⚠ NULO, e não o preço com uma marca do lado. Mandar o valor
                   e pedir para a tela não mostrar é publicar o preço mesmo
                   assim: ele viaja pela rede e fica visível a quem abrir o

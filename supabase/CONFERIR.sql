@@ -363,6 +363,30 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a vitrine() é de antes da abertura: a prévia mostra e o '
                || 'link não'
            else '' end
+  union all
+  /* A categoria dos produtos: a coluna, e a vitrine devolvendo. Sem as duas,
+     o painel guarda a categoria e a loja do link não mostra o filtro. */
+  select 21, 'categoria dos produtos',
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'produtos'
+                               and column_name = 'categoria') then 'FALTA'
+           when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%pr.categoria%' then 'FALTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'produtos'
+                               and column_name = 'categoria')
+             then 'falta a coluna produtos.categoria — rode o 00_tudo.sql'
+           when to_regprocedure('public.vitrine(text)') is null
+             then 'a vitrine() nem existe — rode o 00_tudo.sql'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%pr.categoria%'
+             then 'a vitrine() é de antes da categoria: o painel guarda e a '
+               || 'loja do link não filtra'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

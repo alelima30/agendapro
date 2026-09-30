@@ -423,6 +423,10 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
          que tem e combina com você o pagamento e a retirada.</p>
       <input class="busca" id="buscaProduto" placeholder="Buscar produto…"
              oninput="desenharLoja()">
+      <!-- As categorias, logo abaixo da busca: tocar filtra. Some quando
+           nenhum produto tem categoria. (desenharLoja) -->
+      <div class="loja-cats" id="lojaCats" role="group" aria-label="Categorias de produto"
+           style="display:none"></div>
       <div id="listaProdutos"></div>
     </section>
 
@@ -1219,6 +1223,7 @@ function bdDaVitrine(v){
     produtos: (v.produtos || []).map(x => ({
       id: x.id, salaoId, nome: x.nome, marca: x.marca,
       descricao: x.descricao, foto: x.foto,
+      categoria: x.categoria || null,
       /* ⚠ NULO É UM ESTADO, e `Number(null)` é ZERO. O dono que esconde o
          preço na loja recebe nulo da `vitrine()`; convertendo direto, o
          produto apareceria por "R$ 0,00" — que é muito pior do que aparecer
@@ -4248,18 +4253,68 @@ function desenharLojaNaCapa(){
   if(window.aplicarIcones) aplicarIcones(alvo);
 }
 
+/* ── AS CATEGORIAS DA LOJA ────────────────────────────────────────────────
+   "Pro cliente, embaixo de buscar produto, aparecer as categorias — clicando
+   em cima, filtra todos que estão vinculados."
+
+   A categoria é texto livre no painel, então a comparação ignora maiúscula e
+   espaço sobrando: "Tratamento de cabelo" e " tratamento de CABELO " são um
+   filtro só, com o nome na forma mais usada. É a mesma conta do painel
+   (categoriasDosProdutos, no app.html).
+
+   O botão guarda a POSIÇÃO na lista, e não o texto da categoria: o texto é o
+   que o dono digitou, e dentro de um onclick uma aspa dele quebraria o
+   botão. */
+let filtroLoja = null;      // a chave (em minúscula) da escolhida; nulo = Todos
+let lojaCatsAtuais = [];
+const chaveCategoria = c => String(c || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('pt');
+function categoriasDaLoja(lista){
+  const formas = new Map();
+  for(const p of lista){
+    const rot = String(p.categoria || '').replace(/\s+/g, ' ').trim();
+    if(!rot) continue;
+    const k = rot.toLocaleLowerCase('pt');
+    const f = formas.get(k) || {};
+    f[rot] = (f[rot] || 0) + 1;
+    formas.set(k, f);
+  }
+  return [...formas.entries()]
+    .map(([k, f]) => ({ k, rot: Object.entries(f).sort((a, b) => b[1] - a[1])[0][0] }))
+    .sort((a, b) => a.rot.localeCompare(b.rot, 'pt'));
+}
+function escolherCategoriaLoja(i){
+  const c = i < 0 ? null : ((lojaCatsAtuais[i] || {}).k || null);
+  // Tocar de novo na escolhida desmarca: volta a "Todos".
+  filtroLoja = c && c === filtroLoja ? null : c;
+  desenharLoja();
+}
+
 function desenharLoja(){
   const alvo = document.getElementById('listaProdutos');
   if(!alvo) return;
   const busca = (document.getElementById('buscaProduto').value || '')
                   .trim().toLowerCase();
-  const lista = produtosDaLoja().filter(p => !busca
-    || (p.nome || '').toLowerCase().includes(busca)
-    || (p.marca || '').toLowerCase().includes(busca));
+  const todos = produtosDaLoja();
+
+  lojaCatsAtuais = categoriasDaLoja(todos);
+  if(filtroLoja && !lojaCatsAtuais.some(c => c.k === filtroLoja)) filtroLoja = null;
+  const fileira = document.getElementById('lojaCats');
+  if(fileira){
+    fileira.style.display = lojaCatsAtuais.length ? '' : 'none';
+    fileira.innerHTML = !lojaCatsAtuais.length ? '' : [{ k: null, rot: 'Todos' }, ...lojaCatsAtuais]
+      .map((c, i) => `<button type="button" class="loja-cat${filtroLoja === c.k ? ' on' : ''}"
+          aria-pressed="${filtroLoja === c.k}"
+          onclick="escolherCategoriaLoja(${i - 1})">${escapar(c.rot)}</button>`).join('');
+  }
+
+  const lista = todos.filter(p => (!filtroLoja || chaveCategoria(p.categoria) === filtroLoja)
+    && (!busca
+      || (p.nome || '').toLowerCase().includes(busca)
+      || (p.marca || '').toLowerCase().includes(busca)));
 
   if(!lista.length){
     alvo.innerHTML = `<div class="recado">${busca
-      ? 'Nenhum produto com esse nome.'
+      ? (filtroLoja ? 'Nenhum produto com esse nome nesta categoria.' : 'Nenhum produto com esse nome.')
       : 'Este salão ainda não tem produtos à venda.'}</div>`;
     return;
   }

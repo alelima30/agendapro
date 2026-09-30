@@ -52,6 +52,15 @@ alter table public.produtos add column if not exists foto text;
    vende. Anulável: salão pequeno começa sem escrever nada. */
 alter table public.produtos add column if not exists descricao text;
 
+/* A categoria: "Tratamento de cabelo", "Perfumaria". Texto livre, como a dos
+   serviços — o painel sugere as que o salão já usa, para a mesma não sair
+   escrita de dois jeitos. Na loja do link vira a fileira de filtros embaixo
+   da busca. Anulável: produto sem categoria aparece em "Todos".
+
+   ⚠ Tem que nascer AQUI, antes do 25: a `vitrine()` é função SQL, que
+   resolve as colunas na hora em que é criada — sem a coluna, ela não instala. */
+alter table public.produtos add column if not exists categoria text;
+
 alter table public.produtos
   add column if not exists venda_online boolean not null default false;
 

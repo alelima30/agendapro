@@ -3231,6 +3231,7 @@ comment on function public.meu_cartao(uuid) is
 
 alter table public.produtos add column if not exists foto text;
 alter table public.produtos add column if not exists descricao text;
+alter table public.produtos add column if not exists categoria text;
 alter table public.produtos
   add column if not exists venda_online boolean not null default false;
 create index if not exists ix_produto_salao
@@ -3397,6 +3398,7 @@ language sql stable security definer set search_path = public as $$
       select jsonb_agg(jsonb_build_object(
                'id', pr.id, 'nome', pr.nome, 'marca', pr.marca,
                'descricao', pr.descricao, 'foto', pr.foto,
+               'categoria', nullif(btrim(pr.categoria), ''),
                'preco', case when pr.preco_visivel then pr.preco else null end)
              order by pr.nome)
         from public.produtos pr
