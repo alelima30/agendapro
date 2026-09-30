@@ -1290,24 +1290,26 @@ async function abrirSalaoDaNuvem(slug){
 
 /* A pergunta sobre horários é feita UMA vez por combinação de
    serviços + profissional + duração. Enquanto a escolha não muda, rolar o
-   calendário e trocar de dia não fala com o servidor de novo. */
-function chaveDasVagas(){
-  const aptos = escolha.profissionalId === '*'
+   calendário e trocar de dia não fala com o servidor de novo.
+   `ids` é para quem pergunta por outra lista que não a da escolha: o "Com
+   quem?" pergunta por todos que fazem o serviço. */
+function chaveDasVagas(ids){
+  const aptos = ids || (escolha.profissionalId === '*'
     ? profsQueAtendem(escolha.servicos).map(p => p.id)
-    : [escolha.profissionalId];
+    : [escolha.profissionalId]);
   return JSON.stringify([aptos.slice().sort(), escolha.servicos.slice().sort()]);
 }
 
-async function pedirVagas(){
-  const chave = chaveDasVagas();
+async function pedirVagas(ids){
+  const chave = chaveDasVagas(ids);
   vagasChave = chave;
   vagasEstado = 'buscando';
   vagasErro = '';
   desenhar();
 
-  const aptos = escolha.profissionalId === '*'
+  const aptos = ids || (escolha.profissionalId === '*'
     ? profsQueAtendem(escolha.servicos).map(p => p.id)
-    : [escolha.profissionalId];
+    : [escolha.profissionalId]);
 
   try{
     const linhas = await Dados.chamar('horarios_livres_periodo', {
@@ -2645,6 +2647,17 @@ function desenharProfs(){
     escolha.data = null; escolha.inicio = null;
   }
 
+  /* ⚠ NA NUVEM, O "LIVRE QUARTA ÀS 13:45" SAI DO CACHE DE VAGAS — que só era
+     pedido na tela de horários. Na primeira passagem por aqui ele estava
+     vazio, e cada pessoa aparecia "sem horário nos próximos 15 dias" com a
+     agenda livre. Pede aqui, para todos que fazem o serviço — a mesma
+     pergunta do "Tanto faz"; com uma pessoa só, a mesma da tela seguinte, que
+     então não pergunta de novo. Enquanto a resposta não chega, não afirma
+     nada. */
+  const ids = aptos.map(p => p.id);
+  if(NA_NUVEM && vagasChave !== chaveDasVagas(ids)){ pedirVagas(ids); return; }
+  const semSaber = NA_NUVEM && vagasEstado !== 'pronto';
+
   let html = '';
   const qualquer = escolha.profissionalId === '*';
   if(!unico) html += `<button class="opcao ${qualquer?'sel':''}" onclick="escolherProf('*')">
@@ -2661,7 +2674,8 @@ function desenharProfs(){
       <span class="ic" style="background:${escapar(p.cor)}">${
         p.foto ? `<img src="${escapar(p.foto)}" alt="">` : escapar(p.nome[0])}</span>
       <span class="txt"><span class="tt">${escapar(p.nome)}</span>
-        <span class="dd">${pl ? 'Livre ' + dataLonga(pl.data) + ' às ' + hm(pl.min)
+        <span class="dd">${semSaber ? (vagasEstado === 'buscando' ? 'vendo a agenda…' : '')
+                           : pl ? 'Livre ' + dataLonga(pl.data) + ' às ' + hm(pl.min)
                              : 'sem horário nos próximos 15 dias'}</span></span>
       <span class="marca">${sel ? ico('ok') : ''}</span>
     </button>`;

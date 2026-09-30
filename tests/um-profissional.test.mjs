@@ -17,7 +17,11 @@
      2. o voltar do horário não solta o horário já escolhido;
      3. duas pessoas: o "Tanto faz" volta, e nada vem marcado;
      4. duas na equipe, uma só que faz o serviço: só ela, marcada;
-     5. trocar para um serviço que as duas fazem devolve a escolha.
+     5. trocar para um serviço que as duas fazem devolve a escolha;
+     6. o "Livre quarta às 13:45" já na primeira passagem — ele saía do cache
+        dos horários, que só era pedido na tela seguinte, e cada pessoa
+        aparecia "sem horário" com a agenda livre. Com uma pessoa só, a
+        pergunta ao banco é uma, não uma por tela.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -76,6 +80,8 @@ async function ateComQuem(servico){
   const p = await ctx.newPage();
   p.on('pageerror', e => erros.push(e.message));
   p.on('dialog', d => { erros.push('ALERT: ' + d.message()); d.dismiss(); });
+  p.perguntas = 0;
+  p.on('request', r => { if(r.url().includes('/rpc/horarios_livres_periodo')) p.perguntas++; });
   await p.goto(BASE + '/agendar.html?salao=' + SLUG);
   await p.waitForFunction(() => document.querySelector('.boas-cta'), null, { timeout: 15000 });
   await p.click('.boas-cta');
@@ -84,7 +90,7 @@ async function ateComQuem(servico){
   await p.click('#btPrincipal');
   await p.waitForTimeout(300);
   await p.click('#quemMim');
-  await p.waitForTimeout(500);
+  await p.waitForTimeout(1500);
   return { p, fechar: () => ctx.close() };
 }
 const comQuem = p => p.evaluate(() => {
@@ -93,6 +99,7 @@ const comQuem = p => p.evaluate(() => {
     tela,
     opcoes: [...document.querySelectorAll('#listaProfs .opcao')].map(o =>
       o.querySelector('.tt').textContent.trim() + (o.classList.contains('sel') ? ' ✓' : '')),
+    livre: [...document.querySelectorAll('#listaProfs .opcao')].slice(-2).map(o => o.querySelector('.dd').textContent.trim()),
     botao: [b.disabled, b.textContent.trim()],
   };
 });
@@ -105,10 +112,13 @@ secao('1. Uma pessoa só: ela, já marcada');
   igual('sem "Tanto faz": só a Ju, marcada', [t.tela, t.opcoes], ['prof', ['Ju Barbosa ✓']]);
   igual('o Continuar já liga', t.botao, [false, 'Continuar']);
   igual('e a escolha é dela, não "qualquer um"', await p.evaluate(() => escolha.profissionalId), ju.id);
+  igual('já na primeira passagem, o primeiro horário livre dela (e não "sem horário")',
+    t.livre.map(x => /^Livre .+ às \d\d:\d\d$/.test(x)), [true]);
   await p.click('#btPrincipal');
   await p.waitForTimeout(2500);
   igual('os horários dela aparecem', [await p.evaluate(() => tela),
     await p.evaluate(() => document.querySelectorAll('#listaHoras .hora').length > 0)], ['quando', true]);
+  igual('e o banco foi perguntado uma vez só, não uma por tela', p.perguntas, 1);
 
   secao('2. O voltar não solta o horário');
   await p.click('#listaHoras .hora');
@@ -137,7 +147,14 @@ await jornada(bia);
   const { p, fechar } = await ateComQuem('Hidratação');
   const t = await comQuem(p);
   igual('"Tanto faz" e as duas, nenhuma marcada', t.opcoes, ['Tanto faz', 'Ju Barbosa', 'Bia Souza']);
+  igual('cada uma com o primeiro horário livre dela',
+    t.livre.map(x => /^Livre .+ às \d\d:\d\d$/.test(x)), [true, true]);
   igual('o Continuar espera a escolha', t.botao, [true, 'Escolha com quem']);
+  await p.locator('#listaProfs .opcao', { hasText: 'Tanto faz' }).click();
+  await p.click('#btPrincipal');
+  await p.waitForTimeout(2500);
+  igual('"Tanto faz" usa a mesma resposta: os horários, e uma pergunta só',
+    [await p.evaluate(() => document.querySelectorAll('#listaHoras .hora').length > 0), p.perguntas], [true, 1]);
   await fechar();
 }
 

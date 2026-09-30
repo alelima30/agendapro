@@ -74,6 +74,20 @@ troca agendar.html \
   "  if(unico){" \
   && rodar "horário perdido no voltar"
 
+echo "5. o \"Com quem?\" não pergunta ao banco"
+troca agendar.html \
+  "  if(NA_NUVEM && vagasChave !== chaveDasVagas(ids)){ pedirVagas(ids); return; }" \
+  "" \
+  && rodar "\"sem horário\" com a agenda livre"
+
+echo "6. a pergunta sai com a chave errada"
+troca agendar.html \
+  "function chaveDasVagas(ids){
+  const aptos = ids || (" \
+  "function chaveDasVagas(ids){
+  const aptos = (" \
+  && rodar "o banco perguntado a cada tela"
+
 echo ""
 echo "$morta mortas, $viva vivas"
 [ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"
