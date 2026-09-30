@@ -1595,7 +1595,8 @@ function confirmarQuemOutra(){
 function nomeDoAtendido(){
   const nome = (escolha.filhoNome || '').trim();
   const r = RELACOES.find(x => x[0] === escolha.relacao);
-  return nome && r && r[0] !== 'outra' ? `${nome} (${r[1].toLowerCase()})` : nome;
+  // Texto puro, não HTML: quem mostra na tela passa por escapar().
+  return nome && r && r[0] !== 'outra' ? nome + ' (' + r[1].toLowerCase() + ')' : nome;
 }
 // Remarcar não pergunta de novo: o horário novo é da mesma pessoa.
 function paraQuemDoAgendamento(a){
