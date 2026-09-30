@@ -2635,9 +2635,19 @@ function desenharProfs(){
     return null;
   };
 
+  /* Com um só que faz o serviço, "tanto faz" não é escolha nenhuma: some, e
+     ele já vem marcado — o Continuar liga sem pedir um toque que não decide
+     nada. Conta quem faz ESTE serviço, não a equipe: num salão de duas, se
+     só a Ju faz hidratação, é só a Ju. */
+  const unico = aptos.length === 1;
+  if(unico && escolha.profissionalId !== aptos[0].id){
+    escolha.profissionalId = aptos[0].id;
+    escolha.data = null; escolha.inicio = null;
+  }
+
   let html = '';
   const qualquer = escolha.profissionalId === '*';
-  html += `<button class="opcao ${qualquer?'sel':''}" onclick="escolherProf('*')">
+  if(!unico) html += `<button class="opcao ${qualquer?'sel':''}" onclick="escolherProf('*')">
       <span class="ic ic-neutro" data-ico="equipe"></span>
       <span class="txt"><span class="tt">Tanto faz</span>
         <span class="dd">Mostra o horário mais cedo de qualquer ${voc('quem')}</span></span>
