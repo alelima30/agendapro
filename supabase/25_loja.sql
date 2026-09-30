@@ -329,7 +329,14 @@ language sql stable security definer set search_path = public as $$
                       then s.cfg->'atalhos' end,
       /* O botão "Ver produtos" igual ao Agendar horário. Só 'metal' sai;
          nulo é o discreto de sempre. */
-      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end
+      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
+      /* ── COM UMA PESSOA SÓ NO SERVIÇO, PULAR O "COM QUEM?" ──────────────
+         O dono escolhe em Meu salão. Nasce DESLIGADO: a tela aparece, com
+         a única pessoa já marcada — é o que o link faz hoje. A peneira é de
+         texto, como a do `precoNaCapa`: `'abacaxi'::boolean` LEVANTARIA e
+         derrubaria a `vitrine()` inteira; aqui lixo só mostra a tela. */
+      'pularComQuem', lower(btrim(coalesce(s.cfg->>'pularComQuem', 'false')))
+                        in ('true', 't', '1', 'yes', 'sim')
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────

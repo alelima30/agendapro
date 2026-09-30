@@ -22,6 +22,14 @@
         dos horários, que só era pedido na tela seguinte, e cada pessoa
         aparecia "sem horário" com a agenda livre. Com uma pessoa só, a
         pergunta ao banco é uma, não uma por tela.
+
+   E o pedido seguinte: "Deixa configurável, quando for uma pessoa só, se quer
+   que apareça 'Com quem?' ou ir direto para a próxima tela."
+     7. a escolha no painel (Meu salão), nascendo em "Mostrar", e gravada;
+     8. ligada, o link pula direto para os horários da única pessoa — pelos
+        dois caminhos da Etapa 2 — e o voltar leva à Etapa 2;
+     9. com duas pessoas no serviço a tela aparece do mesmo jeito;
+    10. lixo gravado na chave não derruba a página: mostra a tela.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -139,7 +147,6 @@ const bd = new pg.Client({
 await bd.connect();
 await bd.query(`delete from public.assinaturas where salao_id = $1`, [SALAO]);
 await bd.query(`insert into public.assinaturas (salao_id, plano, status) values ($1, 'salao', 'ativa')`, [SALAO]);
-await bd.end();
 const bia = await dona.inserir('profissionais', { salaoId: SALAO, nome:'Bia Souza',
   cor:'#7C3AED', ativo:true, aceitaOnline:true, comissaoPct:0 });
 await jornada(bia);
@@ -180,6 +187,84 @@ await dona.inserir('servicos_profissionais', { servicoId: hidratacao.id, profiss
   igual('e o Continuar espera de novo', t2.botao, [true, 'Escolha com quem']);
   await fechar();
 }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('7. No painel: mostrar ou ir direto');
+{
+  const ctx = await nav.newContext({ viewport:{ width:1360, height:900 } });
+  const p = await ctx.newPage();
+  p.on('pageerror', e => erros.push('painel: ' + e.message));
+  p.on('dialog', d => { erros.push('ALERT: ' + d.message()); d.dismiss(); });
+  await p.addInitScript(([base, ses]) => {
+    window.AGENDAPRO = { url: base, chave:'k', ambiente:'bancada' };
+    localStorage.setItem('agendapro.sessao', JSON.stringify(ses));
+  }, [BASE, dona.sessao()]);
+  await p.goto(BASE + '/app.html');
+  await p.waitForTimeout(3500);
+  await p.click('button:has-text("Meu salão"), a:has-text("Meu salão")');
+  await p.waitForTimeout(1200);
+  const regua = () => p.evaluate(() => ({
+    titulo: document.getElementById('reguaComQuem').previousElementSibling.previousElementSibling.textContent.trim(),
+    botoes: [...document.querySelectorAll('#reguaComQuem button')].map(b => b.textContent.trim() + (b.classList.contains('on') ? ' ●' : '')),
+    explica: document.getElementById('explicaComQuem').textContent,
+  }));
+  const r = await regua();
+  igual('a pergunta, com as duas respostas, nascendo em "Mostrar"', [r.titulo, r.botoes],
+    ['Quando só uma pessoa faz o serviço', ['Mostrar "Com quem?" ●', 'Ir direto para os horários']]);
+  await p.click('#reguaComQuem button:has-text("Ir direto")');
+  const r2 = await regua();
+  igual('tocar troca a marcada, e a explicação diz o que muda', [r2.botoes[1], /pula a tela/.test(r2.explica)],
+    ['Ir direto para os horários ●', true]);
+  await p.click('#tela-salao button:has-text("Salvar")');
+  await p.waitForTimeout(2500);
+  const noBanco = (await bd.query(`select cfg->'pularComQuem' as v, cfg->>'passoHorarios' as passo
+                                     from public.saloes where id = $1`, [SALAO])).rows[0];
+  igual('salvo: o banco guarda true, e o resto do cfg continua lá', [noBanco.v, noBanco.passo], [true, '15']);
+  await ctx.close();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('8. Ligado: o link vai direto para os horários');
+{
+  const { p, fechar } = await ateComQuem('Barba');
+  const t = await p.evaluate(() => ({ tela, prof: escolha.profissionalId,
+    sub: document.getElementById('subQuando').textContent,
+    horas: document.querySelectorAll('#listaHoras .hora').length > 0,
+    trilha: [...document.querySelectorAll('#trilha i')].map(i => i.classList.contains('on') ? 1 : 0).join('') }));
+  igual('"Para mim" abre os horários, sem o "Com quem?"', t.tela, 'quando');
+  igual('da única que faz barba, com o nome dela na tela', [t.prof === bia.id, /Bia Souza/.test(t.sub), t.horas],
+    [true, true, true]);
+  igual('a trilha em 4 de 5, e o banco perguntado uma vez', [t.trilha, p.perguntas], ['11110', 1]);
+  await p.click('#btVoltar');
+  await p.waitForTimeout(300);
+  igual('o voltar leva à Etapa 2 — foi por ela que a cliente passou', await p.evaluate(() => tela), 'quem');
+  await p.click('#quemOutra'); await p.waitForTimeout(300);
+  await p.locator('.rel-card', { hasText: 'Filho' }).click();
+  await p.fill('#fAtendido', 'Leo');
+  await p.click('#btPrincipal');
+  await p.waitForTimeout(1500);
+  igual('"Para outra pessoa" também vai direto', [await p.evaluate(() => tela),
+    await p.evaluate(() => nomeDoAtendido())], ['quando', 'Leo (filho)']);
+  await fechar();
+}
+
+secao('9. Com duas no serviço, a tela aparece do mesmo jeito');
+{
+  const { p, fechar } = await ateComQuem('Hidratação');
+  const t = await comQuem(p);
+  igual('hidratação: "Com quem?", com "Tanto faz"', [t.tela, t.opcoes], ['prof', ['Tanto faz', 'Ju Barbosa', 'Bia Souza']]);
+  await fechar();
+}
+
+secao('10. Lixo na chave não derruba a página');
+await bd.query(`update public.saloes set cfg = cfg || '{"pularComQuem":"abacaxi"}'::jsonb where id = $1`, [SALAO]);
+{
+  const { p, fechar } = await ateComQuem('Barba');
+  const t = await comQuem(p);
+  igual('a página abre e mostra o "Com quem?", com a Bia marcada', [t.tela, t.opcoes], ['prof', ['Bia Souza ✓']]);
+  await fechar();
+}
+await bd.end();
 
 igual('\nnenhum erro de JavaScript nem alerta', erros, []);
 await nav.close();

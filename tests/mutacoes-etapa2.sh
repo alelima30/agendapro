@@ -58,7 +58,7 @@ troca agendar.html \
 
 echo "2. Para mim não segue direto"
 troca agendar.html \
-  "  if(q === 'mim'){ mudarPara('mim'); return irPara('prof'); }" \
+  "  if(q === 'mim'){ mudarPara('mim'); return seguirDepoisDoQuem(); }" \
   "  if(q === 'mim'){ mudarPara('mim'); }" \
   && rodar "para mim abre a tela do nome"
 

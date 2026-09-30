@@ -329,6 +329,23 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a vitrine() é de antes do botão Ver produtos: a prévia '
                || 'muda e o link não'
            else '' end
+  union all
+  /* Pular o "Com quem?" com uma pessoa só. Sem a chave, o dono escolhe
+     "Ir direto para os horários" no painel e o link continua mostrando. */
+  select 19, 'pular o "Com quem?" com uma pessoa só',
+         case
+           when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%pularComQuem%' then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.vitrine(text)') is null
+             then 'a vitrine() nem existe — rode o 00_tudo.sql'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%pularComQuem%'
+             then 'a vitrine() é de antes desta escolha: o painel grava e o '
+               || 'link continua mostrando o "Com quem?"'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

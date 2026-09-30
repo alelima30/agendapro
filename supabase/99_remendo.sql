@@ -1285,7 +1285,9 @@ language sql stable security definer set search_path = public as $$
       'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end,
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
                       then s.cfg->'atalhos' end,
-      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end
+      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
+      'pularComQuem', lower(btrim(coalesce(s.cfg->>'pularComQuem', 'false')))
+                        in ('true', 't', '1', 'yes', 'sim')
     ),
     'servicos', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -1401,7 +1403,9 @@ language sql stable security definer set search_path = public as $$
       'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end,
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
                       then s.cfg->'atalhos' end,
-      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end
+      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
+      'pularComQuem', lower(btrim(coalesce(s.cfg->>'pularComQuem', 'false')))
+                        in ('true', 't', '1', 'yes', 'sim')
     ),
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(

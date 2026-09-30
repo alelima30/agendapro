@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.8468b0';
+const VERSAO_APP = 'v9.f74472';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7721,6 +7721,19 @@ function pintarSalao(){
       <div class="regua" id="reguaPasso" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaPasso" style="margin-top:9px"></p>
 
+      <!-- ══════════ COM UMA PESSOA SO NO SERVICO ══════════
+           A mesma familia das de cima, vista pelo caminho: quais telas a
+           cliente atravessa ate o horario. Com duas ou mais pessoas a tela
+           aparece sempre, porque ai ha escolha de verdade.
+           (Sem crase: este bloco mora dentro de um template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Quando só uma pessoa faz o serviço</h3>
+      <p class="secao-sub">Com duas ou mais, a cliente sempre escolhe com quem.
+        Com uma só, não há o que escolher: você decide se a tela "Com quem?"
+        aparece, com ela já marcada, ou se o link vai direto para os horários.</p>
+      <div class="regua" id="reguaComQuem" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaComQuem" style="margin-top:9px"></p>
+
       <!-- ══════════ OS RECADOS QUE VOCE MANDA A MAO ══════════
            Editaveis, com tres parametros. Sao MANUAIS: abrem no WhatsApp do
            proprio dono, pelo wa.me, com o texto pronto — diferente dos
@@ -8412,6 +8425,7 @@ function pintarSalao(){
   // Depois do innerHTML: os botões da janela só existem agora.
   pintarJanelaAgenda();
   pintarPassoLink();
+  pintarComQuem();
   pintarRecados();
   pintarAntecedencia();
   pintarConta();
@@ -10853,6 +10867,41 @@ function pintarPassoLink(){
 
 function escolherPassoLink(n){ passoEscolhido = n; pintarPassoLink(); }
 
+/* ── COM UMA PESSOA SÓ NO SERVIÇO: "COM QUEM?" OU DIRETO PARA OS HORÁRIOS ──
+   `cfg.pularComQuem`, booleano. Nasce DESLIGADO: a tela aparece com a única
+   pessoa já marcada, que é o que o link já fazia — quem usa o sistema não
+   acorda com o caminho diferente sem ter pedido. A `vitrine()` peneira do
+   mesmo jeito: só `true` pula. */
+const COM_QUEM = [
+  [false, 'Mostrar "Com quem?"', 'A cliente vê a tela com a única pessoa já '
+    + 'marcada e toca em Continuar. Ela sabe com quem vai ser atendida antes '
+    + 'de escolher o horário.'],
+  [true, 'Ir direto para os horários', 'O link pula a tela e abre os horários '
+    + 'da única pessoa. Um toque a menos, e o nome dela continua aparecendo '
+    + 'na tela dos horários.'],
+];
+let pularComQuemEscolhido = null;
+// Mesmo cuidado da janela e do passo: trocar de estabelecimento não pode
+// gravar a escolha de um salão no outro.
+let comQuemDoSalao = null;
+
+function pintarComQuem(){
+  const alvo = document.getElementById('reguaComQuem');
+  if(!alvo) return;
+  const sl = acharSalao(salaoAtual) || {};
+  if(pularComQuemEscolhido === null || comQuemDoSalao !== salaoAtual){
+    pularComQuemEscolhido = (sl.cfg || {}).pularComQuem === true;
+    comQuemDoSalao = salaoAtual;
+  }
+  alvo.innerHTML = COM_QUEM.map(([v, rot]) =>
+    `<button type="button" class="${v === pularComQuemEscolhido ? 'on' : ''}"
+             onclick="escolherComQuem(${v})">${escapar(rot)}</button>`).join('');
+  const achado = COM_QUEM.find(c => c[0] === pularComQuemEscolhido);
+  document.getElementById('explicaComQuem').textContent = achado ? achado[2] : '';
+}
+
+function escolherComQuem(v){ pularComQuemEscolhido = !!v; pintarComQuem(); }
+
 /* ── ONDE O DONO ESCREVE OS RECADOS ───────────────────────────────────────
    Um campo por modelo, com os parâmetros a um toque.
 
@@ -11728,6 +11777,8 @@ function salvarCadastroSalao(){
     // página da cliente cair no padrão sem nada explicar por quê.
     passoHorarios: PASSOS_LINK.some(x => x[0] === passoEscolhido)
       ? passoEscolhido : 15,
+    // Booleano de verdade; sem a régua desenhada, fica o que já estava.
+    pularComQuem: pularComQuemEscolhido ?? ((sl.cfg || {}).pularComQuem === true),
     mensagens: recadosDaTela(),
     /* ⚠ `?? 30` e não `|| 30`: a antecedência pode ser ZERO de propósito, e
        `0 || 30` é 30. Com o `||`, desligar o limite gravaria meia hora — o

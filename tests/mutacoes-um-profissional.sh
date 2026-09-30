@@ -6,8 +6,8 @@
 #    bash tests/mutacoes-um-profissional.sh
 #
 #  Cada mutação que sobreviver é um jeito de o "Tanto faz" voltar quando não
-#  decide nada, de a única pessoa não vir marcada, ou de o voltar soltar o
-#  horário já escolhido.
+#  decide nada, de a única pessoa não vir marcada, de o voltar soltar o
+#  horário já escolhido, ou de o "ir direto" do painel não chegar ao link.
 # ===========================================================================
 set -u
 cd "$(dirname "$0")/.."
@@ -87,6 +87,44 @@ troca agendar.html \
   "function chaveDasVagas(ids){
   const aptos = (" \
   && rodar "o banco perguntado a cada tela"
+
+echo "7. a página não lê a escolha do dono"
+troca agendar.html \
+  "      pularComQuem: s.pularComQuem === true," \
+  "" \
+  && rodar "o painel diz pular e o link mostra"
+
+echo "8. pular mesmo com duas pessoas no serviço"
+troca agendar.html \
+  "    && profsQueAtendem(escolha.servicos).length === 1;" \
+  "    && profsQueAtendem(escolha.servicos).length >= 1;" \
+  && rodar "a cliente perde a escolha de com quem"
+
+echo "9. pular sem marcar a única pessoa"
+troca agendar.html \
+  "    escolha.profissionalId = unica.id;" \
+  "" \
+  && rodar "horários de ninguém"
+
+echo "10. \"Para outra pessoa\" não pula"
+troca agendar.html \
+  "  mudarPara(escolha.junto ? 'ambos' : 'filho');
+  seguirDepoisDoQuem();" \
+  "  mudarPara(escolha.junto ? 'ambos' : 'filho');
+  irPara('prof');" \
+  && rodar "um caminho pula e o outro não"
+
+echo "11. o painel não grava a escolha"
+troca app.html \
+  "    pularComQuem: pularComQuemEscolhido ?? ((sl.cfg || {}).pularComQuem === true)," \
+  "" \
+  && rodar "tocar e salvar sem efeito"
+
+echo "12. o painel nasce em \"Ir direto\""
+troca app.html \
+  "    pularComQuemEscolhido = (sl.cfg || {}).pularComQuem === true;" \
+  "    pularComQuemEscolhido = true;" \
+  && rodar "salão acorda com o caminho mudado"
 
 echo ""
 echo "$morta mortas, $viva vivas"
