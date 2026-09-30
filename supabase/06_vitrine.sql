@@ -175,7 +175,11 @@ language sql stable security definer set search_path = public as $$
       -- (a tela aparece, com ela marcada) e a peneira é de texto: lixo
       -- mostra a tela, que é o de sempre.
       'pularComQuem', lower(btrim(coalesce(s.cfg->>'pularComQuem', 'false')))
-                        in ('true', 't', '1', 'yes', 'sim')
+                        in ('true', 't', '1', 'yes', 'sim'),
+      -- A abertura com o logo. Só objeto passa; os valores são peneirados na
+      -- página (lerIntro). Nulo é "sem abertura", o de sempre.
+      'intro', case when jsonb_typeof(s.cfg->'intro') = 'object'
+                    then s.cfg->'intro' end
     ),
 
     'servicos', coalesce((

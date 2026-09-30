@@ -3034,7 +3034,11 @@ language sql stable security definer set search_path = public as $$
       -- (a tela aparece, com ela marcada) e a peneira é de texto: lixo
       -- mostra a tela, que é o de sempre.
       'pularComQuem', lower(btrim(coalesce(s.cfg->>'pularComQuem', 'false')))
-                        in ('true', 't', '1', 'yes', 'sim')
+                        in ('true', 't', '1', 'yes', 'sim'),
+      -- A abertura com o logo. Só objeto passa; os valores são peneirados na
+      -- página (lerIntro). Nulo é "sem abertura", o de sempre.
+      'intro', case when jsonb_typeof(s.cfg->'intro') = 'object'
+                    then s.cfg->'intro' end
     ),
 
     'servicos', coalesce((
@@ -10698,7 +10702,14 @@ language sql stable security definer set search_path = public as $$
          texto, como a do `precoNaCapa`: `'abacaxi'::boolean` LEVANTARIA e
          derrubaria a `vitrine()` inteira; aqui lixo só mostra a tela. */
       'pularComQuem', lower(btrim(coalesce(s.cfg->>'pularComQuem', 'false')))
-                        in ('true', 't', '1', 'yes', 'sim')
+                        in ('true', 't', '1', 'yes', 'sim'),
+      /* ── A ABERTURA COM O LOGO ─────────────────────────────────────────
+         O dono escolhe em Aparência → Abertura. Só objeto passa, sem cast
+         nenhum — como os atalhos: o efeito, o tempo e o fundo são peneirados
+         na página (`lerIntro`), e lixo vira "sem abertura". Nulo é o link
+         de sempre, que abre direto na página. */
+      'intro', case when jsonb_typeof(s.cfg->'intro') = 'object'
+                    then s.cfg->'intro' end
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────

@@ -187,10 +187,13 @@ const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 
       .map(id => [id, (document.getElementById(id) || {}).closest?.('.ap-sec')?.id || '(sumiu)'])),
   }));
   // Os modelos prontos vêm primeiro: são o ponto de partida, o resto é ajuste.
-  igual('as oito seções, na ordem, depois dos modelos prontos', t.secoes,
-    ['apModelos', 'apMarca', 'apFundo', 'apTextos', 'apIcones', 'apBordas', 'apGradientes', 'apBotoes', 'apCapa']);
+  // A nona, "Abertura", veio depois: o logo ao abrir o link (intro-link.test).
+  igual('as oito seções, na ordem, depois dos modelos prontos — e a Abertura no fim', t.secoes,
+    ['apModelos', 'apMarca', 'apFundo', 'apTextos', 'apIcones', 'apBordas', 'apGradientes', 'apBotoes', 'apCapa',
+     'apAbertura']);
   igual('com os nomes do pedido', t.titulos,
-    ['Modelos prontos', 'Marca', 'Fundo', 'Textos', 'Ícones', 'Bordas', 'Gradientes', 'Botões e atalhos', 'Capa e fotos']);
+    ['Modelos prontos', 'Marca', 'Fundo', 'Textos', 'Ícones', 'Bordas', 'Gradientes', 'Botões e atalhos', 'Capa e fotos',
+     'Abertura']);
   igual('e o índice do topo leva a cada uma', t.indice, t.titulos);
   for(const [sec, chaves] of Object.entries(ESPERADO))
     igual(`${sec}: só as cores dela`, t.chaves[sec], chaves);

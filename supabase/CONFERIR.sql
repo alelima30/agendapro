@@ -346,6 +346,23 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a vitrine() é de antes desta escolha: o painel grava e o '
                || 'link continua mostrando o "Com quem?"'
            else '' end
+  union all
+  /* A abertura com o logo. Sem a chave, a prévia do painel toca a abertura
+     e o link continua abrindo direto na página. */
+  select 20, 'abertura com o logo',
+         case
+           when to_regprocedure('public.vitrine(text)') is null then 'FALTA'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%''intro''%' then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.vitrine(text)') is null
+             then 'a vitrine() nem existe — rode o 00_tudo.sql'
+           when pg_get_functiondef(to_regprocedure('public.vitrine(text)'))
+                not like '%''intro''%'
+             then 'a vitrine() é de antes da abertura: a prévia mostra e o '
+               || 'link não'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

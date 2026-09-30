@@ -215,6 +215,7 @@ rodar "logo do WhatsApp no pedido" node "$AQUI/pedido-zap.test.mjs"
 rodar "escolha com o cartão da capa" node "$AQUI/escolha-cartao.test.mjs"
 rodar "etapa 2: para quem é" node "$AQUI/etapa2.test.mjs"
 rodar "com quem: uma pessoa só" node "$AQUI/um-profissional.test.mjs"
+rodar "abertura do link"   node "$AQUI/intro-link.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

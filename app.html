@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.0d2d3f';
+const VERSAO_APP = 'v9.3aea9b';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7859,6 +7859,7 @@ function pintarSalao(){
         <button type="button" onclick="irParaSecaoAp('apGradientes')">🌈 Gradientes</button>
         <button type="button" onclick="irParaSecaoAp('apBotoes')">🔘 Botões e atalhos</button>
         <button type="button" onclick="irParaSecaoAp('apCapa')">📷 Capa e fotos</button>
+        <button type="button" onclick="irParaSecaoAp('apAbertura')">🎬 Abertura</button>
       </nav>
 
       <!-- OS MODELOS PRONTOS. Um toque experimenta o modelo inteiro na previa:
@@ -8267,6 +8268,32 @@ function pintarSalao(){
       <div class="regua" id="reguaPreco" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaPreco" style="margin-top:9px"></p>
 
+      </section>
+
+      <!-- A ABERTURA. O logo por um instante quando alguem abre o link.
+           Nasce desligada: sem escolha, o link abre como sempre abriu.
+           Com "Sem abertura", as outras reguas somem — regua que nao muda
+           nada parece tela quebrada.
+           (Sem crase: este HTML e lido como template literal.) -->
+      <section class="ap-sec" id="apAbertura">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🎬</span>Abertura</h4>
+        <p class="ap-sec-sub">O seu logo por um instante quando alguém abre o link, antes da página.</p>
+      <div class="rot" style="margin:18px 0 8px">Efeito</div>
+      <div class="regua" id="reguaIntroEfeito" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaIntroEfeito" style="margin-top:9px"></p>
+      <div id="introOpcoes">
+        <div class="rot" style="margin:18px 0 8px">Quanto tempo</div>
+        <div class="regua" id="reguaIntroTempo" style="justify-content:flex-start"></div>
+        <div class="rot" style="margin:18px 0 8px">Fundo da abertura</div>
+        <div class="regua" id="reguaIntroFundo" style="justify-content:flex-start"></div>
+        <div class="rot" style="margin:18px 0 8px">Nome embaixo do logo</div>
+        <div class="regua" id="reguaIntroNome" style="justify-content:flex-start"></div>
+        <button type="button" class="btn" id="btVerIntro" style="margin-top:16px"
+                onclick="verIntroNaPrevia()">▶ Ver a abertura na prévia</button>
+        <p class="secao-sub" style="margin-top:9px">Aparece uma vez a cada visita:
+          quem volta à capa ou recarrega a página não assiste de novo. Um toque
+          na tela pula a abertura.</p>
+      </div>
       </section>
 
       <div class="card-acoes" style="margin-top:18px">
@@ -9014,6 +9041,8 @@ function lerAparencia(cfg){
       : ['gradiente','imagem'].includes(c.fundoTipo) ? c.fundoTipo
       : (imagemDoSalao(sl, 'fundo') ? 'imagem' : 'cor'),
     gradiente: c.gradiente || null,
+    // A abertura com o logo. Ausente (ou lixo) é "Sem abertura".
+    intro: lerIntroDoCfg(c.intro),
   };
 }
 
@@ -9503,6 +9532,7 @@ function pintarAparencia(){
     `<button type="button" class="${aparencia.brilho === v ? 'on' : ''}"
              onclick="escolherBrilho(${v})">${rot}</button>`).join('');
 
+  pintarIntro();
   pintarPreviaFone();
   pintarModelos();
   ligarHex();
@@ -10109,6 +10139,109 @@ function escolherBrilho(v){ aparencia.brilho = v;      pintarAparencia(); }
 // Uma função para as escolhas que são só "guarde este valor". As três de
 // cima ficam separadas porque já eram chamadas assim de outros lugares.
 function escolherAparencia(campo, valor){ aparencia[campo] = valor; pintarAparencia(); }
+
+/* ── A ABERTURA ───────────────────────────────────────────────────────────
+   O logo por um instante quando alguém abre o link (tocarIntro, na página
+   da cliente). Mora em `cfg.intro` = { efeito, tempo, fundo, nome }; nulo é
+   "sem abertura", que é o que todo salão tem até escolher. A peneira é a
+   mesma da página: só o que as réguas oferecem entra. */
+const INTRO_EFEITOS = [
+  ['sem', 'Sem abertura', 'O link abre direto na página, como sempre abriu.'],
+  ['aparecer', 'Aparecer', 'O logo surge no meio da tela crescendo devagar, e '
+    + 'a página aparece em seguida.'],
+  ['deslizar', 'Deslizar', 'O logo sobe deslizando, e a abertura sai para cima '
+    + 'como uma cortina, mostrando a página.'],
+  ['brilho', 'Brilho', 'O logo aparece e uma faixa de luz passa por ele, como '
+    + 'no botão de agendar.'],
+];
+const INTRO_TEMPOS = [['rapida', 'Rápida · 1s'], ['media', 'Normal · 2s'], ['longa', 'Longa · 3s']];
+const INTRO_MS = { rapida: 1200, media: 2000, longa: 3000 };
+const INTRO_FUNDOS = [['marca', 'Cor do botão'], ['pagina', 'Fundo da página']];
+const INTRO_NOMES = [[true, 'Com o nome'], [false, 'Só o logo']];
+
+function lerIntroDoCfg(i){
+  const ok = i && typeof i === 'object'
+    && ['aparecer', 'deslizar', 'brilho'].includes(i.efeito);
+  return {
+    efeito: ok ? i.efeito : 'sem',
+    tempo: ok && INTRO_MS[i.tempo] ? i.tempo : 'media',
+    fundo: ok && i.fundo === 'pagina' ? 'pagina' : 'marca',
+    nome: !ok || i.nome !== false,
+  };
+}
+/* "Sem abertura" grava nulo, e não um objeto com efeito 'sem': nulo é o que
+   o salão que nunca mexeu já tem, e os dois têm que ser o mesmo. */
+function introParaGravar(){
+  const i = aparencia.intro;
+  return i.efeito === 'sem' ? null
+    : { efeito: i.efeito, tempo: i.tempo, fundo: i.fundo, nome: i.nome };
+}
+function escolherIntro(campo, valor){
+  aparencia.intro = Object.assign({}, aparencia.intro, { [campo]: valor });
+  pintarAparencia();
+  // Escolher um efeito já mostra como ele fica: é o jeito de comparar os três.
+  if(campo === 'efeito' && valor !== 'sem') verIntroNaPrevia();
+}
+function pintarIntro(){
+  const i = aparencia.intro;
+  const regua = (id, lista, campo) => {
+    const alvo = document.getElementById(id);
+    if(alvo) alvo.innerHTML = lista.map(([v, rot]) =>
+      `<button type="button" class="${i[campo] === v ? 'on' : ''}"
+               onclick="escolherIntro('${campo}', ${typeof v === 'string' ? `'${v}'` : v})">${rot}</button>`).join('');
+  };
+  regua('reguaIntroEfeito', INTRO_EFEITOS, 'efeito');
+  regua('reguaIntroTempo', INTRO_TEMPOS, 'tempo');
+  regua('reguaIntroFundo', INTRO_FUNDOS, 'fundo');
+  regua('reguaIntroNome', INTRO_NOMES, 'nome');
+  const achado = INTRO_EFEITOS.find(x => x[0] === i.efeito);
+  const exp = document.getElementById('explicaIntroEfeito');
+  if(exp) exp.textContent = achado ? achado[2] : '';
+  const op = document.getElementById('introOpcoes');
+  if(op) op.style.display = i.efeito === 'sem' ? 'none' : '';
+}
+
+/* A abertura tocada dentro do celular da prévia, com as escolhas de agora
+   (salvas ou não). As cores vão escritas no elemento: aqui `--acao` é a cor
+   do PAINEL, e a abertura tem que sair na do salão — a mesma conta que a
+   prévia inteira já faz. */
+function verIntroNaPrevia(){
+  const i = aparencia.intro;
+  const fone = document.querySelector('#previaFone .fone');
+  if(!fone || i.efeito === 'sem') return;
+  const pv = document.querySelector('.ap-previa');
+  if(pv && !pv.offsetParent) abrirPreviaCelular();   // no celular, a prévia fica escondida
+  const velha = fone.querySelector('.intro');
+  if(velha) velha.remove();
+
+  const sl = acharSalao(salaoAtual) || {};
+  const c = aparencia.cores || {};
+  const botao = corDoBotaoNaPrevia();
+  const papel = corValida(c.papel) ? c.papel : corHerdada('papel');
+  const texto = corValida(c.texto) ? c.texto : corHerdada('texto');
+  const card = corValida(c.card) ? c.card : corHerdada('card');
+  const pagina = i.fundo === 'pagina';
+  const ms = INTRO_MS[i.tempo] || 2000;
+  const el = document.createElement('div');
+  el.className = 'intro intro-' + i.efeito + (pagina ? ' intro-pagina' : '');
+  el.style.cssText = `--intro-ms:${ms}ms`
+    + `;--i-fundo:${pagina ? papel : botao};--i-txt:${pagina ? texto : letraSobre(botao)}`
+    + `;--i-selo:${pagina ? botao : card};--i-selo-txt:${pagina ? letraSobre(botao) : botao}`;
+  el.innerHTML = `<div class="intro-logo">${sl.logo
+      ? `<img src="${escapar(sl.logo)}" alt="">`
+      : `<span>${escapar((sl.nome || '?').trim().charAt(0).toUpperCase())}</span>`}</div>
+    ${i.nome ? `<div class="intro-nome">${escapar(sl.nome || '')}</div>` : ''}`;
+  let foi = false;
+  const sair = () => {
+    if(foi) return;
+    foi = true;
+    el.classList.add('saindo');
+    setTimeout(() => el.remove(), 450);
+  };
+  el.addEventListener('click', e => { e.stopPropagation(); sair(); });
+  fone.appendChild(el);
+  setTimeout(sair, ms);
+}
 
 function escolherAtalhos(estilo){ aparencia.atalhos.estilo = estilo; pintarAparencia(); }
 /* Vazio é "herdar": a chave SAI do objeto, e o atalho volta a acompanhar a
@@ -10726,6 +10859,7 @@ function cfgDaAparencia(){
        vem, e nenhum salão precisa colar arquivo nenhum para isto valer. */
     fundoTipo: aparencia.fundoTipo === 'cor' ? 'solida' : aparencia.fundoTipo,
     gradiente: aparencia.gradiente,
+    intro: introParaGravar(),
   };
 }
 

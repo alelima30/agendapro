@@ -4214,3 +4214,89 @@ body.com-folha{ overflow:hidden }
 }
 .quem-junto input{ margin-top:2px; width:20px; height:20px; flex:none; accent-color:var(--acao) }
 .quem-junto b{ display:block; color:var(--txt); font-size:14.5px }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A ABERTURA — o logo por um instante quando alguém abre o link
+   (agendar.html → tocarIntro; a prévia do painel → verIntroNaPrevia)
+
+   As cores vêm de quatro variáveis com reserva nas da página: no link, o
+   botão (`--acao`) e o cartão (`--painel`) do salão; na prévia do painel, o
+   JS escreve as quatro no próprio elemento, porque lá `--acao` é a cor do
+   PAINEL, e não a do salão.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.intro{
+  --i-fundo:var(--acao); --i-txt:var(--acao-txt);
+  --i-selo:var(--painel); --i-selo-txt:var(--acao);
+  position:fixed; inset:0; z-index:9999;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:18px; padding:24px; text-align:center; cursor:pointer;
+  background:radial-gradient(120% 80% at 50% 38%,
+    color-mix(in srgb, var(--i-fundo) 84%, #fff) 0%, var(--i-fundo) 58%,
+    color-mix(in srgb, var(--i-fundo) 80%, #000) 100%);
+  color:var(--i-txt);
+  -webkit-tap-highlight-color:transparent;
+}
+.intro.intro-pagina{
+  --i-fundo:var(--bg); --i-txt:var(--txt);
+  --i-selo:var(--acao); --i-selo-txt:var(--acao-txt);
+  background:var(--i-fundo);
+}
+.intro-logo{
+  width:128px; height:128px; flex:none; position:relative; overflow:hidden;
+  border-radius:28px;   /* o canto do selo da capa (22px em 104), na escala */
+  display:grid; place-items:center;
+  background:var(--i-selo); color:var(--i-selo-txt);
+  font-size:46px; font-weight:650; letter-spacing:-.02em;
+  box-shadow:0 2px 4px rgba(0,0,0,.14), 0 20px 44px -14px rgba(0,0,0,.45);
+}
+.intro-logo img{ width:100%; height:100%; object-fit:cover; display:block }
+[data-logo="arredondado"] .intro-logo{ border-radius:var(--r-lg) }
+[data-logo="quadrado"]    .intro-logo{ border-radius:6px }
+.intro-nome{
+  font-size:22px; font-weight:650; letter-spacing:-.01em; line-height:1.25;
+  max-width:min(86vw, 420px); overflow-wrap:anywhere;
+}
+
+/* Os três efeitos. O logo entra; o nome vem logo atrás. Tudo em fração do
+   tempo escolhido, para "Rápida" e "Longa" serem a mesma coreografia. */
+.intro-aparecer .intro-logo{
+  animation:intro-zoom calc(var(--intro-ms, 2000ms) * .45) cubic-bezier(.2,.8,.2,1) both }
+.intro-aparecer .intro-nome{
+  animation:intro-sobe calc(var(--intro-ms, 2000ms) * .4) calc(var(--intro-ms, 2000ms) * .15) ease-out both }
+.intro-deslizar .intro-logo{
+  animation:intro-desliza calc(var(--intro-ms, 2000ms) * .5) cubic-bezier(.2,.8,.2,1) both }
+.intro-deslizar .intro-nome{
+  animation:intro-desliza calc(var(--intro-ms, 2000ms) * .5) calc(var(--intro-ms, 2000ms) * .12) cubic-bezier(.2,.8,.2,1) both }
+.intro-brilho .intro-logo{
+  animation:intro-zoom calc(var(--intro-ms, 2000ms) * .35) ease-out both }
+.intro-brilho .intro-logo::after{
+  content:""; position:absolute; inset:0; pointer-events:none;
+  background:linear-gradient(115deg, transparent 30%, rgba(255,255,255,.6) 50%, transparent 70%);
+  transform:translateX(-130%);
+  animation:intro-luz calc(var(--intro-ms, 2000ms) * .45) calc(var(--intro-ms, 2000ms) * .32) ease-in-out both }
+.intro-brilho .intro-nome{
+  animation:intro-sobe calc(var(--intro-ms, 2000ms) * .4) calc(var(--intro-ms, 2000ms) * .2) ease-out both }
+
+/* A saída: o "Deslizar" sobe como uma cortina; os outros se desfazem. */
+.intro.saindo{ opacity:0; transition:opacity .42s ease; pointer-events:none }
+.intro-deslizar.saindo{ opacity:1; transform:translateY(-100%);
+  transition:transform .45s cubic-bezier(.6,0,.4,1) }
+
+@keyframes intro-zoom{ from{ opacity:0; transform:scale(.82) } to{ opacity:1; transform:none } }
+@keyframes intro-sobe{ from{ opacity:0; transform:translateY(10px) } to{ opacity:1; transform:none } }
+@keyframes intro-desliza{ from{ opacity:0; transform:translateY(46px) } to{ opacity:1; transform:none } }
+@keyframes intro-luz{ to{ transform:translateX(130%) } }
+
+/* Quem pediu menos movimento no celular vê o logo parado, e ele some num
+   esmaecer curto — sem zoom, sem cortina, sem faixa de luz. */
+@media (prefers-reduced-motion: reduce){
+  .intro .intro-logo, .intro .intro-nome, .intro .intro-logo::after{ animation:none !important }
+  .intro-deslizar.saindo{ transform:none; opacity:0; transition:opacity .3s ease }
+}
+
+/* Na prévia do painel: a mesma abertura, dentro do celular desenhado. */
+.fone .intro{ position:absolute; z-index:30; border-radius:inherit; gap:10px; padding:14px }
+.fone .intro-logo{ width:74px; height:74px; border-radius:16px; font-size:26px }
+.fone .intro-nome{ font-size:14px; max-width:90% }
+.fone[data-logo="arredondado"] .intro-logo{ border-radius:15% }
+.fone[data-logo="quadrado"] .intro-logo{ border-radius:4% }
