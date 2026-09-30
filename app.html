@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.016fd2';
+const VERSAO_APP = 'v9.12c5a7';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7836,6 +7836,7 @@ function pintarSalao(){
            mesmas funcoes; mudou o lugar e o nome de cada um.
            (Sem crase: este HTML e lido como template literal.) -->
       <nav class="ap-indice" aria-label="Seções da aparência">
+        <button type="button" onclick="irParaSecaoAp('apModelos')">✨ Modelos prontos</button>
         <button type="button" onclick="irParaSecaoAp('apMarca')">🏷️ Marca</button>
         <button type="button" onclick="irParaSecaoAp('apFundo')">🖼️ Fundo</button>
         <button type="button" onclick="irParaSecaoAp('apTextos')">🔤 Textos</button>
@@ -7845,6 +7846,19 @@ function pintarSalao(){
         <button type="button" onclick="irParaSecaoAp('apBotoes')">🔘 Botões e atalhos</button>
         <button type="button" onclick="irParaSecaoAp('apCapa')">📷 Capa e fotos</button>
       </nav>
+
+      <!-- OS MODELOS PRONTOS. Um toque experimenta o modelo inteiro na previa:
+           cores, fundo, letras, logo, molduras, atalhos, botoes e a fita.
+           Nada e gravado ate "Usar este modelo"; "Voltar" devolve tudo como
+           estava. Fotos, servicos e produtos nao sao tocados.
+           (Sem crase: template literal.) -->
+      <section class="ap-sec" id="apModelos">
+        <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">✨</span>Modelos prontos</h4>
+        <p class="ap-sec-sub">Toque num modelo para ver na prévia. Se gostar, use; se não,
+          volte ao que era. Suas fotos, serviços e produtos continuam os seus.</p>
+        <div id="modeloBarra" class="modelo-barra" style="display:none" role="status"></div>
+        <div class="modelos" id="listaModelos"></div>
+      </section>
 
       <section class="ap-sec" id="apMarca">
         <h4 class="ap-sec-t"><span class="ap-sec-ic" aria-hidden="true">🏷️</span>Marca</h4>
@@ -8679,6 +8693,143 @@ const PRECOS = [
 let aparencia = null;      // { cor, tema, precoNaCapa, brilho }
 let aparenciaDoSalao = null;
 
+/* ── OS MODELOS PRONTOS ───────────────────────────────────────────────────
+   "Modelos prontos, para a pessoa chegar, clicar e, se gostar, usar."
+   Diferente dos temas prontos (que só preenchem cores), cada modelo é a
+   aparência INTEIRA: cores, fundo, letras claras ou escuras, modo, forma e
+   moldura da logo, moldura dos serviços, letra do nome, divisão da foto,
+   estilo dos atalhos, botão Ver produtos, fita e brilho.
+
+   O que NÃO entra, de propósito, é o que é do salão e não do estilo: fotos,
+   serviços, produtos, o enquadramento da foto, o véu e os cartões sobre a
+   imagem, o slide e os preços na capa.
+
+   As paletas vêm do que se usa em cada ramo (rosado com dourado, pastéis,
+   verde com laranja, azul e verde-água, sálvia e lavanda) e foram conferidas
+   uma a uma: título e texto a 4,5:1 sobre o fundo e o cartão, preço a 4,5:1
+   no cartão, letra do botão a 4,5:1 — o modelos.test.mjs mede de novo, na
+   página. O nome é do estilo, e não da profissão: qualquer casa usa o que
+   gostar. */
+const MODELOS_PRONTOS = [
+  {
+    id:'rose',
+    nome:'Rosé Champagne',
+    frase:'Rosado com toque dourado. Delicado e sofisticado.',
+    tema:'claro',
+    fundoTipo:'cor',
+    cor:'#B76E79',
+    cores:{ papel:'#FBF4F1', card:'#FFFFFF', titulo:'#3A2A2E', texto:'#5E4A4F', discreto:'#9C8A8E', destaque:'#9B4F5D', botao:'#A8586A', secundaria:'#F3DDD9', icone:'#8C6F75', iconeDestaque:'#A8586A', borda:'#EFDCD7', moldura:'#E6C3B3' },
+    modo:'premium', logoForma:'circular', logoBorda:'media', moldura:'elegante', letra:'elegante', capaForma:'curva', brilho:true,
+    atalhos:{ estilo:'sombra', sombra:{ desfoque:18, opacidade:14, distancia:5, cor:'#B76E79' } }, botaoProdutos:'discreto',
+    fita:{ metal:'forte', borda:'redonda', brilho:true, tempo:'media' } },
+  {
+    id:'dourada',
+    nome:'Noite Dourada',
+    frase:'Preto e dourado, com letra serifada. Clima de luxo à noite.',
+    tema:'escuro',
+    fundoTipo:'gradiente',
+    gradiente:'#241E16,#0E0C0A',
+    cor:'#C9A24B',
+    cores:{ papel:'#121010', card:'#1E1A15', titulo:'#F6EFE1', texto:'#D4C9B5', discreto:'#8F8676', destaque:'#E2C274', botao:'#C9A24B', secundaria:'#3A301F', icone:'#BFAF8F', iconeDestaque:'#D8B461', borda:'#3A3226', moldura:'#C9A24B' },
+    modo:'premium', logoForma:'arredondado', logoBorda:'fina', moldura:'reta', letra:'elegante', capaForma:'reta', brilho:true,
+    atalhos:{ estilo:'borda' }, botaoProdutos:'metal',
+    fita:{ metal:'forte', borda:'suave', brilho:true, tempo:'lenta' } },
+  {
+    id:'algodao',
+    nome:'Algodão Doce',
+    frase:'Rosa e lilás bem clarinhos. Leve, alegre e caprichado.',
+    tema:'claro',
+    fundoTipo:'gradiente',
+    gradiente:'#FFF1F6,#F4ECFF',
+    cor:'#E0578A',
+    cores:{ papel:'#FFF6F9', card:'#FFFFFF', titulo:'#4A1F35', texto:'#6A4A5B', discreto:'#A58597', destaque:'#B01E5A', botao:'#B83A6E', secundaria:'#FCE4EE', icone:'#A0647F', iconeDestaque:'#C94476', borda:'#F5D5E3', moldura:'#FFFFFF' },
+    modo:'personalizado', logoForma:'circular', logoBorda:'grossa', moldura:'elegante', letra:'moderno', capaForma:'curva', brilho:true,
+    atalhos:{ estilo:'sombra', sombra:{ desfoque:20, opacidade:16, distancia:6, cor:'#E0578A' } }, botaoProdutos:'discreto',
+    fita:{ metal:'media', borda:'redonda', brilho:true, tempo:'media' } },
+  {
+    id:'neon',
+    nome:'Neon Glow',
+    frase:'Roxo profundo com rosa neon. Moderno, vibrante e cheio de brilho.',
+    tema:'escuro',
+    fundoTipo:'gradiente',
+    gradiente:'#240A35,#4A1570,#16061F',
+    cor:'#FF4FD8',
+    cores:{ papel:'#1C0829', card:'#26103A', titulo:'#FFFFFF', texto:'#E4D2F2', discreto:'#A68CC0', destaque:'#FF8BE6', botao:'#C81E96', secundaria:'#3A1654', icone:'#C9A8E8', iconeDestaque:'#7CF3FF', borda:'#43235E', moldura:'#FF4FD8', produtos:'#22D3EE' },
+    modo:'premium', logoForma:'arredondado', logoBorda:'media', moldura:'elegante', letra:'marcante', capaForma:'curva', brilho:true,
+    atalhos:{ estilo:'sombra', sombra:{ desfoque:26, opacidade:35, distancia:6, cor:'#FF4FD8' } }, botaoProdutos:'metal',
+    fita:{ metal:'forte', borda:'redonda', brilho:true, tempo:'rapida' } },
+  {
+    id:'folha',
+    nome:'Folha Viva',
+    frase:'Verde fresco com um toque de laranja. Acolhedor e cheio de vida.',
+    tema:'claro',
+    fundoTipo:'cor',
+    cor:'#2E8B62',
+    cores:{ papel:'#F3FAF5', card:'#FFFFFF', titulo:'#1C3A2E', texto:'#45604F', discreto:'#7E9A8B', destaque:'#1F6F4C', botao:'#2A7F59', secundaria:'#DDF2E6', icone:'#5E8272', iconeDestaque:'#D97706', borda:'#D3EADB', moldura:'#FFFFFF', produtos:'#B45309' },
+    modo:'personalizado', logoForma:'circular', logoBorda:'grossa', moldura:'elegante', letra:'moderno', capaForma:'curva', brilho:true,
+    atalhos:{ estilo:'sombra', sombra:{ desfoque:16, opacidade:12, distancia:4, cor:'#2E8B62' } }, botaoProdutos:'metal',
+    fita:{ metal:'media', borda:'redonda', brilho:true, tempo:'media' } },
+  {
+    id:'azul',
+    nome:'Azul Sereno',
+    frase:'Azul e branco, limpo e direto. Passa confiança e cuidado.',
+    tema:'claro',
+    fundoTipo:'cor',
+    cor:'#1E6FB8',
+    cores:{ papel:'#F4F8FC', card:'#FFFFFF', titulo:'#0F2A43', texto:'#445A70', discreto:'#8397AB', destaque:'#155A96', botao:'#1E6FB8', secundaria:'#E1EDF8', icone:'#5B7690', iconeDestaque:'#0E8E8B', borda:'#D9E5F0', moldura:'#FFFFFF' },
+    modo:'personalizado', logoForma:'arredondado', logoBorda:'fina', moldura:'reta', letra:'moderno', capaForma:'reta', brilho:false,
+    atalhos:{ estilo:'borda' }, botaoProdutos:'discreto',
+    fita:{ metal:'chapado', borda:'reta', brilho:false, tempo:'media' } },
+  {
+    id:'salvia',
+    nome:'Sálvia & Areia',
+    frase:'Verde sálvia e areia, sem brilho nem pressa. Calmo e acolhedor.',
+    tema:'claro',
+    fundoTipo:'gradiente',
+    gradiente:'#F5F1E8,#E7EEE4',
+    cor:'#6B8F71',
+    cores:{ papel:'#F3F2EA', card:'#FFFDF8', titulo:'#2E3A2F', texto:'#535E56', discreto:'#7E897C', destaque:'#4B6B51', botao:'#4F7356', secundaria:'#E6EEE3', icone:'#76826F', iconeDestaque:'#A8704B', borda:'#E3E7DC', moldura:'#FFFDF8' },
+    modo:'personalizado', logoForma:'circular', logoBorda:'media', moldura:'elegante', letra:'elegante', capaForma:'curva', brilho:false,
+    atalhos:{ estilo:'limpo' }, botaoProdutos:'discreto',
+    fita:{ metal:'suave', borda:'redonda', brilho:false, tempo:'lenta' } },
+  {
+    id:'lavanda',
+    nome:'Lavanda Zen',
+    frase:'Lavanda suave com letra elegante. Tranquilo e gentil.',
+    tema:'claro',
+    fundoTipo:'cor',
+    cor:'#7C6BB5',
+    cores:{ papel:'#F7F5FC', card:'#FFFFFF', titulo:'#2E2748', texto:'#544C6E', discreto:'#978FAE', destaque:'#5B4B98', botao:'#6A58A8', secundaria:'#ECE8F8', icone:'#7D7597', iconeDestaque:'#7160AE', borda:'#E5E0F3', moldura:'#FFFFFF' },
+    modo:'personalizado', logoForma:'circular', logoBorda:'fina', moldura:'elegante', letra:'elegante', capaForma:'curva', brilho:false,
+    atalhos:{ estilo:'sombra', sombra:{ desfoque:16, opacidade:10, distancia:4, cor:'#6A58A8' } }, botaoProdutos:'discreto',
+    fita:{ metal:'suave', borda:'redonda', brilho:true, tempo:'lenta' } },
+  {
+    id:'oceano',
+    nome:'Oceano Noturno',
+    frase:'Azul-petróleo escuro com verde-água. Moderno e sereno.',
+    tema:'escuro',
+    fundoTipo:'gradiente',
+    gradiente:'#0B2230,#0E3A45',
+    cor:'#2BB5A8',
+    cores:{ papel:'#0C2833', card:'#102C38', titulo:'#EAF6F5', texto:'#B8D4D2', discreto:'#74999A', destaque:'#5FD3C6', botao:'#2BB5A8', secundaria:'#13414A', icone:'#8FB9B7', iconeDestaque:'#5FD3C6', borda:'#1E4A55', moldura:'#2BB5A8' },
+    modo:'premium', logoForma:'arredondado', logoBorda:'media', moldura:'elegante', letra:'moderno', capaForma:'curva', brilho:true,
+    atalhos:{ estilo:'sombra', sombra:{ desfoque:22, opacidade:30, distancia:8, cor:'#000000' } }, botaoProdutos:'discreto',
+    fita:{ metal:'media', borda:'suave', brilho:true, tempo:'media' } },
+  {
+    id:'terracota',
+    nome:'Terracota Solar',
+    frase:'Terracota e creme, quente e marcante. Aconchego com personalidade.',
+    tema:'claro',
+    fundoTipo:'cor',
+    cor:'#C0674A',
+    cores:{ papel:'#FBF5EF', card:'#FFFFFF', titulo:'#3B2419', texto:'#5F463A', discreto:'#A08576', destaque:'#A4502F', botao:'#A9543A', secundaria:'#F6E2D8', icone:'#8C6B5C', iconeDestaque:'#B85F42', borda:'#EEDDD2', moldura:'#FFFFFF' },
+    modo:'premium', logoForma:'quadrado', logoBorda:'media', moldura:'reta', letra:'marcante', capaForma:'reta', brilho:true,
+    atalhos:{ estilo:'sombra', sombra:{ desfoque:16, opacidade:12, distancia:4, cor:'#C0674A' } }, botaoProdutos:'metal',
+    fita:{ metal:'forte', borda:'suave', brilho:true, tempo:'media' } },
+];
+let modeloAntes = null;    // a aparência de antes de experimentar, para o "Voltar"
+let modeloAtual = null;    // o id do modelo que está na prévia agora
+
 /* ── O ESTILO DOS ATALHOS (Pagamentos, Horários, Informações) ─────────────
    Três desenhos, e só o desenho: o que cada atalho abre e quando aparece
    continua igual.
@@ -8906,6 +9057,7 @@ function pintarAparencia(){
   // junto — senão salvar gravaria a cor de um salão no outro.
   if(!aparencia || aparenciaDoSalao !== salaoAtual){
     aparencia = lerAparencia();
+    modeloAntes = null; modeloAtual = null;
     aparenciaDoSalao = salaoAtual;
   }
 
@@ -9242,7 +9394,84 @@ function pintarAparencia(){
              onclick="escolherBrilho(${v})">${rot}</button>`).join('');
 
   pintarPreviaFone();
+  pintarModelos();
   ligarHex();
+}
+
+/* Os cartões dos modelos: uma miniatura com o fundo, o cartão, a logo e o
+   botão de cada um — escolher pelo olho, e não pelo nome. */
+function pintarModelos(){
+  const lista = document.getElementById('listaModelos');
+  if(!lista) return;
+  lista.innerHTML = MODELOS_PRONTOS.map(m => {
+    const c = m.cores;
+    const fundo = m.fundoTipo === 'gradiente'
+      ? `linear-gradient(180deg, ${m.gradiente.split(',').join(', ')})` : c.papel;
+    return `<button type="button" class="modelo${modeloAtual === m.id ? ' on' : ''}"
+                    data-modelo="${m.id}" onclick="experimentarModelo('${m.id}')">
+      <span class="modelo-tela" data-capa="${m.capaForma}" data-logo="${m.logoForma}"
+            style="background:${fundo}">
+        <span class="modelo-capa" style="background:linear-gradient(135deg, ${m.cor}, ${c.secundaria})"></span>
+        <span class="modelo-logo" style="background:${c.card};box-shadow:0 0 0 2px ${c.moldura}">
+          <span style="background:${m.cor}"></span></span>
+        <span class="modelo-nome" style="background:${c.titulo}"></span>
+        <span class="modelo-linha" style="background:${c.discreto}"></span>
+        <span class="modelo-cartao" style="background:${c.card};border-color:${c.borda}">
+          <span class="modelo-botao" style="background:${c.botao}"></span>
+        </span>
+      </span>
+      <b>${escapar(m.nome)}</b>
+      <small>${escapar(m.frase)}</small>
+    </button>`;
+  }).join('');
+  const barra = document.getElementById('modeloBarra');
+  const m = MODELOS_PRONTOS.find(x => x.id === modeloAtual);
+  barra.style.display = m ? '' : 'none';
+  barra.innerHTML = m ? `<span>Você está vendo <b>${escapar(m.nome)}</b> na prévia.
+      Nada foi salvo ainda.</span>
+    <button type="button" class="btn btn-p" onclick="usarModelo()">Usar este modelo</button>
+    <button type="button" class="btn" onclick="voltarDoModelo()">Voltar ao que eu tinha</button>` : '';
+}
+
+/* Experimentar troca a aparência na tela, e só nela: nada vai ao banco até
+   "Usar este modelo". A aparência de antes fica guardada na PRIMEIRA vez —
+   passar de um modelo a outro e voltar devolve o que ele tinha, e não o
+   modelo anterior. As cores de cada atalho saem: o modelo decide o conjunto. */
+function experimentarModelo(id){
+  const m = MODELOS_PRONTOS.find(x => x.id === id);
+  if(!m) return;
+  if(!modeloAntes) modeloAntes = JSON.parse(JSON.stringify(aparencia));
+  modeloAtual = id;
+  Object.assign(aparencia, {
+    cor: m.cor, tema: m.tema, fundoTipo: m.fundoTipo,
+    // Modelo de cor lisa não apaga o gradiente que ele já tinha montado.
+    gradiente: m.gradiente || aparencia.gradiente,
+    cores: Object.assign({}, m.cores),
+    modo: m.modo, logoForma: m.logoForma, logoBorda: m.logoBorda,
+    moldura: m.moldura, letra: m.letra, capaForma: m.capaForma, brilho: m.brilho,
+    atalhos: lerAtalhos(Object.assign({ cores:{} }, m.atalhos)),
+    botaoProdutos: m.botaoProdutos,
+    fitaMetal: m.fita.metal, fitaBorda: m.fita.borda,
+    fitaBrilho: m.fita.brilho, fitaTempo: m.fita.tempo, fitaCor: '',
+  });
+  // A sombra do modelo é sob medida: acende "Suave" só se os números baterem.
+  aparencia.atalhos.sombra.intensidade = intensidadeDa(aparencia.atalhos.sombra);
+  pintarAparencia();
+}
+function usarModelo(){
+  const m = MODELOS_PRONTOS.find(x => x.id === modeloAtual);
+  salvarAparencia();
+  const barra = document.getElementById('modeloBarra');
+  if(!m || !barra) return;
+  barra.style.display = '';
+  barra.innerHTML = `<span>✓ Pronto: <b>${escapar(m.nome)}</b> é o visual do seu link agora.
+    Pode ajustar o que quiser aqui embaixo.</span>`;
+  setTimeout(pintarModelos, 3500);
+}
+function voltarDoModelo(){
+  if(modeloAntes) aparencia = modeloAntes;
+  modeloAntes = null; modeloAtual = null;
+  pintarAparencia();
 }
 
 /* O índice do topo da tela: leva à seção, sem esconder nenhuma. */
@@ -9699,12 +9928,12 @@ function escolherIntensidade(nome){
 function escolherSombra(campo, valor){
   const sb = aparencia.atalhos.sombra;
   sb[campo] = valor;
-  if(campo !== 'cor'){
-    const bate = Object.keys(SOMBRAS).find(n => ['desfoque', 'opacidade', 'distancia']
-      .every(k => SOMBRAS[n][k] === sb[k]));
-    sb.intensidade = bate || 'personalizada';
-  }
+  if(campo !== 'cor') sb.intensidade = intensidadeDa(sb);
   pintarAparencia();
+}
+function intensidadeDa(sb){
+  return Object.keys(SOMBRAS).find(n => ['desfoque', 'opacidade', 'distancia']
+    .every(k => SOMBRAS[n][k] === sb[k])) || 'personalizada';
 }
 
 /* ⚠ OS CONTROLES NASCEM NO HTML E AQUI SÓ SÃO ACERTADOS. Refazer um
@@ -10149,6 +10378,10 @@ function pintarPreviaFone(){
      <p class="secao-sub" style="text-align:center;margin-top:8px">
        Prévia — é assim que a cliente vê.<br>
        <b>Toque em qualquer parte do celular</b> para ir direto à configuração dela.</p>`;
+  /* Os ícones (atalhos, carrinho, presente do produto sem foto) só viravam
+     desenho na primeira pintura da aba: qualquer mudança redesenhava a
+     prévia e eles sumiam. */
+  if(window.aplicarIcones) aplicarIcones(alvo);
   if(!alvo._toque){
     alvo.addEventListener('click', e => {
       const el = e.target.closest('[data-cfg]');
@@ -10213,6 +10446,8 @@ function irParaConfig(chave){
 }
 
 function salvarAparencia(){
+  // Salvar é aceitar: o que está na prévia passa a ser o de verdade.
+  modeloAntes = null; modeloAtual = null;
   const sl = acharSalao(salaoAtual);
   // Mesmo cuidado da janela da agenda: `cfg` guarda mais coisa com o tempo, e
   // sobrescrever o objeto inteiro apagaria o que outra tela puser lá.
@@ -10263,6 +10498,8 @@ function salvarAparencia(){
     gradiente: aparencia.gradiente,
   });
   salvar();
+  // Sai o "Nada foi salvo ainda" dos modelos: agora foi.
+  pintarModelos();
   const aviso = document.getElementById('salvouAparencia');
   if(aviso){
     aviso.textContent = 'Salvo';

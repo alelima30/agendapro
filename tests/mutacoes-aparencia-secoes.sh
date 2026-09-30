@@ -134,10 +134,10 @@ troca app.html \
 
 echo "13. o HEX some"
 troca app.html \
-  "  pintarPreviaFone();
+  "  pintarModelos();
   ligarHex();
 }" \
-  "  pintarPreviaFone();
+  "  pintarModelos();
 }" \
   && rodar "sem campo de código"
 

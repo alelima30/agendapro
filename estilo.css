@@ -1129,7 +1129,9 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 .fone-boas .fone-cta{ margin-bottom:0 }
 /* O convite do Bem-vindo e o segundo botão, como na página (.boas-sub e
    .boas-b2). */
-.fone-boas-sub{ margin:-3px 0 8px; font-size:9.5px; line-height:1.4;
+/* Com `.fone` na frente: o `.card p` do painel é mais forte que uma classe
+   só, e pintava o convite no cinza do painel — escuro sobre o escuro. */
+.fone .fone-boas-sub{ margin:-3px 0 8px; font-size:9.5px; line-height:1.4;
   color:var(--fone-texto, var(--fone-ico-texto, var(--txt2))) }
 .fone-boas .fone-cta + .fone-cta, .fone-boas .fone-cta + .fone-cta2{ margin-top:6px }
 .fone-cta2{
@@ -2260,6 +2262,50 @@ body.sem-brilho .marca-selo{ animation:none }
 .ap-sub{ margin:16px 0 6px; font-size:12px; font-weight:750; letter-spacing:.06em;
   text-transform:uppercase; color:var(--txt3) }
 .ap-sec > .ap-sub:first-of-type{ margin-top:4px }
+
+/* ── OS MODELOS PRONTOS ───────────────────────────────────────────────────
+   Cada cartão é uma miniatura do celular: o fundo, a capa, a logo com a
+   moldura, o nome, um serviço com o botão. As cores vêm do próprio modelo
+   (style no elemento); aqui só a forma. */
+.modelos{ display:grid; grid-template-columns:repeat(auto-fill, minmax(138px, 1fr)); gap:10px }
+.modelo{
+  display:flex; flex-direction:column; align-items:stretch; gap:3px; text-align:left;
+  padding:8px 8px 10px; border:1.5px solid var(--borda); border-radius:14px;
+  background:var(--painel); color:var(--txt); font:inherit; cursor:pointer;
+  transition:border-color .15s, box-shadow .15s;
+}
+.modelo:hover{ border-color:var(--ac-600) }
+.modelo.on{ border-color:var(--ac-600); box-shadow:0 0 0 3px var(--ac-soft, rgba(0,0,0,.08)) }
+.modelo.on .modelo-tela::after{
+  content:'Na prévia'; position:absolute; top:6px; right:6px; padding:2px 7px;
+  border-radius:99px; background:var(--ac-600); color:#fff; font-size:10.5px; font-weight:700;
+}
+.modelo b{ font-size:13.5px; font-weight:700; margin-top:5px }
+.modelo small{ font-size:11.5px; line-height:1.35; color:var(--txt3) }
+.modelo-tela{
+  position:relative; display:block; height:118px; border-radius:10px; overflow:hidden;
+  box-shadow:0 0 0 1px rgba(0,0,0,.08) inset;
+}
+.modelo-capa{ position:absolute; inset:0 0 auto 0; height:40px; opacity:.55;
+  border-radius:0 0 50% 50% / 0 0 14px 14px }
+.modelo-tela[data-capa="reta"] .modelo-capa{ border-radius:0 }
+.modelo-logo{ position:absolute; top:26px; left:50%; width:26px; height:26px;
+  margin-left:-13px; border-radius:50%; overflow:hidden; display:grid; place-items:center }
+.modelo-logo > span{ width:14px; height:14px; border-radius:inherit }
+.modelo-tela[data-logo="arredondado"] .modelo-logo{ border-radius:8px }
+.modelo-tela[data-logo="quadrado"] .modelo-logo{ border-radius:3px }
+.modelo-nome, .modelo-linha{ position:absolute; left:50%; height:5px; border-radius:3px }
+.modelo-nome{ top:60px; width:54px; margin-left:-27px }
+.modelo-linha{ top:69px; width:36px; margin-left:-18px; opacity:.8 }
+.modelo-cartao{ position:absolute; left:9px; right:9px; bottom:9px; height:28px;
+  border:1px solid; border-radius:8px }
+.modelo-botao{ position:absolute; right:6px; top:6px; bottom:6px; width:34px; border-radius:99px }
+.modelo-barra{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:0 0 12px;
+  padding:10px 12px; border:1px solid var(--ac-600); border-radius:12px;
+  background:var(--painel); font-size:13.5px;
+}
+.modelo-barra > span{ flex:1 1 220px }
 
 /* A bolinha do tema pronto: a cor principal dele, para a escolha ser pelo
    olho e não pela leitura de dez nomes. */

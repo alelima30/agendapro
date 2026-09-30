@@ -183,14 +183,16 @@ const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 
       'reguaSlideForma', 'reguaSlide', 'reguaPreco']
       .map(id => [id, (document.getElementById(id) || {}).closest?.('.ap-sec')?.id || '(sumiu)'])),
   }));
-  igual('as oito seções, na ordem', t.secoes,
-    ['apMarca', 'apFundo', 'apTextos', 'apIcones', 'apBordas', 'apGradientes', 'apBotoes', 'apCapa']);
+  // Os modelos prontos vêm primeiro: são o ponto de partida, o resto é ajuste.
+  igual('as oito seções, na ordem, depois dos modelos prontos', t.secoes,
+    ['apModelos', 'apMarca', 'apFundo', 'apTextos', 'apIcones', 'apBordas', 'apGradientes', 'apBotoes', 'apCapa']);
   igual('com os nomes do pedido', t.titulos,
-    ['Marca', 'Fundo', 'Textos', 'Ícones', 'Bordas', 'Gradientes', 'Botões e atalhos', 'Capa e fotos']);
+    ['Modelos prontos', 'Marca', 'Fundo', 'Textos', 'Ícones', 'Bordas', 'Gradientes', 'Botões e atalhos', 'Capa e fotos']);
   igual('e o índice do topo leva a cada uma', t.indice, t.titulos);
   for(const [sec, chaves] of Object.entries(ESPERADO))
     igual(`${sec}: só as cores dela`, t.chaves[sec], chaves);
-  igual('Marca, Gradientes e Capa não têm cor solta misturada', [t.chaves.apMarca, t.chaves.apGradientes, t.chaves.apCapa], [[], [], []]);
+  igual('Modelos, Marca, Gradientes e Capa não têm cor solta misturada',
+    [t.chaves.apModelos, t.chaves.apMarca, t.chaves.apGradientes, t.chaves.apCapa], [[], [], [], []]);
   verdade('todo quadrado de cor da tela tem o campo HEX, com o código dele',
     t.quadrados >= 20 && t.comHex === t.quadrados && t.hexIgual, JSON.stringify([t.quadrados, t.comHex, t.hexIgual]));
   igual('nada sumiu: cada controle de antes, na seção dele', t.onde, {

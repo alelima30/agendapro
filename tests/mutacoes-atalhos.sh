@@ -133,7 +133,7 @@ troca app.html \
 
 echo "13. mexer à mão não vira personalizada"
 troca app.html \
-  "    sb.intensidade = bate || 'personalizada';" \
+  "  if(campo !== 'cor') sb.intensidade = intensidadeDa(sb);" \
   "" \
   && rodar "Forte marcada com números que não são os dela"
 
