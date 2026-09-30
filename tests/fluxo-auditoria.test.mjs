@@ -75,10 +75,11 @@ await cli.click('.boas-cta');
 await cli.waitForTimeout(1200);
 
 // Escolher o serviço
-await cli.click('.opcao:has-text("Corte Auditado")');
+// A escolha usa o cartão da capa (escolha-cartao.test.mjs).
+await cli.click('#listaServicos .sv-cartao:has-text("Corte Auditado")');
 await cli.waitForTimeout(700);
 verdade('escolheu o serviço', await cli.evaluate(() =>
-  document.querySelectorAll('.opcao.sel').length > 0));
+  document.querySelectorAll('#listaServicos .sv-cartao.sel').length > 0));
 
 const avancar = async () => {
   const bt = await cli.$('#btPrincipal:not([disabled])');

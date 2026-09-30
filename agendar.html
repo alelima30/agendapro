@@ -2090,56 +2090,26 @@ function desenharCapa(){
      porque lá a lista é longa.
 
      O agrupamento continua existindo e continua sendo usado — só não aqui. */
+  /* ⚠ "A PARTIR DE" QUANDO EXISTE PRECO MENOR, e nao sempre.
+     Na capa ela ainda nao escolheu dia nem profissional, entao
+     nao existe UM preco — existe uma faixa. Mostrar o cheio de
+     quem tem promocao de terca e' esconder a promocao; mostrar o
+     mais barato como se fosse O preco e' prometer o que ela
+     talvez nao consiga marcar.
+
+     O precoMin vem do banco, e so' conta o que cabe na janela
+     que a agenda tem aberta: promocao vencida ou que so' comeca
+     em agosto nao puxa o numero de hoje para baixo. */
+  const precoDaCapa = s => s.precoMin != null && s.precoMin < s.preco
+    ? `<span class="sv-cartao-apartir">a partir de</span> ` + real(s.precoMin)
+    : real(s.preco);
   document.getElementById('capaServicos').innerHTML = !svs.length ? '' : `
     <div class="cat">${voc('oferecemos')}</div>
     ${[{ rotulo:'', lista: svs }].map(({ rotulo, lista }) => `
       ${rotulo ? `<div class="cat-sub">${escapar(rotulo)}</div>` : ''}
-      <div class="sv-grade${temAlgumaFoto ? ' com-foto' : ''}">${lista.map(s => `
-        <button class="sv-cartao${s.foto ? '' : ' sem-foto'}${
-                  escolha.servicos.includes(s.id) ? ' sel' : ''}"
-                onclick="escolherDaCapa('${s.id}')">
-          ${s.foto ? `<span class="sv-cartao-foto"
-                        style="background-image:url('${escapar(s.foto)}')"></span>`
-           : temAlgumaFoto ? `<span class="sv-cartao-foto sv-cartao-inicial"
-                        >${escapar((s.nome || '?').trim().charAt(0).toUpperCase())}</span>`
-           : ''}
-          <span class="sv-cartao-txt">
-            <b>${escapar(s.nome)}</b>
-            ${elegante && s.descricao
-              ? `<span class="sv-cartao-desc">${escapar(s.descricao)}</span>` : ''}
-            <span class="sv-cartao-linha">
-              <!-- ⚠ "A PARTIR DE" QUANDO EXISTE PRECO MENOR, e nao sempre.
-                   Na capa ela ainda nao escolheu dia nem profissional, entao
-                   nao existe UM preco — existe uma faixa. Mostrar o cheio de
-                   quem tem promocao de terca e' esconder a promocao; mostrar o
-                   mais barato como se fosse O preco e' prometer o que ela
-                   talvez nao consiga marcar.
-
-                   O precoMin vem do banco, e so' conta o que cabe na janela
-                   que a agenda tem aberta: promocao vencida ou que so' comeca
-                   em agosto nao puxa o numero de hoje para baixo.
-
-                   (SEM CRASE NESTE COMENTARIO: ele mora dentro de um template
-                   literal, e uma crase aqui FECHA a string. Oitava vez que
-                   esta pedra aparece — e de novo num comentario que cita o
-                   nome de uma variavel.) -->
-              ${comPreco ? `<span class="sv-cartao-preco">${
-                s.precoMin != null && s.precoMin < s.preco
-                  ? `<span class="sv-cartao-apartir">a partir de</span> `
-                    + real(s.precoMin)
-                  : real(s.preco)}</span>` : ''}
-              <!-- ⚠ O RELÓGIO FICA DENTRO DA DURAÇÃO, e não solto antes do
-                   preço. Solto, ele encostava no valor — "🕐 R$ 180,00" — e
-                   passava a dizer que o número ao lado é tempo. Aqui ele não
-                   tem como se separar do que explica, nem quando a linha
-                   quebra em duas num nome comprido. -->
-              <span class="sv-cartao-dur">${elegante
-                ? `<span class="sv-cartao-relogio" data-ico="relogio"></span>` : ''
-                }${s.duracaoMin} min</span>
-            </span>
-          </span>
-          ${elegante ? `<span class="sv-cartao-ir" data-ico="direita"></span>` : ''}
-        </button>`).join('')}</div>`).join('')}
+      <div class="sv-grade${temAlgumaFoto ? ' com-foto' : ''}">${lista.map(s => cartaoDeServico(s, { elegante, temAlgumaFoto,
+          sel: escolha.servicos.includes(s.id), acao: `escolherDaCapa('${s.id}')`,
+          preco: comPreco ? precoDaCapa(s) : '' })).join('')}</div>`).join('')}
     ${sobram > 0 ? `
       <button class="ver-todos" onclick="irPara('servico')">
         <span data-ico="tesoura"></span>
@@ -2371,6 +2341,52 @@ function agruparPorCategoria(svs, padrao){
 }
 
 
+/* ── O CARTÃO DE UM SERVIÇO ─────────────────────────────────────────────
+   O MESMO na capa e na escolha dos serviços ("O que você quer fazer?").
+   "Não quero os serviços assim, e sim com a moldura da primeira" — a tela de
+   escolher mostrava fileiras retangulares, e a capa, o cartão. Agora as duas
+   saem daqui, e a forma (Clássica ou Curvada) continua decidida pelo CSS com
+   o data-moldura da raiz: a escolha de Aparência vale nas duas telas.
+
+     o.sel       já escolhido (borda acesa)
+     o.acao      o que o toque faz
+     o.preco     o HTML do preço, ou vazio para não mostrar
+     o.combo     o selo COMBO ao lado do nome
+     o.escolher  na tela de escolher: o botão redondo vira a MARCA de escolhido
+                 (vazio / com o visto), porque ali tocar escolhe, e não leva */
+function cartaoDeServico(s, o){
+  const elegante = o.elegante;
+  return `
+        <button class="sv-cartao${s.foto ? '' : ' sem-foto'}${o.sel ? ' sel' : ''}${
+                  o.escolher ? ' sv-escolha' : ''}"${
+                  o.escolher ? ` aria-pressed="${o.sel ? 'true' : 'false'}"` : ''}
+                onclick="${o.acao}">
+          ${s.foto ? `<span class="sv-cartao-foto"
+                        style="background-image:url('${escapar(s.foto)}')"></span>`
+           : o.temAlgumaFoto ? `<span class="sv-cartao-foto sv-cartao-inicial"
+                        >${escapar((s.nome || '?').trim().charAt(0).toUpperCase())}</span>`
+           : ''}
+          <span class="sv-cartao-txt">
+            <b>${escapar(s.nome)}${o.combo ? '<span class="selo-combo">COMBO</span>' : ''}</b>
+            ${elegante && s.descricao
+              ? `<span class="sv-cartao-desc">${escapar(s.descricao)}</span>` : ''}
+            <span class="sv-cartao-linha">
+              ${o.preco ? `<span class="sv-cartao-preco">${o.preco}</span>` : ''}
+              <!-- ⚠ O RELÓGIO FICA DENTRO DA DURAÇÃO, e não solto antes do
+                   preço. Solto, ele encostava no valor — "🕐 R$ 180,00" — e
+                   passava a dizer que o número ao lado é tempo. Aqui ele não
+                   tem como se separar do que explica, nem quando a linha
+                   quebra em duas num nome comprido. -->
+              <span class="sv-cartao-dur">${elegante
+                ? `<span class="sv-cartao-relogio" data-ico="relogio"></span>` : ''
+                }${s.duracaoMin} min</span>
+            </span>
+          </span>
+          ${o.escolher ? `<span class="sv-cartao-marca">${o.sel ? ico('ok') : ''}</span>`
+            : elegante ? `<span class="sv-cartao-ir" data-ico="direita"></span>` : ''}
+        </button>`;
+}
+
 function desenharServicos(){
   // Marca o segmentado do "para quem".
   for(const v of ['mim','filho','ambos']){
@@ -2419,31 +2435,25 @@ function desenharServicos(){
     return;
   }
 
+  const elegante = (salao.moldura || (salao.cfg||{}).moldura) === 'elegante';
+  // A mesma regra da capa: com foto em algum serviço, a grade é de fotos e
+  // quem não tem ganha a inicial; sem foto nenhuma, cada um é uma linha.
+  const temAlgumaFoto = todos.some(s => s.foto);
   alvo.innerHTML =
     agruparPorCategoria(svs, 'Serviços').map(({ rotulo, lista }) => `
       <div class="cat">${escapar(rotulo)}</div>
-      ${lista.map(s => {
+      <div class="sv-grade${temAlgumaFoto ? ' com-foto' : ''}">${lista.map(s => {
         const sel = escolha.servicos.includes(s.id);
         /* AQUI é onde a foto e o preço aparecem — não na capa. A pessoa já
            clicou em "Agendar horário", já decidiu que quer ser atendida
            nesta casa, e agora precisa comparar: o que é cada coisa, quanto
-           custa, quanto demora. Foto ao lado do nome porque "corte
-           navalhado" não diz nada e a imagem diz. */
-        return `<button class="opcao com-foto ${sel?'sel':''}"
-                        onclick="alternarServico('${s.id}')">
-          <span class="marca">${sel ? ico('ok') : ''}</span>
-          <span class="sv-foto">${s.foto
-            ? `<img src="${escapar(s.foto)}" alt="" loading="lazy">`
-            : `<span data-ico="tesoura"></span>`}</span>
-          <span class="txt"><span class="tt">${escapar(s.nome)}${
-            ehCombo(s) ? '<span class="selo-combo">COMBO</span>' : ''}</span>
-            <span class="dd">${s.duracaoMin} min</span></span>
-          <span class="vv">${pacoteCobre([s.id], escolha.data)
+           custa, quanto demora. */
+        return cartaoDeServico(s, { elegante, temAlgumaFoto, sel, escolher: true,
+          combo: ehCombo(s), acao: `alternarServico('${s.id}')`,
+          preco: pacoteCobre([s.id], escolha.data)
             ? '<span class="vv-pacote">no seu pacote</span>'
-            : real(precoDoServico(s, escolha.profissionalId,
-                                  escolha.data, escolha.inicio))}</span>
-        </button>`;
-      }).join('')}`).join('')
+            : real(precoDoServico(s, escolha.profissionalId, escolha.data, escolha.inicio)) });
+      }).join('')}</div>`).join('')
     + (escolha.servicos.length
         ? `<div class="recado" style="margin-top:14px">
              ${escolha.servicos.length > 1 ? escolha.servicos.length + ' serviços · ' : ''}
@@ -2454,6 +2464,9 @@ function desenharServicos(){
              ${escolha.para === 'ambos'
                ? '<br>Como são dois atendimentos, a agenda precisa de '
                  + duracaoNaAgenda() + ' min seguidos.' : ''}</div>` : '');
+  // Tocar num serviço redesenha a lista: o relógio da moldura curvada é um
+  // data-ico, e sem esta linha ele sumia a cada toque.
+  if(window.aplicarIcones) aplicarIcones(alvo);
 }
 
 function alternarServico(id){

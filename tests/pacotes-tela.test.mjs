@@ -240,7 +240,7 @@ e('e diz quantas sessões ela ainda tem',
 await c.click('.boas-cta');
 await c.waitForTimeout(1200);
 const naLista = await c.evaluate(() =>
-  [...document.querySelectorAll('#listaServicos .vv')].map(v => v.textContent.trim()));
+  [...document.querySelectorAll('#listaServicos .sv-cartao-preco')].map(v => v.textContent.trim()));
 console.log('      o que aparece no lugar do preço: ' + JSON.stringify(naLista));
 /* ⚠ Pode legitimamente mostrar R$ 40 se HOJE não for um dos dias do pacote —
    o pacote foi criado de segunda a quarta. Então a asserção aceita os dois, e
@@ -394,7 +394,7 @@ e('o link recebeu o bloqueio do banco',
 
 await c.click('.boas-cta');
 await c.waitForTimeout(1000);
-await c.click('#listaServicos .opcao');
+await c.click('#listaServicos .sv-cartao');
 await c.waitForTimeout(700);
 await c.click('#btPrincipal');            // serviço → profissional
 await c.waitForTimeout(1000);

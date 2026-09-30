@@ -2988,6 +2988,31 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
   background:var(--acao-hover);
 }
 
+/* ── A ESCOLHA DOS SERVIÇOS, COM O CARTÃO DA CAPA ─────────────────────────
+   Em "O que você quer fazer?" o cartão é o mesmo da capa (cartaoDeServico),
+   e o que muda é o canto: no lugar da seta, a MARCA de escolhido — um círculo
+   vazio, que se enche com o visto ao tocar. Ali tocar escolhe (pode mais de
+   um), e não leva a outra tela; uma seta prometeria o contrário.
+   Na Curvada a marca fica onde a seta ficava; na Clássica, no canto da foto. */
+.sv-cartao.sv-escolha{ position:relative }
+.sv-cartao-marca{
+  position:absolute; top:9px; right:9px; z-index:2;
+  width:28px; height:28px; border-radius:var(--r-pill);
+  display:inline-flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--painel) 90%, transparent);
+  border:2px solid var(--borda-forte, var(--borda)); color:var(--acao-txt);
+  box-shadow:0 1px 4px rgba(0,0,0,.16); transition:.15s;
+}
+.sv-cartao.sel .sv-cartao-marca{ background:var(--acao); border-color:var(--acao) }
+.sv-cartao-marca .ic-svg{ width:15px; height:15px }
+/* A escolhida se vê de longe: o anel na cor do botão, e não só o tom suave. */
+.sv-cartao.sv-escolha.sel{ border-color:var(--acao); box-shadow:0 0 0 2px var(--acao) }
+[data-moldura="elegante"] .sv-cartao-marca{ top:auto; bottom:11px; right:11px }
+/* Sem foto nenhuma no salão, cada serviço é uma linha: a marca fica no meio
+   da altura, à direita, e o texto não passa por baixo dela. */
+.sv-grade:not(.com-foto) .sv-escolha.sem-foto .sv-cartao-marca{ top:50%; bottom:auto; transform:translateY(-50%) }
+.sv-grade:not(.com-foto) .sv-escolha.sem-foto .sv-cartao-txt{ padding-right:52px }
+
 /* Serviço SEM foto não tem `.sv-cartao-foto` nenhum — o desenho não escreve o
    elemento. Então não há onda, e não há margem negativa; o que sobra é o
    `padding-top:2px` do texto, que só faz sentido quando existe uma foto acima

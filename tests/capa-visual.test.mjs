@@ -435,7 +435,7 @@ await pCat.waitForTimeout(700);
 const naLista = await pCat.evaluate(() => ({
   subs: [...document.querySelectorAll('#listaServicos .cat')]
           .map(e => e.textContent.trim()),
-  opcoes: document.querySelectorAll('#listaServicos button.opcao').length,
+  opcoes: document.querySelectorAll('#listaServicos button.sv-cartao').length,
 }));
 console.log('      todos: ' + JSON.stringify(naLista));
 verdade('abrindo todos os serviços, as categorias voltam a separar',

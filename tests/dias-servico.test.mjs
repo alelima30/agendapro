@@ -261,7 +261,7 @@ await c.waitForTimeout(2600);
    funcionalidade e era o teste entrando pela janela. O caminho é o mesmo do
    `cliente-nuvem.test.mjs`, que já o percorre há muito tempo. */
 const escolherServico = async nome => {
-  await c.click('#listaServicos button.opcao:has-text("' + nome + '")');
+  await c.click('#listaServicos button.sv-cartao:has-text("' + nome + '")');
   await c.waitForTimeout(250);
   await c.click('#btPrincipal'); await c.waitForTimeout(400);
   await c.click('#listaProfs button.opcao'); await c.waitForTimeout(250);

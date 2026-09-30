@@ -111,7 +111,7 @@ igual('a capa leva à escolha do serviço', await tela(), 'servico');
 verdade('e o serviço cadastrado aparece com o preço do banco',
   (await p.textContent('#listaServicos')).includes('Corte feminino'));
 
-await p.click('#listaServicos button.opcao'); await p.waitForTimeout(200);
+await p.click('#listaServicos button.sv-cartao'); await p.waitForTimeout(200);
 await p.click('#btPrincipal'); await p.waitForTimeout(300);
 await p.click('#listaProfs button.opcao'); await p.waitForTimeout(200);
 await p.click('#btPrincipal'); await p.waitForTimeout(2500);
@@ -416,9 +416,9 @@ verdade('e o slide troca sozinho',
 
 await cli.click('#btPrincipal'); await cli.waitForTimeout(700);
 igual('só ao escolher o serviço aparecem as fotos, uma por serviço',
-  await cli.evaluate(() => document.querySelectorAll('#listaServicos .sv-foto img').length), 2);
+  await cli.evaluate(() => document.querySelectorAll('#listaServicos .sv-cartao-foto[style*="background-image"]').length), 2);
 const precos = await cli.evaluate(() =>
-  [...document.querySelectorAll('#listaServicos .vv')].map(v => v.textContent.trim()));
+  [...document.querySelectorAll('#listaServicos .sv-cartao-preco')].map(v => v.textContent.trim()));
 verdade('e aí sim os valores', precos.some(v => v.includes('70')) && precos.some(v => v.includes('120')));
 igual('sem erro de JavaScript na vitrine', errosCli.length, 0);
 
@@ -440,7 +440,7 @@ await semFuncao.route('**/rpc/horarios_livres_periodo', r => r.fulfill({
 await semFuncao.goto(BASE + '/agendar.html?salao=' + SLUG);
 await semFuncao.waitForTimeout(1500);
 await semFuncao.click('#btPrincipal'); await semFuncao.waitForTimeout(300);
-await semFuncao.click('#listaServicos button.opcao'); await semFuncao.waitForTimeout(200);
+await semFuncao.click('#listaServicos button.sv-cartao'); await semFuncao.waitForTimeout(200);
 await semFuncao.click('#btPrincipal'); await semFuncao.waitForTimeout(300);
 await semFuncao.click('#listaProfs button.opcao'); await semFuncao.waitForTimeout(200);
 await semFuncao.click('#btPrincipal'); await semFuncao.waitForTimeout(2000);

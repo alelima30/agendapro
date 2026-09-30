@@ -136,7 +136,7 @@ const lerCapa = (p) => p.evaluate(() => {
              .map(c => c.querySelector('.sv-cartao-txt b').textContent.trim()),
     verTodos: !!bt,
     contagem: bt ? (bt.querySelector('.ver-todos-n')||{}).textContent : null,
-    naLista: [...document.querySelectorAll('#listaServicos .opcao')].length,
+    naLista: [...document.querySelectorAll('#listaServicos .sv-cartao')].length,
   };
 });
 
@@ -321,7 +321,7 @@ await cli.waitForTimeout(700);
 const apos = await cli.evaluate(() => ({
   tela,
   escolhidos: escolha.servicos.length,
-  marcados: document.querySelectorAll('#listaServicos .opcao.sel').length,
+  marcados: document.querySelectorAll('#listaServicos .sv-cartao.sel').length,
 }));
 console.log('      ' + JSON.stringify(apos));
 igual('o toque leva à lista de serviços', apos.tela, 'servico');

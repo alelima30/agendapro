@@ -137,7 +137,7 @@ e('a página recebeu a política do banco — ' + JSON.stringify(politica),
 // Caminho de verdade, clicado: capa → serviço → profissional → dia → hora.
 await c.click('.boas-cta');
 await c.waitForTimeout(1000);
-await c.click('#listaServicos .opcao');
+await c.click('#listaServicos .sv-cartao');
 await c.waitForTimeout(700);
 await c.click('#btPrincipal');
 await c.waitForTimeout(1000);
