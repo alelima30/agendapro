@@ -173,7 +173,7 @@ secao('1. As seis frases em Textos');
       valor: l.querySelector('input[type="color"]').value.toUpperCase(),
       hex: (l.querySelector('input[type="color"]')._hex || {}).value || '',
       herdar: getComputedStyle(l.querySelector('button')).display !== 'none' })),
-    titulo: (document.querySelector('#coresFrases').previousElementSibling.previousElementSibling || {}).textContent,
+    titulo: (document.querySelector('#coresFrases').previousElementSibling || {}).textContent,
   }));
   igual('as seis, na ordem da página', t.linhas.map(l => l.chave), DO_TOPO);
   igual('com os nomes que o dono usa', t.linhas.map(l => l.rot),

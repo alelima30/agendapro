@@ -286,6 +286,7 @@ const fita = await p3.evaluate(() => {
     // empurrava o botão do WhatsApp para fora da beira direita.
     dentroDaTela: cx(z).right <= innerWidth,
     alvoZap: Math.round(cx(z).height),
+    rotuloZap: z.getAttribute('aria-label'),
     folgaEmbaixo: getComputedStyle(document.querySelector('.conteudo')).paddingBottom,
   };
 });
@@ -293,7 +294,8 @@ console.log('      ' + JSON.stringify(fita));
 verdade('com produto no carrinho, a fita aparece', fita.apareceu);
 verdade('ela conta o que tem e quanto dá',
   /1 produto/.test(fita.texto) && /45,00/.test(fita.texto), fita.texto);
-verdade('e leva ao WhatsApp', /Enviar pedido/.test(fita.texto), fita.texto);
+verdade('e leva ao WhatsApp', /Enviar pedido/.test(fita.texto) && fita.rotuloZap === 'Enviar pedido no WhatsApp',
+  fita.texto + ' / ' + fita.rotuloZap);
 verdade('a fita fica ACIMA do botão de agendar, sem cobri-lo', fita.acimaDoRodape);
 verdade('e o botão do WhatsApp cabe na tela', fita.dentroDaTela);
 verdade('com alvo de toque de gente', fita.alvoZap >= 44, String(fita.alvoZap));

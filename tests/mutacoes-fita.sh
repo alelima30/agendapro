@@ -110,8 +110,8 @@ troca agendar.html \
 
 echo "5. o CSS ignora a cor escolhida e usa a do botão"
 troca estilo.css \
-  "  background:var(--fita-cor, var(--acao)); color:var(--acao-txt);" \
-  "  background:var(--acao); color:var(--acao-txt);" \
+  "  background:var(--fita-cor, var(--acao)); color:var(--fita-txt, var(--acao-txt));" \
+  "  background:var(--acao); color:var(--fita-txt, var(--acao-txt));" \
   && rodar "cor escolhida que não chega no pixel"
 
 echo "6. o brilho parado vira opacidade zero (animação continua rodando)"

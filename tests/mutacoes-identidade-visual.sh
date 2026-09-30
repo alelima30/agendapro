@@ -85,10 +85,8 @@ troca app.html \
 # embaixo é o que distingue a tela de Aparência das outras nove.
 echo "4. salvar a aparência sobrescreve o cfg inteiro"
 troca app.html \
-  "sl.cfg = Object.assign({}, sl.cfg, {
-    cor: aparencia.cor," \
-  "sl.cfg = Object.assign({}, {
-    cor: aparencia.cor," \
+  "  sl.cfg = Object.assign({}, sl.cfg, cfgDaAparencia());" \
+  "  sl.cfg = Object.assign({}, cfgDaAparencia());" \
   && rodar "aparência apagando o cfg das outras telas"
 
 echo "5. as cores escolhidas entram ANTES do cálculo"

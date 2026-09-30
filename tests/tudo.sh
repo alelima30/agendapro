@@ -210,6 +210,8 @@ rodar "aparência em seções"   node "$AQUI/aparencia-secoes.test.mjs"
 rodar "prévia com produtos"   node "$AQUI/previa-produtos.test.mjs"
 rodar "modelos prontos"       node "$AQUI/modelos.test.mjs"
 rodar "cor de cada frase"     node "$AQUI/frases.test.mjs"
+rodar "aparência na mão de quem chega" node "$AQUI/aparencia-uso.test.mjs"
+rodar "logo do WhatsApp no pedido" node "$AQUI/pedido-zap.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

@@ -3638,13 +3638,16 @@ function desenharCarrinhoFita(){
     <button class="cf-resumo" onclick="irPara('loja')">
       <span class="cf-saco"><span data-ico="carrinho"></span>
         <span class="cf-n">${n}</span></span>
+      <!-- O TOTAL NA LINHA DE CIMA, SOZINHO. "2 produtos · R$ 120,00" numa
+           linha so' saia cortado embaixo do botao Enviar num celular de 375px
+           — e o que sumia era justamente o valor. -->
       <span class="cf-txt">
-        <b>${n === 1 ? '1 produto' : n + ' produtos'} · ${totalEscrito()}</b>
-        <span>Ver meu pedido</span>
+        <b>${totalEscrito()}</b>
+        <span>${n === 1 ? '1 produto' : n + ' produtos'} · Ver meu pedido</span>
       </span>
     </button>
-    <button class="cf-zap" onclick="enviarPedido()">
-      <span data-ico="whatsapp"></span> Enviar pedido</button>`;
+    <button class="cf-zap" onclick="enviarPedido()" aria-label="Enviar pedido no WhatsApp">
+      <span data-ico="whatsapp"></span><span class="cf-zap-txt">Enviar pedido</span></button>`;
   if(window.aplicarIcones) aplicarIcones(fita);
 }
 
@@ -5079,13 +5082,13 @@ function aplicarFita(s, c){
   if(t && t !== '5.2s') p('--fita-tempo', t); else fora('--fita-tempo');
 
   /* A cor da fita. Vazia = herda `--acao`, e é o caso de todo salão de hoje.
-     ⚠ A LETRA NÃO ACOMPANHA, e isso é uma limitação conhecida: `--acao-txt`
-     é calculada em cima da cor do BOTÃO. Cor de fita muito clara com letra
-     branca fica ilegível, então o painel só oferece o seletor junto de um
-     aviso de contraste — a mesma régua das outras cores soltas. */
+     A LETRA ACOMPANHA: `--fita-txt` é branca ou preta, a que se lê sobre a
+     cor escolhida (era a `--acao-txt`, calculada sobre a cor do BOTÃO — uma
+     fita clara com letra branca sumia). É ela também o fundo do botão
+     Enviar, que é o avesso da fita. */
   const cor = s.fitaCor || c.fitaCor;
-  if(cor && /^#[0-9a-fA-F]{6}$/.test(cor)) p('--fita-cor', cor);
-  else fora('--fita-cor');
+  if(cor && /^#[0-9a-fA-F]{6}$/.test(cor)){ p('--fita-cor', cor); p('--fita-txt', letraSobre(cor)); }
+  else { fora('--fita-cor'); fora('--fita-txt'); }
 
   const RAIO = { suave:'10px', redonda:'18px' };
   const r = RAIO[s.fitaBorda || c.fitaBorda || 'reta'];

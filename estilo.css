@@ -909,7 +909,7 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   display:flex; align-items:center; gap:7px;
   margin:14px -11px -11px; padding:8px 11px;
   --fone-fita-base:var(--fone-fita-cor, var(--fone-marca));
-  background:var(--fone-fita-base); color:var(--fone-marca-txt);
+  background:var(--fone-fita-base); color:var(--fone-fita-txt, var(--fone-marca-txt));
   font-size:11px;
 }
 .fone-fita[data-metal="suave"], .fone-fita[data-metal="media"],
@@ -946,10 +946,12 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 .fone-fita-txt b{ display:block; font-size:11px; white-space:nowrap }
 .fone-fita-txt span{ display:block; font-size:9.5px; opacity:.82 }
 .fone-fita-zap{
-  flex:none; padding:4px 8px; border-radius:7px;
-  background:var(--painel); color:var(--fone-fita-base);
+  flex:none; display:inline-flex; align-items:center; gap:3px; padding:4px 8px; border-radius:7px;
+  background:var(--fone-fita-txt, var(--fone-marca-txt)); color:var(--fone-fita-base);
   font-size:10px; font-weight:750;
 }
+/* O logo do WhatsApp ao lado do Enviar, como na página. */
+.fone-fita-zap [data-ico], .fone-fita-zap svg{ width:11px; height:11px; flex:none }
 @media (prefers-reduced-motion: reduce){
   .fone-fita.com-brilho::after{ animation:none; opacity:0 }
 }
@@ -1031,6 +1033,47 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   .ap-previa::-webkit-scrollbar{ width:0; height:0 }
 }
 .ap-controles{ min-width:0 }
+
+/* ── A BARRA DO PÉ DA TELA E A PRÉVIA NO CELULAR ──────────────────────────
+   A barra fica presa embaixo, no meio. No computador só aparece com mudança
+   sem salvar; no celular sempre, com o Ver prévia. Ela mora dentro da
+   sub-tela: fora da aba de Aparência, some junto. */
+.ap-barra{
+  position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:60;
+  display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:16px;
+  background:var(--painel); border:1px solid var(--borda);
+  box-shadow:0 12px 32px rgba(16,24,40,.18); max-width:calc(100vw - 24px);
+}
+.ap-barra:not(.suja) .ap-barra-suja{ display:none }
+.ap-barra-txt{ font-size:13px; font-weight:650; color:var(--txt2); white-space:nowrap }
+.ap-barra .btn{ white-space:nowrap }
+.ap-previa-topo{ display:none }
+@media (min-width:900px){
+  .ap-barra:not(.suja){ display:none }
+  .ap-ver-previa{ display:none }
+}
+@media (max-width:899px){
+  .ap-controles{ padding-bottom:70px }          /* a barra não cobre o fim */
+  .ap-barra-txt{ display:none }                 /* no celular, os botões dizem */
+  body.ap-previa-aberta{ overflow:hidden }
+  body.ap-previa-aberta .ap-previa{
+    position:fixed; inset:0; z-index:70; overflow-y:auto;
+    background:var(--bg); padding:0 16px 90px;
+  }
+  body.ap-previa-aberta .ap-previa-topo{
+    display:flex; align-items:center; justify-content:space-between;
+    position:sticky; top:0; z-index:2; padding:12px 0; background:var(--bg);
+  }
+  body.ap-previa-aberta .ap-barra{ z-index:80 }
+  body.ap-previa-aberta .ap-ver-previa{ display:none }
+}
+/* As cores de cada frase, recolhidas. */
+.ap-mais{ margin:14px 0 4px; border:1px solid var(--borda); border-radius:12px; padding:0 12px }
+.ap-mais > summary{
+  cursor:pointer; padding:12px 0; font-weight:650; font-size:14px; color:var(--txt);
+  list-style-position:inside;
+}
+.ap-mais[open] > summary{ border-bottom:1px solid var(--borda); margin-bottom:4px }
 
 /* O deslizante. Alvo de 40px para o dedo, e a trilha na cor do salão até o
    ponto escolhido — sem isso não dá para ver de relance onde está. */
@@ -1830,7 +1873,7 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
      inteira e fica com esta. A fita perde o metal e não perde mais nada — o
      contraste da letra continua calculado, e o botão continua legível.
      Mesma ordem do `.boas-cta`, e pelo mesmo motivo. */
-  background:var(--fita-cor, var(--acao)); color:var(--acao-txt);
+  background:var(--fita-cor, var(--acao)); color:var(--fita-txt, var(--acao-txt));
   border-radius:var(--fita-raio, 0) var(--fita-raio, 0) 0 0;
   box-shadow:0 -6px 18px -10px rgba(0,0,0,.35);
 }
@@ -1911,12 +1954,15 @@ body.sem-brilho .carrinho-fita::after{ animation:none; opacity:0 }
    botão ao lado (ver a media query lá embaixo), não o valor. */
 .cf-txt b{ display:block; font-size:14.5px; font-weight:700; white-space:nowrap }
 .cf-txt span{ display:block; font-size:12px; opacity:.82 }
-/* O botão do WhatsApp é claro sobre a fita colorida, e não colorido sobre
-   colorido: a ação de mandar precisa saltar da barra que a carrega. */
+/* O botão do WhatsApp é o AVESSO da fita: fundo na letra dela (branca ou
+   preta, a que se lê sobre a cor) e letra na cor dela. Era o `--painel` com
+   a cor do botão — no tema de letras claras o painel é escuro, e o "Enviar
+   pedido" roxo ficava sobre azul-marinho, sem se ler. O avesso se lê sempre,
+   porque a letra da fita já foi escolhida pelo contraste com ela. */
 .carrinho-fita .cf-zap{
   flex:0 0 auto; display:inline-flex; align-items:center; gap:7px;
   min-height:44px; padding:0 15px; border:0; border-radius:12px;
-  background:var(--painel); color:var(--acao);
+  background:var(--fita-txt, var(--acao-txt)); color:var(--fita-base, var(--acao));
   font-size:13.5px; font-weight:750; cursor:pointer;
 }
 .carrinho-fita .cf-zap .ic-svg{ width:18px; height:18px }
@@ -1936,7 +1982,11 @@ body.com-fita .conteudo{ padding-bottom:78px }
 @media (max-width:360px){
   /* Em tela estreita o rótulo sai e fica só o ícone: "Enviar pedido" ao lado
      de "3 produtos · R$ 135,00" empurrava o valor para fora da tela. */
-  .carrinho-fita .cf-zap span:not(.ic-svg){ display:none }
+  /* ⚠ O TEXTO TEM CLASSE PRÓPRIA. A regra era `span:not(.ic-svg)`, mas o
+     SVG mora DENTRO de um span (o do data-ico), e é o span que casava: em
+     tela de 360px, a mais comum dos Android, sumia o logo do WhatsApp e
+     ficava o texto — o contrário do que esta regra existe para fazer. */
+  .carrinho-fita .cf-zap .cf-zap-txt{ display:none }
   .carrinho-fita .cf-zap{ padding:0 13px }
 }
 
@@ -2259,7 +2309,9 @@ body.sem-brilho .marca-selo{ animation:none }
 .cor-hex:focus{ outline:2px solid var(--ac-600); outline-offset:1px }
 .cor-hex.torto{ border-color:var(--er-500, #DC2626); color:var(--er-500, #DC2626) }
 .cor-hex:disabled{ opacity:.5 }
-@media (max-width:420px){ .cor-hex{ width:78px; padding:0 7px } }
+/* No celular: 78px cortava o último caractere de 40 dos 42 campos ("#AA224"),
+   medido a 412px. Sem o espaçamento entre letras e com 84px, cabem os sete. */
+@media (max-width:420px){ .cor-hex{ width:84px; padding:0 6px; letter-spacing:0 } }
 
 /* ── A TELA DE APARÊNCIA EM SEÇÕES ────────────────────────────────────────
    Uma seção por tipo de configuração, cada uma com título, uma linha do que

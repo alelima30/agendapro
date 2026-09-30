@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.07ecbc';
+const VERSAO_APP = 'v9.1400fa';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7824,8 +7824,9 @@ function pintarSalao(){
     <div class="card">
       <h3 class="secao">Aparência do link do cliente</h3>
       <p class="secao-sub">A cara da página que a cliente abre. Mexa aqui e
-        veja na prévia ao lado — ela acompanha a rolagem, então dá para
-        comparar cada escolha sem perder o celular de vista.</p>
+        veja na prévia — ao lado, no computador; no celular, no botão
+        <b>Ver prévia</b>, embaixo. Tocar numa parte da prévia leva direto
+        à configuração dela. Nada vale até você <b>Salvar</b>.</p>
 
       <div class="ap-grade">
       <div class="ap-controles">
@@ -7868,7 +7869,7 @@ function pintarSalao(){
            padrao de quem nunca escolheu: a tela de hoje, sem nada novo
            ligado.
            (Sem crase: este HTML e' lido como template literal.) -->
-      <div class="rot" style="margin-bottom:8px">Modo de exibicao</div>
+      <div class="rot" style="margin-bottom:8px">Modo de exibição</div>
       <div class="regua" id="reguaModo" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaModo" style="margin-top:9px"></p>
 
@@ -7887,10 +7888,11 @@ function pintarSalao(){
            quiser depois sem sair de tema nenhum. Guardar qual tema foi usado
            criaria duas verdades sobre a mesma tela — a do tema e a das cores
            — e elas passariam a discordar no primeiro ajuste. -->
-      <div class="rot" style="margin:18px 0 8px">Temas prontos</div>
-      <p class="secao-sub" style="margin:-4px 0 9px">Um toque preenche as cores
-        abaixo. Depois e' so' mexer no que voce quiser — nada fica preso ao
-        tema.</p>
+      <div class="rot" style="margin:18px 0 8px">Só as cores prontas</div>
+      <p class="secao-sub" style="margin:-4px 0 9px">Um toque troca só as cores;
+        o resto fica como está. Para mudar tudo de uma vez, use os
+        <b>Modelos prontos</b>, lá em cima. Depois é só mexer no que você
+        quiser. <b>Limpar cores</b> volta todas ao automático.</p>
       <div class="fitas" id="temasProntos"></div>
 
       </section>
@@ -7968,10 +7970,17 @@ function pintarSalao(){
       <div id="coresTextos" class="cores-grupo"></div>
       <!-- Cada frase do topo, com a sua cor. Sem escolha, cada uma segue a
            cor de cima (Titulos, Texto principal...). -->
+      <!-- As cores de cada frase, recolhidas: sao dezenove linhas, e quem
+           chega pela primeira vez precisa ver as quatro de cima primeiro.
+           Abre sozinho quando o dono ja escolheu uma, e quando ele toca numa
+           frase da previa. -->
+      <details class="ap-mais" id="frasesDetalhe">
+      <summary>Mudar a cor de cada frase, uma por uma</summary>
+      <p class="secao-sub" style="margin:6px 0 8px">Sem escolha, cada frase segue
+        a cor de cima. Escolha uma cor e só aquela frase muda. Dica: toque na
+        frase, na prévia, para cair direto na cor dela. A letra do Agendar
+        horário e do Ver produtos fica em <b>Botões e atalhos</b>.</p>
       <div class="ap-sub">Cada frase do topo, com a sua cor</div>
-      <p class="secao-sub" style="margin:0 0 8px">Sem escolha, cada frase segue
-        a cor de cima. Escolha uma cor e só aquela frase muda. A letra do
-        Agendar horário e do Ver produtos fica em <b>Botões e atalhos</b>.</p>
       <div id="coresFrases" class="cores-grupo"></div>
       <div class="ap-sub">Slide e serviços</div>
       <div id="coresFrasesServicos" class="cores-grupo"></div>
@@ -7979,6 +7988,7 @@ function pintarSalao(){
       <div id="coresFrasesProdutos" class="cores-grupo"></div>
       <div class="ap-sub">Quem atende</div>
       <div id="coresFrasesEquipe" class="cores-grupo"></div>
+      </details>
       <p class="secao-sub" id="avisoLegibilidade" style="margin-top:9px"></p>
       <div class="rot" style="margin:18px 0 8px">Letra do nome</div>
       <div class="regua" id="reguaLetra" style="justify-content:flex-start"></div>
@@ -8277,9 +8287,24 @@ function pintarSalao(){
            o celular acompanha. Sem isso, mexer no último controle é mexer às
            cegas, porque a prévia já saiu da tela. -->
       <div class="ap-previa">
+        <div class="ap-previa-topo"><b>Prévia do seu link</b>
+          <button type="button" class="btn" onclick="fecharPreviaCelular()">Fechar</button></div>
         <div class="previa-fone" id="previaFone"></div>
       </div>
       </div><!-- /ap-grade -->
+
+      <!-- A BARRA DO PE DA TELA. O Salvar mora no fim de uma tela longa, e
+           no celular a previa fica la embaixo, depois de tudo: quem mexia numa
+           cor la em cima nao via o resultado e saia sem salvar. Esta barra
+           fica sempre a mao: no celular, abre a previa; com mudanca sem
+           salvar, diz isso e oferece Salvar e Desfazer.
+           (Sem crase: este HTML e lido como template literal.) -->
+      <div class="ap-barra" id="apBarra">
+        <button type="button" class="btn ap-ver-previa" onclick="abrirPreviaCelular()">👁 Ver prévia</button>
+        <span class="ap-barra-suja ap-barra-txt">Mudanças não salvas</span>
+        <button type="button" class="btn ap-barra-suja" onclick="desfazerAparencia()">Desfazer</button>
+        <button type="button" class="btn btn-p ap-barra-suja" onclick="salvarAparencia()">Salvar</button>
+      </div>
     </div><!-- /card -->
     </div><!-- /sub-tela aparencia -->
 
@@ -8905,9 +8930,9 @@ function lerAtalhos(cru){
   };
 }
 
-function lerAparencia(){
+function lerAparencia(cfg){
   const sl = acharSalao(salaoAtual) || {};
-  const c = sl.cfg || {};
+  const c = cfg || sl.cfg || {};
   return {
     cor:  c.cor || CORES[1][0],
     tema: c.tema === 'escuro' ? 'escuro' : 'claro',
@@ -9145,21 +9170,28 @@ function pintarAparencia(){
 
   /* ── O MODO, OS TEMAS, AS NOVE CORES E O FORMATO DO LOGO ───────────────
      Tudo desenhado a partir do `aparencia`, como o resto desta tela. */
+  /* ⚠ DOIS BOTÕES, E NÃO TRÊS. "Atual" e "Personalizado" desenhavam a MESMA
+     página — nenhuma regra, nem na página nem na prévia, olha o
+     personalizado, e as cores escolhidas valem nos dois. Quem chegava pela
+     primeira vez tocava em Personalizado, não via nada mudar e achava que a
+     tela estava quebrada; e "Atual" parecia "o que está agora". Quem já
+     gravou `personalizado` continua igual: aparece aceso o Simples. */
   const MODOS = [
-    ['atual', 'Atual',
-     'Exatamente a tela de hoje. É o que todo salão já tem, e continua sendo '
-     + 'o padrão de quem não escolher nada.'],
-    ['personalizado', 'Personalizado',
-     'Usa as cores e o fundo escolhidos aqui embaixo. A estrutura da página '
-     + 'não muda — só as cores.'],
+    ['atual', 'Simples',
+     'Logo e nome no topo, sem a capa grande. As cores, o fundo e as letras '
+     + 'que você escolher valem do mesmo jeito.'],
     ['premium', 'Premium',
      'Capa grande no topo com o logo sobreposto, e os cartões destacados '
      + 'sobre o fundo. Precisa de uma foto de capa para valer a pena.'],
   ];
+  const modoNaTela = aparencia.modo === 'premium' ? 'premium' : 'atual';
+  // Tocar no Simples já aceso não troca o personalizado gravado: seria uma
+  // "mudança não salva" que não muda nada na tela.
+  const valorDo = v => v === 'atual' && aparencia.modo === 'personalizado' ? 'personalizado' : v;
   document.getElementById('reguaModo').innerHTML = MODOS.map(([v, rot]) =>
-    `<button type="button" class="${aparencia.modo === v ? 'on' : ''}"
-             onclick="escolherAparencia('modo','${v}')">${rot}</button>`).join('');
-  const modoAchado = MODOS.find(m => m[0] === aparencia.modo);
+    `<button type="button" class="${modoNaTela === v ? 'on' : ''}"
+             onclick="escolherAparencia('modo','${valorDo(v)}')">${rot}</button>`).join('');
+  const modoAchado = MODOS.find(m => m[0] === modoNaTela);
   document.getElementById('explicaModo').textContent = modoAchado ? modoAchado[2] : '';
 
   /* A variável se chama `rotulo`, e não `nome`, de propósito: o varredor do
@@ -9176,7 +9208,7 @@ function pintarAparencia(){
          <span class="bolinha-tema" style="background:${cor}"></span>${rotulo}
        </button>`).join('')
     + `<button type="button" class="fita-param" onclick="limparCoresSoltas()">
-         Personalizado</button>`;
+         Limpar cores</button>`;
 
   /* ⚠ CADA LINHA MOSTRA SE A COR É HERDADA OU ESCOLHIDA, e não só a cor.
      Sem isso o dono não tem como saber se aquele tom veio dele ou do
@@ -9240,8 +9272,7 @@ function pintarAparencia(){
       : chave === 'letraProdutos' ? 'automático — a que o estilo do botão Ver produtos já dá'
       : chave === 'legenda' ? 'automático — branco, sobre a sombra da foto'
       : chave === 'verTodosProdutos' ? 'acompanha a cor dos produtos (ou o destaque, sem ela)'
-      : FRASE_HERDA_DE[chave] ? 'acompanha "' + CORES_SOLTAS.find(x => x[0] === FRASE_HERDA_DE[chave])[1]
-          + '" — toque no quadrado para dar uma cor só a esta frase'
+      : FRASE_HERDA_DE[chave] ? 'acompanha "' + CORES_SOLTAS.find(x => x[0] === FRASE_HERDA_DE[chave])[1] + '"'
       : doTema ? 'automático — toque no quadrado para escolher'
                : 'acompanha a cor da marca';
     el.querySelector('button').style.display = tem ? '' : 'none';
@@ -9461,6 +9492,11 @@ function pintarAparencia(){
   pintarPreviaFone();
   pintarModelos();
   ligarHex();
+  // Quem já deu cor a uma frase acha as frases abertas.
+  const det = document.getElementById('frasesDetalhe');
+  if(det && !det.open && Object.keys(aparencia.cores || {}).some(k =>
+    k in FRASE_HERDA_DE || k === 'legenda' || k === 'verTodosProdutos')) det.open = true;
+  pintarBarraAp();
 }
 
 /* Os cartões dos modelos: uma miniatura com o fundo, o cartão, a logo e o
@@ -9539,6 +9575,38 @@ function voltarDoModelo(){
   pintarAparencia();
 }
 
+/* ── A BARRA DO PÉ DA TELA ───────────────────────────────────────────────
+   "Mudanças não salvas" aparece quando o que IRIA para o banco (a mesma conta
+   do Salvar, cfgDaAparencia) é diferente do que está nele — as duas lidas
+   pelo mesmo lerAparencia(), para que número e texto, ou a ordem das cores,
+   não pareçam mudança. */
+const emOrdem = o => Array.isArray(o) ? o.map(emOrdem) : (o && typeof o === 'object')
+  ? Object.fromEntries(Object.keys(o).sort().map(k => [k, emOrdem(o[k])])) : o;
+function aparenciaMudou(){
+  const sl = acharSalao(salaoAtual);
+  if(!sl || !aparencia || aparenciaDoSalao !== salaoAtual) return false;
+  const iria = lerAparencia(Object.assign({}, sl.cfg, cfgDaAparencia()));
+  return JSON.stringify(emOrdem(iria)) !== JSON.stringify(emOrdem(lerAparencia()));
+}
+function pintarBarraAp(){
+  const barra = document.getElementById('apBarra');
+  if(barra) barra.classList.toggle('suja', aparenciaMudou());
+}
+function desfazerAparencia(){
+  if(!confirm('Desfazer tudo o que você mudou desde o último Salvar?')) return;
+  aparencia = lerAparencia();
+  modeloAntes = null; modeloAtual = null;
+  pintarAparencia();
+}
+/* No celular a prévia fica no fim da tela, depois de tudo. O botão a abre por
+   cima, inteira; tocar numa parte dela fecha e leva à configuração. */
+function abrirPreviaCelular(){
+  document.body.classList.add('ap-previa-aberta');
+  const pv = document.querySelector('.ap-previa');
+  if(pv) pv.scrollTop = 0;
+}
+function fecharPreviaCelular(){ document.body.classList.remove('ap-previa-aberta'); }
+
 /* O índice do topo da tela: leva à seção, sem esconder nenhuma. */
 function irParaSecaoAp(id){
   const el = document.getElementById(id);
@@ -9574,7 +9642,10 @@ function ligarHex(){
       hex.setAttribute('aria-label', 'Código HEX — ' + (cor.getAttribute('aria-label') || 'cor'));
       const linha = cor.closest('.cor-linha');
       const botao = linha && linha.querySelector(':scope > button');
+      // Sempre à direita da linha, antes do botão dela quando houver: nas
+      // linhas sem botão (o gradiente) ele ia para a esquerda, colado no quadrado.
       if(botao) linha.insertBefore(hex, botao);
+      else if(linha) linha.appendChild(hex);
       else cor.insertAdjacentElement('afterend', hex);
       hex.addEventListener('input', () => {
         const v = hexDoTexto(hex.value);
@@ -10497,11 +10568,11 @@ function pintarPreviaFone(){
             data-tempo="${aparencia.fitaTempo}"
             data-borda="${aparencia.fitaBorda}"
             ${aparencia.fitaCor
-              ? `style="--fone-fita-cor:${escapar(aparencia.fitaCor)}"` : ''}>
+              ? `style="--fone-fita-cor:${escapar(aparencia.fitaCor)};--fone-fita-txt:${letraSobre(aparencia.fitaCor)}"` : ''}>
          <span class="fone-fita-saco">2</span>
-         <span class="fone-fita-txt"><b>2 produtos · R$ 93,00</b>
-           <span>Ver meu pedido</span></span>
-         <span class="fone-fita-zap">Enviar</span>
+         <span class="fone-fita-txt"><b>R$ 93,00</b>
+           <span>2 produtos · Ver meu pedido</span></span>
+         <span class="fone-fita-zap"><span data-ico="whatsapp"></span>Enviar</span>
        </div>
      </div>
      <p class="secao-sub" style="text-align:center;margin-top:8px">
@@ -10566,10 +10637,13 @@ const CONFIG_DA_PREVIA = {
   fita:     ['#reguaFitaMetal', '#reguaFitaBorda', '#reguaFitaBrilho', '#reguaFitaTempo', '#fitaCor'],
 };
 function irParaConfig(chave){
+  fecharPreviaCelular();
   const alvos = [];
   for(const sel of CONFIG_DA_PREVIA[chave] || []){
     const el = document.querySelector('.ap-controles ' + sel);
     if(!el) continue;
+    const dobra = el.closest('details');
+    if(dobra) dobra.open = true;
     // O quadrado de cor acende a linha inteira; a régua, junto do nome dela.
     const bloco = el.closest('.cor-linha') || el;
     alvos.push(bloco);
@@ -10589,13 +10663,11 @@ function irParaConfig(chave){
   }
 }
 
-function salvarAparencia(){
-  // Salvar é aceitar: o que está na prévia passa a ser o de verdade.
-  modeloAntes = null; modeloAtual = null;
-  const sl = acharSalao(salaoAtual);
-  // Mesmo cuidado da janela da agenda: `cfg` guarda mais coisa com o tempo, e
-  // sobrescrever o objeto inteiro apagaria o que outra tela puser lá.
-  sl.cfg = Object.assign({}, sl.cfg, {
+/* O que a tela grava no cfg. Função à parte porque a barra do pé da tela
+   usa a mesma conta para saber se há mudança sem salvar: comparar o que
+   IRIA para o banco com o que está nele, e não a memória com o banco. */
+function cfgDaAparencia(){
+  return {
     cor: aparencia.cor,
     tema: aparencia.tema,
     precoNaCapa: aparencia.precoNaCapa,
@@ -10640,10 +10712,20 @@ function salvarAparencia(){
        vem, e nenhum salão precisa colar arquivo nenhum para isto valer. */
     fundoTipo: aparencia.fundoTipo === 'cor' ? 'solida' : aparencia.fundoTipo,
     gradiente: aparencia.gradiente,
-  });
+  };
+}
+
+function salvarAparencia(){
+  // Salvar é aceitar: o que está na prévia passa a ser o de verdade.
+  modeloAntes = null; modeloAtual = null;
+  const sl = acharSalao(salaoAtual);
+  // Mesmo cuidado da janela da agenda: `cfg` guarda mais coisa com o tempo, e
+  // sobrescrever o objeto inteiro apagaria o que outra tela puser lá.
+  sl.cfg = Object.assign({}, sl.cfg, cfgDaAparencia());
   salvar();
   // Sai o "Nada foi salvo ainda" dos modelos: agora foi.
   pintarModelos();
+  pintarBarraAp();
   const aviso = document.getElementById('salvouAparencia');
   if(aviso){
     aviso.textContent = 'Salvo';

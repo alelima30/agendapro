@@ -145,17 +145,24 @@ console.log('\nA aparência atravessa do painel até a página da cliente');
      que fazer no navegador de quem marca horário.
 
      Recortar a função pelo nome é o que faz esta verificação continuar
-     falando da aparência quando o arquivo cresce. */
+     falando da aparência quando o arquivo cresce.
+
+     E a função é a `cfgDaAparencia()`: o objeto que o Salvar grava saiu do
+     `salvarAparencia()` para ela, porque a barra de "mudanças não salvas"
+     faz a mesma conta. O Salvar precisa continuar usando-a — conferido aqui
+     também. */
+  dizer(/function salvarAparencia\(\)\{[\s\S]*?sl\.cfg = Object\.assign\(\{\}, sl\.cfg, cfgDaAparencia\(\)\);/.test(app),
+    'o salvarAparencia() grava o objeto da cfgDaAparencia()',
+    'o Salvar deixou de usar a cfgDaAparencia() — a barra e o banco podem discordar');
   const corpoAparencia = (app.match(
-    /function salvarAparencia\(\)\{([\s\S]*?)\n\}/) || [])[1] || '';
-  const grava = corpoAparencia.match(
-    /sl\.cfg = Object\.assign\(\{\}, sl\.cfg, \{([\s\S]*?)\}\);/);
+    /function cfgDaAparencia\(\)\{([\s\S]*?)\n\}/) || [])[1] || '';
+  const grava = corpoAparencia.match(/return \{([\s\S]*?)\n  \};/);
   const chaves = grava
     ? [...grava[1].matchAll(/^\s*([A-Za-z][A-Za-z0-9_]*)\s*:/gm)].map(m => m[1])
     : [];
   dizer(chaves.length > 0,
     'achei as chaves de aparência que o painel grava (' + chaves.length + ')',
-    'o salvarAparencia() mudou de forma — conserte esta busca, não apague a '
+    'a cfgDaAparencia() mudou de forma — conserte esta busca, não apague a '
     + 'verificação');
 
   /* 2) As chaves que a vitrine() devolve: o nome antes da vírgula, que é como

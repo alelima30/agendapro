@@ -136,10 +136,8 @@ troca app.html \
 echo "13. o HEX some"
 troca app.html \
   "  pintarModelos();
-  ligarHex();
-}" \
-  "  pintarModelos();
-}" \
+  ligarHex();" \
+  "  pintarModelos();" \
   && rodar "sem campo de código"
 
 echo "14. o HEX aceita qualquer coisa"
