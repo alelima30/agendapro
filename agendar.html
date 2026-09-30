@@ -644,25 +644,39 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
     </section>
 
     <!-- ══════ 7 · CONFIRMAR ══════ -->
+    <!-- O cabecalho diz o que mais importa (dia, hora e com quem), o cartao
+         traz o resto, e o bloco de status diz o que acontece depois de
+         confirmar: aguardando o salao, ou confirmado na hora — conforme o
+         dono escolheu em Meu salao. Todas as cores saem do tema (estilo.css,
+         .cf-*): nenhuma cor escrita aqui. -->
     <section class="passo" id="p-confirmar">
-      <h2>Confere pra mim?</h2>
-      <p class="sub">Depois de confirmar, você recebe o aviso no WhatsApp.</p>
-      <div class="resumo" id="resumoFinal"></div>
-      <div class="campo">
-        <label>Quer deixar algum recado? <span style="font-weight:400">(opcional)</span></label>
-        <input id="fRecado" placeholder="Ex.: tenho alergia a amônia">
+      <div class="cf-topo">
+        <h2>Confira seu agendamento</h2>
+        <div class="cf-quando" id="cfQuando"></div>
       </div>
+      <div class="cf-card" id="resumoFinal"></div>
+      <div id="cfStatus"></div>
+      <details class="cf-obs" id="cfObs">
+        <summary>
+          <span class="cf-ic" data-ico="info"></span>
+          <span class="cf-obs-txt"><b>Deseja adicionar alguma observação?</b>
+            <small>(opcional)</small></span>
+          <span class="cf-obs-seta" data-ico="baixo"></span>
+        </summary>
+        <textarea id="fRecado" rows="3" maxlength="300" aria-label="Observação para o salão"
+                  placeholder="Ex.: tenho alergia a amônia"></textarea>
+      </details>
       <div id="avisoConfirmar"></div>
     </section>
 
     <!-- ══════ 8 · PRONTO ══════ -->
     <section class="passo" id="p-pronto">
-      <div class="centro">
-        <div class="selo">${'' }<span data-ico="ok" data-ico-classe="ic-lg"></span></div>
-        <h2>Agendado!</h2>
+      <div class="cf-ok">
+        <div class="cf-ok-ic"><span data-ico="ok"></span></div>
+        <h2>Agendamento enviado!</h2>
         <p class="sub" id="prontoTexto">—</p>
       </div>
-      <div class="resumo" id="resumoPronto"></div>
+      <div class="cf-card cf-compacto" id="resumoPronto"></div>
       <div id="bolhaConfirmacao"></div>
       <!-- O convite para instalar entra AQUI, e não na capa. Na capa a pessoa
            ainda não sabe se vai usar; aqui ela acabou de marcar, sabe que
@@ -1943,9 +1957,12 @@ function desenhar(){
   if(tela === 'telefone')    { desenharTelefone();  bp.textContent='Enviar código'; trilhaAte(0); }
   if(tela === 'codigo')      { desenharCodigo();    bp.textContent='Confirmar código'; trilhaAte(0); }
   if(tela === 'nome')        { desenharNome();      bp.textContent='Continuar'; trilhaAte(0); }
-  if(tela === 'confirmar')   { desenharConfirmar(); bp.textContent='Confirmar agendamento'; trilhaAte(5); }
+  if(tela === 'confirmar')   { desenharConfirmar(); bp.textContent='Confirmar agendamento'; trilhaAte(5);
+                               bs.style.display='';
+                               bs.innerHTML = '<span data-ico="esquerda"></span>Alterar horário';
+                               if(window.aplicarIcones) aplicarIcones(bs); }
   if(tela === 'pronto')      { bp.textContent='Ver meus horários'; trilhaAte(0);
-                               bs.style.display=''; bs.textContent='Marcar outro'; }
+                               bs.style.display=''; bs.textContent='Voltar para a home'; }
   if(tela === 'meus')        { desenharMeus();      bp.textContent='Agendar novo horário'; trilhaAte(0); }
   /* ⚠ SEM O MÓDULO DE SERVIÇOS NÃO HÁ O QUE USAR, e o botão some.
 
@@ -3284,22 +3301,135 @@ function desenharNome(){
   setTimeout(() => document.getElementById('fNome').focus(), 120);
 }
 
-function desenharConfirmar(){
-  const p = escolha.profissionalId === '*'
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIRA SEU AGENDAMENTO, e o AGENDAMENTO ENVIADO
+
+   As duas telas leem a mesma escolha e desenham o mesmo resumo — a primeira
+   inteiro, a segunda compacto. Nada aqui decide cor: as classes .cf-* do
+   estilo.css pintam com as variáveis do tema (--acao, --ac-600, --ac-soft,
+   --painel, --txt…), e por isso a tela troca sozinha quando o dono troca o
+   tema, inclusive para o escuro.
+
+   ⚠ O STATUS SEGUE A ESCOLHA DO DONO. "Aguardando confirmação" é verdade só
+   para o salão que confirma depois (Meu salão → Quem confirma). Para o que
+   confirma sozinho, dizer isso seria mentir para a cliente — ali o status é
+   "confirmado na hora". É a mesma regra da tela de pronto, que já não
+   mostrava confirmação que ainda não existe.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const DIAS_COMPLETOS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
+                        'Quinta-feira', 'Sexta-feira', 'Sábado'];
+// "Quinta-feira, 01/10"
+function diaCompleto(dataIso){
+  const [a, m, d] = dataIso.split('-').map(Number);
+  return DIAS_COMPLETOS[new Date(a, m - 1, d).getDay()] + ', '
+    + String(d).padStart(2, '0') + '/' + String(m).padStart(2, '0');
+}
+function profDaEscolha(){
+  return escolha.profissionalId === '*'
     ? acharProf(donoDoHorario[escolha.inicio])
     : acharProf(escolha.profissionalId);
+}
 
-  document.getElementById('resumoFinal').innerHTML = `
-    <div class="l"><span>Salão</span><b>${escapar(salao.nome)}</b></div>
-    <div class="l"><span>Serviço</span><b>${escapar(nomesEscolhidos())}</b></div>
-    <div class="l"><span>Profissional</span><b>${escapar(p ? p.nome : '—')}</b></div>
-    <div class="l"><span>Quando</span><b>${dataLonga(escolha.data)}<br>
-      ${hm(escolha.inicio)} às ${hm(escolha.inicio + duracaoEscolhida())}</b></div>
-    <div class="l"><span>Duração</span><b>${duracaoEscolhida()} min</b></div>
-    <div class="l total"><span>Total</span><b>${
-      pacoteCobre(escolha.servicos, escolha.data)
-        ? 'R$ 0,00' : real(precoEscolhido())}</b></div>
-    ${avisoDoPacote()}`;
+function resumoDoAgendamento(p, compacto){
+  const inicio = escolha.inicio, dur = duracaoEscolhida();
+  const quando = diaCompleto(escolha.data);
+  const faixa = hm(inicio) + ' às ' + hm(inicio + dur);
+  const quemAtende = escapar(p ? p.nome : '—');
+  const outra = escapar(nomeDoAtendido() || 'a outra pessoa');
+  // Para quem, quando não é para ela: o salão e ela precisam ler o mesmo.
+  const para = escolha.para === 'ambos'
+      ? `Você às ${hm(inicio)} e ${outra} às ${hm(inicio + dur)}`
+    : escolha.para === 'filho' ? outra : '';
+  const logo = salao.logo
+    ? `<img src="${escapar(salao.logo)}" alt="">`
+    : escapar((salao.nome || '?').trim().charAt(0).toUpperCase());
+  const topo = `<div class="cf-salao">
+      <span class="cf-salao-logo">${logo}</span>
+      <span class="cf-salao-txt"><b>${escapar(salao.nome)}</b>
+        <small>${escapar(voc('casa'))}</small></span>
+    </div>`;
+
+  if(compacto){
+    const mini = (ico, txt) => `<div class="cf-mini"><span data-ico="${ico}"></span><span>${txt}</span></div>`;
+    return topo + `<div class="cf-lista">
+      ${mini('tesoura', escapar(nomesEscolhidos()))}
+      ${mini('usuario', quemAtende)}
+      ${para ? mini('equipe', 'Para ' + para) : ''}
+      ${mini('calendario', quando + ' · ' + faixa)}
+      ${mini('relogio', dur + ' min')}
+    </div>`;
+  }
+
+  const linha = (ico, rotulo, valor) => `<div class="cf-linha">
+      <span class="cf-ic" data-ico="${ico}"></span>
+      <span class="cf-txt"><small>${rotulo}</small><b>${valor}</b></span>
+    </div>`;
+  const total = pacoteCobre(escolha.servicos, escolha.data) ? 'R$ 0,00' : real(precoEscolhido());
+  return topo
+    + linha('tesoura', 'Serviço', escapar(nomesEscolhidos()))
+    + linha('usuario', 'Profissional', quemAtende)
+    + (para ? linha('equipe', 'Para quem', para) : '')
+    + linha('calendario', 'Quando', `${quando}<span class="cf-faixa">${faixa}</span>`)
+    + linha('relogio', 'Duração', dur + ' min')
+    + `<div class="cf-linha cf-total">
+        <span class="cf-ic cf-ic-cheio" aria-hidden="true">R$</span>
+        <span class="cf-txt"><small>Total</small><b>${total}</b></span>
+      </div>`
+    + avisoDoPacote();
+}
+
+function statusDoPedido(){
+  return salaoConfirmaSozinho
+    ? `<div class="cf-status cf-status-ok">
+        <span class="cf-ic" data-ico="ok"></span>
+        <div><b>Confirmado na hora</b>
+          <p>Assim que você tocar em Confirmar agendamento, o horário fica
+            marcado para você. Você recebe o aviso pelo WhatsApp.</p></div>
+      </div>`
+    : `<div class="cf-status">
+        <span class="cf-ic" data-ico="relogio"></span>
+        <div><b>Aguardando confirmação</b>
+          <p>Você receberá uma mensagem pelo WhatsApp assim que o salão
+            confirmar seu horário.</p>
+          <p>Enquanto isso, este horário fica reservado para você e não pode
+            ser agendado por outra pessoa.</p></div>
+      </div>`;
+}
+
+function desenharConfirmar(){
+  const p = profDaEscolha();
+  document.getElementById('cfQuando').innerHTML = `
+    <span class="cf-ic cf-ic-q" data-ico="calendario"></span>
+    <span class="cf-quando-txt"><b>${diaCompleto(escolha.data)} às ${hm(escolha.inicio)}</b>
+      <span>com ${escapar(p ? p.nome : '—')}</span></span>`;
+  document.getElementById('resumoFinal').innerHTML = resumoDoAgendamento(p, false);
+  document.getElementById('cfStatus').innerHTML = statusDoPedido();
+  if(window.aplicarIcones) aplicarIcones(document.getElementById('p-confirmar'));
+}
+
+/* A tela depois de confirmar, nos dois caminhos. Três coisas, na ordem: deu
+   certo; o resumo do que foi marcado; e o status — aguardando o salão, ou
+   confirmado. Sem bolha de WhatsApp desenhada: mostrar uma mensagem que a
+   tela não enviou seria simular um envio. */
+function desenharPronto(pendente, prof){
+  document.querySelector('#p-pronto h2').textContent =
+    pendente ? 'Agendamento enviado!' : 'Agendamento confirmado!';
+  document.getElementById('prontoTexto').textContent = pendente
+    ? 'Seu horário foi encaminhado para o salão.'
+    : 'Seu horário está marcado.';
+  document.getElementById('resumoPronto').innerHTML = resumoDoAgendamento(prof, true)
+    + `<div class="cf-chip-linha">${pendente
+        ? '<span class="cf-chip cf-chip-espera"><span data-ico="relogio"></span>Aguardando confirmação do salão</span>'
+        : '<span class="cf-chip cf-chip-ok"><span data-ico="ok"></span>Confirmado</span>'}</div>`;
+  document.getElementById('bolhaConfirmacao').innerHTML = pendente
+    ? `<p class="cf-nota">Você receberá uma mensagem pelo WhatsApp assim que o
+        salão confirmar. Até lá, o horário fica reservado para você e não pode
+        ser agendado por outra pessoa.</p>`
+    : '';
+  if(window.aplicarIcones) aplicarIcones(document.getElementById('p-pronto'));
+  historico = [];
+  irPara('pronto', true);
+  convidarAInstalar();
 }
 
 /* ⚠ O PREÇO CHEIO CALADO ERA O DEFEITO.
@@ -4319,10 +4449,15 @@ function abrirMeus(){
 let destinoAposCodigo = 'confirmar';
 
 function acaoSecundaria(){
+  // "Alterar horário": volta aos horários com tudo o mais escolhido. O
+  // resto do caminho (dados, confirmar) é o de sempre.
+  if(tela === 'confirmar') return irPara('quando');
+  /* "Voltar para a home": a capa, com a escolha zerada — era "Marcar outro",
+     que abria a lista de serviços; da capa o Agendar horário faz o mesmo. */
   if(tela === 'pronto'){
     escolha = {servicos:[], profissionalId:null, data:null, inicio:null, para: 'mim', filhoNome: '', quem: null, relacao: null, junto: false};
     historico = [];
-    irPara('servico', true);
+    irPara('capa', true);
   }
 }
 
@@ -4558,40 +4693,10 @@ function mostrarPronto(prof, unit, filho){
      confirmação aqui seria simular um envio que não aconteceu — e o projeto
      tem regra escrita sobre isso. */
   if(!salaoConfirmaSozinho){ return mostrarPedidoEnviado(prof, unit, filho); }
-
-  /* ⚠ O TÍTULO É REESCRITO AQUI, mesmo já estando certo no HTML.
-
-     A tela é a mesma nos dois caminhos, e a outra função troca o `<h2>` para
-     "Pedido enviado!". Sem esta linha, uma segunda marcação na mesma sessão —
-     depois de o salão ter mudado a configuração, ou marcando em outro salão —
-     mostraria o título do caminho anterior sobre o texto deste. */
-  document.querySelector('#p-pronto h2').textContent = 'Agendado!';
-  document.getElementById('prontoTexto').innerHTML =
-    `${dataLonga(escolha.data)} às <b>${hm(escolha.inicio)}</b>, com ${escapar(prof.nome)}.`
-    + (escolha.para === 'ambos'
-        ? `<br>Dois horários seguidos: você às ${hm(escolha.inicio)} e `
-          + `${escapar(filho || 'a outra pessoa')} às ${hm(escolha.inicio + unit)}.`
-        : escolha.para === 'filho' ? `<br>Atendimento de ${escapar(filho)}.` : '');
-  document.getElementById('resumoPronto').innerHTML =
-    document.getElementById('resumoFinal').innerHTML;
-
-  const h = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  document.getElementById('bolhaConfirmacao').innerHTML = `
-    <div class="simul">Neste ponto sai a confirmação no WhatsApp, e um lembrete
-      no dia anterior — é o que derruba a falta pela metade.</div>
-    <div class="zap">
-      <div class="de">${escapar(salao.nome)} · WhatsApp</div>
-      Oi ${escapar(sessao.nome.split(' ')[0])}! Seu horário está confirmado:<br><br>
-      <b style="font-size:15px;letter-spacing:0">${escapar(nomesEscolhidos())}</b><br>
-      ${dataLonga(escolha.data)} às ${hm(escolha.inicio)}<br>
-      com ${escapar(prof.nome)}<br><br>
-      ${Endereco.linha(salao.endereco)}
-      <div class="hr">${h} &#10003;&#10003;</div>
-    </div>`;
-
-  historico = [];
-  irPara('pronto', true);
-  convidarAInstalar();
+  // O título é reescrito a cada vez (desenharPronto): a tela é a mesma nos
+  // dois caminhos, e uma segunda marcação na mesma sessão não pode herdar o
+  // título da anterior.
+  desenharPronto(false, prof);
 }
 
 /* ── O PEDIDO QUE AINDA VAI SER RESPONDIDO ────────────────────────────────
@@ -4606,32 +4711,12 @@ function mostrarPronto(prof, unit, filho){
    como "talvez eu perca o horário", e a pessoa liga para garantir — que é
    exatamente o telefonema que a agenda online existe para não acontecer.
 
-   ⚠ E NADA DE BOLHA DE WHATSAPP AQUI. A bolha da outra tela mostra a
-   confirmação que o banco acabou de enfileirar; esta não tem o que mostrar,
-   porque a mensagem só nasce quando o dono confirmar. Desenhar uma seria
-   simular um envio que não houve. */
+   ⚠ E NADA DE BOLHA DE WHATSAPP. Aqui a mensagem só nasce quando o dono
+   confirmar, e desenhar uma seria simular um envio que não houve. (A tela de
+   quem confirma sozinho também deixou de desenhar a dela no redesenho: a
+   página não envia mensagem nenhuma, e quem manda é o banco.) */
 function mostrarPedidoEnviado(prof, unit, filho){
-  document.querySelector('#p-pronto h2').textContent = 'Pedido enviado!';
-  document.getElementById('prontoTexto').innerHTML =
-    `${dataLonga(escolha.data)} às <b>${hm(escolha.inicio)}</b>, com ${escapar(prof.nome)}.`
-    + (escolha.para === 'ambos'
-        ? `<br>Dois horários seguidos: você às ${hm(escolha.inicio)} e `
-          + `${escapar(filho || 'a outra pessoa')} às ${hm(escolha.inicio + unit)}.`
-        : escolha.para === 'filho' ? `<br>Atendimento de ${escapar(filho)}.` : '');
-  document.getElementById('resumoPronto').innerHTML =
-    document.getElementById('resumoFinal').innerHTML;
-
-  document.getElementById('bolhaConfirmacao').innerHTML = `
-    <div class="recado" style="margin-top:14px">
-      <b>Você receberá uma mensagem de confirmação.</b><br>
-      ${escapar(salao.nome)} ainda vai olhar este horário. Enquanto isso ele
-      fica <b>guardado para você</b> — ninguém mais consegue marcar nesse
-      horário.
-    </div>`;
-
-  historico = [];
-  irPara('pronto', true);
-  convidarAInstalar();
+  desenharPronto(true, prof);
 }
 
 /* ── Marcar de verdade ───────────────────────────────────────────────────

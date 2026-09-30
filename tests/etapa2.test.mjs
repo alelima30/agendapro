@@ -272,7 +272,7 @@ async function marcar(quem){
 const outra = await marcar('outra');
 igual('para outra pessoa: chega ao fim', outra.pronto.tela, 'pronto');
 igual('e o banco guarda "Ana (filha)"', outra.atendido, 'Ana (filha)');
-verdade('a tela final diz para quem é', /Atendimento de Ana \(filha\)/.test(outra.pronto.texto), outra.pronto.texto.slice(0, 200));
+verdade('a tela final diz para quem é', /Para Ana \(filha\)/.test(outra.pronto.texto), outra.pronto.texto.slice(0, 200));
 const mim = await marcar('mim');
 igual('para mim: chega ao fim, sem pedir nome de ninguém', [mim.pronto.tela, mim.pedeNome], ['pronto', false]);
 igual('e o banco não guarda outra pessoa', mim.atendido || null, null);

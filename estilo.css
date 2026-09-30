@@ -4370,3 +4370,114 @@ body[data-passo="loja"] #btPrincipal:disabled{
   color:var(--ac-600) !important;
   border:1px solid color-mix(in srgb, var(--acao) 32%, var(--painel)) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIRA SEU AGENDAMENTO e AGENDAMENTO ENVIADO (agendar.html → .cf-*)
+
+   ⚠ NENHUMA COR ESCRITA AQUI. Tudo sai das variáveis que a Aparência já
+   escreve na página: --acao/--acao-txt (o botão), --ac-600 (a cor da marca
+   puxada para ler bem sobre o papel), --ac-soft/--ac-line (os tons dela),
+   --painel, --bg, --txt, --txt2, --txt3, --borda — e, para status, --ok e
+   --alerta com os tons --su-soft e --wa-soft. Trocar o tema em Aparência
+   troca estas telas; o escuro reescreve as mesmas variáveis e vale aqui sem
+   uma linha a mais.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cf-topo h2{ font-size:clamp(24px, 6.4vw, 30px); line-height:1.15; letter-spacing:-.025em;
+  margin-bottom:12px; color:var(--txt) }
+.cf-quando{ display:flex; align-items:center; gap:13px; margin-bottom:18px }
+.cf-quando-txt b{ display:block; font-size:17.5px; font-weight:700; line-height:1.3; color:var(--txt) }
+.cf-quando-txt span{ display:block; font-size:15px; color:var(--txt2) }
+
+/* O ícone redondo das linhas: tom da marca atrás, traço na cor escrita dela. */
+.cf-ic{ flex:none; width:42px; height:42px; border-radius:50%; display:grid; place-items:center;
+  background:var(--ac-soft); color:var(--ac-600) }
+.cf-ic .ic-svg{ width:20px; height:20px }
+.cf-ic-q{ border-radius:12px; width:46px; height:46px }
+
+.cf-card{ background:var(--painel); border:1px solid var(--borda); border-radius:var(--r-lg);
+  box-shadow:var(--sombra-md); padding:4px 18px; margin-bottom:14px }
+.cf-salao{ display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid var(--borda) }
+.cf-salao-logo{ flex:none; width:58px; height:58px; border-radius:14px; overflow:hidden;
+  display:grid; place-items:center; background:var(--acao); color:var(--acao-txt);
+  font-size:22px; font-weight:700 }
+.cf-salao-logo img{ width:100%; height:100%; object-fit:cover; display:block }
+.cf-salao-txt b{ display:block; font-size:17px; font-weight:700; color:var(--txt); line-height:1.25 }
+.cf-salao-txt small{ font-size:13.5px; color:var(--txt2) }
+.cf-linha{ display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--borda) }
+.cf-linha:last-child{ border-bottom:0 }
+.cf-txt{ min-width:0 }
+.cf-txt small{ display:block; font-size:12.5px; color:var(--txt2); margin-bottom:1px }
+.cf-txt b{ display:block; font-size:15.5px; font-weight:650; color:var(--txt); overflow-wrap:anywhere }
+.cf-faixa{ display:block; font-weight:500; color:var(--txt2) }
+/* O total é o que mais pesa: o ícone cheio na cor do botão e o valor grande. */
+.cf-ic-cheio{ background:var(--acao); color:var(--acao-txt); font-size:13px; font-weight:800 }
+.cf-total .cf-txt b{ font-size:23px; font-weight:800; letter-spacing:-.01em; color:var(--ac-600) }
+.cf-card > .recado{ margin:0 0 14px }
+
+/* O status: informação, e não erro — o tom da marca, sem vermelho nem âmbar. */
+.cf-status{ display:flex; gap:14px; padding:16px; margin-bottom:14px; border-radius:var(--r-lg);
+  background:var(--ac-soft); border:1px solid var(--ac-line) }
+.cf-status .cf-ic{ background:var(--painel) }
+.cf-status b{ display:block; font-size:16px; font-weight:700; color:var(--ac-600) }
+.cf-status p{ margin-top:6px; font-size:14px; line-height:1.45; color:var(--txt2) }
+.cf-status-ok{ background:var(--su-soft); border-color:color-mix(in srgb, var(--ok) 30%, transparent) }
+.cf-status-ok .cf-ic, .cf-status-ok b{ color:var(--ok) }
+
+/* A observação: fechada, uma linha; aberta, o campo. */
+.cf-obs{ background:var(--painel); border:1px solid var(--borda); border-radius:var(--r-lg); margin-bottom:14px }
+.cf-obs summary{ list-style:none; display:flex; align-items:center; gap:13px; padding:12px 16px;
+  min-height:60px; cursor:pointer }
+.cf-obs summary::-webkit-details-marker{ display:none }
+.cf-obs-txt b{ display:block; font-size:14.5px; font-weight:560; color:var(--txt) }
+.cf-obs-txt small{ font-size:13px; color:var(--txt3) }
+.cf-obs-seta{ margin-left:auto; color:var(--txt3); transition:transform .2s ease }
+.cf-obs[open] .cf-obs-seta{ transform:rotate(180deg) }
+.cf-obs textarea{ display:block; width:calc(100% - 32px); margin:0 16px 16px; min-height:84px;
+  padding:11px 12px; border-radius:var(--r); border:1px solid var(--borda); resize:vertical;
+  background:var(--bg); color:var(--txt); font:inherit; font-size:15px }
+.cf-obs textarea:focus{ outline:2px solid var(--ac-line); border-color:var(--ac-600) }
+
+/* Os botões do pé na confirmação: o principal é o de sempre (cor do botão);
+   o "Alterar horário" é a mesma identidade com menos peso — papel, contorno
+   e letra na cor da marca. Lado a lado a partir de 440px; abaixo disso, o
+   principal em cima, largura inteira, que é onde o polegar está. */
+body[data-passo="confirmar"] #btSecundario{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  background:var(--painel); color:var(--ac-600); border:1.5px solid var(--ac-line); font-weight:700;
+}
+body[data-passo="confirmar"] #btSecundario .ic-svg{ width:18px; height:18px; color:inherit }
+@media (max-width:439px){
+  body[data-passo="confirmar"] .rodape-acao{ flex-direction:column-reverse }
+  body[data-passo="confirmar"] .rodape-acao > button{ flex:none; width:100% }
+}
+
+/* ── A tela de depois ─────────────────────────────────────────────────── */
+.cf-ok{ text-align:center; padding:6px 0 4px }
+.cf-ok-ic{ width:74px; height:74px; margin:6px auto 16px; border-radius:50%; display:grid; place-items:center;
+  background:var(--acao); color:var(--acao-txt); box-shadow:0 0 0 10px var(--ac-soft) }
+.cf-ok-ic .ic-svg{ width:36px; height:36px; stroke-width:2.4 }
+.cf-ok h2{ font-size:clamp(22px, 5.8vw, 26px); letter-spacing:-.02em; color:var(--txt) }
+.cf-ok .sub{ margin-bottom:18px }
+.cf-compacto .cf-lista{ padding:10px 0 4px }
+.cf-mini{ display:flex; align-items:center; gap:12px; padding:5px 0; font-size:14.5px; color:var(--txt) }
+.cf-mini [data-ico]{ flex:none; color:var(--ac-600); display:grid; place-items:center }
+.cf-mini .ic-svg{ width:17px; height:17px }
+.cf-chip-linha{ text-align:center; padding:8px 0 16px }
+.cf-chip{ display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:var(--r-pill, 999px);
+  font-size:13.5px; font-weight:650 }
+.cf-chip .ic-svg{ width:16px; height:16px }
+.cf-chip-espera{ background:var(--wa-soft); color:var(--alerta) }
+.cf-chip-ok{ background:var(--su-soft); color:var(--ok) }
+.cf-nota{ text-align:center; font-size:14px; line-height:1.45; color:var(--txt2); margin:2px 8px 16px }
+
+/* Os botões do pé no fim: "Ver meus horários" cheio, e "Voltar para a home"
+   embaixo, como um link na cor da marca — a saída que não compete com ele. */
+body[data-passo="pronto"] .rodape-acao{ flex-direction:column-reverse; gap:4px }
+body[data-passo="pronto"] .rodape-acao > button{ flex:none; width:100% }
+body[data-passo="pronto"] #btSecundario{
+  background:transparent; border:0; box-shadow:none; color:var(--ac-600);
+  font-weight:650; padding:10px; min-height:44px;
+}
+/* O "Adicionar" do convite para instalar, que mora nesta mesma tela: sem
+   espaço interno, o texto passava da borda do botão. */
+#convitePwa .btn-p{ padding:0 18px; min-height:44px }

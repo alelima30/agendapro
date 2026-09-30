@@ -217,6 +217,7 @@ rodar "etapa 2: para quem é" node "$AQUI/etapa2.test.mjs"
 rodar "com quem: uma pessoa só" node "$AQUI/um-profissional.test.mjs"
 rodar "abertura do link"   node "$AQUI/intro-link.test.mjs"
 rodar "loja na moldura curvada" node "$AQUI/loja-curvada.test.mjs"
+rodar "confirmação redesenhada" node "$AQUI/confirmacao-visual.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

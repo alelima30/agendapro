@@ -176,8 +176,10 @@ verdade('o resumo mostra o preço que o banco calculou', resumo.includes('90,00'
 
 await p.click('#btPrincipal'); await p.waitForTimeout(3500);
 igual('a marcação conclui', await tela(), 'pronto');
-verdade('e a tela final diz o dia, a hora e com quem',
-  /às 09:00, com Marta Prado/.test(await p.textContent('#prontoTexto')));
+// O resumo compacto da tela final (desde o redesenho da confirmação).
+verdade('e a tela final diz o dia, a hora e com quem', await p.evaluate(() => {
+  const t = document.getElementById('resumoPronto').innerText;
+  return /09:00 às/.test(t) && /Marta Prado/.test(t); }));
 igual('sem nenhum erro de JavaScript no caminho todo', erros.length, 0);
 igual('e sem nenhuma resposta de erro do servidor', ruins.join(' | '), '');
 
