@@ -117,6 +117,12 @@ troca app.html \
   "" \
   && rodar "prévia com letra errada"
 
+echo "12. a regra do cartão de confirmação volta a valer para a fita"
+troca estilo.css \
+  ".cf-linha .cf-txt b{ display:block;" \
+  ".cf-txt b{ display:block;" \
+  && rodar "o total da fita na letra escura do tema"
+
 echo ""
 echo "$morta mortas, $viva vivas"
 [ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"

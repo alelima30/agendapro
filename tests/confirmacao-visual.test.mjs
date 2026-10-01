@@ -91,7 +91,7 @@ const cor = hex => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 16
 
 /* Leva a página direto à confirmação com uma escolha montada — a tela só lê
    a escolha; o caminho clicado inteiro é medido no item 6. */
-async function naConfirmacao(largura = 390, pendente = true){
+async function naConfirmacao(largura = 390, pendente = true, servicos = null){
   const ctx = await nav.newContext({ viewport:{ width: largura, height:900 }, isMobile: largura < 700, hasTouch:true });
   const p = await ctx.newPage();
   p.on('pageerror', e => erros.push(e.message));
@@ -100,11 +100,11 @@ async function naConfirmacao(largura = 390, pendente = true){
   await p.waitForTimeout(600);
   await p.evaluate(([sid, pid, pend]) => {
     salaoConfirmaSozinho = !pend;
-    escolha = { servicos:[sid], profissionalId:pid, data:'2026-10-01', inicio:630,
+    escolha = { servicos: Array.isArray(sid) ? sid : [sid], profissionalId:pid, data:'2026-10-01', inicio:630,
                 para:'mim', filhoNome:'', quem:'mim', relacao:null, junto:false };
     historico = ['capa', 'servico', 'quem', 'prof', 'quando', 'dados'];
     irPara('confirmar', true);
-  }, [sv.id, prof.id, pendente]);
+  }, [servicos || sv.id, prof.id, pendente]);
   await p.waitForTimeout(300);
   return { p, fechar: () => ctx.close() };
 }
@@ -319,6 +319,40 @@ for(const [largura, nome, lado] of [[360, 'celular pequeno', false], [390, 'celu
   igual(`${nome}: os dois botões ${lado ? 'lado a lado' : 'um sobre o outro, o Confirmar em cima'}`,
     lado ? t.pe.lado : t.pe.primeiroEmCima, true);
   await fechar();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('9. Nome de serviço comprido');
+/* O defeito da foto do dono: "Esmaltação unha manicure + Manicure" passava da
+   borda do cartão. A página não rolava para o lado (o item 8 não via), porque
+   o texto vazava por cima, sem esticar nada. A medida aqui segue o TEXTO,
+   com um Range, e não a caixa onde ele deveria caber. */
+{
+  const longo1 = await dona.inserir('servicos', { salaoId: SALAO, nome:'Esmaltação unha manicure', duracaoMin:40,
+    intervaloMin:0, preco:35, ativo:true, aceitaOnline:true, categoria:'Unhas' });
+  const longo2 = await dona.inserir('servicos', { salaoId: SALAO, nome:'Manicure tradicional completa com cutilagem',
+    duracaoMin:40, intervaloMin:0, preco:40, ativo:true, aceitaOnline:true, categoria:'Unhas' });
+  for(const largura of [320, 360, 390]){
+    const { p, fechar } = await naConfirmacao(largura, true, [longo1.id, longo2.id]);
+    const r = await p.evaluate(() => {
+      const card = document.getElementById('resumoFinal').getBoundingClientRect();
+      const fora = [...document.querySelectorAll('#resumoFinal .cf-linha b')].map(b => {
+        const rg = document.createRange(); rg.selectNodeContents(b);
+        return Math.round(rg.getBoundingClientRect().right - card.right);
+      });
+      const nome = document.querySelector('#resumoFinal .cf-linha b');
+      const fx = getComputedStyle(document.querySelector('#resumoFinal .cf-faixa'));
+      return { fora, texto: nome.innerText.replace(/\s+/g, ' ').trim(),
+        linhas: Math.round(nome.getBoundingClientRect().height / parseFloat(getComputedStyle(nome).fontSize)),
+        faixa: [parseFloat(fx.fontSize), fx.opacity] };
+    });
+    verdade(`${largura}px: nenhum texto passa da borda do cartão`, r.fora.every(x => x <= 0), JSON.stringify(r.fora));
+    verdade(`${largura}px: o nome inteiro, descendo para a linha de baixo`,
+      r.texto === 'Esmaltação unha manicure + Manicure tradicional completa com cutilagem' && r.linhas >= 2, JSON.stringify(r));
+    verdade(`${largura}px: o horário ("10:30 às …") se lê — nem miúdo, nem apagado`,
+      r.faixa[0] >= 13 && r.faixa[1] === '1', JSON.stringify(r.faixa));
+    await fechar();
+  }
 }
 
 igual('\nnenhum erro de JavaScript', erros, []);

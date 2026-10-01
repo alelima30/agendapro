@@ -132,6 +132,18 @@ troca estilo.css \
   "" \
   && rodar "texto quebrando dentro do botão"
 
+echo "13. o nome do serviço numa linha só"
+troca estilo.css \
+  "white-space:normal; overflow-wrap:anywhere }" \
+  "white-space:nowrap; overflow-wrap:anywhere }" \
+  && rodar "nome comprido do serviço passa da borda do cartão"
+
+echo "14. o horário do cartão herda o miúdo da fita"
+troca estilo.css \
+  ".cf-faixa{ display:block; font-size:14px; font-weight:500; color:var(--txt2) }" \
+  ".cf-faixa{ display:block; font-size:12px; opacity:.82; font-weight:500; color:var(--txt2) }" \
+  && rodar "12:30 às 13:50 miúdo e apagado"
+
 echo ""
 echo "$morta mortas, $viva vivas"
 [ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"

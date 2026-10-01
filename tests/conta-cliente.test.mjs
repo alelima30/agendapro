@@ -152,6 +152,11 @@ const A = await aparelho();
   await p.click('#quemMim'); await p.waitForTimeout(500);
   if(await p.evaluate(() => tela === 'prof')) await p.click('#btPrincipal');
   await p.waitForTimeout(2500);
+  /* ⚠ AMANHÃ, e não o primeiro horário de hoje: perto da hora, o "Cancelar"
+     dá lugar a "fale com o salão" (regra das 2 horas), e o item 5 passava de
+     madrugada e falhava de manhã. */
+  await p.locator('#listaDias .dia:not(.sem)').nth(1).click();
+  await p.waitForFunction(() => document.querySelectorAll('#listaHoras .hora').length > 0, null, { timeout: 10000 });
   await p.click('#listaHoras .hora'); await p.waitForTimeout(300);
   await p.click('#btPrincipal'); await p.waitForTimeout(1200);
   const dados = await p.evaluate(() => ({ tela, conta: document.getElementById('dadosConta').innerText.trim(),

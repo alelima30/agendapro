@@ -87,6 +87,7 @@ async function fita(largura, quantos){
     return { logo: !!rs && rs.width >= 14 && rs.right <= innerWidth,
       texto: txt && getComputedStyle(txt).display !== 'none' ? txt.textContent.trim() : '',
       total: b.textContent.trim(), totalInteiro: b.scrollWidth <= b.clientWidth,
+      totalCor: hex(getComputedStyle(b).color),
       dentro: rz.left >= 0 && rz.right <= innerWidth, alvo: Math.round(rz.height),
       rotulo: z.getAttribute('aria-label'),
       fundoZap: hex(getComputedStyle(z).backgroundColor), letraZap: hex(getComputedStyle(z).color),
@@ -132,6 +133,10 @@ for(const [nome, cfg] of Object.entries(CASOS)){
   const fitaTxt = contraste(r.letraFita, cfg.fitaCor || (cfg.cores || {}).botao || cfg.cor);
   verdade(`${nome}: Enviar ${zap.toFixed(1)}:1, logo ${icone.toFixed(1)}:1, letra da fita ${fitaTxt.toFixed(1)}:1`,
     zap >= 4.5 && icone >= 4.5 && fitaTxt >= 4.5, JSON.stringify(r));
+  /* ⚠ O TOTAL É LETRA DA FITA, não do tema. O cartão de "Confira seu
+     agendamento" tem uma classe com o mesmo nome (.cf-txt) e chegou a pintar
+     este valor com a letra escura do tema — sobre a fita roxa. */
+  igual(`${nome}: o total tem a letra da fita`, r.totalCor, r.letraFita);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

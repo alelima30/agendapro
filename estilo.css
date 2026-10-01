@@ -1948,12 +1948,17 @@ body.sem-brilho .carrinho-fita::after{ animation:none; opacity:0 }
   background:var(--painel); color:var(--acao);
   font-size:11px; font-weight:800; line-height:17px; text-align:center;
 }
-.cf-txt{ min-width:0; display:block; line-height:1.25 }
+/* ⚠ SÓ DENTRO DA FITA. O cartão de "Confira seu agendamento" usa o mesmo
+   nome de classe (.cf-txt), e estas regras soltas valiam lá também: o
+   `nowrap` empurrava o nome comprido do serviço para fora do cartão, e o
+   horário saía em 12px meio apagado. No sentido contrário, a regra do
+   cartão pintava o total desta fita com a letra escura do tema. */
+.carrinho-fita .cf-txt{ min-width:0; display:block; line-height:1.25 }
 /* `nowrap`: "1 produto · R$ 45,00" quebrando em duas linhas empurra o "Ver
    meu pedido" para fora da fita. Se não couber, o que corta é o nome do
    botão ao lado (ver a media query lá embaixo), não o valor. */
-.cf-txt b{ display:block; font-size:14.5px; font-weight:700; white-space:nowrap }
-.cf-txt span{ display:block; font-size:12px; opacity:.82 }
+.carrinho-fita .cf-txt b{ display:block; font-size:14.5px; font-weight:700; white-space:nowrap }
+.carrinho-fita .cf-txt span{ display:block; font-size:12px; opacity:.82 }
 /* O botão do WhatsApp é o AVESSO da fita: fundo na letra dela (branca ou
    preta, a que se lê sobre a cor) e letra na cor dela. Era o `--painel` com
    a cor do botão — no tema de letras claras o painel é escuro, e o "Enviar
@@ -4408,10 +4413,13 @@ body[data-passo="loja"] #btPrincipal:disabled{
 .cf-salao-txt small{ font-size:13.5px; color:var(--txt2) }
 .cf-linha{ display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--borda) }
 .cf-linha:last-child{ border-bottom:0 }
-.cf-txt{ min-width:0 }
-.cf-txt small{ display:block; font-size:12.5px; color:var(--txt2); margin-bottom:1px }
-.cf-txt b{ display:block; font-size:15.5px; font-weight:650; color:var(--txt); overflow-wrap:anywhere }
-.cf-faixa{ display:block; font-weight:500; color:var(--txt2) }
+/* Presas ao cartão (.cf-linha): a fita do carrinho tem o mesmo .cf-txt. */
+.cf-linha .cf-txt{ flex:1; min-width:0 }
+.cf-linha .cf-txt small{ display:block; font-size:12.5px; color:var(--txt2); margin-bottom:1px }
+/* Nome comprido ("Esmaltação + Manicure + …") desce para a linha de baixo. */
+.cf-linha .cf-txt b{ display:block; font-size:15.5px; font-weight:650; color:var(--txt);
+                     white-space:normal; overflow-wrap:anywhere }
+.cf-faixa{ display:block; font-size:14px; font-weight:500; color:var(--txt2) }
 /* O total é o que mais pesa: o ícone cheio na cor do botão e o valor grande. */
 .cf-ic-cheio{ background:var(--acao); color:var(--acao-txt); font-size:13px; font-weight:800 }
 .cf-total .cf-txt b{ font-size:23px; font-weight:800; letter-spacing:-.01em; color:var(--ac-600) }
