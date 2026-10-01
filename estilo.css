@@ -2845,6 +2845,9 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
    dinheiro já pago. Iguais, os dois cartões viram um bloco só para o olho. */
 .atalho.a-agenda .atalho-ic{ background:var(--ico-destaque, var(--ac-marca, var(--ac-600))) }
 .atalho.a-pacote .atalho-ic{ background:var(--su-500) }
+/* "Entrar na minha conta": o tom da marca, com o traço nela — um convite,
+   mais leve que os dois de cima, que já são coisas dela. */
+.atalho.a-conta .atalho-ic{ background:var(--ac-soft); color:var(--ac-600) }
 
 /* ── Os pacotes dela ─────────────────────────────────────────────────────
    O número das sessões restantes é o que ela veio ver, então é a maior
@@ -4508,3 +4511,20 @@ body[data-passo="pronto"] #btSecundario{
 body.tem-cor-produtos .loja-cat.on{
   background:var(--prod-cor); color:var(--prod-txt); border-color:var(--prod-cor);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A CONTA DA CLIENTE NO LINK (agendar.html → #p-conta e a senha do cadastro)
+   Só variáveis do tema: a tela acompanha a Aparência como as outras.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.conta-abas{ display:flex; gap:6px; padding:4px; margin:4px 0 18px;
+  background:var(--painel2); border:1px solid var(--borda); border-radius:var(--r-pill, 999px) }
+.conta-abas button{ flex:1; min-height:42px; border:0; border-radius:var(--r-pill, 999px);
+  background:transparent; color:var(--txt2); font-weight:650; font-size:15px; cursor:pointer }
+.conta-abas button.on{ background:var(--painel); color:var(--ac-600); box-shadow:var(--sombra-xs) }
+.senha-caixa{ position:relative }
+.senha-caixa input{ width:100%; padding-right:52px }
+.senha-olho{ position:absolute; right:4px; top:50%; transform:translateY(-50%);
+  width:44px; height:44px; border:0; background:transparent; color:var(--txt3);
+  display:grid; place-items:center; cursor:pointer; border-radius:50% }
+.senha-olho.on{ color:var(--ac-600) }
+.senha-olho .ic-svg{ width:20px; height:20px }

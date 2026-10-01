@@ -230,8 +230,14 @@ async function salvar(){
   /* Trocada a senha, a pessoa JÁ ESTÁ logada — o token de recuperação virou
      sessão. Mandar de volta para a tela de entrar seria pedir que ela digite
      agora a senha que acabou de escolher. */
-  mostrar('ok', '<b>Senha trocada.</b>Abrindo o painel…');
-  setTimeout(() => { location.href = 'app.html'; }, 900);
+  /* A cliente que pediu pelo link do salão volta para o link do salão.
+     ⚠ SÓ A PÁGINA DA CLIENTE, e do próprio site: aceitar qualquer `volta`
+     faria desta tela um redirecionador para fora, com a pessoa já logada. */
+  const volta = new URLSearchParams(location.search).get('volta') || '';
+  const daCliente = /^agendar\.html\?salao=[a-z0-9-]{1,60}$/.test(volta);
+  mostrar('ok', daCliente ? '<b>Senha trocada.</b>Voltando para o salão…'
+                          : '<b>Senha trocada.</b>Abrindo o painel…');
+  setTimeout(() => { location.href = daCliente ? volta : 'app.html'; }, 900);
 }
 </script>
 <p class="rodape-legal">AgendaPro · Todos os direitos reservados. Software protegido por direitos autorais (Lei 9.610/98 e Lei 9.609/98). Reprodução, distribuição ou uso não autorizado são proibidos.</p>

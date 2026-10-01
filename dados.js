@@ -601,9 +601,12 @@ const Nuvem = {
   modo: 'nuvem',
 
   // ── Autenticação ──
-  async criarConta({ email, senha, nome, telefone }){
-    const r = await auth('signup', { email, password: senha,
-      data: { nome, telefone } });
+  /* `volta`: para onde o link de confirmação do e-mail devolve a pessoa.
+     Sem ele, vale o "Site URL" do projeto — que é o painel. A cliente que
+     cria conta no link do salão tem que voltar para o link do salão. */
+  async criarConta({ email, senha, nome, telefone, volta }){
+    const r = await auth('signup' + (volta ? '?redirect_to=' + encodeURIComponent(volta) : ''),
+      { email, password: senha, data: { nome, telefone } });
     if(r.access_token){
       guardarSessao({ token: r.access_token, refresh: r.refresh_token,
                       usuarioId: r.user && r.user.id, expiraEm: quandoVence(r) });
@@ -626,8 +629,8 @@ const Nuvem = {
 
      `redirect_to` precisa estar nas Redirect URLs do projeto, igual ao de
      recuperar senha. E aqui também não dizemos se o e-mail existe. */
-  async reenviarConfirmacao(email){
-    const volta = new URL('entrar.html', location.href).href;
+  async reenviarConfirmacao(email, destino){
+    const volta = destino || new URL('entrar.html', location.href).href;
     await auth('resend?redirect_to=' + encodeURIComponent(volta),
                { type: 'signup', email, gotrue_meta_security: {} });
     return { redirect: volta };
@@ -661,8 +664,13 @@ const Nuvem = {
      projeto recém-criado. Ou seja, a pessoa clica no link, chega numa
      página que não tem nada a ver, e "esqueci minha senha" simplesmente não
      funciona — sem erro nenhum, que é o pior jeito de não funcionar. */
-  async pedirNovaSenha(email){
-    const volta = new URL('nova-senha.html', location.href).href;
+  /* `depois`: para onde a tela de senha nova manda a pessoa depois de
+     trocar. Sem ele, o painel; a cliente do link volta para o link (a
+     nova-senha.html só aceita um endereço do próprio site — ver lá). */
+  async pedirNovaSenha(email, depois){
+    const pagina = new URL('nova-senha.html', location.href);
+    if(depois) pagina.searchParams.set('volta', depois);
+    const volta = pagina.href;
     await auth('recover?redirect_to=' + encodeURIComponent(volta),
                { email, gotrue_meta_security: {} });
     return { redirect: volta };

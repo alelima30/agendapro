@@ -185,16 +185,18 @@ troca agendar.html \
 
 echo "13. o atalho Meus horários volta sem agendamento"
 troca agendar.html \
-  "  if(sessao && casaFazServicos()){
+  "  if((sessao || logada()) && casaFazServicos()){
     atalhos.push([ 'meus', 'calendario', 'Meus horários'," \
-  "  if(sessao){
+  "  if((sessao || logada())){
     atalhos.push([ 'meus', 'calendario', 'Meus horários'," \
   && rodar "atalho para a agenda desligada"
 
 echo "14. o botão com o nome volta sem agendamento"
 troca agendar.html \
-  "  if(sessao && tela !== 'meus' && casaFazServicos()){" \
-  "  if(sessao && tela !== 'meus'){" \
+  "  if(casaFazServicos() && tela !== 'meus' && tela !== 'conta'
+     && (sessao || logada())){" \
+  "  if(tela !== 'meus' && tela !== 'conta'
+     && (sessao || logada())){" \
   && rodar "o nome dela levando à agenda desligada"
 
 echo "15. a prévia ignora o módulo de serviços"

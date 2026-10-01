@@ -327,7 +327,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
         <h1 id="tituloSalao">AgendaPro</h1>
         <p id="subSalao">Escolha o salão</p>
       </div>
-      <button class="eu" id="btEu" onclick="irPara('meus')" style="display:none"></button>
+      <button class="eu" id="btEu" onclick="tocarEu()" style="display:none"></button>
     </div>
   </header>
 
@@ -534,6 +534,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
       <h2>Seu cadastro</h2>
       <p class="sub">Só na primeira vez. Depois este aparelho lembra de você.</p>
       <div id="reconhecido"></div>
+      <div id="dadosConta"></div>
       <div class="campo">
         <label>Nome completo</label>
         <input id="dNome" placeholder="Nome e sobrenome" autocomplete="name">
@@ -576,7 +577,58 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
                placeholder="voce@exemplo.com" autocomplete="email">
         <p class="pista">Para o recibo e os avisos do salão.</p>
       </div>
+      <!-- A SENHA E' OPCIONAL: marcar continua sem conta, como sempre foi.
+           Com senha, nasce a conta junto — e com ela os horarios em qualquer
+           celular e os pacotes. Some para quem ja' esta' na conta.
+           (Sem crase: HTML lido como template literal noutros pontos.) -->
+      <div class="campo" id="campoSenhaCadastro" style="display:none">
+        <label for="dSenha">Crie uma senha <span style="font-weight:400">(opcional)</span></label>
+        <div class="senha-caixa">
+          <input id="dSenha" type="password" autocomplete="new-password"
+                 placeholder="Pelo menos 8 caracteres">
+          <button type="button" class="senha-olho" data-ico="olho"
+                  aria-label="Mostrar a senha" onclick="olhoSenha('dSenha', this)"></button>
+        </div>
+        <p class="pista">Com senha, você vê seus horários em qualquer celular e
+          usa os pacotes do salão.</p>
+      </div>
       <div id="avisoDados"></div>
+    </section>
+
+    <!-- ══════ A CONTA DA CLIENTE: ENTRAR OU CRIAR ══════
+         E-mail e senha, pelo Supabase Auth. Abre pelo "Entrar" do topo e da
+         capa, pelo "Ja' tem conta?" do cadastro e por Meus horarios.
+         (Sem crase: HTML lido como template literal noutros pontos.) -->
+    <section class="passo" id="p-conta">
+      <h2 id="contaTitulo">Entrar</h2>
+      <p class="sub">Com a sua conta, você vê seus horários em qualquer celular
+        e usa os pacotes do salão.</p>
+      <div class="conta-abas" role="tablist" aria-label="Entrar ou criar conta">
+        <button type="button" role="tab" id="abaEntrar" onclick="modoConta('entrar')">Entrar</button>
+        <button type="button" role="tab" id="abaCriar" onclick="modoConta('criar')">Criar conta</button>
+      </div>
+      <div id="contaCriarCampos">
+        <div class="campo"><label for="cNome">Nome completo</label>
+          <input id="cNome" placeholder="Nome e sobrenome" autocomplete="name"></div>
+        <div class="campo"><label for="cTel">WhatsApp</label>
+          <input id="cTel" type="tel" inputmode="numeric" placeholder="(11) 99999-9999"
+                 autocomplete="tel" oninput="mascaraTelefone(this)">
+          <p class="pista">O mesmo número que o salão tem de você: é por ele
+            que achamos o seu cadastro e os seus pacotes.</p></div>
+      </div>
+      <div class="campo"><label for="cEmail">E-mail</label>
+        <input id="cEmail" type="email" inputmode="email" autocomplete="email"
+               placeholder="voce@exemplo.com"></div>
+      <div class="campo"><label for="cSenha">Senha</label>
+        <div class="senha-caixa">
+          <input id="cSenha" type="password" autocomplete="current-password" placeholder="Sua senha">
+          <button type="button" class="senha-olho" data-ico="olho"
+                  aria-label="Mostrar a senha" onclick="olhoSenha('cSenha', this)"></button>
+        </div>
+        <p class="pista" id="cSenhaPista"></p></div>
+      <p class="centro" id="linhaEsqueci">
+        <button class="link" onclick="esqueciSenhaCliente()">Esqueci minha senha</button></p>
+      <div id="avisoConta"></div>
     </section>
 
     <!-- ══════ LISTA DE ESPERA ══════ -->
@@ -1306,7 +1358,11 @@ async function abrirSalaoDaNuvem(slug){
 
      A condição agora é ter o que mostrar. Com zero pacotes nada mudou na
      tela, e redesenhar seria trabalho à toa. */
-  carregarMeusPacotes().then(() => { if(meusPacotes.length) desenhar(); });
+  /* Logada (ou chegando agora pelo link do e-mail): a ficha é ligada antes
+     de buscar os pacotes — sem isso, quem acabou de criar a conta não veria
+     o pacote que comprou no balcão. */
+  (logada() ? aposEntrar() : carregarMeusPacotes())
+    .then(() => { if(meusPacotes.length || logada()) desenhar(); });
   /* Não bloqueia nada e não redesenha: só é lida lá na frente, quando ela
      termina de marcar. Pedir agora é ter a resposta na mão na hora certa. */
   carregarPoliticaDeConfirmacao();
@@ -1895,9 +1951,14 @@ function desenhar(){
   const eu = document.getElementById('btEu');
   /* O botão com o nome da cliente leva a "Meus horários". Sem agendamento na
      casa, ele levaria a uma lista que o salão desligou. */
-  if(sessao && tela !== 'meus' && casaFazServicos()){
+  if(casaFazServicos() && tela !== 'meus' && tela !== 'conta'
+     && (sessao || logada())){
     eu.style.display = '';
-    eu.textContent = (sessao.nome || '').split(' ')[0] + ' ';
+    eu.textContent = ((sessao && sessao.nome) || 'Minha conta').split(' ')[0] + ' ';
+  } else if(casaFazServicos() && NA_NUVEM && tela !== 'conta' && tela !== 'saloes'){
+    // Ninguém conhecido neste aparelho: a porta para a conta.
+    eu.style.display = '';
+    eu.textContent = 'Entrar';
   } else { eu.style.display = 'none'; }
 
   const rodape = document.getElementById('rodapeAcao');
@@ -1969,6 +2030,8 @@ function desenhar(){
   if(tela === 'pronto')      { bp.textContent='Ver meus horários'; trilhaAte(0);
                                bs.style.display=''; bs.textContent='Voltar para a home'; }
   if(tela === 'meus')        { desenharMeus();      bp.textContent='Agendar novo horário'; trilhaAte(0); }
+  if(tela === 'conta')       { desenharConta();     trilhaAte(0);
+                               bp.textContent = contaModo === 'criar' ? 'Criar conta' : 'Entrar'; }
   /* ⚠ SEM O MÓDULO DE SERVIÇOS NÃO HÁ O QUE USAR, e o botão some.
 
      O pacote é serviço pago adiantado. Com o módulo desligado, "Usar meu
@@ -2166,9 +2229,15 @@ function desenharCapa(){
      hora de confirmar e nada dizia quantas sessões sobravam. Quem pagou por
      cinco escovas não tinha onde conferir que ainda tem duas. */
   const atalhos = [];
-  if(sessao && casaFazServicos()){
+  if((sessao || logada()) && casaFazServicos()){
     atalhos.push([ 'meus', 'calendario', 'Meus horários',
                    'Consulte ou cancele o que já está marcado', 'a-agenda' ]);
+  }
+  /* A porta para a conta, para quem ainda não entrou. É ela que faz o pacote
+     comprado no balcão aparecer — e os horários em qualquer celular. */
+  if(NA_NUVEM && !logada() && casaFazServicos()){
+    atalhos.push([ 'conta', 'usuario', 'Entrar na minha conta',
+                   'Seus horários em qualquer celular e seus pacotes', 'a-conta' ]);
   }
   if(meusPacotes.length){
     const n = meusPacotes.reduce((s, p) => s + (Number(p.restantes) || 0), 0);
@@ -3161,9 +3230,22 @@ function desenharDados(){
   const nasc = document.getElementById('dNasc');
   if(nasc && !nasc.max) nasc.max = hoje();
 
-  document.getElementById('reconhecido').innerHTML = (sessao && sessao.nome)
+  document.getElementById('reconhecido').innerHTML = (sessao && sessao.nome && !logada())
     ? `<div class="recado">Este aparelho lembra de <b>${escapar(sessao.nome)}</b>.
         Se não for você, é só trocar os campos abaixo.</div>` : '';
+
+  /* A conta, no cadastro: quem já tem entra e volta com os dados prontos;
+     quem não tem pode criar ali mesmo, com uma senha opcional. Marcar sem
+     conta continua sendo o caminho de sempre. */
+  const dc = document.getElementById('dadosConta');
+  if(dc) dc.innerHTML = !NA_NUVEM ? '' : logada()
+    ? `<div class="recado ok">Você está na sua conta${sessao && sessao.email
+        ? ` (<b>${escapar(sessao.email)}</b>)` : ''}.</div>`
+    : `<div class="recado">Já tem conta? <button class="link"
+        onclick="abrirConta('entrar')">Entrar</button> — seus dados vêm preenchidos.</div>`;
+  const cs = document.getElementById('campoSenhaCadastro');
+  if(cs) cs.style.display = NA_NUVEM && !logada() ? '' : 'none';
+  if(window.aplicarIcones && cs) aplicarIcones(cs);
 
   const resumo = `${escapar(nomesEscolhidos())} · ${dataLonga(escolha.data)} às ${hm(escolha.inicio)}`;
   document.getElementById('avisoDados').innerHTML =
@@ -3246,9 +3328,51 @@ function salvarDados(){
     return;
   }
 
+  /* Com senha, a conta nasce junto — e a marcação já sai como ela: o banco
+     liga a ficha e o pacote vale nesta mesma vez. Sem senha, nada muda. */
+  const senha = valorDe('dSenha');
+  if(senha && NA_NUVEM && !logada()){
+    if(senha.length < 8){
+      dizer('A senha precisa de pelo menos 8 caracteres — ou deixe em branco '
+          + 'para marcar sem conta.');
+      return;
+    }
+    return criarContaNoCadastro(nome, tel, nasc, email, cpf, senha);
+  }
+
   garantirFicha(nome, tel, nasc, email, Documento.soDigitos(cpf));
   salvar();
   irPara('confirmar');
+}
+
+async function criarContaNoCadastro(nome, tel, nasc, email, cpf, senha){
+  const bp = document.getElementById('btPrincipal');
+  bp.disabled = true; bp.textContent = 'Criando sua conta…';
+  contaEmail = email;
+  let r;
+  try{
+    r = await Dados.criarConta({ email, senha, nome, telefone: paraE164(tel), volta: linkDoSalao() });
+  }catch(e){
+    console.info('[AgendaPro] criar conta no cadastro:', e.message);
+    bp.disabled = false; bp.textContent = 'Continuar';
+    document.getElementById('avisoDados').innerHTML =
+      '<div class="recado erro">' + frasesDaConta(e, 'criar') + '</div>';
+    return;
+  }
+  document.getElementById('dSenha').value = '';
+  garantirFicha(nome, tel, nasc, email, Documento.soDigitos(cpf));
+  salvar();
+  if(r && r.access_token) await aposEntrar();
+  bp.disabled = false;
+  irPara('confirmar');
+  /* Projeto que exige confirmar o e-mail: a conta nasceu, mas sem sessão. A
+     marcação vale do mesmo jeito — só não sai como ela desta vez. */
+  if(!r || !r.access_token){
+    document.getElementById('avisoConfirmar').innerHTML =
+      '<div class="recado ok">Sua conta foi criada. Falta confirmar o e-mail: '
+      + 'mandamos um link para <b>' + escapar(email) + '</b>. Pode marcar agora '
+      + 'mesmo — a marcação vale do mesmo jeito.</div>';
+  }
 }
 
 function desenharTelefone(){
@@ -3475,9 +3599,20 @@ let meusDaNuvem = null;
 
 async function desenharMeusDaNuvem(alvo){
   const guardados = lerTokens();
+  const naConta = logada();
+  /* No alto: na conta, de onde vêm os horários; fora dela, o convite — é a
+     conta que traz os horários marcados noutro celular. */
+  const topo = naConta
+    ? `<div class="recado ok">Na sua conta${sessao && sessao.email
+        ? `: <b>${escapar(sessao.email)}</b>` : ''}. Aqui aparecem os horários
+        marcados em qualquer celular.</div>`
+    : `<div class="recado">Entre na sua conta para ver também os horários
+        marcados noutro celular.<br><button class="link"
+        onclick="abrirConta('entrar')">Entrar</button> · <button class="link"
+        onclick="abrirConta('criar')">Criar conta</button></div>`;
 
-  if(!guardados.agendamentos.length && !guardados.fila.length){
-    alvo.innerHTML = '<div class="nada"><b>Nenhum horário neste aparelho</b>'
+  if(!naConta && !guardados.agendamentos.length && !guardados.fila.length){
+    alvo.innerHTML = topo + '<div class="nada"><b>Nenhum horário neste aparelho</b>'
       + 'Quando você marcar por aqui, aparece nesta tela. Marcações feitas '
       + 'noutro celular ou computador ficam lá — a confirmação no WhatsApp '
       + 'traz o link delas.</div>';
@@ -3487,11 +3622,18 @@ async function desenharMeusDaNuvem(alvo){
   if(meusDaNuvem === null){
     alvo.innerHTML = '<div class="nada"><b>Buscando seus horários…</b></div>';
     try{
-      const [ags, fila] = await Promise.all([
+      const [doAparelho, fila, daConta] = await Promise.all([
         Dados.meusAgendamentos(guardados.agendamentos),
         Dados.minhaFila(guardados.fila),
+        naConta ? Dados.chamar('meus_agendamentos_da_conta', {}) : [],
       ]);
-      meusDaNuvem = { ags: ags || [], fila: fila || [] };
+      /* Os dois caminhos acham a mesma marcação quando ela foi feita neste
+         aparelho e na conta: o segredo é o mesmo, e ela aparece uma vez. */
+      const porToken = new Map();
+      for(const a of [...(doAparelho || []), ...(Array.isArray(daConta) ? daConta : [])])
+        if(a && a.token && !porToken.has(a.token)) porToken.set(a.token, a);
+      const ags = [...porToken.values()].sort((x, y) => String(x.inicio).localeCompare(String(y.inicio)));
+      meusDaNuvem = { ags, fila: fila || [] };
     }catch(e){
       console.error('[AgendaPro] meus horários:', e);
       alvo.innerHTML = '<div class="nada"><b>Não consegui buscar agora.</b>'
@@ -3505,8 +3647,9 @@ async function desenharMeusDaNuvem(alvo){
 
   const { ags, fila } = meusDaNuvem;
   if(!ags.length && !fila.length){
-    alvo.innerHTML = '<div class="nada"><b>Nenhum horário por aqui</b>'
-      + 'Os horários deste aparelho já passaram ou foram cancelados.</div>';
+    alvo.innerHTML = topo + '<div class="nada"><b>Nenhum horário por aqui</b>'
+      + (naConta ? 'Quando você marcar, aparece nesta tela.'
+                 : 'Os horários deste aparelho já passaram ou foram cancelados.') + '</div>';
     return;
   }
 
@@ -3539,8 +3682,8 @@ async function desenharMeusDaNuvem(alvo){
   const futuros = ags.filter(a => a.podeMexer);
   const resto   = ags.filter(a => !a.podeMexer);
 
-  alvo.innerHTML =
-      (futuros.length ? '<div class="cat">Próximos</div>' + futuros.map(cartao).join('') : '')
+  alvo.innerHTML = topo
+    + (futuros.length ? '<div class="cat">Próximos</div>' + futuros.map(cartao).join('') : '')
     + (fila.length ? '<div class="cat">Na lista de espera</div>'
         + fila.map(e => `
           <div class="item">
@@ -4459,6 +4602,7 @@ function acaoPrincipal(){
   if(tela === 'prof')      return irPara('quando');
   if(tela === 'quando')    return irPara('dados');
   if(tela === 'dados')     return salvarDados();
+  if(tela === 'conta')     return contaModo === 'criar' ? criarContaCliente() : entrarCliente();
   if(tela === 'fila')      return confirmarFila();
   if(tela === 'telefone')  return enviarCodigo();
   if(tela === 'codigo')    return conferirCodigo();
@@ -5825,10 +5969,246 @@ function guardarSessao(){
   catch(e){ console.error('Não consegui guardar a sessão:', e); }
 }
 
-function sair(){
+/* ═══════════════════════════════════════════════════════════════════════════
+   A CONTA DA CLIENTE NO LINK — e-mail e senha
+
+   Marcar continua sem conta, como sempre foi. A conta é o que faz:
+     · o pacote comprado no balcão aparecer e dar o R$ 0,00 — o banco só dá
+       o desconto com `auth.uid()` ligado à ficha (27_pacotes.sql);
+     · "Meus horários" valer em qualquer celular, e não só no aparelho que
+       marcou (meus_agendamentos_da_conta, no 09_cliente.sql).
+
+   Três portas: o "Entrar" do topo e da capa, o "Já tem conta?" e a senha
+   opcional do cadastro, e o convite em Meus horários.
+
+   Depois de entrar, `ligar_minha_ficha()` liga a ficha que o salão já tinha
+   à conta — pelo telefone e pelo primeiro nome, o mesmo critério da
+   marcação. E-mail e senha provam o e-mail, não o telefone: o código por
+   WhatsApp é o que fecha essa porta, e está escrito no banco.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let contaModo = 'entrar';
+let contaEmail = '';
+
+// "Logada" é ter TOKEN — `sessao` é só a lembrança do aparelho.
+function logada(){
+  return !!(NA_NUVEM && window.Dados && Dados.sessaoAtual && Dados.sessaoAtual());
+}
+function linkDoSalao(){
+  return new URL('agendar.html?salao=' + encodeURIComponent(salao.slug), location.href).href;
+}
+// "+5511999998888" → "(11) 99999-8888", como a cliente digitou.
+function telefoneNaTela(e164){
+  const el = { value: String(e164 || '').replace(/^\+55/, '') };
+  mascaraTelefone(el);
+  return el.value;
+}
+function tocarEu(){
+  if(sessao || logada()) return irPara('meus');
+  abrirConta('entrar');
+}
+function abrirConta(modo){
+  contaModo = modo === 'criar' ? 'criar' : 'entrar';
+  const a = document.getElementById('avisoConta');
+  if(a) a.innerHTML = '';
+  irPara('conta');
+}
+function modoConta(m){ abrirConta(m); }
+function olhoSenha(id, bt){
+  const i = document.getElementById(id);
+  const ver = i.type === 'password';
+  i.type = ver ? 'text' : 'password';
+  bt.setAttribute('aria-label', ver ? 'Esconder a senha' : 'Mostrar a senha');
+  bt.classList.toggle('on', ver);
+}
+
+function desenharConta(){
+  const criar = contaModo === 'criar';
+  document.getElementById('contaTitulo').textContent = criar ? 'Criar conta' : 'Entrar';
+  for(const [id, on] of [['abaEntrar', !criar], ['abaCriar', criar]]){
+    const b = document.getElementById(id);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  }
+  document.getElementById('contaCriarCampos').style.display = criar ? '' : 'none';
+  document.getElementById('linhaEsqueci').style.display = criar ? 'none' : '';
+  const senha = document.getElementById('cSenha');
+  senha.autocomplete = criar ? 'new-password' : 'current-password';
+  senha.placeholder = criar ? 'Pelo menos 8 caracteres' : 'Sua senha';
+  document.getElementById('cSenhaPista').textContent = criar
+    ? 'Pelo menos 8 caracteres. É com ela e o e-mail que você entra.' : '';
+
+  /* O que o aparelho já sabe vem preenchido — inclusive o que ela acabou de
+     digitar no cadastro, quando veio de lá. Campo com texto não é tocado. */
+  const lembra = (id, v) => { const el = document.getElementById(id); if(el && !el.value && v) el.value = v; };
+  const dEmail = (document.getElementById('dEmail') || {}).value;
+  lembra('cEmail', dEmail || (sessao && sessao.email));
+  lembra('cNome', (document.getElementById('dNome') || {}).value || (sessao && sessao.nome));
+  lembra('cTel', (document.getElementById('dTel') || {}).value || (sessao && sessao.telefone));
+  if(window.aplicarIcones) aplicarIcones(document.getElementById('p-conta'));
+}
+
+/* O erro do Supabase vira frase — escolhida pelo CÓDIGO, que não muda de
+   versão; o texto em inglês fica de reserva. As mesmas escolhas do
+   entrar.html e do criar.html. */
+function frasesDaConta(e, modo){
+  const cod = String(e.codigo || ''), cru = String(e.message || '');
+  const eh = (c, re) => cod === c || (!cod && re.test(cru));
+  if(eh('invalid_credentials', /invalid login|invalid_grant|credentials/i))
+    return '<b>E-mail ou senha não conferem.</b> Confira e tente de novo, ou toque '
+      + 'em "Esqueci minha senha".';
+  if(eh('email_not_confirmed', /email not confirmed/i))
+    return '<b>Falta confirmar o e-mail.</b> Procure a mensagem que mandamos — às '
+      + 'vezes ela cai no lixo eletrônico.<br><button class="link" '
+      + 'onclick="reenviarConfirmacaoCliente()">Reenviar o e-mail</button>';
+  if(eh('user_already_exists', /already registered|already been registered|user_exists/i)
+     || eh('email_exists', /email.*exists/i))
+    return '<b>Este e-mail já tem conta.</b> <button class="link" '
+      + 'onclick="abrirConta(\'entrar\')">Entrar com ele</button>';
+  if(eh('weak_password', /password.*(short|weak|least)/i))
+    return '<b>A senha é curta demais.</b> Use pelo menos 8 caracteres.';
+  if(eh('email_address_invalid', /invalid.*email|email.*invalid/i))
+    return '<b>Esse e-mail não parece válido.</b> Confira se não faltou uma letra.';
+  if(eh('signup_disabled', /signups? (not allowed|disabled)/i))
+    return '<b>A criação de contas está fechada no momento.</b> Você pode marcar sem '
+      + 'conta, normalmente.';
+  if(cod.indexOf('rate_limit') >= 0 || e.status === 429)
+    return '<b>Muitas tentativas seguidas.</b> Espere um minuto e tente de novo.';
+  if(typeof navigator !== 'undefined' && navigator.onLine === false)
+    return '<b>Você está sem internet.</b> Reconecte e tente de novo.';
+  return '<b>Não consegui ' + (modo === 'criar' ? 'criar a conta' : 'entrar')
+    + ' agora.</b> Tente de novo em instantes.';
+}
+
+function avisarConta(html, tipo){
+  document.getElementById('avisoConta').innerHTML =
+    '<div class="recado ' + (tipo || 'erro') + '">' + html + '</div>';
+}
+const valorDe = id => ((document.getElementById(id) || {}).value || '');
+
+async function entrarCliente(){
+  const email = valorDe('cEmail').trim(), senha = valorDe('cSenha');
+  if(!EMAIL_PLAUSIVEL.test(email)) return avisarConta('Confira o e-mail — parece incompleto.');
+  if(!senha) return avisarConta('Falta a senha.');
+  const bp = document.getElementById('btPrincipal');
+  bp.disabled = true; bp.textContent = 'Entrando…';
+  contaEmail = email;
+  try{
+    await Dados.entrar({ email, senha });
+  }catch(e){
+    console.info('[AgendaPro] entrar:', e.message);
+    bp.disabled = false; bp.textContent = 'Entrar';
+    return avisarConta(frasesDaConta(e, 'entrar'));
+  }
+  document.getElementById('cSenha').value = '';
+  await aposEntrar();
+  bp.disabled = false;
+  voltarDaConta();
+}
+
+async function criarContaCliente(){
+  const nome = valorDe('cNome').trim(), tel = valorDe('cTel');
+  const email = valorDe('cEmail').trim(), senha = valorDe('cSenha');
+  if(nome.length < 2) return avisarConta('Escreva seu nome para o salão saber quem é.');
+  if(soDigitos(tel).length < 10) return avisarConta('Falta o WhatsApp com DDD.');
+  if(!EMAIL_PLAUSIVEL.test(email)) return avisarConta('Confira o e-mail — parece incompleto.');
+  if(senha.length < 8) return avisarConta('A senha precisa de pelo menos 8 caracteres.');
+  const bp = document.getElementById('btPrincipal');
+  bp.disabled = true; bp.textContent = 'Criando sua conta…';
+  contaEmail = email;
+  let r;
+  try{
+    r = await Dados.criarConta({ email, senha, nome, telefone: paraE164(tel), volta: linkDoSalao() });
+  }catch(e){
+    console.info('[AgendaPro] criar conta:', e.message);
+    bp.disabled = false; bp.textContent = 'Criar conta';
+    return avisarConta(frasesDaConta(e, 'criar'));
+  }
+  document.getElementById('cSenha').value = '';
+  // O aparelho passa a lembrar dela, com conta confirmada ou não.
+  sessao = Object.assign({}, sessao || {}, { nome, telefone: tel, email });
+  guardarSessao();
+  bp.disabled = false; bp.textContent = 'Criar conta';
+  /* ⚠ PROJETO QUE EXIGE CONFIRMAR O E-MAIL: a conta nasce sem sessão. O link
+     do e-mail traz de volta para ESTE salão (`volta`), já dentro da conta. */
+  if(!r || !r.access_token){
+    return avisarConta('<b>Falta só confirmar o e-mail.</b> Mandamos um link para <b>'
+      + escapar(email) + '</b>. Toque nele e você volta para cá já dentro da conta.'
+      + '<br><button class="link" onclick="reenviarConfirmacaoCliente()">Reenviar o e-mail</button>', 'ok');
+  }
+  const f = await aposEntrar();
+  /* ⚠ WHATSAPP QUE JÁ É DE OUTRA CONTA: o banco não deixa duas contas com o
+     mesmo número (08_conta.sql), e a conta nova nasce sem telefone — então
+     não liga ficha nenhuma, e o pacote não aparece. O caso comum é ela já ter
+     conta, criada no link de outro salão, e não lembrar. Calada, a tela
+     deixaria a cliente achando que o pacote sumiu. Entrar com a outra aqui
+     mesmo troca a sessão; não precisa sair antes. */
+  if(f && typeof f === 'object' && !f.telefone && !f.ficha){
+    contaModo = 'entrar';
+    desenhar();
+    // Depois de desenhar: ele completa o campo vazio com o e-mail desta conta.
+    document.getElementById('cEmail').value = '';
+    return avisarConta('<b>Sua conta foi criada</b>, mas este WhatsApp já está em '
+      + 'outra conta — talvez você já tenha entrado pelo link de outro salão. '
+      + 'Pacote e horários ficam naquela: entre abaixo com o e-mail dela. Se não '
+      + 'reconhece, avise o salão.<br><button class="link" '
+      + 'onclick="voltarDaConta()">Seguir com esta conta</button>');
+  }
+  voltarDaConta();
+}
+
+async function esqueciSenhaCliente(){
+  const email = valorDe('cEmail').trim();
+  if(!EMAIL_PLAUSIVEL.test(email))
+    return avisarConta('Escreva o seu e-mail no campo acima e toque de novo em '
+      + '"Esqueci minha senha".');
+  try{
+    await Dados.pedirNovaSenha(email, 'agendar.html?salao=' + salao.slug);
+  }catch(e){ return avisarConta(frasesDaConta(e, 'entrar')); }
+  // Nunca dizemos se o e-mail existe: a frase é a mesma para os dois casos.
+  avisarConta('Se houver conta com <b>' + escapar(email) + '</b>, mandamos um link '
+    + 'para criar uma senha nova. Ele traz você de volta para cá.', 'ok');
+}
+
+async function reenviarConfirmacaoCliente(){
+  const email = contaEmail || valorDe('cEmail').trim() || valorDe('dEmail').trim();
+  try{ await Dados.reenviarConfirmacao(email, linkDoSalao()); }catch(e){}
+  avisarConta('Pronto: mandamos de novo para <b>' + escapar(email) + '</b>. Pode '
+    + 'levar um minuto, e às vezes cai no lixo eletrônico.', 'ok');
+}
+
+/* Depois de entrar: liga a ficha do salão à conta, o aparelho passa a
+   lembrar dos dados da conta, e os pacotes e os horários são buscados de
+   novo — agora como ela. */
+async function aposEntrar(){
+  let f = null;
+  try{ f = await Dados.chamar('ligar_minha_ficha', { p_salao: salao.id }); }
+  catch(e){ console.info('[AgendaPro] ligar_minha_ficha:', e.message); }
+  if(f && typeof f === 'object' && !Array.isArray(f)){
+    const antes = sessao || {};
+    sessao = Object.assign({}, antes, {
+      nome: f.nome || antes.nome || '',
+      telefone: f.telefone ? telefoneNaTela(f.telefone) : (antes.telefone || ''),
+      email: f.email || antes.email || '',
+      nascimento: f.nascimento || antes.nascimento || '',
+    });
+    guardarSessao();
+  }
+  meusDaNuvem = null;
+  await carregarMeusPacotes();
+  return f;
+}
+
+function voltarDaConta(){
+  if(historico.length) voltar();
+  else irPara('capa', true);
+}
+
+async function sair(){
   if(!confirm('Sair desta conta neste aparelho?')) return;
+  if(logada()){ try{ await Dados.sair(); }catch(e){} }
   sessao = null;
   try{ localStorage.removeItem(CHAVE_SESSAO); }catch(e){}
+  meusPacotes = []; meusDaNuvem = null;
   historico = [];
   irPara('capa', true);
 }
@@ -5902,6 +6282,20 @@ function registrarServiceWorker(){
   try{
     const s = localStorage.getItem(CHAVE_SESSAO);
     if(s) sessao = JSON.parse(s);
+  }catch(e){}
+
+  /* ── A VOLTA DO E-MAIL DE CONFIRMAÇÃO ─────────────────────────────────
+     O link do e-mail traz a sessão no #fragmento (criarConta com `volta`).
+     Guardar é o que falta — quem criou o token foi o Supabase, ao validar o
+     link. Recuperação de senha NÃO é login: aquela vai para a nova-senha.
+     O fragmento sai da barra de endereço logo em seguida: token não fica
+     exposto para quem copiar o link. */
+  try{
+    const h = new URLSearchParams((location.hash || '').slice(1));
+    if(NA_NUVEM && h.get('access_token') && h.get('type') !== 'recovery')
+      Dados.entrarComToken({ token: h.get('access_token'), refresh: h.get('refresh_token') });
+    if(h.get('access_token') || h.get('error'))
+      history.replaceState(null, '', location.pathname + location.search);
   }catch(e){}
 
   // É aqui que o link vira salão.

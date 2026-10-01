@@ -1756,7 +1756,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.edc620';
+const VERSAO_APP = 'v9.52e41d';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2968,7 +2968,11 @@ function pintarPacotes(){
         ${vivas.length ? `<table class="tab" style="margin-top:7px"><tbody>${
           vivas.map(v => {
             const c = (bd.clientes || []).find(x => x.id === v.clienteId) || {};
-            return `<tr><td>${escapar(c.nome || '—')}</td>
+            /* Com conta ou não: sem conta no link, o pacote não dá o
+               desconto — e o dono precisa ver isso antes da cliente chegar. */
+            return `<tr><td>${escapar(c.nome || '—')} ${c.perfilId
+                ? '<span class="tag t-ok">com conta</span>'
+                : '<span class="tag t-pend" title="Peça para ela entrar no link do salão e criar a conta com este WhatsApp">sem conta ainda</span>'}</td>
               <td style="color:var(--txt2)">vence ${porExtenso(v.venceEm)}</td>
               <td style="text-align:right">${souGestor()
                 ? `<button class="btn btn-peq"
@@ -3126,13 +3130,16 @@ function abrirVenderPacote(pid){
       <select id="pkCliente">${livres
         .slice().sort((a,b) => (a.nome||'').localeCompare(b.nome||''))
         .map(c => `<option value="${c.id}">${escapar(c.nome)}${
-          c.telefone ? ' · ' + escapar(c.telefone) : ''}</option>`).join('')}
+          c.telefone ? ' · ' + escapar(c.telefone) : ''}${
+          c.perfilId ? ' · com conta' : ' · sem conta'}</option>`).join('')}
       </select></div>
     <div class="aviso" style="margin-top:12px">
       <b>Ela precisa ter conta no link para o pacote valer.</b><br>
       Sem conta, o sistema só reconhece a cliente pelo telefone — e telefone
-      qualquer um digita. Com conta e senha, é ela mesma. Se ela ainda não tem,
-      peça para criar no link do salão antes de usar o pacote.
+      qualquer um digita. Com conta e senha, é ela mesma. Se ela ainda não tem:
+      no link do salão, <b>Entrar → Criar conta</b>, com o <b>mesmo WhatsApp</b>
+      desta ficha e o mesmo primeiro nome. Ao entrar, a ficha se liga sozinha
+      e o pacote aparece para ela.
     </div>
     <p style="font-size:13px;color:var(--txt2);margin-top:10px">
       ${p.sessoes} sessão(ões), válidas por ${p.validadeDias} dias a partir de

@@ -667,3 +667,114 @@ grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, 
                                                 uuid, text, text) to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
                                          text, text, date, text) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7) A CONTA DA CLIENTE NO LINK
+--
+-- A cliente passa a poder criar conta (e-mail e senha) e entrar pelo próprio
+-- link. Duas coisas precisam do banco para isso valer:
+--
+--   · ligar a ficha que o salão já tinha à conta dela — sem isto o pacote
+--     vendido no balcão não aparece nem dá desconto, porque os dois exigem
+--     `clientes.perfil_id = auth.uid()`;
+--   · "Meus horários" em qualquer aparelho — hoje a lista sai dos segredos
+--     que ESTE aparelho guardou; com conta, sai das fichas dela.
+-- ---------------------------------------------------------------------------
+
+/* ── ligar_minha_ficha(): a ficha do balcão encontra a conta ──────────────
+   O MESMO critério do `ficha_do_cliente()` (05_agenda.sql), e de propósito:
+   se entrar ligasse por uma regra e marcar por outra, a cliente veria o
+   pacote num caminho e não no outro.
+
+     1. já existe ficha DESTE salão ligada à conta → é ela;
+     2. senão, a ficha com o telefone do perfil, ainda sem conta, e com o
+        mesmo primeiro nome (`mesmo_primeiro_nome`) → liga.
+
+   ⚠ NÃO CRIA FICHA. Entrar não é marcar: quem só entrou para olhar não vira
+   cliente do salão na lista do dono. A ficha nasce na primeira marcação,
+   como sempre.
+
+   ⚠ E O LIMITE CONTINUA ESCRITO, porque continua valendo: e-mail e senha
+   provam o e-mail, não o telefone. Sem código por WhatsApp/SMS, quem souber
+   o telefone e o primeiro nome de uma cliente que ainda não tem conta pode
+   ligar a ficha dela à própria conta. É o mesmo risco que o `agendar()` já
+   aceita ao marcar, e o código por telefone é o que fecha os dois.
+
+   ⚠ O TELEFONE É COMPARADO SEM O 55. A ficha guarda o que se digita no
+   Brasil — DDD e número, "51987650001" (`so_digitos` no agendar() e no
+   painel) — e o perfil guarda E.164, "+5551987650001" (08_conta.sql).
+   Comparados como vieram, nunca batem: a ligação não aconteceria para
+   ninguém, e o pacote continuaria invisível sem erro nenhum.
+
+   Devolve o que a tela precisa para preencher o cadastro: os dados do
+   perfil, e se a ficha foi achada. */
+create or replace function public.telefone_nacional(p_tel text)
+returns text language sql immutable set search_path = public as $$
+  select case when length(d) >= 12 and left(d, 2) = '55' then substr(d, 3) else d end
+    from (select public.so_digitos(p_tel) as d) t
+$$;
+
+create or replace function public.ligar_minha_ficha(p_salao uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_perfil  uuid := auth.uid();
+  v_nome    text;
+  v_tel     text;
+  v_email   text;
+  v_nasc    date;
+  v_cliente uuid;
+begin
+  if v_perfil is null or p_salao is null then return null; end if;
+
+  select p.nome, p.telefone, p.email, p.nascimento
+    into v_nome, v_tel, v_email, v_nasc
+    from public.perfis p where p.id = v_perfil;
+
+  select c.id into v_cliente from public.clientes c
+   where c.salao_id = p_salao and c.perfil_id = v_perfil;
+
+  if v_cliente is null and v_tel is not null then
+    update public.clientes c
+       set perfil_id = v_perfil
+     where c.salao_id = p_salao
+       and public.telefone_nacional(c.telefone) = public.telefone_nacional(v_tel)
+       and c.perfil_id is null
+       and public.mesmo_primeiro_nome(c.nome, v_nome)
+    returning c.id into v_cliente;
+  end if;
+
+  return jsonb_build_object(
+    'ficha', v_cliente,
+    'nome', v_nome, 'telefone', v_tel, 'email', v_email,
+    'nascimento', v_nasc);
+end $$;
+
+/* ── meus_agendamentos_da_conta(): os horários das fichas dela ────────────
+   Os segredos das marcações de TODAS as fichas ligadas à conta, entregues
+   à `meus_agendamentos()` — a mesma que responde pelos segredos do
+   aparelho. Uma função só desenha a lista: o que muda é só de onde vêm os
+   segredos, e as regras (o que aparece, o "podeMexer" das duas horas) ficam
+   num lugar.
+
+   Inclui o que a recepção marcou para ela no balcão: é dela do mesmo jeito,
+   e cancelar continua sob a mesma regra das duas horas. */
+create or replace function public.meus_agendamentos_da_conta()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select public.meus_agendamentos(coalesce((
+    select array_agg(a.gerenciar_token)
+      from public.agendamentos a
+      join public.clientes c on c.id = a.cliente_id
+     where auth.uid() is not null
+       and c.perfil_id = auth.uid()
+       and a.arquivado_em is null
+       and a.gerenciar_token is not null), '{}'::uuid[]))
+$$;
+
+-- Só para quem está logado: as duas leem `auth.uid()`, e sem ele não há o
+-- que responder. ⚠ O `anon` vai escrito: no Supabase, função nova nasce com
+-- execute para anon e authenticated (privilégio padrão do esquema), e um
+-- `revoke ... from public` sozinho não tira o que foi dado ao anon por nome.
+revoke all on function public.ligar_minha_ficha(uuid)       from public, anon;
+revoke all on function public.meus_agendamentos_da_conta()  from public, anon;
+grant execute on function public.ligar_minha_ficha(uuid)      to authenticated;
+grant execute on function public.meus_agendamentos_da_conta() to authenticated;

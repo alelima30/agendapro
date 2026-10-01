@@ -219,6 +219,7 @@ rodar "abertura do link"   node "$AQUI/intro-link.test.mjs"
 rodar "loja na moldura curvada" node "$AQUI/loja-curvada.test.mjs"
 rodar "confirmação redesenhada" node "$AQUI/confirmacao-visual.test.mjs"
 rodar "categoria dos produtos" node "$AQUI/produto-categoria.test.mjs"
+rodar "conta da cliente no link" node "$AQUI/conta-cliente.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

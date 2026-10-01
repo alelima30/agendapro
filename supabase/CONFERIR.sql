@@ -387,6 +387,28 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'a vitrine() é de antes da categoria: o painel guarda e a '
                || 'loja do link não filtra'
            else '' end
+  union all
+  /* A conta da cliente no link: ligar a ficha do balcão à conta (e o pacote
+     junto) e "Meus horários" em qualquer aparelho. */
+  select 22, 'conta da cliente no link',
+         case
+           when to_regprocedure('public.ligar_minha_ficha(uuid)') is null
+             or to_regprocedure('public.meus_agendamentos_da_conta()') is null
+             then 'FALTA'
+           when has_function_privilege('anon', 'public.ligar_minha_ficha(uuid)', 'execute')
+             or has_function_privilege('anon', 'public.meus_agendamentos_da_conta()', 'execute')
+             then 'ABERTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.ligar_minha_ficha(uuid)') is null
+             or to_regprocedure('public.meus_agendamentos_da_conta()') is null
+             then 'falta o 09_cliente.sql novo: a cliente entra, mas o pacote '
+               || 'e os horários dela não aparecem'
+           when has_function_privilege('anon', 'public.ligar_minha_ficha(uuid)', 'execute')
+             or has_function_privilege('anon', 'public.meus_agendamentos_da_conta()', 'execute')
+             then 'quem não entrou consegue chamar as funções da conta — rode o '
+               || '09_cliente.sql de novo'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

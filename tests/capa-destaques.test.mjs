@@ -365,13 +365,19 @@ await cli.close();
 cli = await abrirCapa();
 
 const semNada = await cli.evaluate(() =>
-  document.querySelectorAll('#capaAtalhos .atalho').length);
+  [...document.querySelectorAll('#capaAtalhos .atalho b')].map(b => b.textContent.trim()));
 /* ⚠ ATALHO PARA LISTA VAZIA É PIOR QUE ATALHO NENHUM: a pessoa toca, não
-   encontra nada, e passa a desconfiar do resto da página. */
-igual('aparelho que nunca marcou aqui não vê atalho nenhum', semNada, 0);
+   encontra nada, e passa a desconfiar do resto da página. A porta de ENTRAR
+   não é lista: é por ela que os horários de outro celular e o pacote chegam
+   (conta-cliente.test.mjs). */
+igual('aparelho que nunca marcou aqui não vê lista vazia — só a porta de entrar',
+  semNada, ['Entrar na minha conta']);
 
 const comAtalhos = await cli.evaluate(() => {
   sessao = { perfilId:'x', nome:'Bia', telefone:'11999990000' };
+  /* Logada: o pacote só chega a quem entrou na conta (meus_pacotes pede
+     login), e logada a porta de entrar sai da capa. */
+  logada = () => true;
   meusPacotes = [{ nome:'Pacote 5 escovas', restantes:2, servicos:[],
                    vence_em:null, so_nos_dias:false, dias:[] }];
   desenharCapa();
