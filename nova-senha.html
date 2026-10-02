@@ -51,14 +51,18 @@ h1{font-size:1.32rem;line-height:1.2;margin-bottom:7px}
 }
 .grande[disabled]{opacity:.6;cursor:default}
 .aviso{
-  display:flex;gap:10px;padding:12px 14px;border-radius:var(--r-sm);
+  /* ⚠ BLOCO, e não flex: com flex, o título, a frase e o link do aviso
+     viravam colunas lado a lado ("Este link já venceu" num celular). */
+  display:block;padding:12px 14px;border-radius:var(--r-sm);
   margin-bottom:16px;font-size:14px;line-height:1.5;
   border:1px solid var(--borda);border-left:3px solid var(--acao);
   background:var(--painel2);
 }
 .aviso.ruim{border-left-color:var(--pe-500);background:var(--pe-soft)}
 .aviso.ok{border-left-color:var(--su-500);background:var(--su-soft)}
-.aviso b{display:block;margin-bottom:2px}
+.aviso b{display:block;margin-bottom:3px}
+.aviso a{color:inherit;font-weight:600}
+.repedir{margin-bottom:4px}
 .pe{margin-top:16px;text-align:center;font-size:13.5px}
 .pe a{color:var(--txt2)}
 .forca{display:flex;gap:4px;margin-top:7px}
@@ -80,9 +84,22 @@ h1{font-size:1.32rem;line-height:1.2;margin-bottom:7px}
 
   <div id="corpo">
     <h1>Escolha uma senha nova</h1>
-    <p class="sub">Ela vale para entrar no painel do seu estabelecimento.</p>
+    <p class="sub" id="sub">Ela vale para entrar no painel do seu estabelecimento.</p>
 
     <div id="aviso"></div>
+
+    <!-- Pedir outro link AQUI MESMO. Antes a tela mandava para a de entrar
+         do painel — a cliente do link do salão caía numa tela que não é a
+         dela, e perdia o caminho de volta para o salão. -->
+    <form id="repedir" class="repedir" style="display:none" novalidate
+          onsubmit="event.preventDefault(); pedirOutro();">
+      <div class="campo">
+        <label for="emailNovo">Seu e-mail</label>
+        <input id="emailNovo" type="email" autocomplete="email" inputmode="email"
+               placeholder="o mesmo da sua conta">
+      </div>
+      <button class="grande" id="btRepedir" type="submit">Mandar um link novo</button>
+    </form>
 
     <form id="form" onsubmit="event.preventDefault(); salvar();">
       <div class="campo">
@@ -100,7 +117,7 @@ h1{font-size:1.32rem;line-height:1.2;margin-bottom:7px}
       <button class="grande" id="btSalvar" type="submit">Salvar e entrar</button>
     </form>
 
-    <p class="pe"><a href="entrar.html">Voltar para a tela de entrar</a></p>
+    <p class="pe"><a id="voltarLink" href="entrar.html">Voltar para a tela de entrar</a></p>
   </div>
 </main>
 
@@ -114,6 +131,42 @@ const NA_NUVEM = !!(window.Dados && window.Dados.ligado);
 function mostrar(tipo, html){
   document.getElementById('aviso').innerHTML =
     '<div class="aviso ' + tipo + '">' + html + '</div>';
+}
+const escapar = t => String(t == null ? '' : t).replace(/[&<>"']/g,
+  c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+
+/* A cliente que pediu pelo link do salão volta para o link do salão.
+   ⚠ SÓ A PÁGINA DA CLIENTE, e do próprio site: aceitar qualquer `volta`
+   faria desta tela um redirecionador para fora, com a pessoa já logada. */
+const VOLTA = (() => {
+  const v = new URLSearchParams(location.search).get('volta') || '';
+  return /^agendar\.html\?salao=[a-z0-9-]{1,60}$/.test(v) ? v : '';
+})();
+if(VOLTA){
+  document.getElementById('sub').textContent =
+    'É com ela e o seu e-mail que você entra no link do salão.';
+  const a = document.getElementById('voltarLink');
+  a.href = VOLTA; a.textContent = 'Voltar para o salão';
+}
+
+/* Sem link que sirva: o formulário de senha some, e no lugar dele aparece o
+   de pedir outro — na mesma tela, sem mandar a pessoa para outro lugar.
+   As três causas vão escritas porque são as três que acontecem: passou da
+   hora, o link já foi aberto (por ela, ou por um antivírus do e-mail), ou
+   ela pediu dois e-mails e abriu o mais velho — o pedido novo apaga o
+   anterior. */
+function semLink(motivo, detalhe){
+  document.getElementById('form').style.display = 'none';
+  document.getElementById('repedir').style.display = '';
+  mostrar('ruim', motivo === 'falta'
+    ? '<b>Falta o link do e-mail.</b>Esta página abre pelo link que mandamos '
+      + 'por e-mail. Peça um aqui embaixo.'
+    : motivo === 'vencido'
+    ? '<b>Este link não vale mais.</b>Cada link funciona uma vez só, por uma '
+      + 'hora — e, se você pediu mais de um e-mail, só o último vale. Peça um '
+      + 'novo aqui embaixo e use o do e-mail mais recente.'
+    : '<b>Não consegui usar este link.</b>Peça um novo aqui embaixo.'
+      + (detalhe ? '<br><span class="mono">' + escapar(detalhe) + '</span>' : ''));
 }
 
 /* ── DE ONDE VEM O TOKEN ──────────────────────────────────────────────────
@@ -136,20 +189,22 @@ let entrada = null;
   const bruto = (location.hash || '').replace(/^#/, '');
   const q = new URLSearchParams(bruto);
 
+  /* ⚠ O `error_description` vem da barra de endereço, e qualquer um monta
+     um link com o texto que quiser ali. Ia cru para o innerHTML; agora
+     passa pelo escapar(), como todo texto de fora. */
   if(q.get('error') || q.get('error_description')){
     const cru = q.get('error_description') || q.get('error') || '';
     entrada = null;
-    mostrar('ruim', /expired|invalid/i.test(cru)
-      ? '<b>Este link já venceu.</b>Os links de recuperação valem por uma '
-        + 'hora. Peça um novo em <a href="entrar.html">Entrar</a> → "Esqueci '
-        + 'minha senha".'
-      : '<b>Não consegui usar este link.</b>' + cru);
-    document.getElementById('form').style.display = 'none';
-    return;
+    if(/expired|invalid/i.test(cru) || q.get('error_code') === 'otp_expired') semLink('vencido');
+    else semLink('outro', cru);
+  } else {
+    const token = q.get('access_token');
+    if(token) entrada = { token, refresh: q.get('refresh_token') };
+    /* O link do modelo de e-mail com `{{ .TokenHash }}`: traz só o código,
+       e ele é gasto no Salvar (dados.js → abrirLinkDeSenha). */
+    else if(q.get('token_hash') && (q.get('type') || 'recovery') === 'recovery')
+      entrada = { hash: q.get('token_hash') };
   }
-
-  const token = q.get('access_token');
-  if(token) entrada = { token, refresh: q.get('refresh_token') };
 
   // Tira o token da barra de endereço sem recarregar a página.
   if(bruto){
@@ -167,11 +222,45 @@ if(!entrada && document.getElementById('form').style.display !== 'none'){
     /* Chegou sem token: digitou o endereço na mão, ou o link foi aberto duas
        vezes e o fragmento se perdeu na primeira. Dizer isso é melhor que
        mostrar um formulário que vai falhar no fim. */
-    mostrar('ruim', '<b>Falta o link do e-mail.</b>Esta página só funciona '
-      + 'aberta pelo link que mandamos. Peça um novo em '
-      + '<a href="entrar.html">Entrar</a> → "Esqueci minha senha".');
-    document.getElementById('form').style.display = 'none';
+    semLink('falta');
   }
+}
+
+/* ── PEDIR OUTRO LINK, DAQUI ─────────────────────────────────────────────
+   As mesmas regras da tela de entrar: nunca dizer se o e-mail existe, e o
+   limite de envio dito como limite (esperar), não como erro de conexão. */
+async function pedirOutro(){
+  const email = (document.getElementById('emailNovo').value || '').trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)){
+    mostrar('ruim', '<b>Confira o e-mail.</b>Parece incompleto.');
+    document.getElementById('emailNovo').focus();
+    return;
+  }
+  const bt = document.getElementById('btRepedir');
+  bt.disabled = true; bt.textContent = 'Enviando…';
+  try{
+    await Dados.pedirNovaSenha(email, VOLTA || undefined);
+  }catch(e){
+    console.error('[AgendaPro] pedir outro link:', e);
+    const cod = String(e.codigo || ''), cru = String(e.message || '');
+    if(cod.indexOf('rate_limit') >= 0 || e.status === 429
+       || /after \d+ seconds|rate limit|security purposes/i.test(cru)){
+      const seg = (cru.match(/after (\d+) seconds/) || [])[1];
+      mostrar('info', '<b>Espere ' + (seg ? seg + ' segundos' : 'alguns minutos')
+        + ' para pedir de novo.</b>Há um limite de e-mails seguidos — não é '
+        + 'erro seu, e o pedido anterior pode já estar a caminho. Confira a '
+        + 'caixa de entrada e o lixo eletrônico.');
+    } else {
+      mostrar('ruim', '<b>Não consegui enviar agora.</b>Verifique a conexão e '
+        + 'tente de novo em instantes.');
+    }
+    bt.disabled = false; bt.textContent = 'Mandar um link novo';
+    return;
+  }
+  mostrar('ok', '<b>Se houver conta com ' + escapar(email) + ', o link novo já '
+    + 'está a caminho.</b>Use o do e-mail mais recente — os anteriores deixam '
+    + 'de valer. Se não chegar em alguns minutos, procure no lixo eletrônico.');
+  bt.disabled = false; bt.textContent = 'Mandar de novo';
 }
 
 /* A mesma régra do cadastro: só tamanho. Regra de composição — "misture
@@ -203,41 +292,37 @@ async function salvar(){
 
   const bt = document.getElementById('btSalvar');
   bt.disabled = true; bt.textContent = 'Salvando…';
+  /* Pelo `codigo` primeiro, como nas outras telas: `error_code` é a mesma
+     palavra em toda versão do Supabase, o texto em inglês não é. */
+  const venceu = e => {
+    const cod = String(e.codigo || ''), cru = String(e.message || '');
+    return ['bad_jwt','session_expired','session_not_found',
+            'otp_expired','validation_failed'].indexOf(cod) >= 0
+        || (!cod && /expired|invalid|JWT/i.test(cru));
+  };
   try{
+    // Link com código: é agora, no Salvar, que ele é gasto.
+    if(entrada.hash && !entrada.token)
+      Object.assign(entrada, await Dados.abrirLinkDeSenha(entrada.hash));
     await Dados.trocarSenha({ token: entrada.token, refresh: entrada.refresh,
                               senha: s1 });
   }catch(e){
     console.error('[AgendaPro] trocar senha:', e);
-    /* Pelo `codigo` primeiro, como nas outras telas: `error_code` é a mesma
-       palavra em toda versão do Supabase, o texto em inglês não é. E o
-       último caso não mostra mais o `e.message` cru sozinho — que, quando a
-       frase vinha em `msg`, era o número da resposta e nada mais. */
-    const cod = String(e.codigo || ''), cru = String(e.message || '');
-    const vencido = ['bad_jwt','session_expired','session_not_found',
-                     'otp_expired','validation_failed'].indexOf(cod) >= 0
-                 || (!cod && /expired|invalid|JWT/i.test(cru));
-    mostrar('ruim', vencido
-      ? '<b>Este link já venceu.</b>Peça um novo em '
-        + '<a href="entrar.html">Entrar</a> → "Esqueci minha senha".'
-      : '<b>Não consegui trocar a senha.</b>Tente de novo em instantes. Se '
-        + 'continuar, peça um link novo em <a href="entrar.html">Entrar</a> → '
-        + '"Esqueci minha senha".<br><span class="mono">'
-        + String(cru || ('HTTP ' + e.status)).replace(/[<>&]/g, '') + '</span>');
     bt.disabled = false; bt.textContent = 'Salvar e entrar';
+    if(venceu(e)) return semLink('vencido');
+    const cru = String(e.message || '');
+    mostrar('ruim', '<b>Não consegui trocar a senha.</b>Tente de novo em '
+      + 'instantes.<br><span class="mono">'
+      + escapar(cru || ('HTTP ' + e.status)) + '</span>');
     return;
   }
 
   /* Trocada a senha, a pessoa JÁ ESTÁ logada — o token de recuperação virou
      sessão. Mandar de volta para a tela de entrar seria pedir que ela digite
      agora a senha que acabou de escolher. */
-  /* A cliente que pediu pelo link do salão volta para o link do salão.
-     ⚠ SÓ A PÁGINA DA CLIENTE, e do próprio site: aceitar qualquer `volta`
-     faria desta tela um redirecionador para fora, com a pessoa já logada. */
-  const volta = new URLSearchParams(location.search).get('volta') || '';
-  const daCliente = /^agendar\.html\?salao=[a-z0-9-]{1,60}$/.test(volta);
-  mostrar('ok', daCliente ? '<b>Senha trocada.</b>Voltando para o salão…'
-                          : '<b>Senha trocada.</b>Abrindo o painel…');
-  setTimeout(() => { location.href = daCliente ? volta : 'app.html'; }, 900);
+  mostrar('ok', VOLTA ? '<b>Senha trocada.</b>Voltando para o salão…'
+                      : '<b>Senha trocada.</b>Abrindo o painel…');
+  setTimeout(() => { location.href = VOLTA || 'app.html'; }, 900);
 }
 </script>
 <p class="rodape-legal">AgendaPro · Todos os direitos reservados. Software protegido por direitos autorais (Lei 9.610/98 e Lei 9.609/98). Reprodução, distribuição ou uso não autorizado são proibidos.</p>

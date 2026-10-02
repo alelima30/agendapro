@@ -392,8 +392,11 @@ await r4.goto(BASE + '/nova-senha.html#error=access_denied'
   + '&error_description=Email+link+is+invalid+or+has+expired');
 await r4.waitForTimeout(700);
 const venceu = await r4.textContent('#aviso');
-verdade('e link vencido é traduzido, com o caminho para pedir outro',
-  venceu.includes('já venceu') && venceu.includes('Esqueci minha senha'));
+/* O caminho para pedir outro agora fica NA tela (senha-link.test.mjs mede o
+   resto): mandar para a tela de entrar do painel perdia a cliente do link. */
+verdade('e link vencido é traduzido, com o pedido de outro ali mesmo',
+  venceu.includes('não vale mais')
+  && await r4.evaluate(() => !!document.getElementById('repedir').offsetParent));
 
 igual('sem erro de JavaScript na tela de entrar', erros.length, 0);
 

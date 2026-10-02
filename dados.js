@@ -676,6 +676,35 @@ const Nuvem = {
     return { redirect: volta };
   },
 
+  /* ── O LINK QUE ANTIVÍRUS NÃO GASTA ─────────────────────────────────────
+     O link padrão do e-mail é gasto no PRIMEIRO acesso: quem chega depois
+     leva "link inválido ou vencido". E o primeiro acesso nem sempre é da
+     pessoa — antivírus e leitores de e-mail (Outlook, Hotmail) visitam os
+     links para conferir se são seguros, e gastam o link antes dela.
+
+     Com o modelo de e-mail que usa `{{ .TokenHash }}` (ver o README), o
+     link só leva o código até a nova-senha.html, e ele é gasto AQUI, quando
+     ela toca em Salvar. Abrir o link, ou um robô abri-lo, não gasta nada.
+
+     `fetch` direto, e não o `auth()`: este pedido não pode levar a sessão
+     velha que por acaso esteja guardada no aparelho — quem prova quem é a
+     pessoa aqui é o código do e-mail, e só ele. */
+  async abrirLinkDeSenha(tokenHash){
+    const resp = await fetch(cfg.url + '/auth/v1/verify', {
+      method: 'POST',
+      headers: { 'apikey': cfg.chave, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'recovery', token_hash: tokenHash }),
+    });
+    await conferir(resp);
+    const r = await resp.json().catch(() => null);
+    if(!r || !r.access_token){
+      const e = new Error('O link não trouxe sessão.');
+      e.codigo = 'otp_expired';
+      throw e;
+    }
+    return { token: r.access_token, refresh: r.refresh_token || null };
+  },
+
   /* Troca a senha de quem chegou pelo link do e-mail. O token de recuperação
      vem no #fragmento da URL e já É uma sessão — por isso `guardarSessao()`
      antes: sem Authorization, o PUT em /user é recusado. */
@@ -990,6 +1019,7 @@ const Demo = {
   async entrar(){ throw new Error('Login por senha só existe no modo nuvem.'); },
   async pedirNovaSenha(){ throw new Error('Recuperação de senha só existe no modo nuvem.'); },
   async trocarSenha(){ throw new Error('Recuperação de senha só existe no modo nuvem.'); },
+  async abrirLinkDeSenha(){ throw new Error('Recuperação de senha só existe no modo nuvem.'); },
   /* Na demonstração não existe conta nem servidor: o `bd` mora no navegador
      e qualquer pessoa que abra a página já está dentro. Devolver um e-mail
      de mentira aqui faria a tela prometer uma segurança que não existe. */

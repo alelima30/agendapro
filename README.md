@@ -369,6 +369,29 @@ for conferir e desmoraliza a lista toda.
    instalado; sem as chaves, nenhum salão consegue pagar.
 8. **Verificação do Meta Business.** É ela que libera o template
    transacional do lembrete — o item 1 depende dela para sair do papel.
+9. **O e-mail de "esqueci minha senha" que antivírus não gasta.** O link
+   padrão do Supabase é gasto no primeiro acesso — e o primeiro acesso nem
+   sempre é da pessoa: leitores de e-mail com antivírus (Outlook, Hotmail)
+   visitam o link antes dela, e ela chega em "link inválido ou vencido". A
+   `nova-senha.html` aceita um link que só leva o código e o gasta quando a
+   pessoa toca em Salvar. Para ligar, em Authentication → Emails → Templates
+   → **Reset password**, troque o corpo por:
+
+   ```html
+   <h2>Trocar sua senha</h2>
+   <p>Recebemos um pedido para trocar a senha da sua conta.</p>
+   <p><a href="{{ .RedirectTo }}#token_hash={{ .TokenHash }}&type=recovery">Escolher uma senha nova</a></p>
+   <p>O link vale por 1 hora, e só o do e-mail mais recente funciona. Se não foi você que pediu, ignore este e-mail.</p>
+   ```
+
+   `{{ .RedirectTo }}` é a `nova-senha.html` (com a volta para o salão,
+   quando a cliente pediu pelo link). O código vai depois do `#`, que não
+   sai do navegador. Sem esta troca o link padrão continua funcionando —
+   só sem a proteção.
+
+   E-mail para qualquer cliente exige **SMTP próprio** (Authentication →
+   Emails → SMTP Settings): sem ele, o Supabase só entrega para os e-mails
+   da equipe do projeto, e no máximo 2 por hora.
 
 ### O que deixou de faltar
 

@@ -95,6 +95,11 @@ function tokenDe(req){
 // e-mail → token de recuperação. Só a bancada tem isto: o Supabase manda por
 // e-mail, e aqui não há caixa postal. O teste pesca em /_recuperacao.
 const recuperacoes = new Map();
+/* O link com código (`{{ .TokenHash }}` no modelo de e-mail): código →
+   { conta, usado }. Como no Supabase, o código vale UMA vez, e o pedido
+   novo apaga o anterior — é o "pedi dois e-mails e abri o mais velho". */
+const codigosDeSenha = new Map();
+const ultimoCodigo = new Map();
 
 // As imagens enviadas, em memória. O processo é descartável; ninguém precisa
 // delas depois que o teste termina.
@@ -233,6 +238,14 @@ const http_ = http.createServer(async (req, res) => {
         return json(res, 200, { message_id: 'demo' });
       }
 
+      if(acao === 'verify' && b.token_hash){
+        const c = codigosDeSenha.get(b.token_hash);
+        if(!c || c.usado || ultimoCodigo.get(c.id) !== b.token_hash || b.type !== 'recovery')
+          return erroAuth(res, 'otp_expired', 'Email link is invalid or has expired', 403);
+        c.usado = true;
+        return json(res, 200, novaSessao(c.id));
+      }
+
       if(acao === 'verify'){
         if(b.token !== '123456')
           return erroAuth(res, 'otp_expired', 'Token has expired or is invalid');
@@ -321,8 +334,11 @@ const http_ = http.createServer(async (req, res) => {
              do e-mail deixa a pessoa, e ele vinha sendo calculado e NÃO
              enviado — o link caía no "Site URL" do projeto, que num projeto
              novo é localhost:3000. O teste agora confere que ele sai. */
+          const hash = 'h' + seq + Math.random().toString(36).slice(2, 10);
+          codigosDeSenha.set(hash, { id: rows[0].id, usado: false });
+          ultimoCodigo.set(rows[0].id, hash);
           recuperacoes.set(String(b.email).toLowerCase(),
-            { tok, redirect_to: u.searchParams.get('redirect_to') || '' });
+            { tok, hash, redirect_to: u.searchParams.get('redirect_to') || '' });
         }
         return json(res, 200, {});
       }
@@ -390,7 +406,7 @@ const http_ = http.createServer(async (req, res) => {
     if(u.pathname === '/_recuperacao'){
       const r = recuperacoes.get(String(u.searchParams.get('email') || '').toLowerCase());
       return json(res, r ? 200 : 404,
-        r ? { access_token: r.tok, redirect_to: r.redirect_to } : {});
+        r ? { access_token: r.tok, token_hash: r.hash, redirect_to: r.redirect_to } : {});
     }
 
     /* ── STORAGE ────────────────────────────────────────────────────────
