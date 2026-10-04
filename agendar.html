@@ -1963,11 +1963,15 @@ function desenhar(){
   const eu = document.getElementById('btEu');
   /* O botão com o nome da cliente leva a "Meus horários". Sem agendamento na
      casa, ele levaria a uma lista que o salão desligou. */
-  if(casaFazServicos() && tela !== 'meus' && tela !== 'conta'
-     && (sessao || logada())){
+  /* ⚠ QUEM JÁ É CONHECIDA NÃO VÊ "ENTRAR". Em Meus horários (e na conta) o
+     botão com o nome some — ela já está ali —, e a regra caía no ramo de
+     baixo, o de quem ninguém conhece: logo depois de cadastrar e marcar, o
+     topo dizia "Entrar" para quem acabou de entrar. */
+  const conhecida = !!(sessao || logada());
+  if(casaFazServicos() && conhecida && tela !== 'meus' && tela !== 'conta'){
     eu.style.display = '';
     eu.textContent = ((sessao && sessao.nome) || 'Minha conta').split(' ')[0] + ' ';
-  } else if(casaFazServicos() && NA_NUVEM && tela !== 'conta' && tela !== 'saloes'){
+  } else if(casaFazServicos() && !conhecida && NA_NUVEM && tela !== 'conta' && tela !== 'saloes'){
     // Ninguém conhecido neste aparelho: a porta para a conta.
     eu.style.display = '';
     eu.textContent = 'Entrar';
@@ -3264,12 +3268,14 @@ function desenharDados(){
   const nasc = document.getElementById('dNasc');
   if(nasc && !nasc.max) nasc.max = hoje();
 
-  /* ── LOGADA: SÓ CONFIRMAR O NOME ────────────────────────────────────────
+  /* ── LOGADA: CONFIRMAR O CADASTRO ───────────────────────────────────────
      A conta já tem quem ela é. Pedir o cadastro inteiro de novo a quem
      acabou de entrar é o formulário dizendo que a conta não serviu para
-     nada. Fica o nome, para conferir — e, dos outros, só o que faltar na
-     conta (o aniversário, que a conta não pede ao nascer; o WhatsApp, se a
-     conta nasceu sem ele). Os campos escondidos continuam preenchidos, e o
+     nada. O cartão mostra nome, WhatsApp e e-mail para ela conferir — o
+     nome SEM campo para trocar (pedido do dono: quem marca logada é a dona
+     da conta) — e, dos outros, só o que faltar na conta vira campo (o
+     aniversário, que a conta não pede ao nascer; o WhatsApp, se a conta
+     nasceu sem ele). Os campos escondidos continuam preenchidos, e o
      `salvarDados()` confere tudo igual. */
   const naConta = NA_NUVEM && logada();
   if(naConta && sessao){
@@ -3279,13 +3285,15 @@ function desenharDados(){
     lembra('dCpf', sessao.cpf ? Endereco.documento(sessao.cpf) : '');
   }
   const falta = faltaNoCadastro();
-  document.getElementById('dadosTitulo').textContent = naConta ? 'Confirme seu nome' : 'Seu cadastro';
+  const semNome = valorDe('dNome').trim().length < 2;
+  document.getElementById('dadosTitulo').textContent = naConta ? 'Confirme seu cadastro' : 'Seu cadastro';
   document.getElementById('dadosSub').textContent = naConta
-    ? (falta.tel || falta.nasc || falta.email
-        ? 'Você está na sua conta. Falta só o que está abaixo.'
-        : 'Você está na sua conta — o salão já tem o resto.')
+    ? (falta.tel || falta.nasc || falta.email || semNome
+        ? 'Confira seus dados. Falta só o que está abaixo.'
+        : 'Confira seus dados e toque em Continuar.')
     : 'Só na primeira vez. Depois este aparelho lembra de você.';
-  for(const [id, mostra] of [['campoTel', !naConta || falta.tel], ['campoNasc', !naConta || falta.nasc],
+  for(const [id, mostra] of [['campoNome', !naConta || semNome],
+                             ['campoTel', !naConta || falta.tel], ['campoNasc', !naConta || falta.nasc],
                              ['campoEmail', !naConta || falta.email], ['campoCpf', !naConta]]){
     const el = document.getElementById(id);
     if(el) el.style.display = mostra ? '' : 'none';
@@ -3300,10 +3308,11 @@ function desenharDados(){
      conta continua sendo o caminho de sempre. */
   const dc = document.getElementById('dadosConta');
   if(dc) dc.innerHTML = !NA_NUVEM ? '' : logada()
-    ? `<div class="recado ok">Você está na sua conta${sessao && sessao.email
-        ? ` (<b>${escapar(sessao.email)}</b>)` : ''}.${
-        !falta.tel ? '<br>WhatsApp: <b>' + escapar(valorDe('dTel')) + '</b>' : ''}
-        <br>Não é você? <button class="link" onclick="abrirConta('entrar')">Entrar com outra conta</button></div>`
+    ? `<div class="recado ok cadastro-conta">Você está na sua conta.
+        ${!semNome ? '<span class="cc-linha"><small>Nome</small><b>' + escapar(valorDe('dNome').trim()) + '</b></span>' : ''}
+        ${!falta.tel ? '<span class="cc-linha"><small>WhatsApp</small><b>' + escapar(valorDe('dTel')) + '</b></span>' : ''}
+        ${sessao && sessao.email ? '<span class="cc-linha"><small>E-mail</small><b>' + escapar(sessao.email) + '</b></span>' : ''}
+        <span class="cc-pe">Não é você? <button class="link" onclick="abrirConta('entrar')">Entrar com outra conta</button></span></div>`
     : `<div class="recado">Já tem conta? <button class="link"
         onclick="abrirConta('entrar')">Entrar</button> — seus dados vêm preenchidos.</div>`;
   const cs = document.getElementById('campoSenhaCadastro');
@@ -4997,6 +5006,12 @@ function confirmarAgendamento(){
    O padrão é `true` porque é o padrão do banco: um salão que nunca mexeu nisso
    confirma sozinho, e é a leitura certa quando a chamada não responde. */
 let salaoConfirmaSozinho = true;
+/* O status que o banco DEU a esta marcação. A política do salão diz o que
+   costuma acontecer; a ficha pode dizer outra coisa (a cliente que o dono
+   marcou como "precisa de confirmação", 09_cliente.sql). A tela de pronto
+   segue o que de fato aconteceu — nunca "confirmado" para quem ficou
+   esperando. */
+let statusDaMarcacao = null;
 
 async function carregarPoliticaDeConfirmacao(){
   if(!NA_NUVEM || !salao) return;
@@ -5016,7 +5031,7 @@ function mostrarPronto(prof, unit, filho){
      mostrar uma confirmação que ainda não existe. Mostrar a mensagem de
      confirmação aqui seria simular um envio que não aconteceu — e o projeto
      tem regra escrita sobre isso. */
-  if(!salaoConfirmaSozinho){ return mostrarPedidoEnviado(prof, unit, filho); }
+  if(!salaoConfirmaSozinho || statusDaMarcacao === 'pendente'){ return mostrarPedidoEnviado(prof, unit, filho); }
   // O título é reescrito a cada vez (desenharPronto): a tela é a mesma nos
   // dois caminhos, e uma segunda marcação na mesma sessão não pode herdar o
   // título da anterior.
@@ -5073,6 +5088,7 @@ async function confirmarNaNuvem(profId, prof){
 
   bp.disabled = true; bp.textContent = 'Marcando…';
   aviso.innerHTML = '';
+  statusDaMarcacao = null;
 
   /* O `agendar()` devolve o segredo daquela marcação. Guardar aqui, e não
      depois, é o que garante que ele não se perca se a tela seguinte falhar:
@@ -5100,7 +5116,15 @@ async function confirmarNaNuvem(profId, prof){
       p_cpf: sessao.cpf || null,
     });
     const feito = Array.isArray(r) ? r[0] : r;
-    if(feito && feito.token) guardarToken('agendamentos', feito.token);
+    if(feito && feito.token){
+      guardarToken('agendamentos', feito.token);
+      // A pergunta é a mesma de "Meus horários", pelo segredo desta marcação.
+      try{
+        const l = await Dados.meusAgendamentos([feito.token]);
+        const st = Array.isArray(l) && l[0] && l[0].status;
+        if(st && (statusDaMarcacao === null || st === 'pendente')) statusDaMarcacao = st;
+      }catch(e){ console.info('[AgendaPro] status da marcação:', e.message); }
+    }
     return feito;
   };
 

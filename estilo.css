@@ -4576,3 +4576,10 @@ body.tem-cor-produtos .loja-cat.on{
 .data-caixa .data-escolher{ position:absolute; right:3px; top:50%; transform:translateY(-50%);
   width:48px; height:46px; min-height:0; padding:0; margin:0; opacity:0; cursor:pointer;
   border:0; background:transparent; color:transparent }
+
+/* O cadastro de quem está logada, no link: os dados para conferir, sem
+   campo para trocar (agendar.html → desenharDados). */
+.cadastro-conta .cc-linha{ display:block; margin-top:8px }
+.cadastro-conta .cc-linha small{ display:block; font-size:12.5px; color:var(--txt2) }
+.cadastro-conta .cc-linha b{ display:block; font-size:15.5px; overflow-wrap:anywhere }
+.cadastro-conta .cc-pe{ display:block; margin-top:10px; font-size:14px }

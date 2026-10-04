@@ -4401,6 +4401,22 @@ alter table public.lista_espera
 create unique index if not exists ix_agend_token on public.agendamentos (gerenciar_token);
 create unique index if not exists ix_espera_token on public.lista_espera (gerenciar_token);
 alter table public.clientes add column if not exists cpf text;
+alter table public.clientes
+  add column if not exists exige_confirmacao boolean not null default false;
+create or replace function public.cliente_exige_confirmacao(
+  p_salao uuid, p_cliente uuid, p_tel text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+begin
+  return exists (
+    select 1 from public.clientes c
+     where c.salao_id = p_salao
+       and c.exige_confirmacao
+       and (c.id = p_cliente
+            or (coalesce(public.so_digitos(p_tel), '') <> ''
+                and public.telefone_nacional(c.telefone) = public.telefone_nacional(p_tel))));
+end $$;
+revoke all on function public.cliente_exige_confirmacao(uuid, uuid, text)
+  from public, anon, authenticated;
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text);
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
                                        text, date);
@@ -4517,8 +4533,9 @@ begin
        valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id)
     values
       (v_salao, v_cliente, p_profissional, p_inicio, v_fim,
-       case when public.confirma_automatico(v_salao) then 'confirmado'
-            else 'pendente' end, 'online',
+       case when public.confirma_automatico(v_salao)
+             and not public.cliente_exige_confirmacao(v_salao, v_cliente, v_tel)
+            then 'confirmado' else 'pendente' end, 'online',
        v_valor, v_quem,
        nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;

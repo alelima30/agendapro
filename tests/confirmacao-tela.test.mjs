@@ -159,7 +159,7 @@ await c.waitForTimeout(1500);
    nome curto ou telefone sem DDD e só reescreve o aviso — não avança, não
    alerta, não erra. Dali em diante todas as medidas reprovavam apontando para
    a tela de "pronto", que nunca tinha sido alcançada. */
-await c.fill('#dNome', 'Maria Cliente');
+if(await c.isVisible('#dNome')) await c.fill('#dNome', 'Maria Cliente');
 if(await c.isVisible('#dTel')) await c.fill('#dTel', '51988887777');
 // Obrigatório desde que o link passou a pedir ficha completa. É exatamente
 // o caso que o comentário acima descreve: faltando, a tela só reescreve o

@@ -193,10 +193,8 @@ troca agendar.html \
 
 echo "14. o botão com o nome volta sem agendamento"
 troca agendar.html \
-  "  if(casaFazServicos() && tela !== 'meus' && tela !== 'conta'
-     && (sessao || logada())){" \
-  "  if(tela !== 'meus' && tela !== 'conta'
-     && (sessao || logada())){" \
+  "  if(casaFazServicos() && conhecida && tela !== 'meus' && tela !== 'conta'){" \
+  "  if(conhecida && tela !== 'meus' && tela !== 'conta'){" \
   && rodar "o nome dela levando à agenda desligada"
 
 echo "15. a prévia ignora o módulo de serviços"

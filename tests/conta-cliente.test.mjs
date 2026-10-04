@@ -172,10 +172,11 @@ const A = await aparelho();
       .filter(id => !!document.getElementById(id).offsetParent),
     conta: document.getElementById('dadosConta').innerText.replace(/\s+/g, ' ') }));
   const v1 = await vis();
-  igual('logada: "Confirme seu nome", e só o nome e o que falta (o aniversário)',
-    [v1.titulo, v1.campos], ['Confirme seu nome', ['campoNome', 'campoNasc']]);
-  verdade('o cartão mostra o WhatsApp da conta e o jeito de trocar de conta',
-    v1.conta.includes(masc(TEL_MARIA)) && /Entrar com outra conta/.test(v1.conta), v1.conta);
+  igual('logada: "Confirme seu cadastro", e só o que falta vira campo (o aniversário) — o nome não',
+    [v1.titulo, v1.campos], ['Confirme seu cadastro', ['campoNasc']]);
+  verdade('o cartão mostra nome, WhatsApp e e-mail da conta, e o jeito de trocar de conta',
+    /Nome Maria/.test(v1.conta) && v1.conta.includes(masc(TEL_MARIA)) && v1.conta.includes(`maria-${m}@t.com`)
+    && /Entrar com outra conta/.test(v1.conta), v1.conta);
   await p.fill('#dNasc', '1990-05-04');
   await p.click('#btPrincipal'); await p.waitForTimeout(1200);
   const total = await p.evaluate(() => document.querySelector('#resumoFinal .cf-total b').textContent.trim());
@@ -189,6 +190,10 @@ const A = await aparelho();
   const meus = await p.evaluate(() => document.getElementById('listaMeus').innerText);
   igual('neste aparelho, que também guardou a marcação, ela aparece uma vez só',
     (meus.match(/Escova/g) || []).length, 1);
+  /* A foto do dono: logo depois de cadastrar e marcar, Meus horários com o
+     topo dizendo "Entrar". */
+  igual('em Meus horários, o topo não diz "Entrar" para quem já entrou', await p.evaluate(() => {
+    const b = document.getElementById('btEu'); return b.offsetParent ? b.textContent.trim() : '(escondido)'; }), '(escondido)');
 
   // A segunda marcação: o aniversário já foi dado, então sobra só o nome.
   await p.evaluate(() => irPara('capa', true)); await p.waitForTimeout(400);
@@ -203,9 +208,9 @@ const A = await aparelho();
   await p.click('#listaHoras .hora'); await p.waitForTimeout(300);
   await p.click('#btPrincipal'); await p.waitForTimeout(1200);
   const v2 = await vis();
-  igual('na segunda vez, logada, a tela pede só o nome',
-    [await p.evaluate(() => tela), v2.campos, /o salão já tem o resto/.test(await p.evaluate(() =>
-      document.getElementById('dadosSub').textContent))], ['dados', ['campoNome'], true]);
+  igual('na segunda vez, logada, nenhum campo: só conferir e continuar',
+    [await p.evaluate(() => tela), v2.campos, /Confira seus dados e toque em Continuar/.test(await p.evaluate(() =>
+      document.getElementById('dadosSub').textContent))], ['dados', [], true]);
   await p.click('#btPrincipal'); await p.waitForTimeout(1200);
   igual('e o Continuar segue direto para a conferência', await p.evaluate(() => tela), 'confirmar');
 }

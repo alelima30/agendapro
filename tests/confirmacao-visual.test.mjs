@@ -244,7 +244,7 @@ async function marcar(){
   await p.click('#listaHoras .hora'); await p.waitForTimeout(400);
   await p.click('#btPrincipal'); await p.waitForTimeout(1500);
   if(await p.evaluate(() => tela === 'dados')){
-    await p.fill('#dNome', 'Maria Cliente'); if(await p.isVisible('#dTel')) await p.fill('#dTel', '51988887777');
+    if(await p.isVisible('#dNome')) await p.fill('#dNome', 'Maria Cliente'); if(await p.isVisible('#dTel')) await p.fill('#dTel', '51988887777');
     if(await p.isVisible('#dNasc')) await p.fill('#dNasc', '1989-10-04'); if(await p.isVisible('#dEmail')) await p.fill('#dEmail', 'maria@exemplo.com');
     await p.click('#btPrincipal'); await p.waitForTimeout(1500);
   }

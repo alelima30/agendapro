@@ -409,6 +409,37 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'quem não entrou consegue chamar as funções da conta — rode o '
                || '09_cliente.sql de novo'
            else '' end
+  union all
+  /* A cliente que precisa de confirmação: a marca na ficha, e o agendar()
+     que respeita ela. A função não pode estar aberta: diria a qualquer um,
+     pelo telefone, quem está marcada no salão. */
+  select 23, 'cliente que precisa de confirmação',
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'clientes'
+                               and column_name = 'exige_confirmacao')
+             or to_regprocedure('public.cliente_exige_confirmacao(uuid,uuid,text)') is null
+             or coalesce(position('cliente_exige_confirmacao' in pg_get_functiondef(
+                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text)'))), 0) = 0
+             then 'FALTA'
+           when has_function_privilege('anon', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
+             or has_function_privilege('authenticated', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
+             then 'ABERTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'clientes'
+                               and column_name = 'exige_confirmacao')
+             or to_regprocedure('public.cliente_exige_confirmacao(uuid,uuid,text)') is null
+             or coalesce(position('cliente_exige_confirmacao' in pg_get_functiondef(
+                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text)'))), 0) = 0
+             then 'falta o 09_cliente.sql novo: a marca "precisa de confirmação" '
+               || 'na ficha não segura o horário da cliente'
+           when has_function_privilege('anon', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
+             or has_function_privilege('authenticated', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
+             then 'qualquer um consegue perguntar quem está marcado — rode o '
+               || '09_cliente.sql de novo'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

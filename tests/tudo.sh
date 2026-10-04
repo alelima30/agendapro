@@ -226,6 +226,7 @@ rodar "serviços com foto no agendamento" node "$AQUI/servicos-form.test.mjs"
 rodar "a agenda mostra o que falta confirmar" node "$AQUI/a-confirmar.test.mjs"
 rodar "voltar escrito e produto aberto" node "$AQUI/voltar-produto.test.mjs"
 rodar "aniversário que se digita" node "$AQUI/data-digitavel.test.mjs"
+rodar "cliente que precisa de confirmação" node "$AQUI/confirma-cliente.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

@@ -196,6 +196,18 @@ troca agendar.html \
   "           nasc: false," \
   && rodar "erro sobre um campo que ela não vê"
 
+echo "23. Meus horários diz Entrar para quem já entrou"
+troca agendar.html \
+  "  } else if(casaFazServicos() && !conhecida && NA_NUVEM && tela !== 'conta' && tela !== 'saloes'){" \
+  "  } else if(casaFazServicos() && NA_NUVEM && tela !== 'conta' && tela !== 'saloes'){" \
+  && rodar "acabou de cadastrar e o topo pede para entrar"
+
+echo "24. logada, o nome vira campo para trocar"
+troca agendar.html \
+  "  for(const [id, mostra] of [['campoNome', !naConta || semNome]," \
+  "  for(const [id, mostra] of [['campoNome', true]," \
+  && rodar "a dona da conta troca o próprio nome no agendamento"
+
 echo
 echo "mortas: $morta · sobreviveram: $viva · não rodaram: $perdida"
 [ $viva -eq 0 ] && [ $perdida -eq 0 ]

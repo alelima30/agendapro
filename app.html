@@ -1818,7 +1818,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.403ef2';
+const VERSAO_APP = 'v9.5a2a72';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2864,7 +2864,9 @@ function pintarClientes(){
       // tem o que contar. Uma tabela em que toda linha grita não avisa nada.
       const f = faltasDoCliente(c.id);
       return `<tr>
-        <td><b>${escapar(c.nome)}</b>${c.obs ? `<br><span style="font-size:12px;color:var(--txt2)">${escapar(c.obs)}</span>` : ''}</td>
+        <td><b>${escapar(c.nome)}</b>${c.exigeConfirmacao
+          ? ' <span class="tag t-pend" title="O que ela marcar pelo link espera sua confirmação">confirma antes</span>' : ''}${
+          c.obs ? `<br><span style="font-size:12px;color:var(--txt2)">${escapar(c.obs)}</span>` : ''}</td>
         <td>${escapar(c.telefone || '—')}</td><td>${ult}</td><td>${dele.length}</td>
         <td>${f ? `<span class="tag ${f >= 2 ? 't-canc' : ''}">${f}</span>`
                 : '<span style="color:var(--txt3)">—</span>'}</td>
@@ -6277,6 +6279,16 @@ function abrirCliente(cid){
     </div>
     <div class="campo"><label>Observações e alergias</label>
       <textarea id="kObs" rows="3" placeholder="Fórmula da cor, preferências, alergias">${escapar(c ? (c.obs||'') : '')}</textarea></div>
+    <!-- A CLIENTE QUE PRECISA DE CONFIRMACAO. Mesmo com o salao confirmando
+         sozinho, o horario que ela marca pelo link nasce pendente e espera o
+         seu sim. Quem decide e o agendar() no banco (09_cliente.sql, 1c).
+         (Sem crase: template literal.) -->
+    <label class="linha-check" style="display:flex;gap:10px;align-items:flex-start;margin-top:4px;cursor:pointer">
+      <input type="checkbox" id="kExigeConf" style="width:auto;margin-top:3px"${c && c.exigeConfirmacao ? ' checked' : ''}>
+      <span><b>Os horários desta cliente precisam da minha confirmação</b><br>
+        <span style="font-size:13px;color:var(--txt2)">Mesmo com a confirmação automática
+        ligada, o que ela marcar pelo link fica esperando você aceitar ou recusar.</span></span>
+    </label>
   `, [
     ['Cancelar','fecharModal()',''],
     ['Salvar', `salvarCliente(${c ? `'${c.id}'` : 'null'})`, 'btn-p'],
@@ -6333,6 +6345,7 @@ function salvarCliente(cid){
        documentos diferentes para a mesma pessoa. */
     cpf: Documento.soDigitos(document.getElementById('kCpf').value),
     obs: document.getElementById('kObs').value || '',
+    exigeConfirmacao: !!(document.getElementById('kExigeConf') || {}).checked,
   };
   if(cid) Object.assign(acharCliente(cid), dados);
   else bd.clientes.push({id:id(), salaoId:salaoAtual, criadoEm:new Date().toISOString(), ...dados});

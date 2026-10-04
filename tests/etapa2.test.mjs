@@ -254,7 +254,7 @@ async function marcar(quem){
   await p.waitForTimeout(1500);
   const pedeNome = await p.evaluate(() => /nome da pessoa/i.test(document.body.innerText));
   if(await p.evaluate(() => tela === 'dados')){
-    await p.fill('#dNome', 'Maria Cliente');
+    if(await p.isVisible('#dNome')) await p.fill('#dNome', 'Maria Cliente');
     if(await p.isVisible('#dTel')) await p.fill('#dTel', '51988887777');
     if(await p.isVisible('#dNasc')) await p.fill('#dNasc', '1989-10-04');
     if(await p.isVisible('#dEmail')) await p.fill('#dEmail', 'maria@exemplo.com');

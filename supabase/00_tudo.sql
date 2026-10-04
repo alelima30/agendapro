@@ -3582,6 +3582,45 @@ create unique index if not exists ix_espera_token on public.lista_espera (gerenc
 alter table public.clientes add column if not exists cpf text;
 
 -- ---------------------------------------------------------------------------
+-- 1c) A cliente que precisa de confirmação
+--
+-- O salão que confirma sozinho às vezes tem UMA cliente que ele quer olhar
+-- antes: a que falta, a que desmarca em cima da hora, a que ele prefere não
+-- atender. Na ficha dela o dono marca `exige_confirmacao`, e o horário que
+-- ela marca pelo link nasce PENDENTE — esperando o "sim" do salão — mesmo
+-- com a confirmação automática ligada para todo o resto.
+--
+-- ⚠ QUEM DECIDE É O agendar(), AQUI NO BANCO. A tela do link não sabe da
+-- marca e não tem como saber: a função é security definer e não é liberada
+-- para ninguém (nem anon, nem authenticated) — senão qualquer um descobriria,
+-- digitando um telefone, se aquele número está marcado no salão.
+--
+-- ⚠ E VALE PELO TELEFONE TAMBÉM, não só pela ficha encontrada. A ficha é
+-- reencontrada por telefone E primeiro nome; quem trocasse o nome ("Bia" em
+-- vez de "Beatriz") cairia numa ficha nova, sem a marca, e escaparia. Por
+-- isso qualquer ficha do salão com o mesmo WhatsApp e a marca basta.
+-- ---------------------------------------------------------------------------
+alter table public.clientes
+  add column if not exists exige_confirmacao boolean not null default false;
+
+-- plpgsql, e não sql: o `telefone_nacional()` nasce mais abaixo neste mesmo
+-- arquivo, e uma função `language sql` é conferida na hora de criar.
+create or replace function public.cliente_exige_confirmacao(
+  p_salao uuid, p_cliente uuid, p_tel text)
+returns boolean language plpgsql stable security definer set search_path = public as $$
+begin
+  return exists (
+    select 1 from public.clientes c
+     where c.salao_id = p_salao
+       and c.exige_confirmacao
+       and (c.id = p_cliente
+            or (coalesce(public.so_digitos(p_tel), '') <> ''
+                and public.telefone_nacional(c.telefone) = public.telefone_nacional(p_tel))));
+end $$;
+revoke all on function public.cliente_exige_confirmacao(uuid, uuid, text)
+  from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 2) agendar() passa a devolver o segredo, e a receber a ficha
 --
 -- Mudar o que uma função devolve exige derrubá-la antes: `create or replace`
@@ -3828,15 +3867,19 @@ begin
      ouviria "não" depois de já ter combinado o dia.
 
      Quem NÃO configurou nada continua recebendo confirmado, como sempre —
-     `confirma_automatico()` no 29 tem o padrão do lado de quem já usa. */
+     `confirma_automatico()` no 29 tem o padrão do lado de quem já usa.
+
+     E a cliente marcada na ficha (1c, lá em cima) recebe pendente mesmo no
+     salão que confirma sozinho. */
   begin
     insert into public.agendamentos
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
        valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id)
     values
       (v_salao, v_cliente, p_profissional, p_inicio, v_fim,
-       case when public.confirma_automatico(v_salao) then 'confirmado'
-            else 'pendente' end, 'online',
+       case when public.confirma_automatico(v_salao)
+             and not public.cliente_exige_confirmacao(v_salao, v_cliente, v_tel)
+            then 'confirmado' else 'pendente' end, 'online',
        v_valor, v_quem,
        nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
