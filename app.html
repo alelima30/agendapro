@@ -232,6 +232,13 @@ h2{font-size:19px;font-weight:700;letter-spacing:-.02em}
 .ag.faltou{opacity:.55;background-image:repeating-linear-gradient(
   45deg,transparent,transparent 4px,rgba(0,0,0,.16) 4px,rgba(0,0,0,.16) 8px)}
 .ag.concluido::after{content:"\2713";position:absolute;right:5px;top:3px;font-size:11px;opacity:.85}
+/* A CONFIRMAR: borda tracejada e a etiqueta âmbar no canto. A cor do bloco é
+   a do profissional — qualquer uma —, então a marca não pode depender dela:
+   o tracejado branco e a etiqueta de fundo próprio se leem em todas. */
+.ag.pendente{outline:2px dashed rgba(255,255,255,.95);outline-offset:-4px}
+.ag .ag-pend{float:right;margin:0 0 2px 4px;padding:1px 6px;border-radius:99px;font-style:normal;
+  font-size:11px;font-weight:800;line-height:1.35;background:#FEF3C7;color:#92400E;white-space:nowrap}
+.ag.curto .ag-pend{padding:0 5px}
 .vazio-slot{position:absolute;left:0;right:0;cursor:pointer}
 .vazio-slot:hover{background:rgba(37,99,235,.09)}
 
@@ -1811,7 +1818,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.a4fd3b';
+const VERSAO_APP = 'v9.c2053a';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2427,8 +2434,10 @@ function pintarAgenda(){
          detalhe abre com o botão grande, do tamanho certo. */
       const zap = zapDoCliente(a.clienteId);
       html += `<div class="ag ${a.status}${curto}" style="top:${y(a.inicio)}px;height:${alt}px;
-                    background:${corDoProf(p)};color:${letraSobre(corDoProf(p))}" title="${hm(a.inicio)} · ${escapar(nomeCliente(a.clienteId))} · ${escapar(rotuloServicos(a))}"
+                    background:${corDoProf(p)};color:${letraSobre(corDoProf(p))}" title="${hm(a.inicio)} · ${escapar(nomeCliente(a.clienteId))} · ${escapar(rotuloServicos(a))}${
+                      a.status === 'pendente' ? ' · a confirmar' : ''}"
                     onclick="event.stopPropagation();abrirDetalhe('${a.id}')">
+                 ${a.status === 'pendente' ? '<i class="ag-pend">a confirmar</i>' : ''}
                  <b>${hm(a.inicio)} ${escapar(nomeCliente(a.clienteId))}</b>
                  <span>${escapar(rotuloServicos(a))}</span>${zap ? `
                  <button class="ag-zap" aria-label="Falar no WhatsApp"
@@ -2538,6 +2547,8 @@ function pintarMes(){
        afrouxa para sempre por causa de uma variável de uma tela. */
     const doMes = dt.getMonth() === mes - 1;
     const qtd = agendaDoDia(dia).filter(a => ATIVOS.includes(a.status)).length;
+    // Dia com alguém esperando o salão confirmar: a pastilha muda de cor.
+    const pend = agendaDoDia(dia).some(a => a.status === 'pendente');
     const bloq = (bd.bloqueios || [])
       .filter(b => b.salaoId === salaoAtual && b.data === dia).length;
 
@@ -2547,18 +2558,20 @@ function pintarMes(){
         aria-label="${escapar(porExtenso(dia))}${
           qtd ? ', ' + qtd + (qtd === 1 ? ' atendimento' : ' atendimentos') : ''}">
       <span class="mes-num">${dt.getDate()}</span>
-      ${qtd ? `<span class="mes-qtd">${qtd}</span>`
+      ${qtd ? `<span class="mes-qtd${pend ? ' pend' : ''}"${pend ? ' title="tem horário a confirmar"' : ''}>${qtd}</span>`
             : bloq ? '<span class="mes-qtd bloq">·</span>' : ''}
     </button>`;
   }
 
   const temBloqueio = (bd.bloqueios || []).some(b => b.salaoId === salaoAtual);
+  const temPendente = esperandoResposta().length > 0;
   alvo.innerHTML = `
     <div class="mes-cal">
       <div class="mes-semana">${DIAS_MES.map(d => `<span>${d}</span>`).join('')}</div>
       <div class="mes-grade">${celulas}</div>
       <div class="mes-legenda">
         <span><i class="i-ag"></i>Atendimentos</span>
+        ${temPendente ? '<span><i class="i-pend"></i>A confirmar</span>' : ''}
         ${temBloqueio ? '<span><i class="i-bl"></i>Bloqueios</span>' : ''}
       </div>
     </div>`;
@@ -2595,17 +2608,31 @@ function pintarListaDoDia(){
     return;
   }
 
+  /* ⚠ O STATUS NO CARTÃO. A lista mostrava nome, hora e valor — e nada que
+     separasse o confirmado do que ainda espera o salão. No salão que
+     confirma à mão, o dono tinha que abrir um por um para saber. Agora o
+     pendente vem com a etiqueta e o Confirmar ali mesmo; o cartão continua
+     abrindo a ficha (por isso é um div com papel de botão: botão dentro de
+     botão não existe). */
   alvo.innerHTML = `<div class="dia-lista">${cabeca}
     ${doDia.map(a => `
-      <button type="button" class="dia-cartao" onclick="abrirDetalhe('${a.id}')">
+      <div class="dia-cartao st-${a.status}" role="button" tabindex="0"
+           onclick="abrirDetalhe('${a.id}')"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe('${a.id}')}">
         <span class="dc-txt">
-          <span class="dc-nome">${escapar(nomeCliente(a.clienteId))}</span>
+          <span class="dc-nome">${escapar(nomeCliente(a.clienteId))}
+            <span class="tag ${a.status === 'pendente' ? 't-pend' : CLASSE_STATUS[a.status] || ''}">${
+              a.status === 'pendente' ? 'A confirmar' : (ROTULO_STATUS[a.status] || a.status)}</span></span>
           <span class="dc-sub">${hm(a.inicio)}–${hm(a.fim)} · ${
             escapar(rotuloServicos(a))} · ${
             escapar((acharProf(a.profissionalId) || {}).nome || '—')}</span>
         </span>
-        <span class="dc-vlr">${real(totalDe(a))}</span>
-      </button>`).join('')}
+        <span class="dc-lado">
+          <span class="dc-vlr">${real(totalDe(a))}</span>
+          ${a.status === 'pendente' ? `<button type="button" class="btn btn-primario btn-peq dc-confirmar"
+            onclick="event.stopPropagation();confirmarHorario('${a.id}')">Confirmar</button>` : ''}
+        </span>
+      </div>`).join('')}
     <button class="btn btn-peq" style="margin-top:4px"
             onclick="trocarVista('dia')">Abrir o dia na grade de horários</button>
   </div>`;
@@ -2716,8 +2743,10 @@ function pintarVariosDias(){
                left:calc(${pistaDe.get(a.id) * larg}% + 3px);
                width:calc(${larg}% - 6px);
                background:${corDoProf(p)};color:${letraSobre(corDoProf(p))}"
-        title="${hm(a.inicio)} · ${escapar(nomeCliente(a.clienteId))} · ${escapar(p ? p.nome : '')}"
+        title="${hm(a.inicio)} · ${escapar(nomeCliente(a.clienteId))} · ${escapar(p ? p.nome : '')}${
+          a.status === 'pendente' ? ' · a confirmar' : ''}"
         onclick="event.stopPropagation();abrirDetalhe('${a.id}')">
+        ${a.status === 'pendente' ? '<i class="ag-pend">a confirmar</i>' : ''}
         <b>${hm(a.inicio)} ${escapar(nomeCliente(a.clienteId))}</b>
         <span>${escapar(p ? p.nome : '')}</span></div>`;
     }
@@ -13421,8 +13450,16 @@ function avisarNovosHorarios(n){
     el.onclick = () => el.remove();
     document.body.appendChild(el);
   }
+  const esperam = esperandoResposta().length;
   el.innerHTML = '<b>' + n + (n > 1 ? ' horários novos' : ' horário novo')
-    + '</b><br>Marcado agora pelo link do salão.';
+    + '</b><br>Marcado agora pelo link do salão.'
+    + (esperam ? '<br><b>' + (esperam === 1 ? '1 espera' : esperam + ' esperam')
+      + ' sua confirmação</b> — toque para ver.' : '');
+  el.onclick = () => {
+    el.remove();
+    const f = document.getElementById('aConfirmar');
+    if(esperam && f){ if(telaAtual !== 'agenda') irPara('agenda'); f.scrollIntoView({ behavior:'smooth', block:'start' }); }
+  };
   clearTimeout(el._sumir);
   el._sumir = setTimeout(() => el.remove(), 9000);
 }

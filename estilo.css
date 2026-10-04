@@ -3550,6 +3550,9 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 /* Bloqueio não é atendimento: é hora fechada. Cor diferente, e some quando não
    há — senão a legenda passaria a explicar uma cor que nunca aparece. */
 .mes-qtd.bloq{ background:var(--n-200); color:var(--txt2) }
+/* Tem gente esperando o salão confirmar: âmbar, a cor do "a confirmar". */
+.mes-qtd.pend{ background:var(--wa-soft); color:var(--wa-500); box-shadow:inset 0 0 0 1.5px var(--wa-500) }
+.mes-dia.sel .mes-qtd.pend{ background:#FEF3C7; color:#92400E }
 
 .mes-legenda{
   display:flex; gap:14px; justify-content:flex-end; flex-wrap:wrap;
@@ -3561,6 +3564,7 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 }
 .mes-legenda .i-ag{ background:var(--marca-media) }
 .mes-legenda .i-bl{ background:var(--n-400) }
+.mes-legenda .i-pend{ background:var(--wa-500) }
 
 /* ── A lista do dia escolhido, embaixo do calendário ────────────────────── */
 .dia-lista{ margin-bottom:14px }
@@ -3579,6 +3583,10 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .dia-cartao .dc-nome{ font-weight:700; font-size:14.5px }
 .dia-cartao .dc-sub{ font-size:13px; color:var(--txt2); margin-top:2px }
 .dia-cartao .dc-vlr{ font-weight:800; white-space:nowrap }
+.dia-cartao .dc-nome .tag{ margin-left:6px; vertical-align:2px }
+.dia-cartao .dc-lado{ display:flex; flex-direction:column; align-items:flex-end; gap:6px }
+/* O que espera confirmação fica com a tarja âmbar, e não a azul de sempre. */
+.dia-cartao.st-pendente{ border-left-color:var(--wa-500); background:var(--wa-soft) }
 
 /* ── O QR do link, no cartão de "Ver como cliente" ──────────────────────── */
 .qr-linha{
