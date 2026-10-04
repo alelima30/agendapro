@@ -5973,18 +5973,28 @@ function identidadeInstalada(s){
 
   const alvo = new URL(location.href);
   alvo.search = '?salao=' + encodeURIComponent(s.slug);
+  alvo.hash = '';
 
+  /* ⚠ ENDEREÇOS COMPLETOS. O manifesto é entregue como blob:, e endereço
+     relativo dentro dele se resolve contra o blob — o que não dá: "icones/
+     icone-192.png" relativo a "blob:https://…/uuid" não é endereço nenhum.
+     O Chrome descartava os ícones, e sem ícone não oferece instalar. */
+  const abs = u => new URL(u, location.href).href;
   const manifesto = {
+    id: alvo.href,
     name: s.nome, short_name: curto(s.nome),
     description: 'Agende seu horário em ' + s.nome + '.',
-    start_url: alvo.pathname + alvo.search,
-    scope: alvo.pathname.replace(/[^/]*$/, ''),
+    start_url: alvo.href,
+    scope: abs('./'),
     display: 'standalone', lang: 'pt-BR',
     background_color: '#F5F8F8', theme_color: cor,
     icons: [
-      { src: icone, sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: 'icones/icone-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: 'icones/icone-mascara-512.png', sizes: '512x512',
+      // O logo do salão vem como foi enviado (jpg, png...): sem `type`, para
+      // o navegador não recusá-lo por um rótulo errado.
+      ...(s.logo ? [{ src: abs(s.logo), sizes: '192x192', purpose: 'any' }] : []),
+      { src: abs('icones/icone-192.png'), sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: abs('icones/icone-512.png'), sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: abs('icones/icone-mascara-512.png'), sizes: '512x512',
         type: 'image/png', purpose: 'maskable' },
     ],
   };
@@ -6081,12 +6091,26 @@ async function instalarSalao(){
         <button class="link" onclick="dispensarConvite()">Fechar</button></div>
     </div>` : `
     <div class="recado" style="margin-top:16px;text-align:left">
-      <b>Pelo menu do navegador</b>
-      <p style="color:var(--txt2);margin:8px 0 0">Toque no menu <b>⋮</b> e depois
-      em <b>Instalar aplicativo</b> ou <b>Adicionar à tela inicial</b>.</p>
-      <div style="margin-top:10px">
+      <b>No Android é assim</b>
+      <ol style="color:var(--txt2);line-height:1.75;padding-left:20px;margin:8px 0 0">
+        <li>Se esta página abriu <b>dentro do WhatsApp</b> ou do Instagram (tem
+            um <b>X</b> no canto de cima), toque nos <b>três pontinhos ⋮</b> e em
+            <b>Abrir no Chrome</b>. Dentro do WhatsApp não dá para instalar.</li>
+        <li>No Chrome, toque nos <b>três pontinhos ⋮</b>.</li>
+        <li>Toque em <b>Instalar aplicativo</b> ou <b>Adicionar à tela inicial</b>.</li>
+      </ol>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+        <button class="link" onclick="copiarLinkDoSalao(this)">Copiar o link</button>
         <button class="link" onclick="dispensarConvite()">Fechar</button></div>
     </div>`;
+}
+
+/* Para colar no Chrome, quando o navegador de dentro do WhatsApp não deixa
+   abrir fora. */
+async function copiarLinkDoSalao(bt){
+  const url = linkDoSalao();
+  try{ await navigator.clipboard.writeText(url); bt.textContent = 'Link copiado'; }
+  catch(e){ prompt('Copie o link:', url); }
 }
 
 function guardarSessao(){

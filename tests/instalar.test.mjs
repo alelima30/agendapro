@@ -143,6 +143,7 @@ const man = await cp.evaluate(async () => {
   const j = await (await fetch(l.getAttribute('href'))).json();
   return { nome: j.name, curto: j.short_name, inicio: j.start_url,
            tema: j.theme_color, icones: (j.icons || []).length,
+           enderecos: [j.start_url, j.scope, ...(j.icons || []).map(i => i.src)],
            apple: (document.querySelector('meta[name="apple-mobile-web-app-title"]') || {}).content };
 });
 verdade('a página monta um manifesto próprio', !!man, 'continuou no do sistema');
@@ -153,6 +154,11 @@ verdade('e abrindo NO SALÃO, não no painel do dono',
 verdade('com a cor do salão na barra do navegador',
   man && /^#[0-9A-Fa-f]{6}$/.test(man.tema || ''), JSON.stringify(man && man.tema));
 verdade('e com ícone, senão o Android recusa instalar', man && man.icones >= 1);
+/* ⚠ O manifesto é um blob:, e endereço relativo dentro dele não se resolve
+   ("icones/icone-192.png" contra "blob:https://…/uuid" não é nada). O Chrome
+   descartava os ícones e não oferecia instalar — calado. */
+verdade('e todos os endereços do manifesto completos (blob: não resolve relativo)',
+  man && man.enderecos.every(u => /^https?:\/\//.test(u || '')), JSON.stringify(man && man.enderecos));
 
 /* O nome embaixo do ícone: a tela de início corta por volta de 12 caracteres.
    "Barbearia do" é pior que "Barbearia" — termina numa palavra que não diz
@@ -198,6 +204,23 @@ const depois = await cp.evaluate(() => {
   return getComputedStyle(c).display === 'none';
 });
 verdade('e quem diz "agora não" não vê de novo', depois);
+
+/* ── SEM O PEDIDO DO NAVEGADOR, NO ANDROID ────────────────────────────────
+   O link aberto pelo WhatsApp abre num navegador de dentro dele (o do X no
+   canto), onde instalar não existe e o menu só tem "Abrir no Chrome". A
+   instrução tem que começar por aí, ou a pessoa procura um botão que não há. */
+const android = await cp.evaluate(async () => {
+  try{ localStorage.removeItem('agendapro.semconvite'); }catch(e){}
+  pedidoDeInstalacao = null;
+  convidarAInstalar();
+  await instalarSalao();
+  const c = document.getElementById('convitePwa');
+  return { diz: c.innerText.replace(/\s+/g, ' '), copiar: !!c.querySelector('button[onclick^="copiarLinkDoSalao"]') };
+});
+verdade('sem o pedido do navegador: ensina a sair do WhatsApp (⋮ → Abrir no Chrome) e depois instalar',
+  /dentro do WhatsApp/.test(android.diz) && /Abrir no Chrome/.test(android.diz) && /Instalar aplicativo/.test(android.diz),
+  android.diz.slice(0, 200));
+verdade('e oferece copiar o link, para colar no Chrome', android.copiar);
 
 await cp.close();
 await nav.close();
