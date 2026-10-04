@@ -531,21 +531,21 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
          (Sem crase neste comentario: ele vive dentro do HTML deste arquivo,
          que e' lido como template literal noutros pontos.) -->
     <section class="passo" id="p-dados">
-      <h2>Seu cadastro</h2>
-      <p class="sub">Só na primeira vez. Depois este aparelho lembra de você.</p>
+      <h2 id="dadosTitulo">Seu cadastro</h2>
+      <p class="sub" id="dadosSub">Só na primeira vez. Depois este aparelho lembra de você.</p>
       <div id="reconhecido"></div>
       <div id="dadosConta"></div>
-      <div class="campo">
+      <div class="campo" id="campoNome">
         <label>Nome completo</label>
         <input id="dNome" placeholder="Nome e sobrenome" autocomplete="name">
       </div>
-      <div class="campo">
+      <div class="campo" id="campoTel">
         <label>WhatsApp</label>
         <input id="dTel" type="tel" inputmode="numeric" placeholder="(11) 99999-9999"
                autocomplete="tel" oninput="mascaraTelefone(this)">
         <p class="pista">É por aqui que chega a confirmação e o lembrete.</p>
       </div>
-      <div class="campo">
+      <div class="campo" id="campoNasc">
         <label>Aniversário</label>
         <input id="dNasc" type="date" autocomplete="bday">
         <p class="pista">O salão costuma guardar um agrado para o seu mês.</p>
@@ -562,7 +562,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
            causa de um documento que o corte nao precisa.
            (Sem crase e sem acento: comentario dentro de HTML que e' lido
            como template literal noutros pontos deste arquivo.) -->
-      <div class="campo">
+      <div class="campo" id="campoCpf">
         <label>CPF</label>
         <input id="dCpf" type="text" inputmode="numeric" placeholder="000.000.000-00"
                maxlength="14" oninput="Documento.mascaraCpf(this)">
@@ -571,7 +571,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
            ser "so' para recibo": vira parte do cadastro que o salao exige
            para marcar. A linha de apoio diz para que serve — mas nao promete
            mais que da' para pular, porque nao da'. -->
-      <div class="campo">
+      <div class="campo" id="campoEmail">
         <label>E-mail</label>
         <input id="dEmail" type="email" inputmode="email"
                placeholder="voce@exemplo.com" autocomplete="email">
@@ -3230,6 +3230,33 @@ function desenharDados(){
   const nasc = document.getElementById('dNasc');
   if(nasc && !nasc.max) nasc.max = hoje();
 
+  /* ── LOGADA: SÓ CONFIRMAR O NOME ────────────────────────────────────────
+     A conta já tem quem ela é. Pedir o cadastro inteiro de novo a quem
+     acabou de entrar é o formulário dizendo que a conta não serviu para
+     nada. Fica o nome, para conferir — e, dos outros, só o que faltar na
+     conta (o aniversário, que a conta não pede ao nascer; o WhatsApp, se a
+     conta nasceu sem ele). Os campos escondidos continuam preenchidos, e o
+     `salvarDados()` confere tudo igual. */
+  const naConta = NA_NUVEM && logada();
+  if(naConta && sessao){
+    const lembra = (id, v) => { const el = document.getElementById(id); if(el && !el.value && v) el.value = v; };
+    lembra('dNome', sessao.nome); lembra('dTel', sessao.telefone);
+    lembra('dNasc', sessao.nascimento); lembra('dEmail', sessao.email);
+    lembra('dCpf', sessao.cpf ? Endereco.documento(sessao.cpf) : '');
+  }
+  const falta = faltaNoCadastro();
+  document.getElementById('dadosTitulo').textContent = naConta ? 'Confirme seu nome' : 'Seu cadastro';
+  document.getElementById('dadosSub').textContent = naConta
+    ? (falta.tel || falta.nasc || falta.email
+        ? 'Você está na sua conta. Falta só o que está abaixo.'
+        : 'Você está na sua conta — o salão já tem o resto.')
+    : 'Só na primeira vez. Depois este aparelho lembra de você.';
+  for(const [id, mostra] of [['campoTel', !naConta || falta.tel], ['campoNasc', !naConta || falta.nasc],
+                             ['campoEmail', !naConta || falta.email], ['campoCpf', !naConta]]){
+    const el = document.getElementById(id);
+    if(el) el.style.display = mostra ? '' : 'none';
+  }
+
   document.getElementById('reconhecido').innerHTML = (sessao && sessao.nome && !logada())
     ? `<div class="recado">Este aparelho lembra de <b>${escapar(sessao.nome)}</b>.
         Se não for você, é só trocar os campos abaixo.</div>` : '';
@@ -3240,7 +3267,9 @@ function desenharDados(){
   const dc = document.getElementById('dadosConta');
   if(dc) dc.innerHTML = !NA_NUVEM ? '' : logada()
     ? `<div class="recado ok">Você está na sua conta${sessao && sessao.email
-        ? ` (<b>${escapar(sessao.email)}</b>)` : ''}.</div>`
+        ? ` (<b>${escapar(sessao.email)}</b>)` : ''}.${
+        !falta.tel ? '<br>WhatsApp: <b>' + escapar(valorDe('dTel')) + '</b>' : ''}
+        <br>Não é você? <button class="link" onclick="abrirConta('entrar')">Entrar com outra conta</button></div>`
     : `<div class="recado">Já tem conta? <button class="link"
         onclick="abrirConta('entrar')">Entrar</button> — seus dados vêm preenchidos.</div>`;
   const cs = document.getElementById('campoSenhaCadastro');
@@ -3261,6 +3290,17 @@ function desenharDados(){
    do que aceitar um endereço torto. Quem decide se ele existe é a primeira
    mensagem que voltar. */
 const EMAIL_PLAUSIVEL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/* O que o cadastro ainda não tem, com as MESMAS regras do `salvarDados()`:
+   campo escondido com valor que o salvar recusaria deixaria a cliente
+   presa num erro sobre um campo que ela não vê. */
+function faltaNoCadastro(){
+  const v = id => ((document.getElementById(id) || {}).value || '').trim();
+  const nasc = v('dNasc');
+  return { tel: soDigitos(v('dTel')).length < 10,
+           nasc: !nasc || nasc > hoje() || nasc < '1900-01-01',
+           email: !EMAIL_PLAUSIVEL.test(v('dEmail')) };
+}
 
 function salvarDados(){
   const nome  = (document.getElementById('dNome').value || '').trim();

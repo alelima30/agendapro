@@ -160,13 +160,13 @@ await c.waitForTimeout(1500);
    alerta, não erra. Dali em diante todas as medidas reprovavam apontando para
    a tela de "pronto", que nunca tinha sido alcançada. */
 await c.fill('#dNome', 'Maria Cliente');
-await c.fill('#dTel', '51988887777');
+if(await c.isVisible('#dTel')) await c.fill('#dTel', '51988887777');
 // Obrigatório desde que o link passou a pedir ficha completa. É exatamente
 // o caso que o comentário acima descreve: faltando, a tela só reescreve o
 // aviso e fica onde está.
-await c.fill('#dNasc', '1989-10-04');
+if(await c.isVisible('#dNasc')) await c.fill('#dNasc', '1989-10-04');
 // Obrigatório desde que o dono decidiu exigir e-mail no cadastro.
-await c.fill('#dEmail', 'maria@exemplo.com');
+if(await c.isVisible('#dEmail')) await c.fill('#dEmail', 'maria@exemplo.com');
 await c.waitForTimeout(300);
 await c.click('#btPrincipal');            // dados → confirmar
 await c.waitForTimeout(1500);

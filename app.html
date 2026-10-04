@@ -519,7 +519,6 @@ body.carregando-tudo .tela{ display:none }
       <span class="espaco"></span>
       <button class="btn btn-p" onclick="abrirNovo()">+ Agendamento</button>
     </div>
-    <div class="kpis" id="kpisDia"></div>
     <!-- Onde a grade confessa que não deu conta. Vazio em dia normal. -->
     <div id="faltandoNaGrade"></div>
     <!-- QUEM FICOU ESPERANDO VAGA. A cliente que nao acha horario entra na
@@ -562,6 +561,10 @@ body.carregando-tudo .tela{ display:none }
     <div id="mesCalendario"></div>
     <div class="grade-wrap"><div class="grade" id="grade"></div></div>
     <div id="listaDoDia"></div>
+    <!-- OS NUMEROS DEPOIS DA AGENDA, a pedido do dono: quem abre a tela quer
+         ver primeiro o calendario e quem vem no dia; os totais sao a
+         conferencia, e ficam embaixo. (Sem crase: template literal.) -->
+    <div class="kpis" id="kpisDia"></div>
     <p class="nota" id="notaAgenda"></p>
   </section>
 
@@ -1748,6 +1751,35 @@ function mudarDia(n){
 }
 function irHoje(){ diaAtual = hoje(); pintar(); }
 
+/* ── O DIA VIRA COM O PAINEL ABERTO ───────────────────────────────────────
+   O celular não fecha o painel: ele dorme com a aba e acorda dias depois
+   exatamente onde estava. O `diaAtual` nasce uma vez, no `entrar()`, e o
+   dono voltava ao app no dia 4 com a agenda parada no dia 30 do mês
+   anterior — "já passou", e setembro na tela em outubro.
+
+   Quando o dia do salão muda desde a última olhada, a agenda vai para hoje.
+   Só nessa hora: andar para outro dia e sair para o WhatsApp por um minuto
+   não pode jogar o dono de volta para hoje. */
+let _hojeVisto = null;
+function conferirViradaDoDia(){
+  if(!bd || !salaoAtual) return;
+  const h = hoje();
+  if(_hojeVisto === null){ _hojeVisto = h; return; }
+  if(h === _hojeVisto) return;
+  _hojeVisto = h;
+  diaAtual = h;
+  pintarDataTopo();
+  pintar();
+}
+function ligarViradaDoDia(){
+  if(ligarViradaDoDia.feito) return;
+  ligarViradaDoDia.feito = true;
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) conferirViradaDoDia(); });
+  window.addEventListener('focus', conferirViradaDoDia);
+  window.addEventListener('pageshow', conferirViradaDoDia);
+  setInterval(conferirViradaDoDia, 60000);
+}
+
 /* ── QUE VERSÃO ESTÁ NO AR AQUI ──────────────────────────────────────────
    Custou uma volta inteira descobrir que a tela reclamada era a de ontem: o
    navegador serve HTML do cache dele por alguns minutos, e nada na página
@@ -1756,7 +1788,7 @@ function irHoje(){ diaAtual = hoje(); pintar(); }
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.e7d2fb';
+const VERSAO_APP = 'v9.efc2c6';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -14858,6 +14890,8 @@ function iniciar(){
      padrão. Aqui o salão já chegou, e é o primeiro instante em que dá para
      saber que dia é hoje NELE. */
   diaAtual = hoje();
+  _hojeVisto = diaAtual;
+  ligarViradaDoDia();
   pintarDataTopo();
   rotularTema();
   montarAbas();

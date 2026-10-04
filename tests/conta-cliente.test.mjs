@@ -164,6 +164,18 @@ const A = await aparelho();
     nome: document.getElementById('dNome').value, tel: document.getElementById('dTel').value }));
   igual('o cadastro já sabe quem ela é, e não pede senha', [dados.tela, /Você está na sua conta/.test(dados.conta),
     dados.senha, dados.nome, dados.tel], ['dados', true, false, 'Maria', masc(TEL_MARIA)]);
+  /* LOGADA: só confirmar o nome. Dos outros, só o que a conta não tem — e a
+     conta nasce sem aniversário. WhatsApp e e-mail ela já deu. */
+  const vis = () => p.evaluate(() => ({
+    titulo: document.getElementById('dadosTitulo').textContent,
+    campos: ['campoNome','campoTel','campoNasc','campoCpf','campoEmail']
+      .filter(id => !!document.getElementById(id).offsetParent),
+    conta: document.getElementById('dadosConta').innerText.replace(/\s+/g, ' ') }));
+  const v1 = await vis();
+  igual('logada: "Confirme seu nome", e só o nome e o que falta (o aniversário)',
+    [v1.titulo, v1.campos], ['Confirme seu nome', ['campoNome', 'campoNasc']]);
+  verdade('o cartão mostra o WhatsApp da conta e o jeito de trocar de conta',
+    v1.conta.includes(masc(TEL_MARIA)) && /Entrar com outra conta/.test(v1.conta), v1.conta);
   await p.fill('#dNasc', '1990-05-04');
   await p.click('#btPrincipal'); await p.waitForTimeout(1200);
   const total = await p.evaluate(() => document.querySelector('#resumoFinal .cf-total b').textContent.trim());
@@ -177,6 +189,25 @@ const A = await aparelho();
   const meus = await p.evaluate(() => document.getElementById('listaMeus').innerText);
   igual('neste aparelho, que também guardou a marcação, ela aparece uma vez só',
     (meus.match(/Escova/g) || []).length, 1);
+
+  // A segunda marcação: o aniversário já foi dado, então sobra só o nome.
+  await p.evaluate(() => irPara('capa', true)); await p.waitForTimeout(400);
+  await p.click('.boas-cta'); await p.waitForTimeout(300);
+  if(await p.evaluate(() => !escolha.servicos.length)) await p.click('#listaServicos .sv-cartao');
+  await p.click('#btPrincipal'); await p.waitForTimeout(300);
+  await p.click('#quemMim'); await p.waitForTimeout(500);
+  if(await p.evaluate(() => tela === 'prof')) await p.click('#btPrincipal');
+  await p.waitForTimeout(2500);
+  await p.locator('#listaDias .dia:not(.sem)').nth(2).click();
+  await p.waitForFunction(() => document.querySelectorAll('#listaHoras .hora').length > 0, null, { timeout: 10000 });
+  await p.click('#listaHoras .hora'); await p.waitForTimeout(300);
+  await p.click('#btPrincipal'); await p.waitForTimeout(1200);
+  const v2 = await vis();
+  igual('na segunda vez, logada, a tela pede só o nome',
+    [await p.evaluate(() => tela), v2.campos, /o salão já tem o resto/.test(await p.evaluate(() =>
+      document.getElementById('dadosSub').textContent))], ['dados', ['campoNome'], true]);
+  await p.click('#btPrincipal'); await p.waitForTimeout(1200);
+  igual('e o Continuar segue direto para a conferência', await p.evaluate(() => tela), 'confirmar');
 }
 
 /* ══════════════════════════════════════════════════════════════════════════ */
@@ -237,6 +268,9 @@ secao('6. A senha opcional no cadastro cria a conta junto');
   igual('sem conta, o cadastro mostra "Já tem conta?" e a senha opcional', await p.evaluate(() =>
     [/Já tem conta\?/.test(document.getElementById('dadosConta').innerText), !!document.getElementById('campoSenhaCadastro').offsetParent]),
     [true, true]);
+  igual('e, sem conta, o cadastro inteiro', await p.evaluate(() => [document.getElementById('dadosTitulo').textContent,
+    ['campoNome','campoTel','campoNasc','campoCpf','campoEmail'].every(id => !!document.getElementById(id).offsetParent)]),
+    ['Seu cadastro', true]);
   await p.fill('#dNome', 'Ana Paula'); await p.fill('#dTel', masc(TEL_ANA));
   await p.fill('#dNasc', '1992-03-02'); await p.fill('#dEmail', `ana-${m}@t.com`);
   await p.fill('#dSenha', '123');

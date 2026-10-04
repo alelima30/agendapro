@@ -178,6 +178,24 @@ troca agendar.html \
   "  if(false){" \
   && rodar "a conta nasce sem ficha, e a cliente acha que o pacote sumiu"
 
+echo "20. logada, o cadastro inteiro de novo"
+troca agendar.html \
+  "  const naConta = NA_NUVEM && logada();" \
+  "  const naConta = false;" \
+  && rodar "a conta não poupa nada"
+
+echo "21. logada, o WhatsApp aparece mesmo já sabido"
+troca agendar.html \
+  "['campoTel', !naConta || falta.tel]" \
+  "['campoTel', true]" \
+  && rodar "pede de novo o que a conta já tem"
+
+echo "22. o aniversário que falta fica escondido"
+troca agendar.html \
+  "           nasc: !nasc || nasc > hoje() || nasc < '1900-01-01'," \
+  "           nasc: false," \
+  && rodar "erro sobre um campo que ela não vê"
+
 echo
 echo "mortas: $morta · sobreviveram: $viva · não rodaram: $perdida"
 [ $viva -eq 0 ] && [ $perdida -eq 0 ]
