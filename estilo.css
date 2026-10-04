@@ -4352,27 +4352,27 @@ body.com-folha{ overflow:hidden }
 /* O Adicionar: cheio, na cor do botão do salão. `#listaProdutos` na frente
    para ganhar do botão secundário (.btn:not(.btn-primary)...), que é papel
    com contorno. */
-#listaProdutos .loja-add{
+#listaProdutos .loja-add, #produtoAberto .loja-add{
   display:inline-flex; align-items:center; justify-content:center; gap:7px;
   background:var(--acao); color:var(--acao-txt); border:1px solid var(--acao);
   font-weight:700; box-shadow:var(--sombra-marca, var(--sombra-xs));
 }
-#listaProdutos .loja-add:hover{ background:var(--acao-hover, var(--acao)); color:var(--acao-txt) }
-#listaProdutos .loja-add .ic-svg{ color:inherit }
+#listaProdutos .loja-add:hover, #produtoAberto .loja-add:hover{ background:var(--acao-hover, var(--acao)); color:var(--acao-txt) }
+#listaProdutos .loja-add .ic-svg, #produtoAberto .loja-add .ic-svg{ color:inherit }
 /* Com o produto no carrinho: − n +, no contorno e na letra da cor. */
-#listaProdutos .loja-qtd{ display:inline-flex; align-items:center; gap:9px }
-#listaProdutos .loja-qtd b{ min-width:1.4em; text-align:center }
-#listaProdutos .loja-qtd .btn{
+#listaProdutos .loja-qtd, #produtoAberto .loja-qtd{ display:inline-flex; align-items:center; gap:9px }
+#listaProdutos .loja-qtd b, #produtoAberto .loja-qtd b{ min-width:1.4em; text-align:center }
+#listaProdutos .loja-qtd .btn, #produtoAberto .loja-qtd .btn{
   color:var(--ac-600); font-weight:750; background:var(--painel);
   border-color:color-mix(in srgb, var(--acao) 45%, var(--painel));
 }
 /* Com "Cor dos produtos" escolhida, a loja segue ela — como o carrinho da
    capa e o "Ver produtos" (body.tem-cor-produtos, lá em cima). */
-body.tem-cor-produtos #listaProdutos .loja-add{
+body.tem-cor-produtos #listaProdutos .loja-add, body.tem-cor-produtos #produtoAberto .loja-add{
   background:var(--prod-cor); color:var(--prod-txt); border-color:var(--prod-cor);
 }
-body.tem-cor-produtos #listaProdutos .loja-add:hover{ background:var(--prod-hover, var(--prod-cor)) }
-body.tem-cor-produtos #listaProdutos .loja-qtd .btn{
+body.tem-cor-produtos #listaProdutos .loja-add:hover, body.tem-cor-produtos #produtoAberto .loja-add:hover{ background:var(--prod-hover, var(--prod-cor)) }
+body.tem-cor-produtos #listaProdutos .loja-qtd .btn, body.tem-cor-produtos #produtoAberto .loja-qtd .btn{
   color:var(--prod-cor); border-color:color-mix(in srgb, var(--prod-cor) 45%, var(--painel));
 }
 
@@ -4524,6 +4524,25 @@ body[data-passo="pronto"] #btSecundario{
   font-size:14px; font-weight:600; white-space:nowrap; cursor:pointer;
 }
 .loja-cat.on{ background:var(--acao); color:var(--acao-txt); border-color:var(--acao) }
+
+/* ── O PRODUTO ABERTO (agendar.html → #p-produto) ─────────────────────────
+   A foto grande, com a mesma montagem de duas camadas do .pr-foto (nítida
+   na frente, borrada atrás), e o texto inteiro. Só variáveis do tema. */
+.abre-produto{ cursor:pointer }
+.pr-foto.prod-grande{ aspect-ratio:auto; height:min(58vh, 440px); border-radius:var(--r-lg);
+  margin:2px 0 16px }
+.prod-corpo{ display:flex; flex-direction:column; gap:6px }
+.prod-cat{ align-self:flex-start; padding:4px 12px; border-radius:var(--r-pill, 999px);
+  background:var(--ac-soft); color:var(--ac-600); font-size:13px; font-weight:650 }
+.prod-nome{ font-size:clamp(21px, 5.6vw, 26px); line-height:1.2; letter-spacing:-.02em; color:var(--txt); margin:2px 0 0 }
+.prod-marca{ font-size:14px; color:var(--txt3) }
+.prod-preco{ font-size:22px; font-weight:800; color:var(--cor-preco-produto, var(--ac-600)); margin:2px 0 4px }
+.prod-desc{ font-size:15.5px; line-height:1.6; color:var(--txt2); white-space:pre-line; overflow-wrap:anywhere }
+.prod-desc.prod-sem{ color:var(--txt3); font-style:italic }
+.prod-qtd{ margin-top:10px }
+.prod-qtd .loja-add, .prod-qtd .loja-qtd{ min-height:46px }
+/* O Voltar sozinho no pé (onde não há Continuar): largo, para o polegar. */
+.rodape-acao .b2.so{ flex:1 }
 body.tem-cor-produtos .loja-cat.on{
   background:var(--prod-cor); color:var(--prod-txt); border-color:var(--prod-cor);
 }

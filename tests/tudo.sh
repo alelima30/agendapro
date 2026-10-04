@@ -224,6 +224,7 @@ rodar "link de senha que não serve" node "$AQUI/senha-link.test.mjs"
 rodar "agenda acorda em hoje" node "$AQUI/agenda-hoje.test.mjs"
 rodar "serviços com foto no agendamento" node "$AQUI/servicos-form.test.mjs"
 rodar "a agenda mostra o que falta confirmar" node "$AQUI/a-confirmar.test.mjs"
+rodar "voltar escrito e produto aberto" node "$AQUI/voltar-produto.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

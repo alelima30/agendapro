@@ -430,6 +430,14 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
       <div id="listaProdutos"></div>
     </section>
 
+    <!-- ══════ O PRODUTO, ABERTO ══════
+         Tocar na foto ou no nome abre aqui: a foto grande e a descricao
+         inteira, que no cartao nao cabem. (desenharProduto)
+         (Sem crase: HTML lido como template literal noutros pontos.) -->
+    <section class="passo" id="p-produto">
+      <div id="produtoAberto"></div>
+    </section>
+
     <!-- ══════ 1 · SERVIÇO ══════ -->
     <section class="passo" id="p-servico">
       <h2>O que você quer fazer?</h2>
@@ -1933,7 +1941,11 @@ function irPara(nova, semHistorico){
 function voltar(){
   const anterior = historico.pop();
   if(anterior) irPara(anterior, true);
+  // Sem nada atrás (o link abriu direto aqui): a capa é o começo.
+  else if(tela !== 'capa') irPara('capa', true);
 }
+const VOLTAR_ESCRITO = ['servico', 'quem', 'quemOutra', 'prof', 'quando', 'fila', 'dados',
+  'telefone', 'codigo', 'nome', 'loja', 'produto', 'pacotes', 'meus', 'conta'];
 
 function trilhaAte(n){
   const t = document.getElementById('trilha');
@@ -1966,6 +1978,8 @@ function desenhar(){
   const bs = document.getElementById('btSecundario');
   rodape.style.display = '';
   bs.style.display = 'none';
+  bs.classList.remove('so');
+  bp.style.display = '';
   bp.disabled = false;
 
   if(tela === 'saloes')      { desenharSaloes();    rodape.style.display='none'; trilhaAte(0); }
@@ -1999,6 +2013,11 @@ function desenhar(){
                                bp.textContent = n
                                  ? 'Enviar pedido no WhatsApp'
                                  : 'Escolha pelo menos 1 produto'; }
+  if(tela === 'produto')     { desenharProduto(); trilhaAte(0);
+                               const p = produtosDaLoja().find(x => x.id === produtoAbertoId);
+                               const n = p ? (carrinho[p.id] || 0) : 0;
+                               if(!p || !zapDoSalao()) rodape.style.display = 'none';
+                               bp.textContent = n ? 'Ver meu pedido' : 'Adicionar ao pedido'; }
   // Botão desabilitado que DIZ o que falta. Cinza mudo faz a pessoa procurar
   // o que não fez; o rótulo resolve sem ela precisar adivinhar.
   if(tela === 'servico')     { desenharServicos();  trilhaAte(1);
@@ -2047,6 +2066,21 @@ function desenhar(){
                                } else {
                                  rodape.style.display = 'none';
                                } }
+  /* ── ⚠ O VOLTAR ESCRITO, NO PÉ ────────────────────────────────────────
+     O ‹ do topo é pequeno e fica longe do polegar, e quem não usa o
+     celular todo dia não sabe que é ele que volta: "tem senhor e senhora
+     que não sabe aonde volta pra primeira tela". Ao lado do Continuar,
+     com a palavra, ninguém fica preso. Onde o pé não tinha botão (Para
+     quem, a loja sem WhatsApp...), ele aparece sozinho, largo. */
+  if(VOLTAR_ESCRITO.includes(tela)){
+    const sozinho = rodape.style.display === 'none';
+    rodape.style.display = '';
+    if(sozinho) bp.style.display = 'none';
+    bs.style.display = '';
+    bs.classList.toggle('so', sozinho);
+    bs.innerHTML = '<span data-ico="esquerda"></span>Voltar';
+    if(window.aplicarIcones) aplicarIcones(bs);
+  }
 
   /* ⚠ DEPOIS DE TODOS OS `if`, e não dentro do da capa. O carrinho sobrevive
      à navegação (fica no `localStorage`), então a fita tem que existir em
@@ -4116,7 +4150,7 @@ function desenharCarrinhoFita(){
   const fita = document.getElementById('carrinhoFita');
   if(!fita) return;
   const n = itensNoCarrinho();
-  const mostrar = n > 0 && !!zapDoSalao() && tela !== 'loja';
+  const mostrar = n > 0 && !!zapDoSalao() && tela !== 'loja' && tela !== 'produto';
 
   document.body.classList.toggle('com-fita', mostrar);
   if(!mostrar){ fita.style.display = 'none'; fita.innerHTML = ''; return; }
@@ -4387,7 +4421,7 @@ function desenharLojaNaCapa(){
     <div class="cat">Produtos em destaque</div>
     <div class="pr-grade">${mostrar.map(p => {
       const n = carrinho[p.id] || 0;
-      return `<div class="pr-cartao">
+      return `<div class="pr-cartao abre-produto" onclick="abrirProduto('${p.id}', event)">
         <!-- ⚠ A URL VAI NA VARIAVEL --pr-foto, E NAO EM background-image.
              A foto aparece inteira (contain) sobre uma copia borrada dela
              mesma, e o borrao mora num ::before — pseudo-elemento nao enxerga
@@ -4472,6 +4506,56 @@ function escolherCategoriaLoja(i){
   desenharLoja();
 }
 
+function botaoDoProduto(p, n){
+  return n
+    ? `<span class="loja-qtd" role="group" aria-label="Quantidade de ${escapar(p.nome)}">
+         <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',-1)" aria-label="Tirar um">−</button>
+         <b>${n}</b>
+         <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)" aria-label="Pôr mais um">+</button>
+       </span>`
+    : `<button class="btn btn-peq loja-add" onclick="mudarNoCarrinho('${p.id}',1)">
+         <span data-ico="carrinho" class="ic-pequeno"></span>
+         Adicionar</button>`;
+}
+function precoDoProduto(p){
+  return p.preco == null
+    ? '<span style="color:var(--txt2);font-weight:600">sob consulta</span>'
+    : real(Number(p.preco));
+}
+
+/* ── O PRODUTO ABERTO ─────────────────────────────────────────────────────
+   O cartão tem a foto pequena e a descrição cortada. Tocar na foto ou no
+   nome abre a tela do produto: a foto grande e o texto inteiro, com a
+   quantidade ali mesmo. Os botões do cartão (Adicionar, − +) continuam
+   fazendo só o que fazem — o toque neles não abre nada. */
+let produtoAbertoId = null;
+function abrirProduto(pid, ev){
+  if(ev && ev.target && ev.target.closest('button')) return;
+  if(!produtosDaLoja().some(p => p.id === pid)) return;
+  produtoAbertoId = pid;
+  irPara('produto');
+}
+function desenharProduto(){
+  const alvo = document.getElementById('produtoAberto');
+  const p = produtosDaLoja().find(x => x.id === produtoAbertoId);
+  if(!alvo) return;
+  if(!p){ alvo.innerHTML = '<div class="recado">Este produto não está mais à venda.</div>'; return; }
+  const cat = String(p.categoria || '').trim();
+  alvo.innerHTML = `
+    <div class="pr-foto prod-grande"${p.foto ? ` style="--pr-foto:url('${escapar(p.foto)}')"` : ''}
+         role="img" aria-label="${escapar(p.nome)}">${p.foto ? '' : '<span data-ico="presente"></span>'}</div>
+    <div class="prod-corpo">
+      ${cat ? `<span class="prod-cat">${escapar(cat)}</span>` : ''}
+      <h2 class="prod-nome">${escapar(p.nome)}</h2>
+      ${p.marca ? `<div class="prod-marca">${escapar(p.marca)}</div>` : ''}
+      <div class="prod-preco">${precoDoProduto(p)}</div>
+      ${p.descricao ? `<p class="prod-desc">${escapar(p.descricao)}</p>`
+                    : '<p class="prod-desc prod-sem">O salão ainda não escreveu sobre este produto.</p>'}
+      <div class="prod-qtd">${botaoDoProduto(p, carrinho[p.id] || 0)}</div>
+    </div>`;
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+
 function desenharLoja(){
   const alvo = document.getElementById('listaProdutos');
   if(!alvo) return;
@@ -4507,18 +4591,7 @@ function desenharLoja(){
      de contorno, igual em qualquer salão. Agora é cheio, na cor do botão do
      salão (ou na cor dos produtos, quando o dono escolheu uma — estilo.css,
      .loja-add); com o produto no carrinho vira − n +, no contorno da cor. */
-  const botaoDe = (p, n) => n
-    ? `<span class="loja-qtd" role="group" aria-label="Quantidade de ${escapar(p.nome)}">
-         <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',-1)" aria-label="Tirar um">−</button>
-         <b>${n}</b>
-         <button class="btn btn-peq" onclick="mudarNoCarrinho('${p.id}',1)" aria-label="Pôr mais um">+</button>
-       </span>`
-    : `<button class="btn btn-peq loja-add" onclick="mudarNoCarrinho('${p.id}',1)">
-         <span data-ico="carrinho" class="ic-pequeno"></span>
-         Adicionar</button>`;
-  const preco = p => p.preco == null
-    ? '<span style="color:var(--txt2);font-weight:600">sob consulta</span>'
-    : real(Number(p.preco));
+  const botaoDe = botaoDoProduto, preco = precoDoProduto;
 
   /* ── ⚠ NA MOLDURA CURVADA, O CARTÃO DA CAPA ────────────────────────────
      "Aplicar moldura curvada, quando tiver configurável, também em
@@ -4533,7 +4606,8 @@ function desenharLoja(){
      HTML diferente. */
   const curva = (salao.moldura || (salao.cfg || {}).moldura) === 'elegante';
   const cartoes = curva
-    ? `<div class="pr-grade loja-grade">${lista.map(p => `<div class="pr-cartao loja-cartao">
+    ? `<div class="pr-grade loja-grade">${lista.map(p => `<div class="pr-cartao loja-cartao abre-produto"
+        onclick="abrirProduto('${p.id}', event)">
         <span class="pr-foto"${p.foto
           ? ` style="--pr-foto:url('${escapar(p.foto)}')"` : ''}>
           ${p.foto ? '' : '<span data-ico="presente"></span>'}</span>
@@ -4547,7 +4621,8 @@ function desenharLoja(){
       </div>`).join('')}</div>`
     : lista.map(p => {
     const n = carrinho[p.id] || 0;
-    return `<div class="bloco" style="display:flex;gap:12px;align-items:flex-start">
+    return `<div class="bloco abre-produto" style="display:flex;gap:12px;align-items:flex-start"
+      onclick="abrirProduto('${p.id}', event)">
       <div style="flex:0 0 64px;width:64px;height:64px;border-radius:9px;
                   overflow:hidden;background:var(--fundo2,rgba(0,0,0,.05));
                   display:flex;align-items:center;justify-content:center">
@@ -4637,6 +4712,10 @@ function acaoPrincipal(){
     return;
   }
   if(tela === 'loja')      return enviarPedido();
+  if(tela === 'produto'){
+    const n = carrinho[produtoAbertoId] || 0;
+    return n ? irPara('loja') : mudarNoCarrinho(produtoAbertoId, 1);
+  }
   if(tela === 'servico')   return irPara('quem');
   if(tela === 'quemOutra') return confirmarQuemOutra();
   if(tela === 'prof')      return irPara('quando');
@@ -4691,6 +4770,8 @@ function acaoSecundaria(){
   // "Alterar horário": volta aos horários com tudo o mais escolhido. O
   // resto do caminho (dados, confirmar) é o de sempre.
   if(tela === 'confirmar') return irPara('quando');
+  if(tela === 'conta') return voltarDaConta();
+  if(VOLTAR_ESCRITO.includes(tela)) return voltar();
   /* "Voltar para a home": a capa, com a escolha zerada — era "Marcar outro",
      que abria a lista de serviços; da capa o Agendar horário faz o mesmo. */
   if(tela === 'pronto'){

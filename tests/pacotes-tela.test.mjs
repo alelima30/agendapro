@@ -304,14 +304,17 @@ console.log('\n── O PACOTE COM A AGENDA DESLIGADA ────────�
   await c2.waitForTimeout(800);
   const semAgenda = await c2.evaluate(() => ({
     passo: document.body.getAttribute('data-passo'),
-    pe: getComputedStyle(document.getElementById('rodapeAcao')).display,
+    // O pé pode ficar (com o Voltar escrito, voltar-produto.test.mjs); o
+    // que não pode é o "Usar meu pacote".
+    pe: getComputedStyle(document.getElementById('btPrincipal')).display,
+    voltar: (document.getElementById('btSecundario') || {}).textContent.trim(),
     texto: (document.getElementById('listaPacotes') || {}).textContent
              .replace(/\s+/g, ' ').trim(),
   }));
   console.log('      ' + JSON.stringify(semAgenda).slice(0, 220));
   e('a tela dos pacotes abre normalmente', semAgenda.passo === 'pacotes');
-  e('mas o botão "Usar meu pacote" some — ele abriria uma lista vazia',
-    semAgenda.pe === 'none', semAgenda.pe);
+  e('mas o botão "Usar meu pacote" some — ele abriria uma lista vazia; no pé, só o Voltar',
+    semAgenda.pe === 'none' && semAgenda.voltar === 'Voltar', semAgenda.pe + ' / ' + semAgenda.voltar);
   e('e a tela diz que as sessões continuam guardadas',
     /guardadas/i.test(semAgenda.texto), semAgenda.texto.slice(0, 160));
   e('sem erro de JavaScript', errosC2.length === 0, errosC2.slice(0,2).join(' | '));

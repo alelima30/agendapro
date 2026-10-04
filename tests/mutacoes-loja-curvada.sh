@@ -84,9 +84,9 @@ troca estilo.css \
 
 echo "6. a cor dos produtos ignorada"
 troca estilo.css \
-  "body.tem-cor-produtos #listaProdutos .loja-add{
+  "body.tem-cor-produtos #listaProdutos .loja-add, body.tem-cor-produtos #produtoAberto .loja-add{
   background:var(--prod-cor);" \
-  "body.tem-cor-produtos #listaProdutos .loja-addX{
+  "body.tem-cor-produtos #listaProdutos .loja-addX, body.tem-cor-produtos #produtoAberto .loja-addX{
   background:var(--prod-cor);" \
   && rodar "loja numa cor, capa noutra"
 
