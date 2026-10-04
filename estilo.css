@@ -4563,3 +4563,16 @@ body.tem-cor-produtos .loja-cat.on{
   display:grid; place-items:center; cursor:pointer; border-radius:50% }
 .senha-olho.on{ color:var(--ac-600) }
 .senha-olho .ic-svg{ width:20px; height:20px }
+
+/* ── DATA QUE SE DIGITA (documento.js → Documento.dataDigitavel) ───────────
+   O texto dd/mm/aaaa ocupa a largura; o campo de data de verdade fica
+   invisível por cima do ícone de calendário, e tocar no ícone abre o
+   seletor do celular. */
+.data-caixa{ position:relative; display:block }
+.data-caixa .data-txt{ width:100%; padding-right:54px }
+.data-caixa .data-ic{ position:absolute; right:14px; top:50%; transform:translateY(-50%);
+  pointer-events:none; color:var(--txt3); display:grid; place-items:center }
+.data-caixa .data-ic .ic-svg{ width:20px; height:20px }
+.data-caixa .data-escolher{ position:absolute; right:3px; top:50%; transform:translateY(-50%);
+  width:48px; height:46px; min-height:0; padding:0; margin:0; opacity:0; cursor:pointer;
+  border:0; background:transparent; color:transparent }

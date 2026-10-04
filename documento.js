@@ -84,6 +84,99 @@ function mascaraCpf(el){
   el.value = v;
 }
 
-global.Documento = { soDigitos, cpfValido, cnpjValido, mascara, mascaraCpf };
+/* ── DATA QUE SE DIGITA ────────────────────────────────────────────────────
+   `<input type="date">` no Android só abre o calendário: não deixa digitar.
+   Para um aniversário de 1958, isso é rolar o seletor de ano por 68 anos.
+   "Tenho que conseguir digitar dia, mês e ano — ou pôr pela agenda ao lado."
+
+   `dataDigitavel(campo)` põe um campo de texto dd/mm/aaaa na frente do campo
+   de data, e o campo de data fica INVISÍVEL por cima do ícone de calendário:
+   tocar no ícone é tocar nele, e o celular abre o seletor de sempre.
+
+   ⚠ O CAMPO DE DATA CONTINUA SENDO O QUE GUARDA O VALOR, em ISO
+   (aaaa-mm-dd). Quem lê `.value` dele — o salvar, a conferência de idade, a
+   memória do aparelho — não precisa saber que existe um texto na frente.
+   Escrever `.value` nele por código também atualiza o texto (o setter é
+   trocado só nesta instância). */
+function dataDeBr(t){
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(t || '').trim());
+  if(!m) return '';
+  const d = +m[1], mes = +m[2], a = +m[3];
+  const dt = new Date(a, mes - 1, d);
+  if(dt.getFullYear() !== a || dt.getMonth() !== mes - 1 || dt.getDate() !== d) return '';
+  return m[3] + '-' + m[2] + '-' + m[1];
+}
+function brDeData(iso){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+}
+function mascaraData(el){
+  const d = soDigitos(el.value).slice(0, 8);
+  el.value = d.length > 4 ? d.slice(0, 2) + '/' + d.slice(2, 4) + '/' + d.slice(4)
+           : d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
+}
+function dataDigitavel(campo){
+  if(!campo || campo.dataset.digitavel) return;
+  campo.dataset.digitavel = '1';
+  const caixa = document.createElement('span');
+  caixa.className = 'data-caixa';
+  const txt = document.createElement('input');
+  txt.type = 'text';
+  txt.inputMode = 'numeric';
+  txt.placeholder = 'dd/mm/aaaa';
+  txt.maxLength = 10;
+  txt.id = campo.id + 'Txt';
+  txt.className = 'data-txt';
+  txt.autocomplete = campo.getAttribute('autocomplete') || 'off';
+  const rot = campo.id && document.querySelector('label[for="' + campo.id + '"]');
+  if(rot) rot.setAttribute('for', txt.id);
+  else {
+    const lab = campo.closest('.campo') && campo.closest('.campo').querySelector('label');
+    if(lab) txt.setAttribute('aria-label', lab.textContent.trim());
+  }
+  const ic = document.createElement('span');
+  ic.className = 'data-ic';
+  ic.setAttribute('data-ico', 'calendario');
+  ic.setAttribute('aria-hidden', 'true');
+  campo.parentNode.insertBefore(caixa, campo);
+  caixa.appendChild(txt);
+  caixa.appendChild(ic);
+  caixa.appendChild(campo);
+  campo.classList.add('data-escolher');
+  campo.removeAttribute('autocomplete');
+  campo.setAttribute('aria-label', 'Escolher no calendário');
+
+  // Escrever no campo de data por código (memória do aparelho, ficha aberta)
+  // atualiza o texto — menos enquanto a pessoa está digitando nele.
+  const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  Object.defineProperty(campo, 'value', {
+    configurable: true,
+    get(){ return desc.get.call(this); },
+    set(v){ desc.set.call(this, v); if(document.activeElement !== txt) txt.value = brDeData(desc.get.call(this)); },
+  });
+  txt.value = brDeData(campo.value);
+
+  txt.addEventListener('input', () => {
+    mascaraData(txt);
+    desc.set.call(campo, dataDeBr(txt.value));
+    campo.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  // Só quando a mudança veio do calendário: o aviso de mudança que o próprio
+  // texto dispara (acima) voltaria aqui e apagaria a data pela metade.
+  const doCalendario = () => { if(document.activeElement !== txt) txt.value = brDeData(desc.get.call(campo)); };
+  campo.addEventListener('input', doCalendario);
+  campo.addEventListener('change', doCalendario);
+  // No computador o clique no campo não abre o seletor sozinho.
+  campo.addEventListener('click', () => { try{ campo.showPicker(); }catch(e){} });
+  if(global.aplicarIcones) global.aplicarIcones(caixa);
+}
+// Digitou alguma coisa que não virou data (31/02, ano pela metade)?
+function dataIncompleta(campo){
+  const t = campo && document.getElementById(campo.id + 'Txt');
+  return !!(t && t.value.trim() && !campo.value);
+}
+
+global.Documento = { soDigitos, cpfValido, cnpjValido, mascara, mascaraCpf,
+                     dataDigitavel, dataDeBr, brDeData, mascaraData, dataIncompleta };
 
 })(window);

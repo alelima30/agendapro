@@ -1818,7 +1818,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.74bdd2';
+const VERSAO_APP = 'v9.599891';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6281,12 +6281,18 @@ function abrirCliente(cid){
     ['Cancelar','fecharModal()',''],
     ['Salvar', `salvarCliente(${c ? `'${c.id}'` : 'null'})`, 'btn-p'],
   ]);
+  Documento.dataDigitavel(document.getElementById('kNasc'));
 }
 
 function salvarCliente(cid){
   const nome = (document.getElementById('kNome').value || '').trim();
   if(nome.length < 2){ alert('Informe o nome.'); return; }
   const tel = telefoneParaBanco(document.getElementById('kTel').value);
+  if(Documento.dataIncompleta(document.getElementById('kNasc'))){
+    alert('Confira a data de nascimento — dia, mês e ano, como 04/10/1990.\n\n'
+        + 'Ou apague o campo para salvar sem ela.');
+    return;
+  }
 
   /* CPF conferido só quando preenchido — em branco é estado normal de ficha.
      Aqui SIM vale barrar, ao contrário do link: quem digita é a recepção, com

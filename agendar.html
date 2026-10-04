@@ -3353,6 +3353,10 @@ function salvarDados(){
     dizer('Falta o WhatsApp com DDD — é por onde vem a confirmação.');
     return;
   }
+  if(!nasc && Documento.dataIncompleta(document.getElementById('dNasc'))){
+    dizer('Confira a data do aniversário — escreva dia, mês e ano, como 04/10/1990.');
+    return;
+  }
   if(!nasc){
     dizer('Falta o seu aniversário. É só o dia — o salão usa para o agrado '
         + 'do seu mês.');
@@ -6404,6 +6408,9 @@ function registrarServiceWorker(){
     const s = localStorage.getItem(CHAVE_SESSAO);
     if(s) sessao = JSON.parse(s);
   }catch(e){}
+
+  // Aniversário que se digita (dd/mm/aaaa), com o calendário ao lado.
+  ['dNasc', 'fNasc'].forEach(id => Documento.dataDigitavel(document.getElementById(id)));
 
   /* ── A VOLTA DO E-MAIL DE CONFIRMAÇÃO ─────────────────────────────────
      O link do e-mail traz a sessão no #fragmento (criarConta com `volta`).
