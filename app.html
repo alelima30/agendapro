@@ -362,18 +362,41 @@ body.carregando-tudo .tela{ display:none }
 .aviso.ok{background:rgba(16,185,129,.1);color:#059669;border-color:rgba(16,185,129,.25)}
 .aviso.info{background:rgba(37,99,235,.09);color:var(--marca);border-color:rgba(37,99,235,.22)}
 
-/* ── Escolha de serviços (checkboxes) ────────────────────────────────── */
-.lista-serv{border:1px solid var(--borda);border-radius:9px;max-height:190px;overflow:auto}
-.serv-op{
-  display:flex;align-items:center;gap:9px;padding:8px 11px;
-  border-bottom:1px solid var(--borda);cursor:pointer;
+/* ── Escolha de serviços: cartões com a foto, como no link da cliente ──
+   Eram caixinhas numa lista, e no celular a caixinha ficava numa linha e o
+   nome noutra. A caixinha continua dentro de cada cartão — escondida, mas
+   é ela que guarda a escolha, e o resto da tela continua lendo
+   `.serv-op input:checked` como sempre.
+   ⚠ Prefixados com `.lista-serv`: o `.campo label` (display:block, letra
+   pequena) pesava mais que `.serv-op` sozinho — era ele que punha a
+   caixinha numa linha e o nome noutra. */
+.lista-serv{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:9px;
+  max-height:360px;overflow:auto;padding:2px;
 }
-.serv-op:last-child{border-bottom:none}
-.serv-op:hover{background:rgba(37,99,235,.05)}
-.serv-op input{width:auto;margin:0}
-.serv-op .i{flex:1}
-.serv-op .n{font-weight:600;font-size:14px}
-.serv-op .d{font-size:12px;color:var(--txt2)}
+.lista-serv .serv-op{
+  position:relative;display:flex;flex-direction:column;cursor:pointer;margin:0;
+  font-size:inherit;font-weight:400;color:var(--txt);
+  border:1.5px solid var(--borda);border-radius:12px;background:var(--painel);
+  overflow:hidden;transition:border-color .15s, box-shadow .15s;
+}
+.lista-serv .serv-op input{position:absolute;opacity:0;width:1px;height:1px;min-height:0;margin:0;padding:0;pointer-events:none}
+.lista-serv .serv-op .serv-foto{display:block;aspect-ratio:4/3;background:var(--painel2, #F3F4F6)}
+.lista-serv .serv-op .serv-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.lista-serv .serv-op .serv-ini{display:grid;place-items:center;width:100%;height:100%;
+  font-size:26px;font-weight:700;color:var(--marca);background:rgba(37,99,235,.08)}
+.lista-serv .serv-op .i{display:block;padding:8px 10px 10px}
+.lista-serv .serv-op .n{display:block;font-weight:600;font-size:14px;line-height:1.25;overflow-wrap:anywhere}
+.lista-serv .serv-op .d{display:block;font-size:12px;color:var(--txt2);margin-top:2px}
+.lista-serv .serv-op .serv-marca{position:absolute;top:7px;right:7px;width:24px;height:24px;border-radius:50%;
+  background:rgba(255,255,255,.92);border:1.5px solid var(--borda)}
+.lista-serv .serv-op.on{border-color:var(--marca);box-shadow:0 0 0 2px rgba(37,99,235,.18)}
+.lista-serv .serv-op.on .serv-marca{background:var(--marca);border-color:var(--marca)}
+.lista-serv .serv-op.on .serv-marca::after{content:'';position:absolute;left:7px;top:3px;width:6px;height:11px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.lista-serv .serv-op:focus-within{outline:2px solid var(--marca);outline-offset:1px}
+.busca-serv{margin-bottom:8px}
+.serv-nada{font-size:13px;color:var(--txt2);padding:8px 2px}
 
 /* ── Página pública (ver como cliente) ───────────────────────────────── */
 .publico{max-width:560px;margin:0 auto}
@@ -1788,7 +1811,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.efc2c6';
+const VERSAO_APP = 'v9.a4fd3b';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -5249,12 +5272,19 @@ function abrirNovo(profId, min){
         ${profs.map(p => `<option value="${p.id}"${p.id===profId?' selected':''}>${escapar(p.nome)}</option>`).join('')}
       </select></div>
     <div class="campo"><label>Serviços</label>
+      ${servs.length > 6 ? `<input id="fBuscaServ" class="busca-serv" type="search"
+        placeholder="Buscar serviço…" autocomplete="off" oninput="filtrarServicosNoForm()">` : ''}
       <div class="lista-serv">${servs.map(s => `
-        <label class="serv-op">
-          <input type="checkbox" value="${s.id}" onchange="recalcularFim()">
+        <label class="serv-op" data-busca="${escapar(semAcento(s.nome + ' ' + (s.categoria || '')))}">
+          <input type="checkbox" value="${s.id}" onchange="marcarServico(this)">
+          <span class="serv-foto">${s.foto
+            ? `<img src="${escapar(s.foto)}" alt="" loading="lazy">`
+            : `<span class="serv-ini">${escapar((s.nome || '?').trim().charAt(0).toUpperCase())}</span>`}</span>
           <span class="i"><span class="n">${escapar(s.nome)}</span>
             <span class="d">${s.duracaoMin} min · ${real(s.preco)}</span></span>
-        </label>`).join('')}</div></div>
+          <span class="serv-marca" aria-hidden="true"></span>
+        </label>`).join('')}</div>
+      <div class="serv-nada" id="servNada" style="display:none">Nenhum serviço com esse nome.</div></div>
     <div class="dupla">
       <div class="campo"><label>Data</label>
         <input type="date" id="fData" value="${diaAtual}" onchange="recalcularFim()"></div>
@@ -5275,6 +5305,29 @@ function abrirNovo(profId, min){
     recalcularFim();
   });
   recalcularFim();
+}
+
+/* Cartão marcado tem moldura e o visto; a caixinha escondida guarda a
+   escolha. */
+function marcarServico(cx){
+  cx.closest('.serv-op').classList.toggle('on', cx.checked);
+  recalcularFim();
+}
+function semAcento(t){
+  return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+/* A busca, para quem tem 50 serviços. O que já está marcado não some:
+   sumir com a escolha feita faria parecer que ela foi desfeita. */
+function filtrarServicosNoForm(){
+  const q = semAcento((document.getElementById('fBuscaServ') || {}).value || '').trim();
+  let achados = 0;
+  document.querySelectorAll('.lista-serv .serv-op').forEach(el => {
+    const acha = !q || el.dataset.busca.includes(q);
+    el.style.display = acha || el.querySelector('input').checked ? '' : 'none';
+    if(acha) achados++;
+  });
+  const nada = document.getElementById('servNada');
+  if(nada) nada.style.display = achados ? 'none' : '';
 }
 
 // Mostra ao vivo em que horário aquilo termina, e se bate em alguém.

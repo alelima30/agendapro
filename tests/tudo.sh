@@ -222,6 +222,7 @@ rodar "categoria dos produtos" node "$AQUI/produto-categoria.test.mjs"
 rodar "conta da cliente no link" node "$AQUI/conta-cliente.test.mjs"
 rodar "link de senha que não serve" node "$AQUI/senha-link.test.mjs"
 rodar "agenda acorda em hoje" node "$AQUI/agenda-hoje.test.mjs"
+rodar "serviços com foto no agendamento" node "$AQUI/servicos-form.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then
