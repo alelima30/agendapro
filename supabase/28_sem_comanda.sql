@@ -187,10 +187,16 @@ begin
     from public.agendamento_servicos s
    where s.agendamento_id = new.id;
 
+  /* O cupom (34_cupons.sql): o item fica com o preço cheio — é sobre ele que
+     a comissão sai —, e a comanda leva o desconto, como a recepção faria. */
+  v_total := v_total - least(coalesce(new.desconto, 0), coalesce(v_total, 0));
+
   if v_total is null or v_total <= 0 then return new; end if;
 
-  insert into public.comandas (salao_id, agendamento_id, cliente_id, automatica)
-       values (new.salao_id, new.id, new.cliente_id, true)
+  insert into public.comandas (salao_id, agendamento_id, cliente_id, automatica,
+                               desconto, desconto_motivo)
+       values (new.salao_id, new.id, new.cliente_id, true, coalesce(new.desconto, 0),
+               (select 'Cupom ' || cp.codigo from public.cupons cp where cp.id = new.cupom_id))
     returning id into v_comanda;
 
   insert into public.comanda_itens (comanda_id, tipo, servico_id, descricao,

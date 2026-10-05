@@ -348,6 +348,13 @@ function semear(){
       {id:id(), pacoteId:'pk1', clienteId:'c1', salaoId:s1, restantes:4,
        venceEm: somarDias(hoje(), 74), criadoEm: nascido(16)},
     ],
+    /* Um cupom, para a aba Cupons não abrir vazia na demonstração. O desconto
+       de verdade só sai do banco (34_cupons.sql); aqui ele é cadastro. */
+    cupons: [
+      {id:'cp1', salaoId:s1, codigo:'BEMVINDA10', tipo:'pct', valor:10,
+       valeAgendamento:true, valeProdutos:false, servicos:null, inicio:null,
+       fim:null, limiteTotal:null, umPorCliente:true, ativo:true},
+    ],
   };
 }
 

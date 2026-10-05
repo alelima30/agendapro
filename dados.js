@@ -98,7 +98,7 @@ const COLUNAS = {
                    canceladoMotivo:'cancelado_motivo', atendidoNome:'atendido_nome',
                    sinalExigido:'sinal_exigido', sinalPago:'sinal_pago',
                    sinalRef:'sinal_ref', criadoPor:'criado_por', criadoEm:'criado_em',
-                   encaixePor:'encaixe_por',
+                   encaixePor:'encaixe_por', cupomId:'cupom_id',
                    arquivadoEm:'arquivado_em' },
   agendamento_servicos: { agendamentoId:'agendamento_id', servicoId:'servico_id',
                    duracaoMin:'duracao_min', comissaoPct:'comissao_pct' },
@@ -111,6 +111,9 @@ const COLUNAS = {
   pacotes:       { salaoId:'salao_id', validadeDias:'validade_dias',
                    soNosDias:'so_nos_dias', criadoEm:'criado_em' },
   pacote_servicos: { pacoteId:'pacote_id', servicoId:'servico_id' },
+  cupons:        { salaoId:'salao_id', valeAgendamento:'vale_agendamento',
+                   valeProdutos:'vale_produtos', limiteTotal:'limite_total',
+                   umPorCliente:'um_por_cliente', criadoEm:'criado_em' },
   pacote_clientes: { pacoteId:'pacote_id', clienteId:'cliente_id',
                    venceEm:'vence_em', criadoEm:'criado_em',
                    canceladoEm:'cancelado_em' },
@@ -261,6 +264,12 @@ const VAZIO_E_NULO = new Set([
      o dia em que outro caminho gravar o mesmo campo — que é exatamente o que
      aconteceu com `marketing_saiu_em` e `encaixe_por`. */
   'dias',
+  /* As do 34_cupons.sql. Todas opcionais na tela do cupom: validade em branco
+     quer dizer "sem data", limite em branco quer dizer "sem limite", lista de
+     serviços vazia quer dizer "vale para todos". `''` em qualquer uma delas
+     derrubaria a gravação inteira do cupom — e `cupom_id` em branco, a do
+     agendamento, que quase nunca tem cupom. */
+  'cupom_id', 'inicio', 'fim', 'limite_total', 'servicos',
 ]);
 
 function paraBanco(tabela, obj){
@@ -1123,6 +1132,12 @@ const TABELAS_SINCRONIZADAS = [
      apontam para ele, e a chave estrangeira exige que o pai já esteja lá.
      Mesma razão de `agendamento_servicos` vir logo depois do agendamento. */
   'pacotes','pacote_servicos','pacote_clientes',
+  /* Os cupons não apontam para nada sincronizado além do salão; quem aponta
+     para eles é o agendamento (`cupom_id`), que só o banco preenche — na
+     função `agendar`. Por isso a posição aqui não importa para a chave
+     estrangeira, e sim para a leitura: ficam junto dos pacotes, que é onde o
+     painel os mostra. */
+  'cupons',
   /* `caixas` ANTES de `pagamentos`, e não é arrumação: o gatilho
      `tg_pagamento_caixa` procura o caixa aberto para carimbar o pagamento.
      Se o pagamento subisse primeiro, o caixa recém-aberto ainda não estaria

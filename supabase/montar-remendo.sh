@@ -253,6 +253,13 @@ assert confirmacao, 'ninguém define confirma_automatico() — o remendo sairia 
 precos = [f for f in modulos if define(f, 'preco_do_servico')]
 assert precos, 'ninguém define preco_do_servico() — o remendo sairia quebrado'
 
+# ⚠ E OS CUPONS, INTEIROS E ANTES DO 09. O `agendar()` grava `cupom_id` e
+# `desconto` no agendamento e insere em `cupom_usos` — colunas e tabela, que o
+# fechamento de funções lá embaixo não enxerga. Sem o módulo, toda marcação
+# pelo link morreria com "column cupom_id does not exist".
+cupons = [f for f in modulos if define(f, 'cupom_calcular')]
+assert cupons, 'ninguém define cupom_calcular() — o remendo sairia quebrado'
+
 partes = [
     limpar(arquivar),
     limpar(precos_tab),
@@ -265,7 +272,7 @@ partes = [
     "grant execute on function public.horarios_livres(uuid, date, uuid[]) to anon, authenticated;",
     limpar(ficha),
     "revoke all on function public.ficha_do_cliente(uuid, text, text) from public;",
-] + [limpar(x) for f in pacotes + confirmacao + precos
+] + [limpar(x) for f in pacotes + confirmacao + precos + cupons
                 for x in inteiro_com_consertos(f)] + [
     limpar(open('supabase/09_cliente.sql', encoding='utf-8').read()),
     # A categoria do produto, que a vitrine devolve. Função SQL resolve as

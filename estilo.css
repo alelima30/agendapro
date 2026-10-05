@@ -4456,6 +4456,28 @@ body[data-passo="loja"] #btPrincipal:disabled{
   background:var(--bg); color:var(--txt); font:inherit; font-size:15px }
 .cf-obs textarea:focus{ outline:2px solid var(--ac-line); border-color:var(--ac-600) }
 
+/* O cupom (agendar.html → .cupom-*): a mesma caixa da observação, com o
+   campo e o botão lado a lado; aceito, vira a faixa do "deu certo" — o tom
+   de sucesso que o tema já tem (--su-soft/--ok). Nenhuma cor escrita aqui. */
+.cupom-linha{ display:flex; gap:8px; margin:0 16px 14px }
+.cupom-txt{ flex:1; min-width:0; padding:11px 12px; border-radius:var(--r); border:1px solid var(--borda);
+  background:var(--bg); color:var(--txt); font:inherit; font-size:15px;
+  text-transform:uppercase; letter-spacing:.04em }
+.cupom-txt::placeholder{ text-transform:none; letter-spacing:0; color:var(--txt3) }
+.cupom-txt:focus{ outline:2px solid var(--ac-line); border-color:var(--ac-600) }
+.cupom-aplicar{ flex:none; padding:0 18px; min-height:44px; border-radius:var(--r); border:0;
+  background:var(--acao); color:var(--acao-txt); font:inherit; font-size:15px; font-weight:700;
+  cursor:pointer }
+.cupom-aplicar:disabled{ opacity:.6; cursor:default }
+.cupom-erro{ margin:-4px 16px 14px; font-size:13.5px; line-height:1.4; color:var(--erro) }
+.cupom-ok{ display:flex; align-items:center; gap:13px; padding:12px 16px; margin-bottom:14px;
+  border-radius:var(--r-lg); background:var(--su-soft);
+  border:1px solid color-mix(in srgb, var(--ok) 30%, transparent) }
+.cupom-ok .cf-ic{ background:var(--painel); color:var(--ok) }
+.cupom-ok-txt{ flex:1; min-width:0 }
+.cupom-ok-txt b{ display:block; font-size:14.5px; font-weight:650; color:var(--txt); overflow-wrap:anywhere }
+.cupom-ok-txt small{ font-size:13px; color:var(--txt2) }
+
 /* Os botões do pé na confirmação: o principal é o de sempre (cor do botão);
    o "Alterar horário" é a mesma identidade com menos peso — papel, contorno
    e letra na cor da marca. Lado a lado a partir de 440px; abaixo disso, o

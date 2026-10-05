@@ -97,6 +97,10 @@ preparar() {
   carregar "$RAIZ/supabase/31_dias_servico.sql"
   carregar "$RAIZ/supabase/32_produto_cadastro.sql"
   carregar "$RAIZ/supabase/33_preco_regras.sql"
+  # O 34 cria a coluna `agendamentos.cupom_id` que o `agendar()` (09) grava:
+  # sem ele, toda marcação dos testes estoura — foi assim que esta lista
+  # lembrou de existir de novo.
+  carregar "$RAIZ/supabase/34_cupons.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

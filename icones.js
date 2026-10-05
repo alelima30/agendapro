@@ -73,6 +73,10 @@ const D = {
   cartao:     '<rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M2.5 10h19M6 14.5h3"/>',
   predio:     '<rect x="4.5" y="3" width="15" height="18" rx="2"/><path d="M9 7.5h2M13 7.5h2M9 11.5h2M13 11.5h2M10 21v-4h4v4"/>',
   etiqueta:   '<path d="M3.5 11V4.5H10L20 14.5 13.5 21 3.5 11Z"/><circle cx="7.5" cy="8.5" r="1.3"/>',
+  /* O tíquete com o "%": cupom de desconto. A etiqueta já é de Pacotes e do
+     Plano, e três itens do menu com o mesmo desenho obrigariam a ler o
+     rótulo de todos. */
+  cupom:      '<path d="M3.5 7.5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v2.2a2.3 2.3 0 0 0 0 4.6v2.2a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-2.2a2.3 2.3 0 0 0 0-4.6Z"/><path d="m9.5 14.5 5-5"/><circle cx="9.7" cy="9.7" r=".9"/><circle cx="14.3" cy="14.3" r=".9"/>',
   // Três barras crescendo sobre uma linha de base. Barra é o que todo mundo
   // reconhece como "relatório" sem legenda — pizza e linha, nesse tamanho,
   // viram borrão.

@@ -136,11 +136,14 @@ revoke all on function public.cliente_exige_confirmacao(uuid, uuid, text)
 -- listada aqui para sempre. Tirar uma da lista, um dia, é deixar viva a
 -- sobrecarga que ela derrubava — num banco que já estava instalado.
 -- ---------------------------------------------------------------------------
--- A de sete (do 05_agenda.sql) e a de nove (a versão anterior deste arquivo).
--- As duas caem, sempre, para nunca sobrar sobrecarga viva.
+-- A de sete (do 05_agenda.sql), a de nove e a de dez (versões anteriores deste
+-- arquivo; a de onze, de agora, trouxe o cupom do 34_cupons.sql). Todas caem,
+-- sempre, para nunca sobrar sobrecarga viva.
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text);
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
                                        text, date);
+drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
+                                       text, date, text);
 
 create or replace function public.agendar(
   p_profissional  uuid,
@@ -152,7 +155,8 @@ create or replace function public.agendar(
   p_obs           text default null,
   p_email         text default null,
   p_nascimento    date default null,
-  p_cpf           text default null)
+  p_cpf           text default null,
+  p_cupom         text default null)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -174,6 +178,8 @@ declare
   v_quem     text;
   v_ordem    smallint := 1;
   v_pacote   uuid;
+  v_cupom    jsonb;
+  v_desconto numeric(10,2) := 0;
   s          record;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
@@ -339,6 +345,24 @@ begin
     end if;
   end if;
 
+  /* ── O CUPOM (34_cupons.sql) ───────────────────────────────────────────────
+     A conta é refeita AQUI, na hora de marcar, com o cupom travado: a prévia
+     que a tela mostrou não vale nada para o banco. Cupom que não vale derruba
+     a marcação com o motivo escrito — a tela devolve a cliente para tirá-lo
+     ou trocá-lo, em vez de ela descobrir o preço cheio no balcão.
+
+     Horário que o pacote já cobre sai por zero: o cupom não tem o que
+     descontar, e é ignorado (sem gastar um uso). */
+  if nullif(btrim(coalesce(p_cupom, '')), '') is not null and v_pacote is null then
+    v_cupom := public.cupom_calcular(v_salao, p_cupom, 'agendamento', p_servicos,
+                                     p_profissional, p_inicio, null, v_tel, v_cliente, true);
+    if v_cupom->>'motivo' is not null then
+      raise exception 'Cupom: %', v_cupom->>'motivo' using errcode = 'check_violation';
+    end if;
+    v_desconto := least((v_cupom->>'desconto')::numeric, v_valor);
+    v_valor    := v_valor - v_desconto;
+  end if;
+
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
      and a.status in ('pendente','confirmado')
@@ -369,14 +393,16 @@ begin
   begin
     insert into public.agendamentos
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
-       valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id)
+       valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id,
+       cupom_id, desconto)
     values
       (v_salao, v_cliente, p_profissional, p_inicio, v_fim,
        case when public.confirma_automatico(v_salao)
              and not public.cliente_exige_confirmacao(v_salao, v_cliente, v_tel)
             then 'confirmado' else 'pendente' end, 'online',
        v_valor, v_quem,
-       nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote)
+       nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote,
+       (v_cupom->>'cupom_id')::uuid, v_desconto)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
   exception
     when exclusion_violation then
@@ -413,6 +439,13 @@ begin
     values (v_agend, s.id, v_ordem, s.dur, s.preco, s.com);
     v_ordem := v_ordem + 1;
   end loop;
+
+  -- O uso do cupom, preso a este agendamento: desmarcou, devolve o uso.
+  if v_desconto > 0 then
+    insert into public.cupom_usos (cupom_id, salao_id, origem, agendamento_id, telefone, desconto)
+         values ((v_cupom->>'cupom_id')::uuid, v_salao, 'agendamento', v_agend,
+                 nullif(public.telefone_nacional(v_tel), ''), v_desconto);
+  end if;
 
   return query select v_agend, p_inicio, v_fim, v_valor, v_token;
 end $$;
@@ -700,7 +733,7 @@ revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
 revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                      text, text, date, text) from public;
+                                      text, text, date, text, text) from public;
 
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
@@ -709,7 +742,7 @@ grant execute on function public.sair_da_fila(uuid)          to anon, authentica
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                         text, text, date, text) to anon, authenticated;
+                                         text, text, date, text, text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 7) A CONTA DA CLIENTE NO LINK

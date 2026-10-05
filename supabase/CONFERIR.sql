@@ -30,12 +30,13 @@ with conferencia(ordem, item, veredito, detalhe) as (
          case
            when count(*) = 0 then 'FALTA'
            when count(*) > 1 then 'ERRADO'
-           when max(pronargs) = 10 then 'certo'
+           -- 11 desde o cupom (34_cupons.sql): a página manda `p_cupom`.
+           when max(pronargs) = 11 then 'certo'
            else 'FALTA'
          end,
          count(*)::text || ' versão(ões), argumentos: '
            || coalesce(string_agg(pronargs::text, ' e ' order by pronargs), '—')
-           || '  (o certo é 1 versão, com 10)'
+           || '  (o certo é 1 versão, com 11)'
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'agendar'
 
@@ -420,7 +421,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                and column_name = 'exige_confirmacao')
              or to_regprocedure('public.cliente_exige_confirmacao(uuid,uuid,text)') is null
              or coalesce(position('cliente_exige_confirmacao' in pg_get_functiondef(
-                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text)'))), 0) = 0
+                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text)'))), 0) = 0
              then 'FALTA'
            when has_function_privilege('anon', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
              or has_function_privilege('authenticated', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
@@ -432,13 +433,50 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                and column_name = 'exige_confirmacao')
              or to_regprocedure('public.cliente_exige_confirmacao(uuid,uuid,text)') is null
              or coalesce(position('cliente_exige_confirmacao' in pg_get_functiondef(
-                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text)'))), 0) = 0
+                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text)'))), 0) = 0
              then 'falta o 09_cliente.sql novo: a marca "precisa de confirmação" '
                || 'na ficha não segura o horário da cliente'
            when has_function_privilege('anon', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
              or has_function_privilege('authenticated', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
              then 'qualquer um consegue perguntar quem está marcado — rode o '
                || '09_cliente.sql de novo'
+           else '' end
+  union all
+  /* Os cupons: as tabelas, o desconto no agendamento, a prévia do link e o
+     agendar() que aplica o cupom. A conta em si (`cupom_calcular`) e a ficha
+     de quem está logado (`cupom_minha_ficha`) não podem estar abertas: só o
+     banco chama. */
+  select 24, 'cupons de desconto',
+         case
+           when to_regclass('public.cupons') is null or to_regclass('public.cupom_usos') is null
+             or not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'agendamentos'
+                               and column_name = 'desconto')
+             or to_regprocedure('public.conferir_cupom(uuid,text,text,uuid[],uuid,timestamptz,jsonb)') is null
+             or to_regprocedure('public.usar_cupom_no_pedido(uuid,text,jsonb)') is null
+             or to_regprocedure('public.salao_tem_cupom(uuid)') is null
+             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text)') is null
+             then 'FALTA'
+           when has_function_privilege('anon', 'public.cupom_calcular(uuid,text,text,uuid[],uuid,timestamptz,jsonb,text,uuid,boolean)', 'execute')
+             or has_function_privilege('authenticated', 'public.cupom_calcular(uuid,text,text,uuid[],uuid,timestamptz,jsonb,text,uuid,boolean)', 'execute')
+             or has_function_privilege('anon', 'public.cupom_minha_ficha(uuid)', 'execute')
+             then 'ABERTA'
+           else 'certo' end,
+         case
+           when to_regclass('public.cupons') is null or to_regclass('public.cupom_usos') is null
+             or not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'agendamentos'
+                               and column_name = 'desconto')
+             or to_regprocedure('public.conferir_cupom(uuid,text,text,uuid[],uuid,timestamptz,jsonb)') is null
+             or to_regprocedure('public.usar_cupom_no_pedido(uuid,text,jsonb)') is null
+             or to_regprocedure('public.salao_tem_cupom(uuid)') is null
+             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text)') is null
+             then 'falta o 34_cupons.sql (e o 09_cliente.sql novo): o cupom não '
+               || 'aparece no link nem desconta'
+           when has_function_privilege('anon', 'public.cupom_calcular(uuid,text,text,uuid[],uuid,timestamptz,jsonb,text,uuid,boolean)', 'execute')
+             or has_function_privilege('authenticated', 'public.cupom_calcular(uuid,text,text,uuid[],uuid,timestamptz,jsonb,text,uuid,boolean)', 'execute')
+             or has_function_privilege('anon', 'public.cupom_minha_ficha(uuid)', 'execute')
+             then 'a conta do cupom está aberta — rode o 34_cupons.sql de novo'
            else '' end
 )
 select item                                as "o que",

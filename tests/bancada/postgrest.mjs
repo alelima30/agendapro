@@ -507,8 +507,16 @@ const http_ = http.createServer(async (req, res) => {
           throw e;
         }
 
+        /* Lista de OBJETOS vai como JSON, como o PostgREST de verdade manda
+           para um parâmetro `jsonb` (os itens do carrinho no cupom, 34). O
+           `pg` transformaria a lista num array do Postgres — `{"{...}"}` —,
+           e o banco recusaria com "invalid input syntax for type json": a
+           bancada reprovando uma chamada que lá fora passa. Lista de uuid
+           continua array, que é o que o `uuid[]` espera. */
+        const paraPg = v => Array.isArray(v) && v.some(x => x && typeof x === 'object')
+          ? JSON.stringify(v) : v;
         const r = await comPapel(req, cli =>
-          cli.query(`select * from public.${fn}(${args})`, nomes.map(n => b[n])));
+          cli.query(`select * from public.${fn}(${args})`, nomes.map(n => paraPg(b[n]))));
 
         /* ── DESEMBRULHAR O ESCALAR ─────────────────────────────────────────
            O PostgREST devolve o VALOR quando a função retorna um escalar:

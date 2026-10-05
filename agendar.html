@@ -719,6 +719,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
         <div class="cf-quando" id="cfQuando"></div>
       </div>
       <div class="cf-card" id="resumoFinal"></div>
+      <div id="cfCupom"></div>
       <div id="cfStatus"></div>
       <details class="cf-obs" id="cfObs">
         <summary>
@@ -1374,6 +1375,7 @@ async function abrirSalaoDaNuvem(slug){
   /* Não bloqueia nada e não redesenha: só é lida lá na frente, quando ela
      termina de marcar. Pedir agora é ter a resposta na mão na hora certa. */
   carregarPoliticaDeConfirmacao();
+  carregarCuponsDoSalao();
 }
 
 /* A pergunta sobre horários é feita UMA vez por combinação de
@@ -3580,18 +3582,260 @@ function resumoDoAgendamento(p, compacto){
       <span class="cf-ic" data-ico="${ico}"></span>
       <span class="cf-txt"><small>${rotulo}</small><b>${valor}</b></span>
     </div>`;
-  const total = pacoteCobre(escolha.servicos, escolha.data) ? 'R$ 0,00' : real(precoEscolhido());
+  const coberto = pacoteCobre(escolha.servicos, escolha.data);
+  // O desconto é o que o banco respondeu na prévia (`conferir_cupom`); quem
+  // grava é o `agendar()`, que refaz a conta. Pacote cobrindo: nada a descontar.
+  const desc = coberto ? 0 : descontoDoCupomAgenda();
+  const total = coberto ? 'R$ 0,00' : real(precoEscolhido() - desc);
   return topo
     + linha('tesoura', 'Serviço', escapar(nomesEscolhidos()))
     + linha('usuario', 'Profissional', quemAtende)
     + (para ? linha('equipe', 'Para quem', para) : '')
     + linha('calendario', 'Quando', `${quando}<span class="cf-faixa">${faixa}</span>`)
     + linha('relogio', 'Duração', dur + ' min')
+    + (desc > 0 ? linha('cupom', 'Cupom ' + escapar(cupomAgenda.codigo), '− ' + real(desc)) : '')
     + `<div class="cf-linha cf-total">
         <span class="cf-ic cf-ic-cheio" aria-hidden="true">R$</span>
         <span class="cf-txt"><small>Total</small><b>${total}</b></span>
       </div>`
     + avisoDoPacote();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CUPOM DE DESCONTO (34_cupons.sql)
+
+   "Tem um cupom de desconto?" na tela de confirmar e no carrinho da loja.
+
+   ⚠ A TELA PERGUNTA, O BANCO DECIDE. O valor que aparece aqui vem de
+   `conferir_cupom()` e é só prévia. Quem grava o desconto é o `agendar()`,
+   que refaz a conta inteira na hora de marcar — validade, limite, 1 por
+   cliente, serviços. Esta tela nunca manda valor: manda o CÓDIGO.
+
+   ⚠ SÓ APARECE QUANDO O SALÃO TEM CUPOM VALENDO (`salao_tem_cupom()`). Num
+   salão sem cupom, o campo faria a cliente procurar um código que não
+   existe. E some quando o pacote já cobre o atendimento: não há o que
+   descontar de R$ 0,00.
+
+   Sem nuvem (demonstração) não aparece: não há banco para fazer a conta, e
+   inventá-la aqui seria exatamente o que a regra proíbe.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let salaoTemCupom = { agendamento: false, produtos: false };
+let cupomAgenda = null;          // { codigo, desconto, rotulo, chave }: a prévia aceita
+let cupomAgendaErro = '';
+let cupomAgendaConferindo = false;
+let cupomLoja = null;            // idem, e `usado` depois que o banco registrou
+let cupomLojaErro = '';
+let cupomLojaConferindo = false;
+
+async function carregarCuponsDoSalao(){
+  salaoTemCupom = { agendamento: false, produtos: false };
+  cupomAgenda = null; cupomAgendaErro = '';
+  cupomLoja = null;   cupomLojaErro = '';
+  if(!NA_NUVEM || !salao) return;
+  const deQuem = salao.id;
+  try{
+    const m = respostaDoCupom(await Dados.chamar('salao_tem_cupom', { p_salao: deQuem }));
+    if(!salao || salao.id !== deQuem) return;
+    salaoTemCupom = { agendamento: !!m.agendamento, produtos: !!m.produtos };
+  }catch(e){
+    // Banco sem o 34 ainda: o link segue sem cupom, como antes.
+    console.info('[AgendaPro] salao_tem_cupom:', e.message);
+    return;
+  }
+  if(salaoTemCupom.agendamento && tela === 'confirmar') desenharConfirmar();
+  if(salaoTemCupom.produtos && tela === 'loja') desenharLoja();
+}
+
+// `Dados.chamar()` devolve o JSON cru; uma função `jsonb` pode vir solta ou
+// dentro de uma lista, conforme o caminho.
+function respostaDoCupom(r){
+  const m = Array.isArray(r) ? r[0] : r;
+  return (m && typeof m === 'object') ? m : {};
+}
+function codigoDoCampo(id, dado){
+  const campo = document.getElementById(id);
+  return String(dado || (campo ? campo.value : '')).toUpperCase().replace(/\s/g, '');
+}
+// O que estiver digitado (e se a caixa estava aberta) sobrevive ao redesenho.
+function digitadoNoCupom(id, padrao){
+  const campo = document.getElementById(id);
+  return campo ? campo.value : (padrao || '');
+}
+
+/* ── No agendamento ── */
+/* A escolha a que a prévia se refere. Trocou serviço, profissional, dia ou
+   hora, a prévia velha não vale: o desconto pode ser outro (o cupom de um
+   serviço só, o preço de sexta). */
+function chaveDoCupomAgenda(){
+  const p = profDaEscolha();
+  return JSON.stringify([escolha.servicos.slice().sort(), p ? p.id : null,
+                         escolha.data, escolha.inicio]);
+}
+function cupomAgendaVale(){
+  return !!(cupomAgenda && cupomAgenda.chave === chaveDoCupomAgenda());
+}
+function mostraCupomAgenda(){
+  return NA_NUVEM && salaoTemCupom.agendamento && !!escolha.data
+    && !pacoteCobre(escolha.servicos, escolha.data);
+}
+function descontoDoCupomAgenda(){
+  if(!mostraCupomAgenda() || !cupomAgendaVale()) return 0;
+  return Math.min(Number(cupomAgenda.desconto) || 0, precoEscolhido());
+}
+
+function desenharCupomAgenda(){
+  const alvo = document.getElementById('cfCupom');
+  if(!alvo) return;
+  if(!mostraCupomAgenda()){ alvo.innerHTML = ''; return; }
+  if(cupomAgendaVale()){
+    alvo.innerHTML = `<div class="cupom-ok" id="cupomAgendaOk">
+      <span class="cf-ic" data-ico="cupom"></span>
+      <span class="cupom-ok-txt"><b>Cupom ${escapar(cupomAgenda.codigo)} aplicado</b>
+        <small>${escapar(cupomAgenda.rotulo || '')} · − ${real(descontoDoCupomAgenda())}</small></span>
+      <button type="button" class="link" onclick="tirarCupomAgenda()">Tirar</button>
+    </div>`;
+  } else {
+    const caixa = document.getElementById('cfCupomCaixa');
+    const aberto = !!cupomAgendaErro || cupomAgendaConferindo || !!(caixa && caixa.open);
+    alvo.innerHTML = `<details class="cf-obs cupom-caixa" id="cfCupomCaixa"${aberto ? ' open' : ''}>
+      <summary>
+        <span class="cf-ic" data-ico="cupom"></span>
+        <span class="cf-obs-txt"><b>Tem um cupom de desconto?</b></span>
+        <span class="cf-obs-seta" data-ico="baixo"></span>
+      </summary>
+      <div class="cupom-linha">
+        <input id="cupomAgendaTxt" class="cupom-txt" maxlength="30"
+               value="${escapar(digitadoNoCupom('cupomAgendaTxt', cupomAgenda ? cupomAgenda.codigo : ''))}"
+               placeholder="Digite o código" autocapitalize="characters" autocomplete="off"
+               spellcheck="false" aria-label="Código do cupom"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();aplicarCupomAgenda()}">
+        <button type="button" class="cupom-aplicar" onclick="aplicarCupomAgenda()"${
+          cupomAgendaConferindo ? ' disabled' : ''}>${cupomAgendaConferindo ? 'Conferindo…' : 'Aplicar'}</button>
+      </div>
+      ${cupomAgendaErro ? `<p class="cupom-erro" role="alert">${escapar(cupomAgendaErro)}</p>` : ''}
+    </details>`;
+  }
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+
+async function aplicarCupomAgenda(dado){
+  const codigo = codigoDoCampo('cupomAgendaTxt', dado);
+  if(!codigo){ cupomAgendaErro = 'Digite o código do cupom.'; desenharCupomAgenda(); return; }
+  const p = profDaEscolha();
+  const profId = p ? p.id : null;
+  const chave = chaveDoCupomAgenda();
+  cupomAgendaConferindo = true; cupomAgendaErro = '';
+  desenharCupomAgenda();
+  let r;
+  try{
+    r = respostaDoCupom(await Dados.chamar('conferir_cupom', {
+      p_salao: salao.id, p_codigo: codigo, p_origem: 'agendamento',
+      p_servicos: escolha.servicos, p_profissional: profId,
+      p_inicio: instantes[profId + '|' + escolha.data + '|' + escolha.inicio] || null,
+    }));
+  }catch(e){
+    console.info('[AgendaPro] conferir_cupom:', e.message);
+    r = { ok: false, motivo: 'Não consegui conferir o cupom agora. Tente de novo em instantes.' };
+  }
+  cupomAgendaConferindo = false;
+  if(chave !== chaveDoCupomAgenda()) return;     // a escolha mudou no meio do caminho
+  if(r.ok){
+    cupomAgenda = { codigo: r.codigo || codigo, desconto: Number(r.desconto) || 0,
+                    rotulo: r.rotulo || '', chave };
+    cupomAgendaErro = '';
+  } else {
+    cupomAgenda = null;
+    cupomAgendaErro = r.motivo || 'Este cupom não vale.';
+  }
+  if(tela === 'confirmar') desenharConfirmar();
+}
+
+function tirarCupomAgenda(){
+  cupomAgenda = null; cupomAgendaErro = '';
+  if(tela === 'confirmar') desenharConfirmar();
+}
+
+/* ── Na loja ── */
+function itensDoCupomLoja(){
+  return produtosDaLoja().filter(p => carrinho[p.id] > 0)
+    .map(p => ({ id: p.id, qtd: carrinho[p.id] }))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+function chaveDoCupomLoja(){ return JSON.stringify(itensDoCupomLoja()); }
+function cupomLojaVale(){
+  return !!(cupomLoja && cupomLoja.chave === chaveDoCupomLoja());
+}
+// Só com algum produto COM preço: cupom não desconta "a combinar".
+function mostraCupomLoja(){
+  return NA_NUVEM && salaoTemCupom.produtos && totalDoCarrinho() > 0;
+}
+function descontoDoCupomLoja(){
+  if(!mostraCupomLoja() || !cupomLojaVale()) return 0;
+  return Math.min(Number(cupomLoja.desconto) || 0, totalDoCarrinho());
+}
+
+function blocoDoCupomLoja(){
+  if(!mostraCupomLoja()) return '';
+  if(cupomLojaVale()){
+    return `<div class="cupom-ok" id="cupomLojaOk" style="margin-top:14px">
+      <span class="cf-ic" data-ico="cupom"></span>
+      <span class="cupom-ok-txt"><b>Cupom ${escapar(cupomLoja.codigo)} aplicado</b>
+        <small>${escapar(cupomLoja.rotulo || '')} · − ${real(descontoDoCupomLoja())}</small></span>
+      <button type="button" class="link" onclick="tirarCupomLoja()">Tirar</button>
+    </div>`;
+  }
+  const caixa = document.getElementById('lojaCupomCaixa');
+  const aberto = !!cupomLojaErro || cupomLojaConferindo || !!(caixa && caixa.open);
+  return `<details class="cf-obs cupom-caixa" id="lojaCupomCaixa" style="margin-top:14px"${aberto ? ' open' : ''}>
+    <summary>
+      <span class="cf-ic" data-ico="cupom"></span>
+      <span class="cf-obs-txt"><b>Tem um cupom de desconto?</b></span>
+      <span class="cf-obs-seta" data-ico="baixo"></span>
+    </summary>
+    <div class="cupom-linha">
+      <input id="cupomLojaTxt" class="cupom-txt" maxlength="30"
+             value="${escapar(digitadoNoCupom('cupomLojaTxt', cupomLoja ? cupomLoja.codigo : ''))}"
+             placeholder="Digite o código" autocapitalize="characters" autocomplete="off"
+             spellcheck="false" aria-label="Código do cupom"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();aplicarCupomLoja()}">
+      <button type="button" class="cupom-aplicar" onclick="aplicarCupomLoja()"${
+        cupomLojaConferindo ? ' disabled' : ''}>${cupomLojaConferindo ? 'Conferindo…' : 'Aplicar'}</button>
+    </div>
+    ${cupomLojaErro ? `<p class="cupom-erro" role="alert">${escapar(cupomLojaErro)}</p>` : ''}
+  </details>`;
+}
+
+async function aplicarCupomLoja(dado){
+  const codigo = codigoDoCampo('cupomLojaTxt', dado);
+  if(!codigo){ cupomLojaErro = 'Digite o código do cupom.'; desenharLoja(); return; }
+  const chave = chaveDoCupomLoja();
+  cupomLojaConferindo = true; cupomLojaErro = '';
+  desenharLoja();
+  let r;
+  try{
+    r = respostaDoCupom(await Dados.chamar('conferir_cupom', {
+      p_salao: salao.id, p_codigo: codigo, p_origem: 'produtos', p_itens: itensDoCupomLoja(),
+    }));
+  }catch(e){
+    console.info('[AgendaPro] conferir_cupom:', e.message);
+    r = { ok: false, motivo: 'Não consegui conferir o cupom agora. Tente de novo em instantes.' };
+  }
+  cupomLojaConferindo = false;
+  if(chave !== chaveDoCupomLoja()){ if(tela === 'loja') desenharLoja(); return; }
+  if(r.ok){
+    cupomLoja = { codigo: r.codigo || codigo, desconto: Number(r.desconto) || 0,
+                  rotulo: r.rotulo || '', chave };
+    cupomLojaErro = '';
+  } else {
+    cupomLoja = null;
+    cupomLojaErro = r.motivo || 'Este cupom não vale.';
+  }
+  desenhar();
+}
+
+function tirarCupomLoja(){
+  cupomLoja = null; cupomLojaErro = '';
+  desenhar();
 }
 
 function statusDoPedido(){
@@ -3619,6 +3863,11 @@ function desenharConfirmar(){
     <span class="cf-quando-txt"><b>${diaCompleto(escolha.data)} às ${hm(escolha.inicio)}</b>
       <span>com ${escapar(p ? p.nome : '—')}</span></span>`;
   document.getElementById('resumoFinal').innerHTML = resumoDoAgendamento(p, false);
+  desenharCupomAgenda();
+  /* Voltou e trocou serviço, profissional, dia ou hora com um cupom aceito:
+     a prévia velha não vale mais — pergunta de novo, com o mesmo código. */
+  if(cupomAgenda && !cupomAgendaVale() && mostraCupomAgenda() && !cupomAgendaConferindo)
+    aplicarCupomAgenda(cupomAgenda.codigo);
   document.getElementById('cfStatus').innerHTML = statusDoPedido();
   if(window.aplicarIcones) aplicarIcones(document.getElementById('p-confirmar'));
 }
@@ -4115,7 +4364,8 @@ function carrinhoTemSemPreco(){
      · tudo sem preço  → "a combinar" (e NÃO "R$ 0,00")
      · misturado       → "R$ 45,00 + a combinar" */
 function totalEscrito(){
-  const t = totalDoCarrinho();
+  // Menos o cupom aceito (prévia do banco); sem cupom, o número de sempre.
+  const t = totalDoCarrinho() - descontoDoCupomLoja();
   if(!carrinhoTemSemPreco()) return real(t);
   return t > 0 ? real(t) + ' + a combinar' : 'a combinar';
 }
@@ -4657,7 +4907,7 @@ function desenharLoja(){
     </div>`;
   }).join('');
 
-  alvo.innerHTML = cartoes + (itensNoCarrinho() ? `
+  alvo.innerHTML = cartoes + (itensNoCarrinho() ? blocoDoCupomLoja() : '') + (itensNoCarrinho() ? `
     <div class="recado" style="margin-top:14px">
       <b>${itensNoCarrinho()} item(ns) · ${totalEscrito()}</b><br>
       Este valor é uma estimativa. Quem confirma o preço final, o que tem em
@@ -4668,6 +4918,10 @@ function desenharLoja(){
     </div>` : '');
 
   if(window.aplicarIcones) aplicarIcones(alvo);
+  // O carrinho mudou com um cupom aceito: a prévia é de outro pedido. Pergunta
+  // de novo com o mesmo código (o desconto pode ter mudado, ou deixado de valer).
+  if(cupomLoja && !cupomLojaVale() && mostraCupomLoja() && !cupomLojaConferindo)
+    aplicarCupomLoja(cupomLoja.codigo);
 }
 
 function esvaziarCarrinho(){
@@ -4698,20 +4952,64 @@ function textoDoPedido(){
     .map(p => '• ' + p.nome + (p.marca ? ' (' + p.marca + ')' : '')
             + ' — ' + carrinho[p.id] + 'x '
             + (p.preco == null ? '(preço a combinar)' : real(Number(p.preco))));
+  /* O cupom só entra na mensagem depois que o banco REGISTROU o uso
+     (`usar_cupom_no_pedido`, no enviarPedido) — antes disso é prévia. */
+  const cupom = cupomLoja && cupomLoja.usado && cupomLojaVale()
+    ? '\nCupom ' + cupomLoja.codigo + (cupomLoja.rotulo ? ' (' + cupomLoja.rotulo + ')' : '')
+      + ': desconto de ' + real(descontoDoCupomLoja())
+    : '';
   return 'Olá! Vim pela página do ' + salao.nome + ' e quero estes produtos:'
        + '\n\n' + itens.join('\n')
+       + (cupom ? '\n' + cupom : '')
        + '\n\nTotal estimado: ' + totalEscrito()
        + '\n\nPode confirmar o que tem disponível?';
 }
 
-function enviarPedido(){
+async function enviarPedido(){
   const zap = zapDoSalao();
-  if(!zap || !itensNoCarrinho()) return;
+  if(!zap || !itensNoCarrinho() || cupomLojaConferindo) return;
+  const endereco = () => 'https://wa.me/' + zap + '?text=' + encodeURIComponent(textoDoPedido());
   /* `_blank` e não `location.href`: no computador o `wa.me` abre o WhatsApp
      Web numa aba, e trocar a página atual faria a cliente perder a página do
      salão — junto com o carrinho que ela acabou de montar. */
-  window.open('https://wa.me/' + zap + '?text=' + encodeURIComponent(textoDoPedido()),
-              '_blank', 'noopener');
+  const comCupom = mostraCupomLoja() && cupomLojaVale() && !cupomLoja.usado;
+  if(!comCupom){
+    window.open(endereco(), '_blank', 'noopener');
+    return;
+  }
+
+  /* ── COM CUPOM: O BANCO REGISTRA O USO ANTES DE A MENSAGEM SAIR ────────
+     É o uso registrado que conta para o limite do cupom; a mensagem só leva
+     o cupom se o banco aceitou. A aba é aberta JÁ, no toque: depois de
+     esperar a rede, o navegador do celular trata a abertura como pop-up e
+     bloqueia. */
+  const janela = window.open('', '_blank');
+  if(janela) janela.opener = null;
+  cupomLojaConferindo = true;
+  desenhar();
+  let r;
+  try{
+    r = respostaDoCupom(await Dados.chamar('usar_cupom_no_pedido', {
+      p_salao: salao.id, p_codigo: cupomLoja.codigo, p_itens: itensDoCupomLoja(),
+    }));
+  }catch(e){
+    console.info('[AgendaPro] usar_cupom_no_pedido:', e.message);
+    r = { ok: false, motivo: 'Não consegui conferir o cupom agora.' };
+  }
+  cupomLojaConferindo = false;
+  if(!r.ok){
+    if(janela) janela.close();
+    cupomLoja = null;
+    cupomLojaErro = (r.motivo || 'Este cupom não vale.')
+      + ' O pedido não foi enviado: toque em Enviar de novo para mandar sem o cupom.';
+    desenhar();
+    return;
+  }
+  cupomLoja = Object.assign({}, cupomLoja, {
+    desconto: Number(r.desconto) || 0, rotulo: r.rotulo || cupomLoja.rotulo, usado: true });
+  desenhar();
+  if(janela) janela.location.href = endereco();
+  else window.open(endereco(), '_blank', 'noopener');
 }
 
 function acaoPrincipal(){
@@ -5089,13 +5387,21 @@ async function confirmarNaNuvem(profId, prof){
   bp.disabled = true; bp.textContent = 'Marcando…';
   aviso.innerHTML = '';
   statusDaMarcacao = null;
+  /* Só o CÓDIGO sobe, e só no primeiro horário ("eu e mais alguém" são dois
+     agendamentos; o cupom é de um). O `agendar()` refaz a conta e recusa o
+     que não valer — a prévia desta tela não decide nada. */
+  const cupom = mostraCupomAgenda() && cupomAgendaVale() ? cupomAgenda.codigo : null;
 
   /* O `agendar()` devolve o segredo daquela marcação. Guardar aqui, e não
      depois, é o que garante que ele não se perca se a tela seguinte falhar:
      marcação feita sem o segredo guardado é marcação que a pessoa não
      consegue mais cancelar sozinha. */
-  const marcar = async (quandoIso, atendido) => {
+  const marcar = async (quandoIso, atendido, comCupom) => {
     const r = await Dados.chamar('agendar', {
+      /* Só quando há cupom: um banco que ainda não recebeu o 34_cupons.sql
+         não conhece `p_cupom`, e mandar o campo vazio derrubaria toda
+         marcação até o dono rodar o SQL. */
+      ...(comCupom && cupom ? { p_cupom: cupom } : {}),
       p_profissional: profId,
       p_inicio: quandoIso,
       p_servicos: escolha.servicos,
@@ -5131,7 +5437,7 @@ async function confirmarNaNuvem(profId, prof){
   try{
     if(escolha.para === 'ambos'){
       const segundoIso = instantes[profId + '|' + escolha.data + '|' + (escolha.inicio + unit)];
-      await marcar(inicioIso, null);
+      await marcar(inicioIso, null, true);
       /* O segundo pode falhar sozinho — alguém pegou aquele horário nesses
          dois segundos. Não dá para "desmarcar o primeiro e fingir que nada
          houve": cancelar exige verificação, e a cliente ficaria sem nenhum
@@ -5153,10 +5459,24 @@ async function confirmarNaNuvem(profId, prof){
         return;
       }
     } else {
-      await marcar(inicioIso, escolha.para === 'filho' ? filho : null);
+      await marcar(inicioIso, escolha.para === 'filho' ? filho : null, true);
     }
   }catch(e){
     console.error('[AgendaPro] agendar:', e);
+    /* O cupom recusado na hora de marcar (alguém usou o último, ou ela já
+       tinha usado com este WhatsApp): o horário continua livre e NADA foi
+       marcado. Diz o motivo, tira o cupom, e o mesmo botão marca sem ele. */
+    const doCupom = /Cupom:\s*(.+)$/.exec((e && e.message) || '');
+    if(doCupom){
+      cupomAgenda = null;
+      cupomAgendaErro = doCupom[1];
+      desenharConfirmar();
+      aviso.innerHTML = '<div class="recado erro"><b>O cupom não foi aceito.</b><br>'
+        + escapar(doCupom[1]) + ' Seu horário ainda não foi marcado: toque em '
+        + 'Confirmar agendamento para marcar sem o cupom.</div>';
+      bp.disabled = false; bp.textContent = rotulo;
+      return;
+    }
     esquecerVagas();
     /* O banco recusa por motivos com nome — horário ocupado, profissional que
        não faz aquele serviço, salão com a agenda fechada. As mensagens de
@@ -5195,6 +5515,7 @@ async function confirmarNaNuvem(profId, prof){
 
   bp.disabled = false; bp.textContent = rotulo;
   esquecerVagas();
+  cupomAgenda = null; cupomAgendaErro = '';      // usado: a próxima marcação começa sem
   mostrarPronto(prof, unit, filho);
 }
 

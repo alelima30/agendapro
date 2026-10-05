@@ -51,6 +51,13 @@ insert into porta_aberta values
   -- receberá uma mensagem de confirmação" — dizer a frase errada ali é
   -- prometer, em nome do salão, uma coisa que o dono não decidiu.
   ('confirma_automatico',     'a página da cliente precisa saber o que prometer'),
+  -- O cupom (34_cupons.sql). A cliente digita o código sem conta, como marca
+  -- sem conta. Nenhuma das três devolve o id do cupom nem aceita telefone: a
+  -- prévia não vira jeito de perguntar "o número tal já usou?", e quem
+  -- decide o desconto de verdade é o `agendar()`.
+  ('conferir_cupom',          'a prévia do cupom na tela de confirmar e na loja'),
+  ('usar_cupom_no_pedido',    'o pedido da loja com cupom: registra o uso, que conta no limite'),
+  ('salao_tem_cupom',         'sim ou não por lugar, para não mostrar o campo à toa'),
 
   -- Caminhos por TOKEN: quem tem o link tem o direito, e o token é o segredo.
   ('cancelar_agendamento',    'link de cancelar, mandado à cliente'),
@@ -199,7 +206,7 @@ begin
       to_regprocedure('public.vitrine(text)')::oid, 'EXECUTE'));
   perform t_verdade('e ainda consegue marcar horário',
     has_function_privilege('anon',
-      to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text)')::oid,
+      to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text)')::oid,
       'EXECUTE'));
 end $$;
 

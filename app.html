@@ -630,6 +630,15 @@ body.carregando-tudo .tela{ display:none }
     <div id="listaPacotes"></div>
   </section>
 
+  <section class="tela" id="tela-cupons">
+    <div class="barra">
+      <span class="espaco"></span>
+      <button class="btn btn-p" id="btNovoCupom"
+              onclick="abrirCupom()">+ Cupom</button>
+    </div>
+    <div id="listaCupons"></div>
+  </section>
+
   <section class="tela" id="tela-produtos">
     <div class="barra">
       <span class="espaco"></span>
@@ -1517,8 +1526,11 @@ function avisoDeFaltas(cid){
 }
 
 // Duração e preço de um agendamento saem da soma dos serviços dele.
+// Menos o cupom: o item guarda o preço cheio (é sobre ele que sai a
+// comissão), e o desconto mora no agendamento — quem grava é o `agendar()`.
 function totalDe(ag){
-  return (ag.servicos || []).reduce((s,x) => s + (x.preco||0), 0);
+  const cheio = (ag.servicos || []).reduce((s,x) => s + (x.preco||0), 0);
+  return Math.max(0, cheio - (Number(ag.desconto) || 0));
 }
 function rotuloServicos(ag){
   return (ag.servicos || []).map(x => {
@@ -1609,6 +1621,9 @@ const TELAS = [
      que o salão vende. Só GESTÃO — um pacote é preço e política comercial, e
      quem atende não decide isso. */
   ['pacotes',  'Pacotes',          'etiqueta',   'Cadastros', GESTAO],
+  /* Cupons, logo depois de Pacotes e pelo mesmo motivo: é política comercial,
+     e só GESTÃO cria. O banco diz o mesmo (`cupons_escrever` no 34). */
+  ['cupons',   'Cupons',           'cupom',      'Cadastros', GESTAO],
   ['equipe',   'Equipe',           'equipe',     'Cadastros', GESTAO],
   ['salao',    'Meu salão',        'predio',     'Cadastros', GESTAO],
   ['publico',  'Ver como cliente', 'olho',       'A conta',   EQUIPE],
@@ -1818,7 +1833,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.5a2a72';
+const VERSAO_APP = 'v9.637338';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3202,6 +3217,284 @@ function salvarPacote(pid){
   salvar();
   fecharModal();
   pintarPacotes();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CUPONS DE DESCONTO
+
+   O dono cria o código; a cliente digita no link — na hora de confirmar o
+   horário e no carrinho da loja. Esta tela só CADASTRA. Quem decide se o
+   cupom vale, e quanto desconta, é o banco (34_cupons.sql), na hora de
+   marcar: uma tela que calculasse o desconto seria uma tela que qualquer
+   pessoa com o console aberto convence a dar 100%.
+   ═══════════════════════════════════════════════════════════════════════════ */
+// `|| []`: uma demonstração gravada no aparelho antes desta versão não tem a
+// lista, e `undefined.filter` derrubaria a tela (foi o que aconteceu com
+// Pacotes — ver `semear()`).
+const cuponsDoSalao = () => doSalao(bd.cupons || []);
+
+function codigoDoCupom(cid){
+  const c = cid && (bd.cupons || []).find(x => x.id === cid);
+  return c ? c.codigo : '';
+}
+
+/* Quantas vezes cada um já foi usado. Vem do banco (`usos_dos_cupons`), que é
+   quem conta — e conta direito: o uso de um horário desmarcado volta para o
+   cupom. Por salão; `mapa` nulo quer dizer "ainda não sei" (ou demonstração,
+   onde ninguém usa cupom). */
+let usosDosCupons = { salao: null, quando: 0, mapa: null };
+
+async function carregarUsosDosCupons(){
+  const salao = salaoAtual;
+  usosDosCupons = { salao, quando: Date.now(), mapa: usosDosCupons.salao === salao ? usosDosCupons.mapa : null };
+  if(!NA_NUVEM) return;
+  try{
+    const r = await Dados.chamar('usos_dos_cupons', { p_salao: salao });
+    const m = Array.isArray(r) ? r[0] : r;
+    if(usosDosCupons.salao === salao) usosDosCupons.mapa = (m && typeof m === 'object') ? m : {};
+  }catch(e){
+    console.info('[AgendaPro] usos_dos_cupons:', e.message);
+  }
+  if(telaAtual === 'cupons' && salaoAtual === salao) pintarCupons();
+}
+
+function rotuloDoCupom(c){
+  return c.tipo === 'valor'
+    ? real(Number(c.valor)) + ' de desconto'
+    : String(Number(c.valor)).replace('.', ',') + '% de desconto';
+}
+function dataDoCupom(dataIso){
+  const [a, m, d] = String(dataIso).split('-');
+  return d + '/' + m + '/' + a;
+}
+function validadeDoCupom(c){
+  if(c.inicio && c.fim) return 'de ' + dataDoCupom(c.inicio) + ' a ' + dataDoCupom(c.fim);
+  if(c.fim)    return 'até ' + dataDoCupom(c.fim);
+  if(c.inicio) return 'a partir de ' + dataDoCupom(c.inicio);
+  return 'sem data para acabar';
+}
+/* A situação que o dono precisa ver de longe. É a mesma ordem de recusa do
+   banco, para a etiqueta e a cliente não discordarem. */
+function situacaoDoCupom(c, usos){
+  const h = hoje();
+  if(!c.ativo)                  return ['desligado', 't-canc'];
+  if(c.fim && c.fim < h)        return ['vencido', 't-canc'];
+  if(c.inicio && c.inicio > h)  return ['ainda não começou', 't-pend'];
+  if(c.limiteTotal && usos != null && usos >= c.limiteTotal) return ['esgotado', 't-canc'];
+  return ['valendo', 't-ok'];
+}
+
+function pintarCupons(){
+  const alvo = document.getElementById('listaCupons');
+  if(!alvo) return;
+  const bt = document.getElementById('btNovoCupom');
+  if(bt) bt.style.display = souGestor() ? '' : 'none';
+  // Uso muda sozinho (a cliente marca pelo link): pergunta de novo ao voltar
+  // para a tela, mas não a cada repintura.
+  if(usosDosCupons.salao !== salaoAtual || Date.now() - usosDosCupons.quando > 60000)
+    carregarUsosDosCupons();
+
+  const lista = cuponsDoSalao().slice().sort((a, b) => a.codigo.localeCompare(b.codigo));
+  if(!lista.length){
+    alvo.innerHTML = `<div class="vazio"><b>Nenhum cupom ainda</b>
+      Crie um código, como BEMVINDA10 ou NATAL15, e divulgue no Instagram ou
+      no WhatsApp. A cliente digita no link na hora de confirmar o horário (e
+      no carrinho da loja, se você quiser), e o desconto aparece no total.</div>`;
+    return;
+  }
+
+  alvo.innerHTML = lista.map(c => {
+    const usos = usosDosCupons.mapa ? (usosDosCupons.mapa[c.id] || 0) : null;
+    const [sit, cls] = situacaoDoCupom(c, usos);
+    const onde = c.valeAgendamento && c.valeProdutos ? 'no agendamento e na loja'
+      : c.valeProdutos ? 'na loja' : 'no agendamento';
+    const svs = c.servicos || [];
+    const contagem = [
+      usos == null ? '' : usos + (usos === 1 ? ' uso' : ' usos'),
+      c.limiteTotal ? 'limite de ' + c.limiteTotal : 'sem limite',
+      c.umPorCliente ? '1 por cliente' : '',
+    ].filter(Boolean).join(' · ');
+    return `<div class="card cupom-cartao" data-cupom="${c.id}" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div style="min-width:0">
+          <h3 style="font-size:17px;letter-spacing:.04em">${escapar(c.codigo)}
+            <span class="tag ${cls}">${sit}</span></h3>
+          <p style="color:var(--txt2);font-size:13.5px;margin-top:2px">
+            ${rotuloDoCupom(c)} · vale ${onde} · ${validadeDoCupom(c)}</p>
+          ${c.valeAgendamento ? `<p style="font-size:13px;color:var(--txt2);margin-top:6px">
+            <b>Serviços:</b> ${svs.length
+              ? svs.map(id => escapar((acharServico(id) || {}).nome || '?')).join(', ')
+              : 'todos'}</p>` : ''}
+          <p class="cupom-usos" style="font-size:13px;color:var(--txt2);margin-top:4px">${contagem}</p>
+        </div>
+        ${souGestor() ? `<div><button class="btn btn-peq"
+             onclick="abrirCupom('${c.id}')">Editar</button></div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function abrirCupom(cid){
+  if(!souGestor()) return;
+  const c = cid ? cuponsDoSalao().find(x => x.id === cid) : null;
+  const svs = c ? (c.servicos || []) : [];
+  const tipo = c ? c.tipo : 'pct';
+  abrirModal(c ? 'Editar cupom' : 'Novo cupom', `
+    <div class="campo"><label for="cpCodigo">Código</label>
+      <input id="cpCodigo" value="${escapar(c ? c.codigo : '')}" maxlength="30"
+             placeholder="BEMVINDA10" autocapitalize="characters" spellcheck="false"
+             autocomplete="off" style="text-transform:uppercase;letter-spacing:.04em"
+             oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '')">
+      <p style="font-size:12.5px;color:var(--txt3);margin-top:5px">
+        Letras e números, sem espaço. É o que a cliente digita no link.</p></div>
+    <div class="dupla">
+      <div class="campo"><label for="cpTipo">Tipo de desconto</label>
+        <select id="cpTipo" onchange="ajustarFormCupom()">
+          <option value="pct"${tipo === 'pct' ? ' selected' : ''}>Porcentagem (%)</option>
+          <option value="valor"${tipo === 'valor' ? ' selected' : ''}>Valor fixo (R$)</option>
+        </select></div>
+      <div class="campo"><label for="cpValor" id="cpValorRot">Quanto</label>
+        <input type="number" id="cpValor" min="0.01" step="0.01"
+               value="${c ? Number(c.valor) : ''}"></div>
+    </div>
+    <div class="campo"><label>Onde vale</label>
+      <label class="check" style="display:block;margin:5px 0">
+        <input type="checkbox" id="cpAgend"${!c || c.valeAgendamento ? ' checked' : ''}
+               onchange="ajustarFormCupom()">
+        <span>Agendamento no link</span></label>
+      <label class="check" style="display:block;margin:5px 0">
+        <input type="checkbox" id="cpProd"${c && c.valeProdutos ? ' checked' : ''}>
+        <span>Produtos da loja do link</span></label></div>
+    <div class="campo" id="cpServCampo"><label>Só alguns serviços?</label>
+      <p style="font-size:12.5px;color:var(--txt3);margin:0 0 6px">
+        Nenhum marcado: vale para todos. Marcados: o desconto sai só deles.</p>
+      <div id="cpServicos" style="max-height:210px;overflow:auto;
+           border:1px solid var(--borda);border-radius:10px;padding:9px">${
+        servsAtivos().map(s => `<label class="check" style="display:block;margin:5px 0">
+          <input type="checkbox" value="${s.id}"${svs.includes(s.id) ? ' checked' : ''}>
+          <span>${escapar(s.nome)} · ${real(s.preco)}</span></label>`).join('')
+        || '<p style="color:var(--txt3);font-size:13px">Cadastre serviços primeiro.</p>'}
+      </div></div>
+    <div class="dupla">
+      <div class="campo"><label for="cpInicio">Começa em (opcional)</label>
+        <input type="date" id="cpInicio" value="${c && c.inicio ? c.inicio : ''}"></div>
+      <div class="campo"><label for="cpFim">Vale até (opcional)</label>
+        <input type="date" id="cpFim" value="${c && c.fim ? c.fim : ''}"></div>
+    </div>
+    <div class="campo"><label for="cpLimite">Limite de usos (em branco = sem limite)</label>
+      <input type="number" id="cpLimite" min="1" step="1" placeholder="Ex.: 50"
+             value="${c && c.limiteTotal ? c.limiteTotal : ''}"></div>
+    <label class="check" style="display:block;margin-top:6px">
+      <input type="checkbox" id="cpUmPor"${!c || c.umPorCliente ? ' checked' : ''}>
+      <span>Cada cliente usa só 1 vez</span></label>
+    <p style="font-size:12.5px;color:var(--txt3);margin-top:5px">
+      No agendamento o link reconhece a cliente pelo WhatsApp. Na loja, só
+      quando ela entrou na conta; sem conta, o pedido chega no seu WhatsApp e
+      você vê quem é.</p>
+    ${c ? `<label class="check" style="display:block;margin-top:12px">
+      <input type="checkbox" id="cpAtivo"${c.ativo ? ' checked' : ''}>
+      <span>Cupom ativo</span></label>` : ''}`,
+    [...(c ? [['Excluir', `excluirCupom('${c.id}')`, 'btn-perigo']] : []),
+     ['Cancelar','fecharModal()'],
+     ['Salvar', `salvarCupom(${c ? "'" + c.id + "'" : 'null'})`, 'btn-p']]);
+  Documento.dataDigitavel(document.getElementById('cpInicio'));
+  Documento.dataDigitavel(document.getElementById('cpFim'));
+  ajustarFormCupom();
+}
+
+// O rótulo do valor segue o tipo, e a lista de serviços só aparece quando o
+// cupom vale no agendamento — na loja ela não pesa.
+function ajustarFormCupom(){
+  const valor = (document.getElementById('cpTipo') || {}).value === 'valor';
+  const rot = document.getElementById('cpValorRot');
+  const v = document.getElementById('cpValor');
+  if(rot) rot.textContent = valor ? 'Quanto (R$)' : 'Quanto (%)';
+  if(v){
+    if(valor) v.removeAttribute('max'); else v.max = '100';
+    v.placeholder = valor ? '15' : '10';
+  }
+  const ag = document.getElementById('cpAgend');
+  const campo = document.getElementById('cpServCampo');
+  if(campo) campo.style.display = ag && ag.checked ? '' : 'none';
+}
+
+function salvarCupom(cid){
+  const v = id => (document.getElementById(id).value || '').trim();
+  const codigo = v('cpCodigo').toUpperCase().replace(/\s/g, '');
+  if(!/^[A-Z0-9_-]{3,30}$/.test(codigo)){
+    alert('O código precisa ter de 3 a 30 letras ou números, sem espaço e sem acento.'
+        + '\n\nExemplo: BEMVINDA10');
+    return;
+  }
+  if(cuponsDoSalao().some(x => x.codigo === codigo && x.id !== cid)){
+    alert('Já existe um cupom ' + codigo + ' neste salão.\n\n'
+        + 'Escolha outro código, ou edite o que já existe.');
+    return;
+  }
+  const tipo = v('cpTipo') === 'valor' ? 'valor' : 'pct';
+  const valor = Math.round(Number(v('cpValor').replace(',', '.')) * 100) / 100;
+  if(!(valor > 0)){ alert('Diga quanto o cupom desconta.'); return; }
+  if(tipo === 'pct' && valor > 100){ alert('A porcentagem vai até 100%.'); return; }
+
+  const valeAgendamento = document.getElementById('cpAgend').checked;
+  const valeProdutos = document.getElementById('cpProd').checked;
+  if(!valeAgendamento && !valeProdutos){
+    alert('Marque onde o cupom vale: no agendamento, nos produtos, ou nos dois.');
+    return;
+  }
+
+  const ini = document.getElementById('cpInicio'), fim = document.getElementById('cpFim');
+  if(Documento.dataIncompleta(ini) || Documento.dataIncompleta(fim)){
+    alert('Confira as datas — dia, mês e ano, como 31/10/2026.\n\n'
+        + 'Ou apague o campo para o cupom não ter data.');
+    return;
+  }
+  const inicio = ini.value || null, ate = fim.value || null;
+  if(inicio && ate && ate < inicio){
+    alert('A data final vem antes da inicial. Confira as datas.');
+    return;
+  }
+
+  const limiteTxt = v('cpLimite');
+  const limiteTotal = limiteTxt ? Math.floor(Number(limiteTxt)) : null;
+  if(limiteTxt && !(limiteTotal >= 1)){
+    alert('O limite de usos precisa ser 1 ou mais.\n\nEm branco, o cupom não tem limite.');
+    return;
+  }
+  const servicos = valeAgendamento
+    ? [...document.querySelectorAll('#cpServicos input:checked')].map(x => x.value) : [];
+
+  const c = cid ? cuponsDoSalao().find(x => x.id === cid) : null;
+  const dados = {
+    id: cid || crypto.randomUUID(), salaoId: salaoAtual, codigo, tipo, valor,
+    valeAgendamento, valeProdutos,
+    // Vazio é "todos": vai como null, que é como o banco lê.
+    servicos: servicos.length ? servicos : null,
+    inicio, fim: ate, limiteTotal,
+    umPorCliente: document.getElementById('cpUmPor').checked,
+    ativo: cid ? !!(document.getElementById('cpAtivo') || {}).checked : true,
+  };
+  if(c) Object.assign(c, dados);
+  else (bd.cupons ||= []).push(dados);
+
+  salvar();
+  fecharModal();
+  pintarCupons();
+}
+
+/* Excluir apaga o cupom e a contagem dele; os horários que já usaram ficam
+   com o desconto (o banco solta o vínculo, não o valor). Para só parar de
+   aceitar, o caminho é desligar — e a pergunta diz isso. */
+function excluirCupom(cid){
+  if(!souGestor()) return;
+  const c = cuponsDoSalao().find(x => x.id === cid);
+  if(!c) return;
+  if(!confirm('Excluir o cupom ' + c.codigo + '?\n\nQuem já usou continua com o '
+            + 'desconto. Para só parar de aceitar, desmarque "Cupom ativo".')) return;
+  bd.cupons = (bd.cupons || []).filter(x => x.id !== cid);
+  salvar();
+  fecharModal();
+  pintarCupons();
 }
 
 function abrirVenderPacote(pid){
@@ -5558,6 +5851,10 @@ function abrirDetalhe(agId){
         <td><span class="pnt" style="background:${corDoProf(p)}"></span>${escapar(p ? p.nome : '—')}</td></tr>
       <tr><td style="color:var(--txt2)">Serviços</td><td>${rotuloServicos(a)}<br>
         <b>${real(totalDe(a))}</b></td></tr>
+      ${Number(a.desconto) > 0 ? `<tr><td style="color:var(--txt2)">Cupom</td>
+        <td><b>${escapar(codigoDoCupom(a.cupomId) || 'Desconto')}</b> · − ${real(Number(a.desconto))}<br>
+        <span style="font-size:12px;color:var(--txt2)">o valor acima já está com
+        o desconto</span></td></tr>` : ''}
       ${a.obs ? `<tr><td style="color:var(--txt2)">Obs.</td><td>${escapar(a.obs)}</td></tr>` : ''}
     </tbody></table>
     <div class="campo" style="margin-top:14px">
@@ -5701,7 +5998,12 @@ function comandaDoAgendamento(agId){
       // `numero` e `aberta_em` são do banco: o número vem de um gatilho, e a
       // hora de abertura tem o `default now()`. `data` é só da tela, e o
       // `desmontarAgenda()` a remove antes de gravar.
-      numero: proximoNumero(), data:a.data, desconto:0, pagamentos:[],
+      numero: proximoNumero(), data:a.data, pagamentos:[],
+      /* O cupom que a cliente usou no link vem junto: a comanda cobra o que
+         a cliente viu na tela de confirmar, e o motivo diz de onde saiu. */
+      desconto: Number(a.desconto) || 0,
+      descontoMotivo: Number(a.desconto) > 0
+        ? 'Cupom ' + (codigoDoCupom(a.cupomId) || '') : null,
       /* ⚠ `servicoId` PRECISA ir junto, e não ia.
 
           O item guardava só a descrição. Enquanto a comissão vinha pronta da
@@ -7539,6 +7841,7 @@ function pintar(){
   if(telaAtual === 'servicos') pintarServicos();
   if(telaAtual === 'produtos') pintarProdutos();
   if(telaAtual === 'pacotes')  pintarPacotes();
+  if(telaAtual === 'cupons')   pintarCupons();
   if(telaAtual === 'equipe')   pintarEquipe();
   if(telaAtual === 'hoje')     carregarHoje();
   /* `carregarGaveta()` ANTES do `pintarCaixa()`, e não só depois de mexer
