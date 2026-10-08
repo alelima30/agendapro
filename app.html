@@ -1842,7 +1842,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.34893d';
+const VERSAO_APP = 'v9.6da6a4';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2618,6 +2618,21 @@ function escolherDiaDoMes(dia){ diaAtual = dia; pintar(); }
    o valor, com o Confirmar ali mesmo quando espera o salão. É o mesmo na
    lista do dia do mês e no "Quem ainda vem" da tela Hoje — o dono pediu as
    duas iguais, e um desenho só é um lugar só para consertar. */
+/* ── COMO A CLIENTE VAI PAGAR ─────────────────────────────────────────────
+   A forma que ela escolheu no link (ou que a recepção anotou), em
+   `agendamentos.forma_pagamento`. É a intenção, não o pagamento: o dinheiro
+   continua entrando pela comanda — que já abre com esta forma escolhida.
+   Os nomes são os de `Funcionamento.PAGAMENTOS`, os mesmos da página. */
+function nomeDaFormaPagamento(k){
+  const f = ((window.Funcionamento && Funcionamento.PAGAMENTOS) || []).find(x => x[0] === k);
+  return f ? f[1] : '';
+}
+function opcoesDeFormaPagamento(atual){
+  return `<option value="">Não informado</option>`
+    + ((window.Funcionamento && Funcionamento.PAGAMENTOS) || []).map(([k, rot]) =>
+        `<option value="${k}"${k === atual ? ' selected' : ''}>${rot}</option>`).join('');
+}
+
 function cartaoDoDia(a){
   return `
       <div class="dia-cartao st-${a.status}" role="button" tabindex="0"
@@ -2633,6 +2648,8 @@ function cartaoDoDia(a){
         </span>
         <span class="dc-lado">
           <span class="dc-vlr">${real(totalDe(a))}</span>
+          ${nomeDaFormaPagamento(a.formaPagamento)
+            ? `<span class="dc-pag">${escapar(nomeDaFormaPagamento(a.formaPagamento))}</span>` : ''}
           ${a.status === 'pendente' ? `<button type="button" class="btn btn-primario btn-peq dc-confirmar"
             onclick="event.stopPropagation();confirmarHorario('${a.id}')">Confirmar</button>` : ''}
         </span>
@@ -5699,6 +5716,8 @@ function abrirNovo(profId, min){
       <div class="campo"><label>Início</label>
         <input type="time" id="fInicio" value="${hm(min || 9*60)}" step="900" onchange="recalcularFim()"></div>
     </div>
+    <div class="campo"><label>Como vai pagar</label>
+      <select id="fFormaPag">${opcoesDeFormaPagamento('')}</select></div>
     <div class="campo"><label>Observação</label>
       <textarea id="fObs" rows="2" placeholder="Alguma preferência, alergia, recado"></textarea></div>
   `, [
@@ -5887,6 +5906,7 @@ function salvarAgendamento(){
               comissaoPct: sv.comissaoPct != null ? sv.comissaoPct : prof.comissaoPct};
     }),
     obs: document.getElementById('fObs').value || '',
+    formaPagamento: (document.getElementById('fFormaPag') || {}).value || null,
   });
 
   salvar(); fecharModal();
@@ -5944,11 +5964,21 @@ function abrirDetalhe(agId){
         <span style="font-size:12px;color:var(--txt2)">o valor acima já está com
         o desconto</span></td></tr>` : ''}
       ${a.obs ? `<tr><td style="color:var(--txt2)">Obs.</td><td>${escapar(a.obs)}</td></tr>` : ''}
+      ${nomeDaFormaPagamento(a.formaPagamento) ? `<tr><td style="color:var(--txt2)">Pagamento</td>
+        <td><b>${escapar(nomeDaFormaPagamento(a.formaPagamento))}</b><br>
+        <span style="font-size:12px;color:var(--txt2)">${a.origem === 'online'
+          ? 'como a cliente disse que vai pagar' : 'como a cliente vai pagar'}</span></td></tr>` : ''}
     </tbody></table>
-    <div class="campo" style="margin-top:14px">
-      <label>Mudar status</label>
-      <select id="fStatus">${Object.keys(ROTULO_STATUS).map(k =>
-        `<option value="${k}"${k===a.status?' selected':''}>${ROTULO_STATUS[k]}</option>`).join('')}</select>
+    <div class="dupla" style="margin-top:14px">
+      <div class="campo">
+        <label>Mudar status</label>
+        <select id="fStatus">${Object.keys(ROTULO_STATUS).map(k =>
+          `<option value="${k}"${k===a.status?' selected':''}>${ROTULO_STATUS[k]}</option>`).join('')}</select>
+      </div>
+      <div class="campo">
+        <label>Como vai pagar</label>
+        <select id="fFormaPag">${opcoesDeFormaPagamento(a.formaPagamento || '')}</select>
+      </div>
     </div>
   `, [
     ['Arquivar', `excluirAgendamento('${agId}')`, ''],
@@ -5995,6 +6025,8 @@ function abrirDetalhe(agId){
 function salvarStatus(agId){
   const a = bd.agendamentos.find(x => x.id === agId);
   a.status = document.getElementById('fStatus').value;
+  const forma = document.getElementById('fFormaPag');
+  if(forma) a.formaPagamento = forma.value || null;
   salvar(); fecharModal(); pintar();
 }
 
@@ -6550,6 +6582,11 @@ function abrirComanda(comId){
        ['Fechar janela','fecharModal();pintar()','btn-p']]
     : [['Fechar janela','fecharModal();pintar()',''],
        ['Fechar comanda', `fecharComanda('${c.id}')`, 'btn-p']]);
+  /* A forma que a cliente escolheu ao marcar já vem selecionada: o balcão só
+     confere, em vez de procurar na lista. */
+  const doAg = c.agendamentoId && bd.agendamentos.find(a => a.id === c.agendamentoId);
+  const cForma = document.getElementById('cForma');
+  if(cForma && doAg && nomeDaFormaPagamento(doAg.formaPagamento)) cForma.value = doAg.formaPagamento;
 }
 
 /* A janela já esconde os controles de uma comanda fechada. Isto aqui é a

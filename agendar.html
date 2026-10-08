@@ -724,6 +724,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
         <div class="cf-quando" id="cfQuando"></div>
       </div>
       <div class="cf-card" id="resumoFinal"></div>
+      <div id="cfPagamento"></div>
       <div id="cfCupom"></div>
       <div id="cfStatus"></div>
       <details class="cf-obs" id="cfObs">
@@ -3645,6 +3646,8 @@ function resumoDoAgendamento(p, compacto){
       ${para ? mini('equipe', 'Para ' + para) : ''}
       ${mini('calendario', quando + ' · ' + faixa)}
       ${mini('relogio', dur + ' min')}
+      ${nomeDaForma(escolha.formaPagamento) && perguntaFormaPagamento()
+        ? mini('cartao', 'Pagamento no salão: ' + escapar(nomeDaForma(escolha.formaPagamento))) : ''}
     </div>`;
   }
 
@@ -3673,11 +3676,89 @@ function resumoDoAgendamento(p, compacto){
     + linha('relogio', 'Duração', dur + ' min')
     + (desc > 0 ? linha('cupom', levado ? 'Cupom do horário antigo (vai junto)'
                                         : 'Cupom ' + escapar(cupomAgenda.codigo), '− ' + real(desc)) : '')
+    + (nomeDaForma(escolha.formaPagamento) && perguntaFormaPagamento()
+        ? linha('cartao', 'Pagamento (no salão)', escapar(nomeDaForma(escolha.formaPagamento))) : '')
     + `<div class="cf-linha cf-total">
         <span class="cf-ic cf-ic-cheio" aria-hidden="true">R$</span>
         <span class="cf-txt"><small>Total</small><b>${total}</b></span>
       </div>`
     + avisoDoPacote();
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMO VOCÊ VAI PAGAR
+
+   Na tela de confirmar, a cliente diz como vai pagar — Pix, dinheiro,
+   débito ou crédito —, e o salão vê na agenda antes de ela chegar. O
+   pagamento continua sendo no salão: isto é a intenção dela, e o banco grava
+   em `agendamentos.forma_pagamento` (09_cliente.sql, 1d).
+
+   · As formas são as que o salão marcou em "Formas de pagamento" (as mesmas
+     da folha "Pagamentos" da capa). Com elas marcadas, escolher é
+     OBRIGATÓRIO: o salão disse o que aceita, e a cliente diz qual vai usar.
+   · Salão que não marcou nenhuma: aparecem as quatro, e escolher é opcional
+     — obrigar a escolher entre formas que o salão talvez não aceite seria
+     prometer em nome dele.
+   · Atendimento que sai por R$ 0 (todo no pacote) não pergunta nada.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function nomeDaForma(k){
+  const f = ((window.Funcionamento && Funcionamento.PAGAMENTOS) || []).find(x => x[0] === k);
+  return f ? f[1] : '';
+}
+function formasParaEscolher(){
+  const todas = (window.Funcionamento && Funcionamento.PAGAMENTOS) || [];
+  const pag = pagamentosDoSalao();
+  return pag && pag.formas.length ? todas.filter(([k]) => pag.formas.includes(k)) : todas;
+}
+function formaPagamentoObrigatoria(){
+  const pag = pagamentosDoSalao();
+  return !!(pag && pag.formas.length);
+}
+function perguntaFormaPagamento(){
+  const tudoNoPacote = pacoteCobre(escolha.servicos, escolha.data) && escolha.para !== 'ambos';
+  return !tudoNoPacote && formasParaEscolher().length > 0;
+}
+function desenharFormaPagamento(){
+  const alvo = document.getElementById('cfPagamento');
+  if(!alvo) return;
+  if(!perguntaFormaPagamento()){ alvo.innerHTML = ''; return; }
+  const formas = formasParaEscolher();
+  // A escolha de antes (outro salão, ou o salão mudou o que aceita) não vale.
+  if(escolha.formaPagamento && !formas.some(([k]) => k === escolha.formaPagamento))
+    escolha.formaPagamento = null;
+  const pag = pagamentosDoSalao();
+  const obrigatoria = formaPagamentoObrigatoria();
+  alvo.innerHTML = `<div class="cf-pag" role="group" aria-labelledby="cfPagTit">
+      <div class="cf-pag-topo">
+        <span class="cf-ic" data-ico="cartao"></span>
+        <span class="cf-pag-txt"><b id="cfPagTit">Como você vai pagar?</b>
+          <small>${obrigatoria ? '' : '(opcional) '}O pagamento é feito no salão, no dia.</small></span>
+      </div>
+      <div class="cf-pag-opcoes">${formas.map(([k, rot, ico]) => `
+        <button type="button" class="cf-pag-op${escolha.formaPagamento === k ? ' on' : ''}"
+                data-forma="${k}" aria-pressed="${escolha.formaPagamento === k}"
+                onclick="escolherFormaPagamento('${k}')">
+          <span data-ico="${ico}"></span><span>${rot}</span></button>`).join('')}</div>
+      ${pag && pag.obs ? `<p class="cf-pag-obs">${escapar(pag.obs)}</p>` : ''}
+    </div>`;
+  if(window.aplicarIcones) aplicarIcones(alvo);
+}
+function escolherFormaPagamento(k){
+  // Tocar de novo na escolhida desmarca — só quando escolher é opcional.
+  escolha.formaPagamento = (escolha.formaPagamento === k && !formaPagamentoObrigatoria()) ? null : k;
+  const aviso = document.getElementById('avisoConfirmar');
+  if(aviso && aviso.querySelector('[data-falta="pagamento"]')) aviso.innerHTML = '';
+  if(tela === 'confirmar') desenharConfirmar();
+}
+// Antes de marcar: obrigatória e sem escolha, a tela diz o que falta.
+function faltaFormaPagamento(){
+  if(!perguntaFormaPagamento() || !formaPagamentoObrigatoria() || escolha.formaPagamento) return false;
+  document.getElementById('avisoConfirmar').innerHTML =
+    '<div class="recado erro" data-falta="pagamento"><b>Escolha como você vai pagar.</b> '
+    + 'É para o salão se preparar — o pagamento é feito lá, no dia.</div>';
+  const caixa = document.getElementById('cfPagamento');
+  if(caixa && caixa.scrollIntoView) caixa.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  return true;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3968,6 +4049,7 @@ function desenharConfirmar(){
     <span class="cf-quando-txt"><b>${diaCompleto(escolha.data)} às ${hm(escolha.inicio)}</b>
       <span>com ${escapar(p ? p.nome : '—')}</span></span>`;
   document.getElementById('resumoFinal').innerHTML = resumoDoAgendamento(p, false);
+  desenharFormaPagamento();
   desenharCupomAgenda();
   /* Voltou e trocou serviço, profissional, dia ou hora com um cupom aceito:
      a prévia velha não vale mais — pergunta de novo, com o mesmo código. */
@@ -4115,7 +4197,8 @@ async function desenharMeusDaNuvem(alvo){
         <div><h3>${escapar((a.servicos || []).join(' + ') || 'Atendimento')}${
           a.atendido ? ` <span class="selo-combo">${escapar(a.atendido)}</span>` : ''}</h3>
           <div class="q">${quando(a.inicio)}</div>
-          <div class="q">com ${escapar(a.profissional)} · ${real(Number(a.valor) || 0)}</div></div>
+          <div class="q">com ${escapar(a.profissional)} · ${real(Number(a.valor) || 0)}${
+            nomeDaForma(a.forma_pagamento) ? ' · ' + escapar(nomeDaForma(a.forma_pagamento)) : ''}</div></div>
         <span class="selo-st ${classe[a.status] || ''}">${rotulo[a.status] || a.status}</span>
       </div>
       ${a.podeMexer ? `<div class="acoes">
@@ -4205,6 +4288,7 @@ function remarcarNaNuvem(token){
   }
   escolha = { servicos: ids.slice(), profissionalId: a.profissionalId,
               data: null, inicio: null, ...paraQuemDoAgendamento(a),
+              formaPagamento: a.forma_pagamento || null,
               remarcar: token, descontoAntigo: Number(a.desconto) || 0 };
   esquecerVagas();
   irPara('quando');
@@ -5372,6 +5456,7 @@ function confirmarAgendamento(){
     ? donoDoHorario[escolha.inicio] : escolha.profissionalId;
   const prof = acharProf(profId);
 
+  if(faltaFormaPagamento()) return;
   if(NA_NUVEM) return confirmarNaNuvem(profId, prof);
 
   // Última conferência antes de gravar. No banco quem recusa é a constraint —
@@ -5398,6 +5483,7 @@ function confirmarAgendamento(){
               comissaoPct: sv.comissaoPct != null ? sv.comissaoPct : prof.comissaoPct};
     }),
     obs: recado,
+    formaPagamento: perguntaFormaPagamento() ? (escolha.formaPagamento || null) : null,
   });
 
   const filho = nomeDoAtendido();
@@ -5546,6 +5632,10 @@ async function confirmarNaNuvem(profId, prof){
       /* O horário de quem veio com ela: o banco não usa o pacote dela nele.
          Só com login — sem conta não há pacote, e o campo não muda nada. */
       ...(acompanhante && logada() ? { p_acompanhante: true } : {}),
+      /* Como ela vai pagar: só quando escolheu (o banco grava nulo de todo
+         jeito no que sai por R$ 0, e confere se o salão aceita a forma). */
+      ...(escolha.formaPagamento && perguntaFormaPagamento()
+          ? { p_forma_pagamento: escolha.formaPagamento } : {}),
       p_profissional: profId,
       p_inicio: quandoIso,
       p_servicos: escolha.servicos,
@@ -5569,11 +5659,12 @@ async function confirmarNaNuvem(profId, prof){
     try{
       r = await Dados.chamar('agendar', args);
     }catch(e){
-      /* Banco que ainda não recebeu esta versão não conhece `p_acompanhante`:
-         marca como antes, em vez de deixar a acompanhante sem horário. */
+      /* Banco que ainda não recebeu esta versão não conhece `p_acompanhante`
+         nem `p_forma_pagamento`: marca como antes, em vez de deixar a cliente
+         sem horário até o dono colar o SQL. */
       const semCampo = e && (e.codigo === 'PGRST202' || /Could not find the function/.test(e.message || ''));
-      if(!(semCampo && args.p_acompanhante)) throw e;
-      delete args.p_acompanhante;
+      if(!(semCampo && (args.p_acompanhante || args.p_forma_pagamento))) throw e;
+      delete args.p_acompanhante; delete args.p_forma_pagamento;
       r = await Dados.chamar('agendar', args);
     }
     const feito = Array.isArray(r) ? r[0] : r;
@@ -5717,6 +5808,7 @@ function remarcar(agId){
     servicos: (a.servicos||[]).map(s => s.servicoId),
     profissionalId: a.profissionalId, data: null, inicio: null,
     ...paraQuemDoAgendamento(a),
+    formaPagamento: a.formaPagamento || null,
   };
   escolha.remarcarLocal = agId;
   irPara('quando');

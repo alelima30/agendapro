@@ -99,7 +99,7 @@ const COLUNAS = {
                    sinalExigido:'sinal_exigido', sinalPago:'sinal_pago',
                    sinalRef:'sinal_ref', criadoPor:'criado_por', criadoEm:'criado_em',
                    encaixePor:'encaixe_por', cupomId:'cupom_id',
-                   pacoteClienteId:'pacote_cliente_id',
+                   pacoteClienteId:'pacote_cliente_id', formaPagamento:'forma_pagamento',
                    arquivadoEm:'arquivado_em' },
   agendamento_servicos: { agendamentoId:'agendamento_id', servicoId:'servico_id',
                    duracaoMin:'duracao_min', comissaoPct:'comissao_pct' },
@@ -271,6 +271,10 @@ const VAZIO_E_NULO = new Set([
      derrubaria a gravação inteira do cupom — e `cupom_id` em branco, a do
      agendamento, que quase nunca tem cupom. */
   'cupom_id', 'inicio', 'fim', 'limite_total', 'servicos',
+  /* Como a cliente vai pagar (09_cliente.sql, 1d). O "Não informado" do
+     painel manda `''`, e a trava das quatro formas recusaria a gravação
+     inteira do agendamento — não só o campo. */
+  'forma_pagamento',
 ]);
 
 function paraBanco(tabela, obj){

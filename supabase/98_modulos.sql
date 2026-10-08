@@ -4814,6 +4814,10 @@ alter table public.lista_espera
 create unique index if not exists ix_agend_token on public.agendamentos (gerenciar_token);
 create unique index if not exists ix_espera_token on public.lista_espera (gerenciar_token);
 alter table public.clientes add column if not exists cpf text;
+alter table public.agendamentos add column if not exists forma_pagamento text;
+alter table public.agendamentos drop constraint if exists agend_forma_pagamento;
+alter table public.agendamentos add constraint agend_forma_pagamento
+  check (forma_pagamento is null or forma_pagamento in ('pix', 'dinheiro', 'debito', 'credito'));
 alter table public.clientes
   add column if not exists exige_confirmacao boolean not null default false;
 create or replace function public.cliente_exige_confirmacao(
@@ -4837,6 +4841,8 @@ drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, te
                                        text, date, text);
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
                                        text, date, text, text);
+drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
+                                       text, date, text, text, boolean);
 create or replace function public.agendar(
   p_profissional  uuid,
   p_inicio        timestamptz,
@@ -4849,7 +4855,8 @@ create or replace function public.agendar(
   p_nascimento    date default null,
   p_cpf           text default null,
   p_cupom         text default null,
-  p_acompanhante  boolean default false)
+  p_acompanhante  boolean default false,
+  p_forma_pagamento text default null)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -4873,6 +4880,8 @@ declare
   v_pacote   uuid;
   v_cupom    jsonb;
   v_desconto numeric(10,2) := 0;
+  v_forma    text;
+  v_aceitas  jsonb;
   s          record;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
@@ -4958,10 +4967,18 @@ begin
       using errcode = 'check_violation';
   end if;
   begin
+    v_forma := lower(btrim(coalesce(p_forma_pagamento, '')));
+    select sa.cfg->'pagamentos'->'formas' into v_aceitas
+      from public.saloes sa where sa.id = v_salao;
+    if v_forma not in ('pix', 'dinheiro', 'debito', 'credito') or v_valor <= 0
+       or (jsonb_typeof(v_aceitas) = 'array' and jsonb_array_length(v_aceitas) > 0
+           and not v_aceitas ? v_forma) then
+      v_forma := null;
+    end if;
     insert into public.agendamentos
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
        valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id,
-       cupom_id, desconto)
+       cupom_id, desconto, forma_pagamento)
     values
       (v_salao, v_cliente, p_profissional, p_inicio, v_fim,
        case when public.confirma_automatico(v_salao)
@@ -4969,7 +4986,7 @@ begin
             then 'confirmado' else 'pendente' end, 'online',
        v_valor, v_quem,
        nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote,
-       (v_cupom->>'cupom_id')::uuid, v_desconto)
+       (v_cupom->>'cupom_id')::uuid, v_desconto, v_forma)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
   exception
     when exclusion_violation then
@@ -5011,6 +5028,7 @@ language sql stable security definer set search_path = public as $$
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
       'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),
+      'forma_pagamento', a.forma_pagamento,
       'salao',     sa.nome,
       'slug',      sa.slug,
       'fuso',      sa.fuso,
@@ -5189,7 +5207,7 @@ revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
 revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                      text, text, date, text, text, boolean) from public;
+                                      text, text, date, text, text, boolean, text) from public;
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
 grant execute on function public.minha_fila(uuid[])          to anon, authenticated;
@@ -5197,7 +5215,7 @@ grant execute on function public.sair_da_fila(uuid)          to anon, authentica
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                         text, text, date, text, text, boolean) to anon, authenticated;
+                                         text, text, date, text, text, boolean, text) to anon, authenticated;
 create or replace function public.telefone_nacional(p_tel text)
 returns text language sql immutable set search_path = public as $$
   select case when length(d) >= 12 and left(d, 2) = '55' then substr(d, 3) else d end

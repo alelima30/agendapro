@@ -179,7 +179,8 @@ const A = await aparelho();
     && /Entrar com outra conta/.test(v1.conta), v1.conta);
   await p.fill('#dNasc', '1990-05-04');
   await p.click('#btPrincipal'); await p.waitForTimeout(1200);
-  const total = await p.evaluate(() => document.querySelector('#resumoFinal .cf-total b').textContent.trim());
+  // O `toLocaleString` separa "R$" do número com espaço que não quebra.
+  const total = await p.evaluate(() => document.querySelector('#resumoFinal .cf-total b').textContent.trim().replace(/\s/g, ' '));
   igual('na conferência: R$ 0,00', total, 'R$ 0,00');
   await p.click('#btPrincipal'); await p.waitForTimeout(3500);
   const ags = await dona.lista('agendamentos', { salaoId: SALAO });

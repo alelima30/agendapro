@@ -32,12 +32,13 @@ with conferencia(ordem, item, veredito, detalhe) as (
            when count(*) > 1 then 'ERRADO'
            -- 11 desde o cupom (34_cupons.sql): a página manda `p_cupom`.
            -- 12 desde `p_acompanhante` (o pacote não cobre quem veio junto).
-           when max(pronargs) = 12 then 'certo'
+           -- 13 desde `p_forma_pagamento` (como ela vai pagar).
+           when max(pronargs) = 13 then 'certo'
            else 'FALTA'
          end,
          count(*)::text || ' versão(ões), argumentos: '
            || coalesce(string_agg(pronargs::text, ' e ' order by pronargs), '—')
-           || '  (o certo é 1 versão, com 12)'
+           || '  (o certo é 1 versão, com 13)'
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'agendar'
 
@@ -439,7 +440,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                and column_name = 'exige_confirmacao')
              or to_regprocedure('public.cliente_exige_confirmacao(uuid,uuid,text)') is null
              or coalesce(position('cliente_exige_confirmacao' in pg_get_functiondef(
-                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)'))), 0) = 0
+                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)'))), 0) = 0
              then 'FALTA'
            when has_function_privilege('anon', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
              or has_function_privilege('authenticated', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
@@ -451,7 +452,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                and column_name = 'exige_confirmacao')
              or to_regprocedure('public.cliente_exige_confirmacao(uuid,uuid,text)') is null
              or coalesce(position('cliente_exige_confirmacao' in pg_get_functiondef(
-                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)'))), 0) = 0
+                  to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)'))), 0) = 0
              then 'falta o 09_cliente.sql novo: a marca "precisa de confirmação" '
                || 'na ficha não segura o horário da cliente'
            when has_function_privilege('anon', 'public.cliente_exige_confirmacao(uuid,uuid,text)', 'execute')
@@ -473,7 +474,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or to_regprocedure('public.conferir_cupom(uuid,text,text,uuid[],uuid,timestamptz,jsonb)') is null
              or to_regprocedure('public.usar_cupom_no_pedido(uuid,text,jsonb)') is null
              or to_regprocedure('public.salao_tem_cupom(uuid)') is null
-             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)') is null
+             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)') is null
              then 'FALTA'
            when has_function_privilege('anon', 'public.cupom_calcular(uuid,text,text,uuid[],uuid,timestamptz,jsonb,text,uuid,boolean)', 'execute')
              or has_function_privilege('authenticated', 'public.cupom_calcular(uuid,text,text,uuid[],uuid,timestamptz,jsonb,text,uuid,boolean)', 'execute')
@@ -488,7 +489,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or to_regprocedure('public.conferir_cupom(uuid,text,text,uuid[],uuid,timestamptz,jsonb)') is null
              or to_regprocedure('public.usar_cupom_no_pedido(uuid,text,jsonb)') is null
              or to_regprocedure('public.salao_tem_cupom(uuid)') is null
-             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)') is null
+             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)') is null
              then 'falta o 34_cupons.sql (e o 09_cliente.sql novo): o cupom não '
                || 'aparece no link nem desconta'
            when has_function_privilege('anon', 'public.cupom_calcular(uuid,text,text,uuid[],uuid,timestamptz,jsonb,text,uuid,boolean)', 'execute')
@@ -557,14 +558,14 @@ with conferencia(ordem, item, veredito, detalhe) as (
                              where table_schema = 'public' and table_name = 'cupom_usos'
                                and column_name = 'perfil_id')
              or to_regprocedure('public.cupom_loja_da_conta(uuid,text,boolean)') is null
-             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)') is null
+             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)') is null
              then 'FALTA'
            when has_function_privilege('anon', 'public.cupom_loja_da_conta(uuid,text,boolean)', 'execute')
              or has_function_privilege('authenticated', 'public.cupom_loja_da_conta(uuid,text,boolean)', 'execute')
              or pg_get_functiondef('public.usar_cupom_no_pedido(uuid,text,jsonb)'::regprocedure)
                   not like '%cupom_loja_da_conta%'
              then 'ABERTA'
-           when pg_get_functiondef(to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)'))
+           when pg_get_functiondef(to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)'))
                   not like '%p_acompanhante, false%'
              then 'ANTIGO'
            else 'certo' end,
@@ -573,16 +574,37 @@ with conferencia(ordem, item, veredito, detalhe) as (
                              where table_schema = 'public' and table_name = 'cupom_usos'
                                and column_name = 'perfil_id')
              or to_regprocedure('public.cupom_loja_da_conta(uuid,text,boolean)') is null
-             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)') is null
+             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)') is null
              then 'cole o 00_tudo.sql de novo (34_cupons e 09_cliente)'
            when has_function_privilege('anon', 'public.cupom_loja_da_conta(uuid,text,boolean)', 'execute')
              or has_function_privilege('authenticated', 'public.cupom_loja_da_conta(uuid,text,boolean)', 'execute')
              or pg_get_functiondef('public.usar_cupom_no_pedido(uuid,text,jsonb)'::regprocedure)
                   not like '%cupom_loja_da_conta%'
              then 'o cupom da loja ainda vale sem conta — cole o 00_tudo.sql de novo'
-           when pg_get_functiondef(to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)'))
+           when pg_get_functiondef(to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)'))
                   not like '%p_acompanhante, false%'
              then 'o pacote ainda cobre a acompanhante — cole o 00_tudo.sql de novo'
+           else '' end
+  union all
+  /* Como a cliente vai pagar: a coluna no agendamento, a trava das quatro
+     formas, e o agendar() que grava o que ela escolheu no link. */
+  select 27, 'forma de pagamento na marcação',
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'agendamentos'
+                               and column_name = 'forma_pagamento')
+             or not exists (select 1 from pg_constraint where conname = 'agend_forma_pagamento')
+             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)') is null
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'agendamentos'
+                               and column_name = 'forma_pagamento')
+             or not exists (select 1 from pg_constraint where conname = 'agend_forma_pagamento')
+             or to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean,text)') is null
+             then 'cole o 00_tudo.sql de novo (09_cliente): a forma de pagamento '
+               || 'que a cliente escolhe não é gravada'
            else '' end
 )
 select item                                as "o que",

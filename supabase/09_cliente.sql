@@ -77,6 +77,24 @@ create unique index if not exists ix_espera_token on public.lista_espera (gerenc
 alter table public.clientes add column if not exists cpf text;
 
 -- ---------------------------------------------------------------------------
+-- 1d) Como a cliente vai pagar
+--
+-- Ela escolhe no link, na hora de confirmar — Pix, dinheiro, débito ou
+-- crédito —, e o salão vê na agenda antes de ela chegar. É a INTENÇÃO, e
+-- não o pagamento: quem registra o dinheiro continua sendo a comanda
+-- (`pagamentos`), que já nasce com esta forma escolhida no painel.
+--
+-- Os mesmos quatro nomes de `Funcionamento.PAGAMENTOS` (funcionamento.js),
+-- que é a lista que o salão marca em "Formas de pagamento". O `check` vale
+-- para o painel também; o `agendar()` normaliza antes, e forma estranha vira
+-- nula em vez de derrubar a marcação.
+-- ---------------------------------------------------------------------------
+alter table public.agendamentos add column if not exists forma_pagamento text;
+alter table public.agendamentos drop constraint if exists agend_forma_pagamento;
+alter table public.agendamentos add constraint agend_forma_pagamento
+  check (forma_pagamento is null or forma_pagamento in ('pix', 'dinheiro', 'debito', 'credito'));
+
+-- ---------------------------------------------------------------------------
 -- 1c) A cliente que precisa de confirmação
 --
 -- O salão que confirma sozinho às vezes tem UMA cliente que ele quer olhar
@@ -136,10 +154,10 @@ revoke all on function public.cliente_exige_confirmacao(uuid, uuid, text)
 -- listada aqui para sempre. Tirar uma da lista, um dia, é deixar viva a
 -- sobrecarga que ela derrubava — num banco que já estava instalado.
 -- ---------------------------------------------------------------------------
--- A de sete (do 05_agenda.sql), a de nove, a de dez e a de onze (versões
--- anteriores deste arquivo; a de onze trouxe o cupom do 34_cupons.sql, e a de
--- doze, de agora, o `p_acompanhante`). Todas caem, sempre, para nunca sobrar
--- sobrecarga viva.
+-- A de sete (do 05_agenda.sql), a de nove, a de dez, a de onze e a de doze
+-- (versões anteriores deste arquivo; a de onze trouxe o cupom do
+-- 34_cupons.sql, a de doze o `p_acompanhante`, e a de treze, de agora, a
+-- forma de pagamento). Todas caem, sempre, para nunca sobrar sobrecarga viva.
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text);
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
                                        text, date);
@@ -147,6 +165,8 @@ drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, te
                                        text, date, text);
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
                                        text, date, text, text);
+drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
+                                       text, date, text, text, boolean);
 
 create or replace function public.agendar(
   p_profissional  uuid,
@@ -163,7 +183,9 @@ create or replace function public.agendar(
   /* O segundo horário de "eu e mais alguém": é de quem veio COM ela. O pacote
      é dela, e não cobre a acompanhante — esse horário sai pelo preço normal,
      e a sessão do pacote não é gasta. */
-  p_acompanhante  boolean default false)
+  p_acompanhante  boolean default false,
+  -- Como ela vai pagar (1d): 'pix', 'dinheiro', 'debito' ou 'credito'.
+  p_forma_pagamento text default null)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -187,6 +209,8 @@ declare
   v_pacote   uuid;
   v_cupom    jsonb;
   v_desconto numeric(10,2) := 0;
+  v_forma    text;
+  v_aceitas  jsonb;
   s          record;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
@@ -404,10 +428,23 @@ begin
      E a cliente marcada na ficha (1c, lá em cima) recebe pendente mesmo no
      salão que confirma sozinho. */
   begin
+    /* A forma de pagamento: só uma das quatro, e só uma que o salão aceita
+       (quando ele marcou quais aceita). Fora disso fica nula — a marcação
+       não cai por causa da preferência de pagamento. Atendimento que sai por
+       R$ 0 (pacote) não tem o que pagar. */
+    v_forma := lower(btrim(coalesce(p_forma_pagamento, '')));
+    select sa.cfg->'pagamentos'->'formas' into v_aceitas
+      from public.saloes sa where sa.id = v_salao;
+    if v_forma not in ('pix', 'dinheiro', 'debito', 'credito') or v_valor <= 0
+       or (jsonb_typeof(v_aceitas) = 'array' and jsonb_array_length(v_aceitas) > 0
+           and not v_aceitas ? v_forma) then
+      v_forma := null;
+    end if;
+
     insert into public.agendamentos
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
        valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id,
-       cupom_id, desconto)
+       cupom_id, desconto, forma_pagamento)
     values
       (v_salao, v_cliente, p_profissional, p_inicio, v_fim,
        case when public.confirma_automatico(v_salao)
@@ -415,7 +452,7 @@ begin
             then 'confirmado' else 'pendente' end, 'online',
        v_valor, v_quem,
        nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote,
-       (v_cupom->>'cupom_id')::uuid, v_desconto)
+       (v_cupom->>'cupom_id')::uuid, v_desconto, v_forma)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
   exception
     when exclusion_violation then
@@ -490,6 +527,8 @@ language sql stable security definer set search_path = public as $$
          34: função SQL valida as colunas na hora de criar, e `a.desconto`
          aqui derrubaria a instalação de quem ainda não tem a coluna. */
       'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),
+      -- Como ela disse que ia pagar (1d), para "Meus horários" e a remarcação.
+      'forma_pagamento', a.forma_pagamento,
       'salao',     sa.nome,
       'slug',      sa.slug,
       'fuso',      sa.fuso,
@@ -751,7 +790,7 @@ revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
 revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                      text, text, date, text, text, boolean) from public;
+                                      text, text, date, text, text, boolean, text) from public;
 
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
@@ -760,7 +799,7 @@ grant execute on function public.sair_da_fila(uuid)          to anon, authentica
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                         text, text, date, text, text, boolean) to anon, authenticated;
+                                         text, text, date, text, text, boolean, text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 7) A CONTA DA CLIENTE NO LINK

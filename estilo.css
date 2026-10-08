@@ -3591,6 +3591,8 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .dia-cartao .dc-nome{ font-weight:700; font-size:14.5px }
 .dia-cartao .dc-sub{ font-size:13px; color:var(--txt2); margin-top:2px }
 .dia-cartao .dc-vlr{ font-weight:800; white-space:nowrap }
+/* Como a cliente vai pagar, embaixo do valor: "Pix", "Cartão de crédito". */
+.dia-cartao .dc-pag{ font-size:12px; font-weight:600; color:var(--txt2); white-space:nowrap }
 .dia-cartao .dc-nome .tag{ margin-left:6px; vertical-align:2px }
 .dia-cartao .dc-lado{ display:flex; flex-direction:column; align-items:flex-end; gap:6px }
 /* O que espera confirmação fica com a tarja âmbar, e não a azul de sempre. */
@@ -4469,6 +4471,25 @@ body[data-passo="loja"] #btPrincipal:disabled{
   padding:11px 12px; border-radius:var(--r); border:1px solid var(--borda); resize:vertical;
   background:var(--bg); color:var(--txt); font:inherit; font-size:15px }
 .cf-obs textarea:focus{ outline:2px solid var(--ac-line); border-color:var(--ac-600) }
+
+/* Como você vai pagar (agendar.html → .cf-pag*): a mesma caixa da
+   observação, com as formas em botões de duas colunas. A escolhida ganha a
+   moldura e o tom da marca — só variáveis do tema, nenhuma cor escrita. */
+.cf-pag{ background:var(--painel); border:1px solid var(--borda); border-radius:var(--r-lg);
+  margin-bottom:14px; padding:12px 16px 14px }
+.cf-pag-topo{ display:flex; align-items:center; gap:13px; margin-bottom:12px }
+.cf-pag-txt b{ display:block; font-size:14.5px; font-weight:650; color:var(--txt) }
+.cf-pag-txt small{ font-size:13px; color:var(--txt2) }
+.cf-pag-opcoes{ display:grid; grid-template-columns:1fr 1fr; gap:8px }
+.cf-pag-op{ display:flex; align-items:center; gap:8px; min-height:48px; padding:8px 12px;
+  border-radius:var(--r); border:1px solid var(--borda); background:var(--bg); color:var(--txt);
+  font:inherit; font-size:14px; font-weight:600; text-align:left; cursor:pointer }
+.cf-pag-op .ic-svg{ flex:none; width:18px; height:18px; color:var(--txt2) }
+.cf-pag-op.on{ border-color:var(--ac-600); background:var(--ac-soft); color:var(--ac-600);
+  box-shadow:0 0 0 1px var(--ac-600) inset }
+.cf-pag-op.on .ic-svg{ color:var(--ac-600) }
+.cf-pag-op:focus-visible{ outline:2px solid var(--ac-line); outline-offset:2px }
+.cf-pag-obs{ margin-top:10px; font-size:13px; line-height:1.4; color:var(--txt2) }
 
 /* O cupom (agendar.html → .cupom-*): a mesma caixa da observação, com o
    campo e o botão lado a lado; aceito, vira a faixa do "deu certo" — o tom
