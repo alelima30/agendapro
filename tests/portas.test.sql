@@ -63,6 +63,7 @@ insert into porta_aberta values
   ('cancelar_agendamento',    'link de cancelar, mandado à cliente'),
   ('sair_da_fila',            'idem, para a fila'),
   ('meus_agendamentos',       'a cliente vendo os horários dela, por token'),
+  ('remarcar_agendamento',    'remarcar pelo link: solta o antigo e leva o cupom, pelos dois tokens'),
   ('minha_fila',              'idem'),
   ('ver_convite',             'o convite de equipe, antes de ter conta'),
 

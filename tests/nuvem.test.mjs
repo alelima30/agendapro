@@ -151,7 +151,15 @@ dizer(!!cliente.sessao().usuarioId, 'código certo abre a sessão');
 // Vira cliente deste salão e marca.
 await cliente.inserir('vinculos',
   { perfilId: cliente.sessao().usuarioId, salaoId, papel: 'cliente', status: 'ativo' });
-const ficha = await cliente.inserir('clientes',
+// A cliente NÃO cria a própria ficha: com o INSERT aberto, uma conta criava
+// antes a ficha com o telefone de outra pessoa e passava a receber as
+// marcações dela. A ficha nasce pelo `agendar()` ou pela recepção.
+{
+  const erro = await recusa(() => cliente.inserir('clientes',
+    { salaoId, perfilId: cliente.sessao().usuarioId, nome: 'João Cliente', telefone: telCliente }));
+  dizer(!!erro, 'a cliente NÃO cria a própria ficha direto (passa pela função)');
+}
+const ficha = await dono.inserir('clientes',
   { salaoId, perfilId: cliente.sessao().usuarioId, nome: 'João Cliente',
     telefone: telCliente });
 dizer(!!ficha, 'a ficha do cliente é criada no salão', JSON.stringify(ficha));

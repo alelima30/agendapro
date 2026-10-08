@@ -248,19 +248,29 @@ create policy vinc_gerir on public.vinculos for all to authenticated
 -- ---------------------------------------------------------------------------
 -- 6) CATÁLOGO — profissionais, serviços, jornada
 --
--- Cliente logado LÊ (precisa escolher com quem e o quê), só a gestão ESCREVE.
+-- A EQUIPE lê, só a gestão ESCREVE.
+--
+-- ⚠ ERA `tem_acesso()`, que inclui o papel "cliente" — e virar cliente de um
+-- salão é livre (`vinc_virar_cliente`, logo acima). Qualquer conta criava um
+-- vínculo de cliente com o id que a vitrine pública mostra e passava a ler a
+-- tabela inteira: o TELEFONE pessoal de cada profissional, a comissão de cada
+-- um e de cada serviço, os serviços desligados, a jornada. Achado pelo
+-- caça-bug, reproduzido pela API.
+--
+-- A cliente não precisa das tabelas: o cardápio dela é a `vitrine()` e as
+-- vistas públicas, que mostram só o que a página mostra.
 -- ---------------------------------------------------------------------------
 
 drop policy if exists prof_ler on public.profissionais;
 create policy prof_ler on public.profissionais for select to authenticated
-  using ( tem_acesso(salao_id) );
+  using ( e_equipe(salao_id) );
 drop policy if exists prof_gerir on public.profissionais;
 create policy prof_gerir on public.profissionais for all to authenticated
   using ( e_gestor(salao_id) ) with check ( e_gestor(salao_id) );
 
 drop policy if exists serv_ler on public.servicos;
 create policy serv_ler on public.servicos for select to authenticated
-  using ( tem_acesso(salao_id) );
+  using ( e_equipe(salao_id) );
 drop policy if exists serv_gerir on public.servicos;
 create policy serv_gerir on public.servicos for all to authenticated
   using ( e_gestor(salao_id) ) with check ( e_gestor(salao_id) );
@@ -268,7 +278,7 @@ create policy serv_gerir on public.servicos for all to authenticated
 drop policy if exists sp_ler on public.servicos_profissionais;
 create policy sp_ler on public.servicos_profissionais for select to authenticated
   using ( exists (select 1 from public.servicos s
-                   where s.id = servico_id and tem_acesso(s.salao_id)) );
+                   where s.id = servico_id and e_equipe(s.salao_id)) );
 drop policy if exists sp_gerir on public.servicos_profissionais;
 create policy sp_gerir on public.servicos_profissionais for all to authenticated
   using ( exists (select 1 from public.servicos s
@@ -279,7 +289,7 @@ create policy sp_gerir on public.servicos_profissionais for all to authenticated
 drop policy if exists jor_ler on public.jornadas;
 create policy jor_ler on public.jornadas for select to authenticated
   using ( exists (select 1 from public.profissionais p
-                   where p.id = profissional_id and tem_acesso(p.salao_id)) );
+                   where p.id = profissional_id and e_equipe(p.salao_id)) );
 drop policy if exists jor_gerir on public.jornadas;
 create policy jor_gerir on public.jornadas for all to authenticated
   using ( exists (select 1 from public.profissionais p
@@ -326,14 +336,17 @@ create policy cli_eu on public.clientes for select to authenticated
 --
 -- É seguro: o `with check` amarra a ficha ao próprio perfil, então ninguém
 -- cria ficha em nome de outra pessoa. E o índice único impede duplicar.
+--
+-- ⚠ E POR ISSO ELA NÃO ESCREVE NA TABELA. As duas policies que deixavam
+-- (criar e editar a própria ficha) saíram: a ficha nasce e se completa pelo
+-- `agendar()`, que é `security definer` e decide campo a campo o que
+-- aproveitar. Com o UPDATE aberto, a cliente marcada pelo dono como "precisa
+-- de confirmação" tirava a marca sozinha (`exige_confirmacao = false`), e
+-- reescrevia a anotação do salão e o próprio telefone — reproduzido pela API.
+-- Com o INSERT aberto, uma conta criava antes uma ficha com o telefone de
+-- outra pessoa, e as marcações dessa pessoa pelo link caíam na ficha dela.
 drop policy if exists cli_eu_criar on public.clientes;
-create policy cli_eu_criar on public.clientes for insert to authenticated
-  with check ( perfil_id = auth.uid() );
-
 drop policy if exists cli_eu_editar on public.clientes;
-create policy cli_eu_editar on public.clientes for update to authenticated
-  using ( perfil_id = auth.uid() )
-  with check ( perfil_id = auth.uid() );
 
 -- ---------------------------------------------------------------------------
 -- 8) AGENDA — a policy mais importante do sistema

@@ -61,8 +61,12 @@ PY
 
 echo "1. banco: a porcentagem vira o preço inteiro"
 troca supabase/34_cupons.sql \
-  "  v_desc := case when c.tipo = 'pct' then round(v_base * c.valor / 100, 2)" \
-  "  v_desc := case when c.tipo = 'pct' then v_base" \
+  "  end if;
+
+  v_desc := case when c.tipo = 'pct' then round(v_base * c.valor / 100, 2)" \
+  "  end if;
+
+  v_desc := case when c.tipo = 'pct' then v_base" \
   && rodar "10% dá 100%"
 
 echo "2. banco: cupom vencido continua valendo"
@@ -146,8 +150,8 @@ troca app.html \
 
 echo "14. painel: a comanda nasce sem o desconto"
 troca app.html \
-  "      desconto: Number(a.desconto) || 0," \
-  "      desconto: 0," \
+  "      desconto: doPacote ? cheio : (Number(a.desconto) || 0)," \
+  "      desconto: doPacote ? cheio : 0," \
   && rodar "o balcão cobra o preço cheio"
 
 echo "15. painel: os serviços marcados não vão para o banco"
@@ -171,13 +175,13 @@ troca agendar.html \
 
 echo "18. link: o total ignora o cupom"
 troca agendar.html \
-  "  const total = coberto ? 'R\$ 0,00' : real(precoEscolhido() - desc);" \
-  "  const total = coberto ? 'R\$ 0,00' : real(precoEscolhido());" \
+  "  const total = coberto ? 'R\$ 0,00' : real(preco - desc);" \
+  "  const total = coberto ? 'R\$ 0,00' : real(preco);" \
   && rodar "aplicou e o total não desce"
 
 echo "19. loja: o carrinho muda e a prévia velha continua"
 troca agendar.html \
-  "  return !!(cupomLoja && cupomLoja.chave === chaveDoCupomLoja());" \
+  "  return !!(cupomLoja && (cupomLoja.usado || cupomLoja.chave === chaveDoCupomLoja()));" \
   "  return !!cupomLoja;" \
   && rodar "desconto de outro pedido"
 

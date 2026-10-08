@@ -888,7 +888,10 @@ async function criarConta(){
       + `Depois ele continua funcionando no plano grátis — você só `
       + `assina se quiser mais.`;
   document.getElementById('linkFinal').textContent = url;
-  document.getElementById('irAgenda').href = 'app.html';
+  // Na demonstração, a agenda também: sem o `?demo=1` o painel pedia login
+  // e o salão recém-criado sumia (achado pelo caça-bug).
+  document.getElementById('irAgenda').href =
+    new URLSearchParams(location.search).get('demo') === '1' ? 'app.html?demo=1' : 'app.html';
   irPasso(3);
 }
 

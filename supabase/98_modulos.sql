@@ -1688,6 +1688,13 @@ create table if not exists public.estornos (
   criado_em    timestamptz not null default now()
 );
 create index if not exists ix_estorno_pgto on public.estornos(pagamento_id);
+alter table public.estornos
+  add column if not exists caixa_id uuid references public.caixas(id) on delete set null;
+update public.estornos e
+   set caixa_id = p.caixa_id
+  from public.pagamentos p
+ where p.id = e.pagamento_id and e.caixa_id is null and p.caixa_id is not null;
+create index if not exists ix_estorno_caixa on public.estornos(caixa_id);
 alter table public.estornos enable row level security;
 alter table public.estornos force row level security;
 drop policy if exists estorno_gerir on public.estornos;
@@ -1703,9 +1710,10 @@ declare
   v_ja     numeric;
   v_status text;
   v_salao  uuid;
+  v_caixa  uuid;
 begin
-  select p.valor, c.status, c.salao_id
-    into v_valor, v_status, v_salao
+  select p.valor, c.status, c.salao_id, p.caixa_id
+    into v_valor, v_status, v_salao, v_caixa
     from public.pagamentos p
     join public.comandas c on c.id = p.comanda_id
    where p.id = new.pagamento_id;
@@ -1713,6 +1721,11 @@ begin
     raise exception 'Pagamento não encontrado.' using errcode = 'no_data_found';
   end if;
   new.salao_id := v_salao;
+  select k.id into new.caixa_id
+    from public.caixas k
+   where k.salao_id = v_salao and k.fechado_em is null
+   limit 1;
+  if new.caixa_id is null then new.caixa_id := v_caixa; end if;
   if v_status = 'fechada' then
     raise exception 'Reabra a comanda antes de estornar este pagamento.'
       using errcode = 'check_violation';
@@ -1821,13 +1834,12 @@ begin
   if not public.ve_agenda_toda(k.salao_id) then
     raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
   end if;
-  select coalesce(sum(g.valor), 0) - coalesce(sum(e.estornado), 0)
-    into v_dinheiro
-    from public.pagamentos g
-    left join (select x.pagamento_id, sum(x.valor) as estornado
-                 from public.estornos x group by x.pagamento_id) e
-           on e.pagamento_id = g.id
-   where g.caixa_id = p_caixa and g.forma = 'dinheiro';
+  select (select coalesce(sum(g.valor), 0) from public.pagamentos g
+           where g.caixa_id = p_caixa and g.forma = 'dinheiro')
+       - (select coalesce(sum(x.valor), 0) from public.estornos x
+            join public.pagamentos g on g.id = x.pagamento_id
+           where coalesce(x.caixa_id, g.caixa_id) = p_caixa and g.forma = 'dinheiro')
+    into v_dinheiro;
   select coalesce(sum(m.valor) filter (where m.tipo = 'sangria'), 0),
          coalesce(sum(m.valor) filter (where m.tipo = 'suprimento'), 0)
     into v_sangria, v_suprim
@@ -1848,14 +1860,17 @@ begin
     'outrosMeios', coalesce((
       select jsonb_agg(jsonb_build_object('forma', y.forma, 'valor', y.valor)
                        order by y.valor desc)
-        from (select g.forma,
-                     round(sum(g.valor) - coalesce(sum(e.estornado), 0), 2) as valor
-                from public.pagamentos g
-                left join (select x.pagamento_id, sum(x.valor) as estornado
-                             from public.estornos x group by x.pagamento_id) e
-                       on e.pagamento_id = g.id
-               where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
-               group by g.forma) y), '[]'::jsonb),
+        from (select z.forma, round(sum(z.valor), 2) as valor
+                from (select g.forma, g.valor
+                        from public.pagamentos g
+                       where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
+                      union all
+                      select g.forma, -x.valor
+                        from public.estornos x
+                        join public.pagamentos g on g.id = x.pagamento_id
+                       where coalesce(x.caixa_id, g.caixa_id) = p_caixa
+                         and g.forma <> 'dinheiro') z
+               group by z.forma) y), '[]'::jsonb),
     'movimentos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'tipo', m.tipo, 'valor', m.valor, 'motivo', m.motivo,
@@ -3813,6 +3828,7 @@ begin
   end if;
   if public.usa_comanda(new.salao_id) then return new; end if;
   if new.cliente_id is null then return new; end if;
+  if new.pacote_cliente_id is not null then return new; end if;
   if exists (select 1 from public.comandas c
               where c.agendamento_id = new.id) then return new; end if;
   select round(coalesce(sum(s.preco), 0), 2) into v_total
@@ -4095,7 +4111,7 @@ alter table public.produtos_profissionais enable row level security;
 drop policy if exists pp_ler on public.produtos_profissionais;
 create policy pp_ler on public.produtos_profissionais for select to authenticated
   using ( exists (select 1 from public.produtos p
-                   where p.id = produto_id and tem_acesso(p.salao_id)) );
+                   where p.id = produto_id and e_equipe(p.salao_id)) );
 drop policy if exists pp_gerir on public.produtos_profissionais;
 create policy pp_gerir on public.produtos_profissionais for all to authenticated
   using ( exists (select 1 from public.produtos p
@@ -4173,7 +4189,7 @@ alter table public.estoque_mov enable row level security;
 drop policy if exists em_ler on public.estoque_mov;
 create policy em_ler on public.estoque_mov for select to authenticated
   using ( exists (select 1 from public.produtos p
-                   where p.id = produto_id and tem_acesso(p.salao_id)) );
+                   where p.id = produto_id and e_equipe(p.salao_id)) );
 grant select on public.estoque_mov to authenticated;
 create or replace function public.tg_produto_estoque_mov()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -4359,7 +4375,18 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare
   v_prof   uuid;
   v_inicio timestamptz;
+  v_salao  uuid;
 begin
+  if auth.uid() is not null
+     and (tg_op = 'INSERT' and new.preco is not null
+          or tg_op = 'UPDATE' and new.preco is distinct from old.preco) then
+    select a.salao_id into v_salao from public.agendamentos a where a.id = new.agendamento_id;
+    if not public.ve_agenda_toda(v_salao) then
+      if tg_op = 'UPDATE' then new.preco := old.preco; return new; end if;
+      new.preco := null;
+    end if;
+  end if;
+  if tg_op = 'UPDATE' then return new; end if;
   if new.preco is not null then return new; end if;
   select a.profissional_id, a.inicio into v_prof, v_inicio
     from public.agendamentos a where a.id = new.agendamento_id;
@@ -4370,7 +4397,7 @@ end $$;
 alter table public.agendamento_servicos alter column preco drop default;
 drop trigger if exists tg_preco_agend_servico on public.agendamento_servicos;
 create trigger tg_preco_agend_servico
-  before insert on public.agendamento_servicos
+  before insert or update of preco on public.agendamento_servicos
   for each row execute function public.tg_preco_do_agendamento();
 comment on function public.tg_preco_do_agendamento() is
   'Reescreve o preço da linha do agendamento com a escada do banco. É o que faz a regra valer também para o que a recepção marca.';
@@ -4604,6 +4631,62 @@ returns jsonb language sql stable security definer set search_path = public as $
      and (c.inicio is null or c.inicio <= hoje.d)
      and (c.fim is null or c.fim >= hoje.d)
 $$;
+create or replace function public.remarcar_agendamento(p_token_antigo uuid, p_token_novo uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  a      public.agendamentos%rowtype;
+  n      public.agendamentos%rowtype;
+  c      public.cupons%rowtype;
+  v_base numeric(10,2) := 0;
+  v_desc numeric(10,2) := 0;
+  it     record;
+begin
+  select * into a from public.agendamentos where gerenciar_token = p_token_antigo for update;
+  select * into n from public.agendamentos where gerenciar_token = p_token_novo for update;
+  if a.id is null or n.id is null or a.id = n.id
+     or n.salao_id <> a.salao_id or n.cliente_id is distinct from a.cliente_id
+     or n.criado_em < now() - interval '30 minutes' then
+    raise exception 'Não achei esse horário. Confira o link.' using errcode = 'check_violation';
+  end if;
+  if a.status not in ('pendente', 'confirmado') then
+    raise exception 'Este horário já foi %.',
+      case a.status when 'cancelado' then 'cancelado'
+                    when 'concluido' then 'atendido' else a.status end
+      using errcode = 'check_violation';
+  end if;
+  if a.inicio <= now() + interval '2 hours' then
+    raise exception 'Faltam menos de 2 horas. Fale com o salão para desmarcar.'
+      using errcode = 'check_violation';
+  end if;
+  update public.agendamentos
+     set status = 'cancelado', cancelado_motivo = 'remarcado pelo cliente'
+   where id = a.id;
+  if a.cupom_id is not null and coalesce(a.desconto, 0) > 0
+     and n.cupom_id is null and n.pacote_cliente_id is null
+     and n.status in ('pendente', 'confirmado') then
+    select * into c from public.cupons where id = a.cupom_id;
+    if found then
+      for it in select s.servico_id, s.preco from public.agendamento_servicos s
+                 where s.agendamento_id = n.id loop
+        if c.servicos is null or cardinality(c.servicos) = 0 or it.servico_id = any(c.servicos) then
+          v_base := v_base + coalesce(it.preco, 0);
+        end if;
+      end loop;
+      v_desc := case when c.tipo = 'pct' then round(v_base * c.valor / 100, 2)
+                     else least(c.valor, v_base) end;
+      v_desc := least(v_desc, n.valor_previsto);
+      if v_desc > 0 then
+        update public.agendamentos
+           set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc
+         where id = n.id;
+        update public.cupom_usos
+           set agendamento_id = n.id, desconto = v_desc
+         where agendamento_id = a.id;
+      end if;
+    end if;
+  end if;
+  return jsonb_build_object('ok', true, 'desconto', v_desc);
+end $$;
 create or replace function public.usos_dos_cupons(p_salao uuid)
 returns jsonb language sql stable security definer set search_path = public as $$
   select coalesce(jsonb_object_agg(x.cupom_id, x.n), '{}'::jsonb)
@@ -4639,7 +4722,34 @@ revoke all on function public.usos_dos_cupons(uuid) from public, anon;
 grant execute on function public.conferir_cupom(uuid, text, text, uuid[], uuid, timestamptz, jsonb) to anon, authenticated;
 grant execute on function public.usar_cupom_no_pedido(uuid, text, jsonb) to anon, authenticated;
 grant execute on function public.salao_tem_cupom(uuid) to anon, authenticated;
+revoke all on function public.remarcar_agendamento(uuid, uuid) from public;
+grant execute on function public.remarcar_agendamento(uuid, uuid) to anon, authenticated;
 grant execute on function public.usos_dos_cupons(uuid) to authenticated;
+
+drop policy if exists prof_ler on public.profissionais;
+create policy prof_ler on public.profissionais for select to authenticated
+  using ( public.e_equipe(salao_id) );
+drop policy if exists serv_ler on public.servicos;
+create policy serv_ler on public.servicos for select to authenticated
+  using ( public.e_equipe(salao_id) );
+drop policy if exists sp_ler on public.servicos_profissionais;
+create policy sp_ler on public.servicos_profissionais for select to authenticated
+  using ( exists (select 1 from public.servicos s
+                   where s.id = servico_id and public.e_equipe(s.salao_id)) );
+drop policy if exists jor_ler on public.jornadas;
+create policy jor_ler on public.jornadas for select to authenticated
+  using ( exists (select 1 from public.profissionais p
+                   where p.id = profissional_id and public.e_equipe(p.salao_id)) );
+drop policy if exists pp_ler on public.produtos_profissionais;
+create policy pp_ler on public.produtos_profissionais for select to authenticated
+  using ( exists (select 1 from public.produtos p
+                   where p.id = produto_id and public.e_equipe(p.salao_id)) );
+drop policy if exists em_ler on public.estoque_mov;
+create policy em_ler on public.estoque_mov for select to authenticated
+  using ( exists (select 1 from public.produtos p
+                   where p.id = produto_id and public.e_equipe(p.salao_id)) );
+drop policy if exists cli_eu_criar  on public.clientes;
+drop policy if exists cli_eu_editar on public.clientes;
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();
@@ -4841,6 +4951,7 @@ language sql stable security definer set search_path = public as $$
       'status',    a.status,
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
+      'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),
       'salao',     sa.nome,
       'slug',      sa.slug,
       'fuso',      sa.fuso,

@@ -217,7 +217,7 @@ h2{font-size:19px;font-weight:700;letter-spacing:-.02em}
 .bloqueio{
   position:absolute;left:3px;right:3px;border-radius:7px;
   background:rgba(148,163,184,.22);border:1px dashed var(--txt3);
-  font-size:11px;color:var(--txt2);padding:3px 6px;overflow:hidden;
+  font-size:11px;color:var(--txt2);padding:3px 6px;overflow:hidden;cursor:pointer;
 }
 .ag{
   position:absolute;left:3px;right:3px;border-radius:8px;padding:4px 7px;
@@ -693,6 +693,12 @@ body.carregando-tudo .tela{ display:none }
   <!-- ══════════ CAIXA ══════════ -->
   <section class="tela" id="tela-caixa">
     <div class="barra">
+      <!-- Anda pelos dias aqui mesmo: o Caixa segue o dia aberto na Agenda, e
+           sem estes botoes quem olhou amanha na agenda entrava aqui em
+           "Nenhuma comanda" sem ter como voltar. -->
+      <button class="btn btn-peq" onclick="andarCaixa(-1)" aria-label="Dia anterior">‹</button>
+      <button class="btn btn-peq" onclick="andarCaixa(0)">Hoje</button>
+      <button class="btn btn-peq" onclick="andarCaixa(1)" aria-label="Próximo dia">›</button>
       <span class="dia" id="rotuloCaixa" style="min-width:auto;font-size:14px;color:var(--txt2)"></span>
     </div>
     <!-- A gaveta vem ANTES dos números do dia, de propósito: abrir é a
@@ -704,7 +710,7 @@ body.carregando-tudo .tela{ display:none }
          fazer: e' otimo numa terca e ruim num sabado. -->
     <p id="compCaixa" style="margin:10px 0 18px;font-size:13px"></p>
     <div id="listaComandas"></div>
-    <h2 style="margin:22px 0 11px;font-size:16px">Comissão por profissional</h2>
+    <h2 id="tituloComissao" style="margin:22px 0 11px;font-size:16px">Comissão por profissional</h2>
     <div id="listaComissao"></div>
   </section>
 
@@ -1529,6 +1535,9 @@ function avisoDeFaltas(cid){
 // Menos o cupom: o item guarda o preço cheio (é sobre ele que sai a
 // comissão), e o desconto mora no agendamento — quem grava é o `agendar()`.
 function totalDe(ag){
+  // Sessão de pacote: já paga — o `agendar()` gravou zero, e a agenda mostrava
+  // o preço cheio dos itens (achado pelo caça-bug).
+  if(ag.pacoteClienteId) return 0;
   const cheio = (ag.servicos || []).reduce((s,x) => s + (x.preco||0), 0);
   return Math.max(0, cheio - (Number(ag.desconto) || 0));
 }
@@ -1833,7 +1842,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.637338';
+const VERSAO_APP = 'v9.174dcf';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2425,7 +2434,11 @@ function pintarAgenda(){
     // Bloqueios
     for(const b of bd.bloqueios.filter(b => b.salaoId === salaoAtual && b.data === diaAtual
                                          && (b.profissionalId === p.id || b.profissionalId === null))){
-      html += `<div class="bloqueio" style="top:${y(b.inicio)}px;height:${y(b.fim)-y(b.inicio)}px">
+      // Clicável: abre o bloqueio com "Remover" (antes o clique caía na
+      // coluna e abria um agendamento novo, recusado pelo próprio bloqueio).
+      html += `<div class="bloqueio" role="button" tabindex="0" title="Ver o bloqueio"
+                 style="top:${y(b.inicio)}px;height:${y(b.fim)-y(b.inicio)}px"
+                 onclick="event.stopPropagation();abrirDetalheBloqueio('${b.id}')">
                  ${escapar(b.motivo || 'Bloqueado')}</div>`;
     }
 
@@ -2601,6 +2614,31 @@ function pintarMes(){
    grade tem o botão "Abrir o dia". */
 function escolherDiaDoMes(dia){ diaAtual = dia; pintar(); }
 
+/* O cartão de UM atendimento: nome, status, horário, serviços, quem atende e
+   o valor, com o Confirmar ali mesmo quando espera o salão. É o mesmo na
+   lista do dia do mês e no "Quem ainda vem" da tela Hoje — o dono pediu as
+   duas iguais, e um desenho só é um lugar só para consertar. */
+function cartaoDoDia(a){
+  return `
+      <div class="dia-cartao st-${a.status}" role="button" tabindex="0"
+           onclick="abrirDetalhe('${a.id}')"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe('${a.id}')}">
+        <span class="dc-txt">
+          <span class="dc-nome">${escapar(nomeCliente(a.clienteId))}
+            <span class="tag ${a.status === 'pendente' ? 't-pend' : CLASSE_STATUS[a.status] || ''}">${
+              a.status === 'pendente' ? 'A confirmar' : (ROTULO_STATUS[a.status] || a.status)}</span></span>
+          <span class="dc-sub">${hm(a.inicio)}–${hm(a.fim)} · ${
+            escapar(rotuloServicos(a))} · ${
+            escapar((acharProf(a.profissionalId) || {}).nome || '—')}</span>
+        </span>
+        <span class="dc-lado">
+          <span class="dc-vlr">${real(totalDe(a))}</span>
+          ${a.status === 'pendente' ? `<button type="button" class="btn btn-primario btn-peq dc-confirmar"
+            onclick="event.stopPropagation();confirmarHorario('${a.id}')">Confirmar</button>` : ''}
+        </span>
+      </div>`;
+}
+
 /* A lista do dia escolhido, em cartões. Não é a grade: cartão não tem altura
    proporcional à duração, e é isso que o deixa legível num dia com quatro
    atendimentos de dez minutos — que na grade viram quatro riscos. */
@@ -2630,24 +2668,7 @@ function pintarListaDoDia(){
      abrindo a ficha (por isso é um div com papel de botão: botão dentro de
      botão não existe). */
   alvo.innerHTML = `<div class="dia-lista">${cabeca}
-    ${doDia.map(a => `
-      <div class="dia-cartao st-${a.status}" role="button" tabindex="0"
-           onclick="abrirDetalhe('${a.id}')"
-           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();abrirDetalhe('${a.id}')}">
-        <span class="dc-txt">
-          <span class="dc-nome">${escapar(nomeCliente(a.clienteId))}
-            <span class="tag ${a.status === 'pendente' ? 't-pend' : CLASSE_STATUS[a.status] || ''}">${
-              a.status === 'pendente' ? 'A confirmar' : (ROTULO_STATUS[a.status] || a.status)}</span></span>
-          <span class="dc-sub">${hm(a.inicio)}–${hm(a.fim)} · ${
-            escapar(rotuloServicos(a))} · ${
-            escapar((acharProf(a.profissionalId) || {}).nome || '—')}</span>
-        </span>
-        <span class="dc-lado">
-          <span class="dc-vlr">${real(totalDe(a))}</span>
-          ${a.status === 'pendente' ? `<button type="button" class="btn btn-primario btn-peq dc-confirmar"
-            onclick="event.stopPropagation();confirmarHorario('${a.id}')">Confirmar</button>` : ''}
-        </span>
-      </div>`).join('')}
+    ${doDia.map(cartaoDoDia).join('')}
     <button class="btn btn-peq" style="margin-top:4px"
             onclick="trocarVista('dia')">Abrir o dia na grade de horários</button>
   </div>`;
@@ -2856,9 +2877,13 @@ function cliqueNaColuna(ev, profId){
 
 /* ── Desenho: clientes ───────────────────────────────────────────────── */
 function pintarClientes(){
-  const busca = (document.getElementById('buscaCliente').value || '').toLowerCase().trim();
+  /* Sem acento e, para o telefone, só os dígitos: "jose" acha José, e
+     "(11) 98765-4321" acha quem tem 11987654321 (achado pelo caça-bug). */
+  const busca = semAcento((document.getElementById('buscaCliente').value || '').trim());
+  const buscaDig = busca.replace(/\D/g, '');
   const lista = clientesDo().filter(c =>
-    !busca || c.nome.toLowerCase().includes(busca) || (c.telefone||'').includes(busca));
+    !busca || semAcento(c.nome).includes(busca)
+    || (buscaDig.length >= 3 && String(c.telefone || '').replace(/\D/g, '').includes(buscaDig)));
 
   const alvo = document.getElementById('listaClientes');
   if(!lista.length){
@@ -3034,8 +3059,10 @@ function pintarPacotes(){
   alvo.innerHTML = lista.map(p => {
     const svs = servicosDoPacote(p.id);
     const vendas = vendasDoPacote(p.id);
-    const hoje = diaAtual;
-    const vivas = vendas.filter(v => v.venceEm >= hoje);
+    // Pelo dia de HOJE, e não pelo dia aberto na agenda: com a agenda em
+    // 45 dias à frente, o pacote vendido hoje sumia da lista (achado pelo
+    // caça-bug).
+    const vivas = vendas.filter(v => v.venceEm >= hoje());
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
@@ -3089,6 +3116,16 @@ function pintarPacotes(){
   }).join('');
 }
 
+/* Os serviços ATIVOS, mais os desativados que JÁ ESTÃO marcados. A lista era
+   só de ativos: com o Corte desativado, editar o cupom CORTE15 (para mudar só
+   a data) gravava "nenhum serviço marcado" — que é "vale para TODOS" — e o
+   cupom de um serviço passava a descontar qualquer um. No pacote, o serviço
+   desativado saía do pacote em silêncio. Achado pelo caça-bug. */
+function servicosParaMarcar(marcados){
+  const ja = new Set(marcados || []);
+  return doSalao(bd.servicos).filter(s => s.ativo || ja.has(s.id));
+}
+
 function abrirPacote(pid){
   if(!souGestor()) return;
   const p = pid ? pacotesDoSalao().find(x => x.id === pid) : null;
@@ -3130,9 +3167,10 @@ function abrirPacote(pid){
     <div class="campo"><label>Quais serviços entram</label>
       <div id="pkServicos" style="max-height:210px;overflow:auto;
            border:1px solid var(--borda);border-radius:10px;padding:9px">${
-        servsAtivos().map(s => `<label class="check" style="display:block;margin:5px 0">
+        servicosParaMarcar(svs).map(s => `<label class="check" style="display:block;margin:5px 0">
           <input type="checkbox" value="${s.id}"${svs.includes(s.id) ? ' checked' : ''}>
-          <span>${escapar(s.nome)} · ${real(s.preco)}</span></label>`).join('')
+          <span>${escapar(s.nome)} · ${real(s.preco)}${s.ativo ? ''
+            : ' <span class="tag t-canc">desativado</span>'}</span></label>`).join('')
         || '<p style="color:var(--txt3);font-size:13px">Cadastre serviços primeiro.</p>'}
       </div></div>
     ${p ? `<label class="check" style="margin-top:12px">
@@ -3370,9 +3408,10 @@ function abrirCupom(cid){
         Nenhum marcado: vale para todos. Marcados: o desconto sai só deles.</p>
       <div id="cpServicos" style="max-height:210px;overflow:auto;
            border:1px solid var(--borda);border-radius:10px;padding:9px">${
-        servsAtivos().map(s => `<label class="check" style="display:block;margin:5px 0">
+        servicosParaMarcar(svs).map(s => `<label class="check" style="display:block;margin:5px 0">
           <input type="checkbox" value="${s.id}"${svs.includes(s.id) ? ' checked' : ''}>
-          <span>${escapar(s.nome)} · ${real(s.preco)}</span></label>`).join('')
+          <span>${escapar(s.nome)} · ${real(s.preco)}${s.ativo ? ''
+            : ' <span class="tag t-canc">desativado</span>'}</span></label>`).join('')
         || '<p style="color:var(--txt3);font-size:13px">Cadastre serviços primeiro.</p>'}
       </div></div>
     <div class="dupla">
@@ -4162,14 +4201,22 @@ function desenharHoje(p){
            Abra em Caixa para ter o que conferir no fim do dia.</span>
        </div>`;
 
-  const prox = (p.proximos || []).length
+  /* ⚠ "QUEM AINDA VEM" COM O CARTÃO DO MÊS. Era uma tabela de hora, nome e
+     profissional — no celular virava três linhas soltas por pessoa, sem
+     status, sem serviço e sem valor, enquanto a lista do dia no mês mostrava
+     tudo isso. "Tem que deixar igual o mensal": agora é o mesmo cartão
+     (`cartaoDoDia`), dos atendimentos de hoje que ainda não terminaram, na
+     hora do salão. Tocar abre a ficha; o pendente tem o Confirmar ali. */
+  const sl = acharSalao(salaoAtual);
+  const agora = sl && sl.fuso
+    ? instanteParaTela(new Date().toISOString(), sl.fuso)
+    : { data: iso(new Date()), min: new Date().getHours() * 60 + new Date().getMinutes() };
+  const aindaVem = agendaDoDia(agora.data)
+    .filter(a => ['pendente', 'confirmado', 'em_atendimento'].includes(a.status) && a.fim > agora.min)
+    .sort((a, b) => a.inicio - b.inicio);
+  const prox = aindaVem.length
     ? `<h2 style="margin:22px 0 11px;font-size:16px">Quem ainda vem</h2>
-       <table class="tabela"><tbody>${(p.proximos || []).map(x => `
-         <tr>
-           <td style="width:74px"><b>${escapar(horaDe(x.inicio, p.fuso))}</b></td>
-           <td>${escapar(x.cliente)}</td>
-           <td style="color:var(--txt2);font-size:13px">${escapar(x.profissional)}</td>
-         </tr>`).join('')}</tbody></table>`
+       <div class="dia-lista">${aindaVem.map(cartaoDoDia).join('')}</div>`
     : '<div class="vazio" style="margin-top:18px"><b>Ninguém mais hoje</b>'
       + 'O que estava marcado já passou.</div>';
 
@@ -4598,6 +4645,11 @@ function dashRanque(lista, campo, unidade){
    ───────────────────────────────────────────────────────────────────────── */
 let dashDados = null;
 let dashPedido = 0;
+/* De QUAL salão é o `dashDados`. Sem isto, quem tem duas unidades abria o
+   Dashboard numa, trocava no seletor, e via os números da primeira — "2
+   clientes esperando resposta" de um salão que não tinha nenhum. Achado
+   pelo caça-bug. */
+let dashSalao = null;
 
 async function carregarDash(forcar){
   const alvo = document.getElementById('dashCorpo');
@@ -4608,7 +4660,8 @@ async function carregarDash(forcar){
       + 'Em demonstração não há faturamento para somar.</div>';
     return;
   }
-  if(dashDados && !forcar) return desenharDash();
+  if(dashDados && dashSalao === salaoAtual && !forcar) return desenharDash();
+  const deQuem = salaoAtual;
 
   // O mesmo contador do relatório e do Hoje: clicar duas vezes rápido não
   // pode deixar a resposta mais VELHA sobrescrever a mais nova na tela.
@@ -4616,7 +4669,7 @@ async function carregarDash(forcar){
   alvo.innerHTML = '<div class="vazio">Somando…</div>';
   let d;
   try{
-    d = await Dados.chamar('painel_grafico', { p_salao: salaoAtual });
+    d = await Dados.chamar('painel_grafico', { p_salao: deQuem });
   }catch(e){
     if(meu !== dashPedido) return;
     /* ⚠ A FUNÇÃO PODE NÃO EXISTIR NO BANCO DESTE SALÃO. Quem instalou antes
@@ -4633,6 +4686,7 @@ async function carregarDash(forcar){
   }
   if(meu !== dashPedido) return;
   dashDados = d;
+  dashSalao = deQuem;
   desenharDash();
 }
 
@@ -4809,10 +4863,25 @@ async function gravarConfigDash(){
   desenharDash();
 }
 
+function andarCaixa(n){ diaAtual = n ? somarDias(diaAtual, n) : hoje(); pintar(); }
+
+/* ⚠ O DIA DE UMA COMANDA É O DIA EM QUE ELA FECHOU — o mesmo critério do
+   relatório. A tela usava o dia do AGENDAMENTO antes de recarregar e o da
+   ABERTURA depois: a cliente de ontem que paga hoje aparecia ontem, e trocava
+   de dia ao recarregar, enquanto o relatório contava hoje. Aberta, vale o dia
+   em que foi aberta. Achado pelo caça-bug. */
+function diaDaComanda(c){
+  if(comandaFechada(c) && c.fechadaEm){
+    const sl = acharSalao(salaoAtual);
+    return sl && sl.fuso ? instanteParaTela(c.fechadaEm, sl.fuso).data : iso(new Date(c.fechadaEm));
+  }
+  return c.data;
+}
+
 function pintarCaixa(){
   pintarGaveta();
   document.getElementById('rotuloCaixa').textContent = porExtenso(diaAtual);
-  const todas = doSalao(bd.comandas).filter(c => c.data === diaAtual);
+  const todas = doSalao(bd.comandas).filter(c => diaDaComanda(c) === diaAtual);
 
   /* ⚠ O CAIXA TEM QUE CONTAR A MESMA COISA QUE O RELATÓRIO
      Antes daqui saía a soma de TUDO que estava aberto no dia, e o Relatórios
@@ -4885,7 +4954,7 @@ function pintarCaixa(){
      qualquer dia que o dono abrir, e não só quando o Caixa está no hoje. */
   const ontem = somarDias(diaAtual, -1);
   const fatOntem = doSalao(bd.comandas)
-    .filter(c => c.data === ontem && comandaFechada(c))
+    .filter(c => comandaFechada(c) && diaDaComanda(c) === ontem)
     .reduce((s, c) => s + totalDaComanda(c), 0);
   const comp = fatOntem > 0
     ? (() => {
@@ -4900,7 +4969,7 @@ function pintarCaixa(){
   document.getElementById('kpisCaixa').innerHTML = `
     <div class="kpi"><div class="v">${comandas.length}</div><div class="r">comandas fechadas</div></div>
     <div class="kpi"><div class="v">${real(faturamento)}</div><div class="r">faturamento</div></div>
-    <div class="kpi"><div class="v">${real(comissao)}</div><div class="r">comissões</div></div>
+    ${souGestor() ? `<div class="kpi"><div class="v">${real(comissao)}</div><div class="r">comissões</div></div>` : ''}
     <div class="kpi"><div class="v">${real(comandas.length ? faturamento/comandas.length : 0)}</div>
       <div class="r">ticket médio</div></div>
     <div class="kpi"><div class="v"${abertas.length ? ' style="color:var(--alerta)"' : ''}>${real(emAberto)}</div>
@@ -4951,7 +5020,13 @@ function pintarCaixa(){
       }).join('') + '</tbody></table>';
   }
 
+  /* ⚠ A COMISSÃO DE CADA COLEGA É DA GESTÃO. A recepção usa o Caixa, e via
+     aqui "Bia — vendeu R$ 80 — comissão R$ 32": exatamente o que as abas Hoje
+     e Equipe escondem dela. Achado pelo caça-bug. */
   const alvoC = document.getElementById('listaComissao');
+  const tituloC = document.getElementById('tituloComissao');
+  if(tituloC) tituloC.style.display = souGestor() ? '' : 'none';
+  if(!souGestor()){ alvoC.innerHTML = ''; return; }
   const chaves = Object.keys(porProf);
   alvoC.innerHTML = !chaves.length
     ? '<div class="vazio">Sem comissão lançada hoje.</div>'
@@ -5345,9 +5420,13 @@ function prepararPublico(){
 
   // O endereço do salão sai do `slug`. É a mesma coluna `saloes.slug` do banco,
   // e é o que separa um salão do outro na porta de entrada do cliente.
-  const base = location.href.replace(/\/[^\/]*$/, '/') + 'agendar.html?salao=' + s.slug;
+  /* Na demonstração o link leva `&demo=1`: sem ele, "Abrir o app do cliente"
+     e o QR abriam a página ligada no banco de VERDADE — e, se existisse lá um
+     salão com o mesmo apelido, quem só estava conhecendo o sistema marcava
+     horário num salão real. Achado pelo caça-bug. */
+  const base = location.href.replace(/\/[^\/]*$/, '/') + 'agendar.html?salao=' + s.slug + sufixoDemo();
   document.getElementById('linkPublico').value = base;
-  document.getElementById('abrirComoCliente').href = 'agendar.html?salao=' + s.slug;
+  document.getElementById('abrirComoCliente').href = 'agendar.html?salao=' + s.slug + sufixoDemo();
 
   /* ⚠ O QR QUE O CARTÃO AQUI EM CIMA PROMETIA HÁ MUITO TEMPO.
 
@@ -5549,7 +5628,12 @@ document.addEventListener('keydown', e => { if(e.key === 'Escape') fecharModal()
 
 /* ── Novo agendamento ────────────────────────────────────────────────── */
 function abrirNovo(profId, min){
-  const profs = profsAtivos(), servs = servsAtivos(), clis = clientesDo();
+  /* Quem não é do balcão marca só para si — a mesma regra da grade, e a do
+     banco. A lista oferecia as colegas, e escolher uma terminava em "O banco
+     não autorizou… entre de novo", que não explica nada. Achado pelo
+     caça-bug. */
+  const so = vejoTudo() ? null : minhaFichaDeProf();
+  const profs = so ? [so] : profsAtivos(), servs = servsAtivos(), clis = clientesDo();
   if(!profs.length || !servs.length){
     abrirModal('Falta cadastro',
       '<div class="aviso">Cadastre pelo menos um profissional e um serviço antes de agendar.</div>',
@@ -5851,6 +5935,10 @@ function abrirDetalhe(agId){
         <td><span class="pnt" style="background:${corDoProf(p)}"></span>${escapar(p ? p.nome : '—')}</td></tr>
       <tr><td style="color:var(--txt2)">Serviços</td><td>${rotuloServicos(a)}<br>
         <b>${real(totalDe(a))}</b></td></tr>
+      ${a.pacoteClienteId ? `<tr><td style="color:var(--txt2)">Pacote</td>
+        <td><b>Coberto pelo pacote da cliente</b><br>
+        <span style="font-size:12px;color:var(--txt2)">esta sessão já foi paga —
+        não cobre de novo</span></td></tr>` : ''}
       ${Number(a.desconto) > 0 ? `<tr><td style="color:var(--txt2)">Cupom</td>
         <td><b>${escapar(codigoDoCupom(a.cupomId) || 'Desconto')}</b> · − ${real(Number(a.desconto))}<br>
         <span style="font-size:12px;color:var(--txt2)">o valor acima já está com
@@ -5989,21 +6077,45 @@ function desarquivarAgendamento(agId){
 }
 
 /* ── Comanda ─────────────────────────────────────────────────────────── */
-function comandaDoAgendamento(agId){
+async function comandaDoAgendamento(agId){
   let c = bd.comandas.find(x => x.agendamentoId === agId);
+  /* ⚠ OUTRO APARELHO PODE TER ABERTO ANTES. A recepção abre a comanda no
+     balcão; a dona, com o painel aberto desde cedo, clica "Abrir comanda" no
+     mesmo atendimento — e levava "duplicate key… ux_comanda_agendamento", em
+     inglês, com uma janela de comanda que não existia (e um erro de
+     JavaScript no "+ Somar"). Achado pelo caça-bug. Antes de criar, pergunta
+     ao banco; se já existe, relê e abre a de lá. */
+  if(!c && NA_NUVEM){
+    try{
+      const ja = await Dados.lista('comandas', { agendamentoId: agId });
+      if(Array.isArray(ja) && ja.length){
+        await _filaGravacao;
+        const novo = await carregarTudo();
+        if(novo){ bd = novo; pintar(); }
+        c = bd.comandas.find(x => x.agendamentoId === agId);
+      }
+    }catch(e){ console.info('[AgendaPro] comanda já aberta?', e.message); }
+  }
   if(!c){
     const a = bd.agendamentos.find(x => x.id === agId);
+    /* Sessão de PACOTE: a cliente já pagou. Os itens ficam com o preço (é
+       sobre ele que a comissão sai) e a comanda nasce com o desconto do valor
+       inteiro — sem isto o balcão cobrava de novo uma sessão já paga. */
+    const cheio = (a.servicos || []).reduce((t, x) => t + (Number(x.preco) || 0), 0);
+    const doPacote = !!a.pacoteClienteId;
     c = {
       id:id(), salaoId:salaoAtual, agendamentoId:agId, clienteId:a.clienteId,
       // `numero` e `aberta_em` são do banco: o número vem de um gatilho, e a
       // hora de abertura tem o `default now()`. `data` é só da tela, e o
       // `desmontarAgenda()` a remove antes de gravar.
-      numero: proximoNumero(), data:a.data, pagamentos:[],
+      // O dia de HOJE, e não o do agendamento: a comanda é aberta agora (ver
+      // `diaDaComanda`).
+      numero: proximoNumero(), data: hoje(), pagamentos:[],
       /* O cupom que a cliente usou no link vem junto: a comanda cobra o que
          a cliente viu na tela de confirmar, e o motivo diz de onde saiu. */
-      desconto: Number(a.desconto) || 0,
-      descontoMotivo: Number(a.desconto) > 0
-        ? 'Cupom ' + (codigoDoCupom(a.cupomId) || '') : null,
+      desconto: doPacote ? cheio : (Number(a.desconto) || 0),
+      descontoMotivo: doPacote ? 'Pacote'
+        : Number(a.desconto) > 0 ? 'Cupom ' + (codigoDoCupom(a.cupomId) || '') : null,
       /* ⚠ `servicoId` PRECISA ir junto, e não ia.
 
           O item guardava só a descrição. Enquanto a comissão vinha pronta da
@@ -6931,7 +7043,11 @@ const minutosDe = txt => {
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 };
 
-function salvarRegraDePreco(servicoId, id){
+/* ⚠ O PARÂMETRO É `regraId`, e não `id`. Com o nome `id` ele escondia a
+   função `id()` que cunha o identificador novo: criando uma regra ele valia
+   null, e `id()` estourava com "id is not a function" — nenhuma regra de
+   preço nova era gravada pelo painel. Achado pelo caça-bug. */
+function salvarRegraDePreco(servicoId, regraId){
   const v = i => (document.getElementById(i) || {}).value || '';
   const liga = i => !!(document.getElementById(i) || {}).checked;
   const recado = html => {
@@ -6984,15 +7100,17 @@ function salvarRegraDePreco(servicoId, id){
     dias, horaIni, horaFim, de, ate, ativo: liga('rgAtivo') };
 
   bd.precos_regras = bd.precos_regras || [];
-  if(id){
-    const r = bd.precos_regras.find(x => x.id === id);
+  if(regraId){
+    const r = bd.precos_regras.find(x => x.id === regraId);
     if(r) Object.assign(r, campos);
   } else {
     bd.precos_regras.push(Object.assign({ id: id() }, campos));
   }
   salvar();
   fecharModal();
-  abrirServico(acharServico(servicoId));
+  // Pelo ID: `abrirServico` recebe o id, e com o objeto abria "Novo serviço"
+  // em branco no lugar do serviço que estava sendo editado.
+  abrirServico(servicoId);
 }
 
 function apagarRegraDePreco(id){
@@ -7005,7 +7123,7 @@ function apagarRegraDePreco(id){
   bd.precos_regras = bd.precos_regras.filter(x => x.id !== id);
   salvar();
   fecharModal();
-  abrirServico(acharServico(sv));
+  abrirServico(sv);
 }
 
 function listaDeRegras(servicoId){
@@ -7149,8 +7267,13 @@ function guardarParesDoServico(servicoId){
   const campos = [...document.querySelectorAll('.par-in')];
   if(!campos.length) return;
 
+  /* ⚠ SÓ AS LINHAS DE QUEM ESTÁ NA TABELINHA. A tabelinha mostra só a equipe
+     ATIVA; apagar todas as linhas do serviço e regravar as da tela sumia com
+     o preço e a comissão especiais de quem estava de férias (inativa) — e
+     elas não voltavam quando a pessoa voltava. Achado pelo caça-bug. */
+  const naTela = new Set(campos.map(el => el.dataset.prof));
   bd.servicos_profissionais = (bd.servicos_profissionais || [])
-    .filter(x => x.servicoId !== servicoId);
+    .filter(x => x.servicoId !== servicoId || !naTela.has(x.profissionalId));
 
   const porProf = new Map();
   for(const el of campos){
@@ -7467,8 +7590,10 @@ function guardarParesDoProduto(produtoId){
   const campos = [...document.querySelectorAll('.ppar-in')];
   if(!campos.length) return;
 
+  // Só as linhas de quem está na tabelinha (ver `guardarParesDoServico`).
+  const naTela = new Set(campos.map(el => el.dataset.prof));
   bd.produtos_profissionais = (bd.produtos_profissionais || [])
-    .filter(x => x.produtoId !== produtoId);
+    .filter(x => x.produtoId !== produtoId || !naTela.has(x.profissionalId));
 
   const porProf = new Map();
   for(const el of campos){
@@ -7801,6 +7926,35 @@ function abrirBloqueio(pid){
     ['Cancelar','fecharModal()',''],
     ['Bloquear', `salvarBloqueio('${pid}')`, 'btn-p'],
   ]);
+}
+
+/* ⚠ BLOQUEIO TAMBÉM SE DESFAZ. Só existia criar: um bloqueio de 09h às 17h
+   digitado no dia errado fechava o dia na agenda e no link até alguém mexer
+   no banco. Achado pelo caça-bug. Remove quem pode no banco (`bloq_gerir`):
+   a gestão, ou a própria profissional no dela. */
+function abrirDetalheBloqueio(bid){
+  const b = (bd.bloqueios || []).find(x => x.id === bid);
+  if(!b) return;
+  const p = b.profissionalId ? acharProf(b.profissionalId) : null;
+  const meu = minhaFichaDeProf();
+  const pode = souGestor() || (meu && b.profissionalId === meu.id) || !NA_NUVEM;
+  abrirModal('Bloqueio de horário', `
+    <table class="tabela" style="box-shadow:none"><tbody>
+      <tr><td style="color:var(--txt2);width:110px">Quem</td><td><b>${escapar(p ? p.nome : 'Todos')}</b></td></tr>
+      <tr><td style="color:var(--txt2)">Quando</td><td>${porExtenso(b.data)}<br>
+        <b>${hm(b.inicio)} às ${hm(b.fim)}</b></td></tr>
+      <tr><td style="color:var(--txt2)">Motivo</td><td>${escapar(b.motivo || 'Bloqueado')}</td></tr>
+    </tbody></table>
+    ${pode ? '' : '<p style="font-size:13px;color:var(--txt3);margin-top:10px">Só a gestão (ou quem tem o bloqueio) pode remover.</p>'}`,
+    [['Fechar', 'fecharModal()', ''],
+     ...(pode ? [['Remover bloqueio', `removerBloqueio('${bid}')`, 'btn-perigo']] : [])]);
+}
+function removerBloqueio(bid){
+  const b = (bd.bloqueios || []).find(x => x.id === bid);
+  if(!b) return;
+  if(!confirm('Remover este bloqueio?\n\nO horário volta a ficar livre na agenda e no link.')) return;
+  bd.bloqueios = bd.bloqueios.filter(x => x.id !== bid);
+  salvar(); fecharModal(); pintar();
 }
 
 function salvarBloqueio(pid){
@@ -12529,7 +12683,7 @@ async function subirNaGaleria(campo){
   }
 
   gravarGaleria(sl, lista);
-  salvar(); pintar();
+  salvar(); pintarSemPerderOQueFoiDigitado();
   /* Falha de um arquivo não derruba os outros: quem escolhe cinco de uma vez
      e tem um vídeo grande demais no meio fica com os quatro que couberam, e
      sabe qual não coube. */
@@ -12546,7 +12700,7 @@ function moverNaGaleria(i, passo){
   if(j < 0 || j >= lista.length) return;
   [lista[i], lista[j]] = [lista[j], lista[i]];
   gravarGaleria(sl, lista);
-  salvar(); pintar();
+  salvar(); pintarSemPerderOQueFoiDigitado();
 }
 
 function tirarDaGaleria(i){
@@ -12557,7 +12711,7 @@ function tirarDaGaleria(i){
   if(!confirm('Remover esta mídia do slide?')) return;
   lista.splice(i, 1);
   gravarGaleria(sl, lista);
-  salvar(); pintar();
+  salvar(); pintarSemPerderOQueFoiDigitado();
 
   /* Apagar do Storage é limpeza, não parte do salvamento: se falhar, a mídia
      já saiu da lista e não aparece mais em lugar nenhum. */
@@ -12575,6 +12729,29 @@ function tirarDaGaleria(i){
 
    Sem estas duas funções, cada tela teria que lembrar de onde vem qual, e a
    que esquecesse gravaria uma coluna que não existe. */
+/* ⚠ SUBIR UMA IMAGEM REDESENHA MEU SALÃO — e o redesenho vem do que está
+   SALVO. O dono digitava o "Sobre", subia o logo, e o texto voltava ao de
+   antes. Aqui o que foi mexido e não salvo (o campo diferente do valor com
+   que a tela nasceu) é guardado antes e devolvido depois. Achado pelo
+   caça-bug. */
+function pintarSemPerderOQueFoiDigitado(){
+  const tela = document.getElementById('tela-salao');
+  const marca = el => el.type === 'checkbox' || el.type === 'radio';
+  const sujos = [];
+  if(tela) for(const el of tela.querySelectorAll('input[id], textarea[id], select[id]')){
+    if(el.type === 'file') continue;
+    const mexido = marca(el) ? el.checked !== el.defaultChecked
+      : el.tagName === 'SELECT' ? [...el.options].some(o => o.selected !== o.defaultSelected)
+      : el.value !== el.defaultValue;
+    if(mexido) sujos.push([el.id, marca(el) ? el.checked : el.value]);
+  }
+  pintar();
+  for(const [id, v] of sujos){
+    const el = document.getElementById(id);
+    if(!el) continue;
+    if(marca(el)) el.checked = v; else el.value = v;
+  }
+}
 const NO_CFG = ['fundo'];
 function imagemDoSalao(sl, chave){
   return NO_CFG.includes(chave) ? ((sl.cfg || {})[chave] || null)
@@ -12594,7 +12771,7 @@ async function subirImagemSalao(chave, campo){
   try{
     const endereco = await Imagens.guardar(arquivo, chave, salaoAtual, chave);
     gravarImagemSalao(acharSalao(salaoAtual), chave, endereco);
-    salvar(); pintar();
+    salvar(); pintarSemPerderOQueFoiDigitado();
   }catch(e){
     alert(e.message);
   }
@@ -12604,7 +12781,7 @@ async function tirarImagemSalao(chave){
   if(!confirm('Remover esta imagem?')) return;
   const sl = acharSalao(salaoAtual);
   gravarImagemSalao(sl, chave, null);
-  salvar(); pintar();
+  salvar(); pintarSemPerderOQueFoiDigitado();
   // Apagar do Storage é limpeza, não parte do salvamento: se falhar, a coluna
   // já está vazia e a imagem não aparece mais em lugar nenhum.
   if(Dados.ligado){
@@ -12769,6 +12946,9 @@ function pintarMedidoresDoPlano(){
     ? medidor(rot, Number(x.usado || 0), Number(x.teto)) : '';
   alvo.innerHTML = linha('Clientes na ficha', u.clientes)
                  + linha('Serviços no cardápio', u.servicos)
+                 // O banco já cobra o teto de produtos (`tg_limite_produtos`);
+                 // a tela não dizia, e o dono descobria no recuso.
+                 + linha('Produtos no catálogo', u.produtos)
                  + linha('Mensagens no mês', u.mensagens)
                  + avisoDeMensagens(u.mensagens);
 }
@@ -13753,7 +13933,12 @@ async function sincronizarAgenda(){
 
   _bancoAgenda = { ags: _copia(ags), itens: _copia(itens) };
 
-  if(mudou) pintar();
+  /* ⚠ MEU SALÃO NÃO SE REDESENHA SOZINHO. A tela é um formulário refeito a
+     partir do que está salvo: um horário chegando pelo link (ou a volta para
+     a aba) apagava o "Sobre" e o endereço que o dono estava digitando e ainda
+     não tinha salvo. Achado pelo caça-bug. A agenda não aparece nessa tela;
+     ela se atualiza quando o dono voltar para lá. */
+  if(mudou && telaAtual !== 'salao') pintar();
   if(novos) avisarNovosHorarios(novos);
   return novos;
 }
@@ -13934,6 +14119,8 @@ function avisoDeCarga(falhas){
    Devolver a promessa conserta na raiz e não quebra ninguém: quem chamava
    sem `await` continua igual, porque promessa ignorada é o que já
    acontecia. */
+let _filaGravacao = Promise.resolve();
+let _geracaoGravacao = 0;
 function salvar(){
   if(NA_NUVEM){
     // Grava no banco e só então atualiza o retrato. Se falhar, a pessoa
@@ -13962,9 +14149,25 @@ function salvar(){
     desmontarJornadas(paraSubir);
     desmontarAgenda(paraSubir);
     _gravando++;
-    return Dados.subir(_baixado, paraSubir)
+    /* ⚠ UMA GRAVAÇÃO DE CADA VEZ, NA ORDEM EM QUE FORAM PEDIDAS.
+
+       Cada `salvar()` saía sem esperar o anterior, e todos comparavam com o
+       mesmo `_baixado` velho. Com rede de celular: a recepção somava um
+       Shampoo por engano, tirava no X e somava uma Escova — a remoção não
+       "via" o Shampoo que ainda estava a caminho, e o banco ficava com os
+       três itens. A tela dizia R$ 130, o banco R$ 170, e a comanda não
+       fechava na frente da cliente. Achado pelo caça-bug.
+
+       Na fila, cada gravação compara com o retrato que a ANTERIOR deixou. E
+       se uma falhar e a tela for recarregada do banco, as que estavam na fila
+       com o retrato de antes não sobem: o que vale é o que está na tela. */
+    const minhaGeracao = _geracaoGravacao;
+    const tarefa = _filaGravacao.then(() => {
+      if(minhaGeracao !== _geracaoGravacao) return;
+      return Dados.subir(_baixado, paraSubir)
       .then(() => { _baixado = _copia(paraSubir); })
       .catch(async e => {
+        _geracaoGravacao++;
         console.error('[AgendaPro] falha ao gravar:', e);
         alert('NÃO consegui salvar no banco:\n\n' + limparRecusa(e.message)
             + '\n\nO que está na tela ainda não foi gravado.');
@@ -13982,11 +14185,14 @@ function salvar(){
            verdadeiro. */
         const novo = await carregarTudo();
         if(novo){ bd = novo; pintar(); }
-      })
+      });
+    })
       /* Solta a trava só no fim de TUDO, inclusive do socorro do `catch` —
          que recarrega o banco e troca o `bd` inteiro. Soltar antes deixaria a
          sincronização de fundo ler no meio dessa troca. */
       .finally(() => { _gravando = Math.max(0, _gravando - 1); });
+    _filaGravacao = tarefa.catch(() => {});
+    return tarefa;
   }
   try{
     localStorage.setItem(CHAVE, JSON.stringify({...bd, salaoAtual}));
@@ -14019,7 +14225,12 @@ function recomecar(){
   bd = semear();
   salaoAtual = bd.saloes[0].id;
   salvar();
-  iniciar();
+  /* Recarregar, e não só redesenhar: a tela guarda escolhas por salão (os
+     dias liberados, "só a agenda", a cor da aparência) em variáveis, e a
+     semente usa os mesmos ids — Meu salão continuava mostrando o que foi
+     mexido, e um Salvar sem querer gravava tudo de volta. Achado pelo
+     caça-bug. */
+  location.reload();
 }
 
 /* ── Dados de demonstração ───────────────────────────────────────────────
@@ -14043,7 +14254,12 @@ function recomecar(){
    `bd`. É a mesma lista que o `baixar()` usa, e não uma segunda cópia dela —
    duas listas divergiriam no dia em que uma tabela nova entrasse. */
 function semear(){
-  const d = semearDemo();
+  return completarTabelas(semearDemo());
+}
+/* A mesma conta vale para a demonstração JÁ GRAVADA no navegador: a criada
+   pelo criar.html (ou por uma versão antiga do painel) não tinha `pacotes`, e
+   a aba Pacotes estourava com `undefined.filter`. Achado pelo caça-bug. */
+function completarTabelas(d){
   const tabelas = (window.Dados && Dados.TABELAS_SINCRONIZADAS) || [];
   for(const t of tabelas.concat(['planos','assinaturas','perfis','vinculos'])){
     if(!Array.isArray(d[t])) d[t] = [];
@@ -14683,6 +14899,19 @@ function pdAplicarHorario(){
   const antes = (sl.cfg || {}).horario || null;
   const h = pdHorarioAtual();
   sl.cfg = Object.assign({}, sl.cfg, { horario: _copia(h) });
+  /* E o HORÁRIO DE FUNCIONAMENTO, quando ainda não há um. O passo a passo só
+     gravava a jornada (`cfg.horario`), e a página da cliente lê
+     `cfg.funcionamento`: quem terminava o assistente via em Meu salão
+     "Nenhum dia aberto", e o link ficava sem horário e sem Aberto/Fechado.
+     Achado pelo caça-bug. Quem já preencheu o funcionamento não é tocado. */
+  const F = window.Funcionamento;
+  if(F && !F.normalizar((sl.cfg || {}).funcionamento)){
+    const func = {};
+    for(const d of PD_ORDEM_DIAS){
+      func[d] = (h[d] || []).map(f => [F.hhmm(Number(f[0])), F.hhmm(Number(f[1]))]);
+    }
+    if(F.normalizar(func)) sl.cfg = Object.assign({}, sl.cfg, { funcionamento: func });
+  }
   for(const p of doSalao(bd.profissionais)){
     if(!temJornadaAlguma(p) || (antes && pdMesmaJornada(p.jornada, antes))){
       p.jornada = _copia(h);
@@ -15174,8 +15403,10 @@ function pdGuardar7(){
 /* ── Passo 8 · o link ────────────────────────────────────────────────────── */
 function pdLinkDoSalao(){
   const sl = acharSalao(salaoAtual) || {};
-  return location.href.replace(/\/[^\/]*$/, '/') + 'agendar.html?salao=' + sl.slug;
+  return location.href.replace(/\/[^\/]*$/, '/') + 'agendar.html?salao=' + sl.slug + sufixoDemo();
 }
+// Na demonstração, o link da cliente continua na demonstração (ver `pintarPublico`).
+function sufixoDemo(){ return NA_NUVEM ? '' : '&demo=1'; }
 
 function pdCopiarLink(bt){
   const el = document.getElementById('pdLink');
@@ -15444,6 +15675,7 @@ function mostrarQuemEstaLogado(){
       if(!bd || !bd.saloes || !bd.saloes.length){
         bd = semear(); salaoAtual = bd.saloes[0].id; salvar();
       }
+      completarTabelas(bd);
       if(!salaoAtual || !acharSalao(salaoAtual)) salaoAtual = bd.saloes[0].id;
     }
     iniciar();

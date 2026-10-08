@@ -315,7 +315,7 @@ secao('6. O painel');
   await p.evaluate(() => fecharModal());
 
   // A comanda aberta pelo painel leva o desconto.
-  const cmd = await p.evaluate(id => { comandaDoAgendamento(id);
+  const cmd = await p.evaluate(async id => { await comandaDoAgendamento(id);
     const c = bd.comandas.find(x => x.agendamentoId === id); try{ fecharModal(); }catch(e){}
     return c ? [c.desconto, c.descontoMotivo] : null; }, AG_CAU);
   igual('a comanda que o painel abre nasce com o desconto do cupom', cmd, [25, 'Cupom DOIS']);

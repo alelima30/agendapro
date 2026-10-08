@@ -304,7 +304,12 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
 }
 .recado.erro{background:rgba(239,68,68,.09);color:#DC2626;border-color:rgba(239,68,68,.25)}
 .recado.ok{background:rgba(16,185,129,.09);color:#059669;border-color:rgba(16,185,129,.25)}
-.link{color:var(--marca);font-weight:700;text-decoration:underline;font-size:14px}
+/* A cor ESCRITA da marca (--ac-600), e não a crua: com um tema claro (o
+   dourado, o amarelo) a crua dava contraste de 1,3:1 a 2,2:1 no "Tirar" e no
+   "Esvaziar o carrinho" — ilegível. */
+.link{color:var(--ac-600, var(--marca));font-weight:700;text-decoration:underline;font-size:14px}
+/* Na nuvem o passo dos salões só dá recado: some o texto da demonstração. */
+#p-saloes.so-recado > h2, #p-saloes.so-recado > .sub, #p-saloes.so-recado > .recado{display:none}
 .rodape-nota{padding:16px 18px 26px;font-size:12px;color:var(--txt3);text-align:center}
 .rodape-nota code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:11px}
 
@@ -935,7 +940,6 @@ let vagasErro = '';
 // O que a pessoa está escolhendo agora
 let escolha = { servicos: [], profissionalId: null, data: null, inicio: null,
                 para: 'mim', filhoNome: '', quem: null, relacao: null, junto: false };
-let agendamentoARemarcar = null;   // preenchido quando a pessoa clica em Remarcar
 // Estado do código de verificação
 let otp = { codigo: null, telefone: null, enviadoEm: 0, tentativas: 0 };
 
@@ -1310,6 +1314,15 @@ function bdDaVitrine(v){
   };
 }
 
+/* Na nuvem, o passo "Qual salão?" só aparece para dar um recado (link
+   errado, salão fechado, sem internet). O título e as duas frases dele são da
+   DEMONSTRAÇÃO ("Esta lista existe para a demonstração") e apareciam em volta
+   do erro, para a cliente de verdade. */
+function soORecadoDosSaloes(){
+  if(!NA_NUVEM) return;
+  const passo = document.getElementById('p-saloes');
+  if(passo) passo.classList.add('so-recado');
+}
 async function abrirSalaoDaNuvem(slug){
   /* A roda só acende depois de 400ms. Em conexão boa a vitrine chega antes
      disso, e aí a primeira coisa que a cliente vê já é a capa do salão —
@@ -1322,6 +1335,7 @@ async function abrirSalaoDaNuvem(slug){
   const falhar = html => {
     clearTimeout(acender);
     irPara('saloes', true);
+    soORecadoDosSaloes();
     document.getElementById('listaSaloes').innerHTML = html;
   };
 
@@ -1405,7 +1419,7 @@ async function pedirVagas(ids){
     const linhas = await Dados.chamar('horarios_livres_periodo', {
       p_profissionais: aptos,
       p_de:  hoje(),
-      p_ate: somarDias(hoje(), Math.min(diasLiberados(), 27)),
+      p_ate: somarDias(hoje(), diasNaTela()),
       p_servicos: escolha.servicos,
     });
 
@@ -1473,7 +1487,12 @@ function diasLiberados(){
   const n = salao && salao.cfg && salao.cfg.diasLiberados;
   return Number.isFinite(n) && n > 0 ? n : 30;
 }
-function ultimoDiaLiberado(){ return somarDias(hoje(), diasLiberados()); }
+/* Quantos dias a faixa mostra — e é o MESMO número da busca de vagas e do
+   "Agenda liberada até". Eram três: a faixa parava em 27, o aviso prometia os
+   30 do salão, e os dias do meio tinham vaga que ninguém conseguia marcar.
+   62 é o teto que o banco aceita (`horarios_livres_periodo`). */
+function diasNaTela(){ return Math.min(diasLiberados(), 62); }
+function ultimoDiaLiberado(){ return somarDias(hoje(), diasNaTela()); }
 
 /* ── Consultas ───────────────────────────────────────────────────────── */
 
@@ -1572,6 +1591,12 @@ const acharServico = i => bd.servicos.find(s => s.id === i);
    Basta UM serviço do pedido estar fora: ela pediu corte + escova para o
    mesmo horário, e se a escova não é feita na segunda, o par não cabe na
    segunda. É a mesma regra do banco, escrita do mesmo jeito. */
+// O salão não abre neste dia da semana (o horário de funcionamento que o dono
+// preencheu). Sem horário preenchido, não dá para saber — e aí não afirma.
+function salaoFechadoNoDia(data){
+  const func = typeof funcionamentoDoSalao === 'function' ? funcionamentoDoSalao() : null;
+  return !!func && !Funcionamento.periodosDoDia(func, diaDaSemana(data));
+}
 function foraDoDia(data){
   const dia = diaDaSemana(data);
   return (escolha.servicos || []).some(id => {
@@ -1714,7 +1739,10 @@ function nomeDoAtendido(){
 }
 // Remarcar não pergunta de novo: o horário novo é da mesma pessoa.
 function paraQuemDoAgendamento(a){
-  const nome = (a && a.atendidoNome) || '';
+  /* Da nuvem o nome vem como `atendido` (meus_agendamentos); do modo de
+     demonstração, como `atendidoNome`. Lendo só o segundo, remarcar o horário
+     da filha passava o horário para a mãe — o salão esperava outra pessoa. */
+  const nome = (a && (a.atendido || a.atendidoNome)) || '';
   return nome ? { para: 'filho', filhoNome: nome, quem: 'outra', relacao: null, junto: false }
               : { para: 'mim', filhoNome: '', quem: 'mim', relacao: null, junto: false };
 }
@@ -1887,9 +1915,15 @@ function precoDoServico(sv, profId, dataIso, minutos){
 }
 
 function precoEscolhido(){
+  return precoNoHorario(escolha.inicio);
+}
+// O preço dos serviços escolhidos num horário do dia escolhido (a escada de
+// preço depende da hora: o segundo horário do "eu e mais alguém" pode custar
+// diferente do primeiro).
+function precoNoHorario(inicio){
   return escolha.servicos.reduce(
     (s, i) => s + precoDoServico(acharServico(i), escolha.profissionalId,
-                                 escolha.data, escolha.inicio), 0);
+                                 escolha.data, inicio), 0);
 }
 function nomesEscolhidos(){
   return escolha.servicos.map(i => acharServico(i).nome).join(' + ');
@@ -2048,6 +2082,13 @@ function desenhar(){
   if(tela === 'telefone')    { desenharTelefone();  bp.textContent='Enviar código'; trilhaAte(0); }
   if(tela === 'codigo')      { desenharCodigo();    bp.textContent='Confirmar código'; trilhaAte(0); }
   if(tela === 'nome')        { desenharNome();      bp.textContent='Continuar'; trilhaAte(0); }
+  /* Voltar depois de "Alterar horário" e de trocar o dia (que apaga a hora)
+     abria a conferência "às 00:00", com o Confirmar ligado. Sem hora, o lugar
+     é a lista de horários. */
+  if(tela === 'confirmar' && (escolha.inicio == null || !escolha.data)){ irPara('quando', true); return; }
+  if(tela === 'capa' || tela === 'meus'){
+    delete escolha.remarcar; delete escolha.descontoAntigo; delete escolha.remarcarLocal;
+  }
   if(tela === 'confirmar')   { desenharConfirmar(); bp.textContent='Confirmar agendamento'; trilhaAte(5);
                                bs.style.display='';
                                bs.innerHTML = '<span data-ico="esquerda"></span>Alterar horário';
@@ -2150,7 +2191,7 @@ function desenharCapa(){
   document.body.classList.toggle('capa-com-foto', temFoto);
   document.getElementById('capaMarca').innerHTML = `
     ${temFoto ? `<div class="hero-foto"
-                   style="background-image:url('${salao.capa}');--foco:${
+                   style="background-image:url('${urlNoCss(salao.capa)}');--foco:${
                      Number.isFinite(foco) ? foco : 50}%"
                    role="img" aria-label="Foto de ${escapar(salao.nome)}"></div>` : ''}
     <div class="marca-salao${temFoto ? ' com-foto' : ''}" data-letra="${letra}">
@@ -2787,7 +2828,7 @@ function desenharProfs(){
   // "Sem preferência" é o que mais converte: a pessoa quer horário, não pessoa.
   const dur = duracaoNaAgenda();
   const primeiroLivre = p => {
-    for(let i = 0; i <= diasLiberados(); i++){
+    for(let i = 0; i <= diasNaTela(); i++){
       const d = somarDias(hoje(), i);
       const h = horariosLivres(p.id, d, dur);
       if(h.length) return {data:d, min:h[0]};
@@ -2834,7 +2875,7 @@ function desenharProfs(){
       <span class="txt"><span class="tt">${escapar(p.nome)}</span>
         <span class="dd">${semSaber ? (vagasEstado === 'buscando' ? 'vendo a agenda…' : '')
                            : pl ? 'Livre ' + dataLonga(pl.data) + ' às ' + hm(pl.min)
-                             : 'sem horário nos próximos 15 dias'}</span></span>
+                             : 'sem horário nos próximos ' + diasNaTela() + ' dias'}</span></span>
       <span class="marca">${sel ? ico('ok') : ''}</span>
     </button>`;
   }
@@ -2907,7 +2948,7 @@ function desenharQuando(){
 
   // Faixa de dias dentro da janela, marcando quais têm vaga.
   const dias = [];
-  for(let i = 0; i <= Math.min(diasLiberados(), 27); i++){
+  for(let i = 0; i <= diasNaTela(); i++){
     const d = somarDias(hoje(), i);
     let qtd = 0;
     for(const p of aptos) qtd += horariosLivres(p.id, d, dur).length;
@@ -2933,10 +2974,11 @@ function desenharQuando(){
        Para todo salão que não usar dias por serviço, `foraDoDia()` devolve
        falso e nada aqui muda. */
     const fora = !d.qtd && foraDoDia(d.data);
+    const fechado = !d.qtd && !fora && salaoFechadoNoDia(d.data);
     return `<button class="dia ${d.data===escolha.data?'sel':''} ${d.qtd?'':'sem'}"
               onclick="escolherDia('${d.data}')">
       <small>${sem}</small><b>${String(dd).padStart(2,'0')}</b>
-      <i>${d.qtd ? d.qtd + ' vagas' : fora ? 'não atende' : 'cheio'}</i></button>`;
+      <i>${d.qtd ? d.qtd + ' vagas' : fora ? 'não atende' : fechado ? 'fechado' : 'cheio'}</i></button>`;
   }).join('');
 
   /* ── O DIA QUE O PACOTE DELA NÃO DEIXA ────────────────────────────────
@@ -3000,12 +3042,18 @@ function desenharQuando(){
          </button>`
       : '';
 
-  desenharEspera(horas.length === 0);
+  /* Dia em que o salão não abre, ou em que o serviço não é feito, não é dia
+     CHEIO: não vai vagar nada, e a lista de espera ali só prometia. */
+  const naoAbre = !horas.length && (foraDoDia(escolha.data) || salaoFechadoNoDia(escolha.data));
+  desenharEspera(horas.length === 0 && !naoAbre);
 
   if(!horas.length){
-    document.getElementById('listaHoras').innerHTML =
-      '<div class="nada"><b>Sem horário livre neste dia</b>'
-      + 'Escolha outra data acima — ou entre na lista de espera.</div>';
+    document.getElementById('listaHoras').innerHTML = naoAbre
+      ? '<div class="nada"><b>' + (foraDoDia(escolha.data) ? 'Este serviço não é feito neste dia'
+                                                            : 'Fechado neste dia')
+        + '</b>Escolha outra data acima.</div>'
+      : '<div class="nada"><b>Sem horário livre neste dia</b>'
+        + 'Escolha outra data acima — ou entre na lista de espera.</div>';
     return;
   }
 
@@ -3474,7 +3522,12 @@ function desenharTelefone(){
 }
 
 function mascaraTelefone(el){
-  let v = el.value.replace(/\D/g,'').slice(0,11);
+  /* O celular preenche no formato internacional ("+55 51 99999-8888"). Cortar
+     os 11 primeiros dígitos dava "(55) 51999-9988" — um número errado com DDD
+     válido, e a mensagem do salão indo para outra pessoa. */
+  let v = el.value.replace(/\D/g,'');
+  if(v.length >= 12 && v.startsWith('55')) v = v.slice(2);
+  v = v.slice(0,11);
   if(v.length > 6)      v = `(${v.slice(0,2)}) ${v.slice(2,7)}-${v.slice(7)}`;
   else if(v.length > 2) v = `(${v.slice(0,2)}) ${v.slice(2)}`;
   else if(v.length)     v = `(${v}`;
@@ -3482,6 +3535,17 @@ function mascaraTelefone(el){
 }
 
 function soDigitos(t){ return String(t||'').replace(/\D/g,''); }
+
+/* URL dentro de `url('...')` num atributo `style`. ⚠ A capa entrava crua, e o
+   dono de um salão gravava pela API uma "capa" que fechava o atributo e
+   rodava código no navegador de quem abrisse o link — com a sessão de quem
+   estivesse logado no mesmo endereço. Achado pelo caça-bug. Aspas,
+   parênteses, barra invertida e espaço viram %xx (o navegador lê igual), e o
+   resto passa pelo `escapar()`. */
+function urlNoCss(u){
+  return escapar(String(u == null ? '' : u)
+    .replace(/["'()\\\s<>]/g, c => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')));
+}
 
 // E.164, que é o formato que o Supabase Auth guarda.
 function paraE164(tel){
@@ -3549,7 +3613,11 @@ function profDaEscolha(){
 }
 
 function resumoDoAgendamento(p, compacto){
-  const inicio = escolha.inicio, dur = duracaoEscolhida();
+  /* "Eu e mais alguém" são DOIS horários seguidos (o banco grava dois), e o
+     resumo mostrava o tempo, a faixa e o preço de um só: R$ 50 na tela e
+     R$ 100 no salão. Achado pelo caça-bug. */
+  const ambos = escolha.para === 'ambos';
+  const inicio = escolha.inicio, dur = duracaoEscolhida() * (ambos ? 2 : 1);
   const quando = diaCompleto(escolha.data);
   const faixa = hm(inicio) + ' às ' + hm(inicio + dur);
   const quemAtende = escapar(p ? p.nome : '—');
@@ -3585,15 +3653,20 @@ function resumoDoAgendamento(p, compacto){
   const coberto = pacoteCobre(escolha.servicos, escolha.data);
   // O desconto é o que o banco respondeu na prévia (`conferir_cupom`); quem
   // grava é o `agendar()`, que refaz a conta. Pacote cobrindo: nada a descontar.
-  const desc = coberto ? 0 : descontoDoCupomAgenda();
-  const total = coberto ? 'R$ 0,00' : real(precoEscolhido() - desc);
+  // Na remarcação, o cupom do horário antigo vai junto (remarcar_agendamento).
+  const preco = precoEscolhido() + (ambos ? precoNoHorario(escolha.inicio + duracaoEscolhida()) : 0);
+  const levado = escolha.remarcar && escolha.descontoAntigo > 0;
+  const desc = coberto ? 0 : levado ? Math.min(escolha.descontoAntigo, precoEscolhido())
+                                    : descontoDoCupomAgenda();
+  const total = coberto ? 'R$ 0,00' : real(preco - desc);
   return topo
     + linha('tesoura', 'Serviço', escapar(nomesEscolhidos()))
     + linha('usuario', 'Profissional', quemAtende)
     + (para ? linha('equipe', 'Para quem', para) : '')
     + linha('calendario', 'Quando', `${quando}<span class="cf-faixa">${faixa}</span>`)
     + linha('relogio', 'Duração', dur + ' min')
-    + (desc > 0 ? linha('cupom', 'Cupom ' + escapar(cupomAgenda.codigo), '− ' + real(desc)) : '')
+    + (desc > 0 ? linha('cupom', levado ? 'Cupom do horário antigo (vai junto)'
+                                        : 'Cupom ' + escapar(cupomAgenda.codigo), '− ' + real(desc)) : '')
     + `<div class="cf-linha cf-total">
         <span class="cf-ic cf-ic-cheio" aria-hidden="true">R$</span>
         <span class="cf-txt"><small>Total</small><b>${total}</b></span>
@@ -3676,7 +3749,8 @@ function cupomAgendaVale(){
 }
 function mostraCupomAgenda(){
   return NA_NUVEM && salaoTemCupom.agendamento && !!escolha.data
-    && !pacoteCobre(escolha.servicos, escolha.data);
+    && !pacoteCobre(escolha.servicos, escolha.data)
+    && !(escolha.remarcar && escolha.descontoAntigo > 0);
 }
 function descontoDoCupomAgenda(){
   if(!mostraCupomAgenda() || !cupomAgendaVale()) return 0;
@@ -3762,8 +3836,17 @@ function itensDoCupomLoja(){
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
 function chaveDoCupomLoja(){ return JSON.stringify(itensDoCupomLoja()); }
+/* ⚠ O CUPOM QUE JÁ FOI REGISTRADO NUM PEDIDO CONTINUA VALENDO para os
+   ajustes desse pedido. A cliente manda o pedido, lembra de mais um item e
+   manda de novo: antes, o carrinho mudado derrubava a prévia, o cupom era
+   conferido como se fosse novo e cada reenvio gastava OUTRO uso — o de uso
+   único virava "já foi usado o máximo de vezes" e o segundo pedido saía sem
+   desconto. Achado pelo caça-bug.
+
+   Registrado uma vez, ele acompanha o pedido com o desconto que o banco deu
+   (limitado ao total novo); quem confirma o valor final é o salão, na conversa. */
 function cupomLojaVale(){
-  return !!(cupomLoja && cupomLoja.chave === chaveDoCupomLoja());
+  return !!(cupomLoja && (cupomLoja.usado || cupomLoja.chave === chaveDoCupomLoja()));
 }
 // Só com algum produto COM preço: cupom não desconta "a combinar".
 function mostraCupomLoja(){
@@ -4062,8 +4145,16 @@ function recarregarMeus(){ meusDaNuvem = null; desenhar(); }
 
    A ordem aqui não é detalhe: marca o novo PRIMEIRO e só então solta o
    antigo. Se o novo falhar, a pessoa continua com o horário que já tinha. */
-let tokenARemarcar = null;
+/* ⚠ "QUAL HORÁRIO ESTOU TROCANDO" MORA NA ESCOLHA, e não numa variável solta.
 
+   Era `tokenARemarcar`, global. A cliente tocava em Remarcar, desistia
+   (Voltar), ia em "Agendar novo horário" e marcava outra coisa — e a marcação
+   nova, que não tinha nada com aquilo, CANCELAVA o horário antigo, com a tela
+   dizendo "Agendamento confirmado!". Achado pelo caça-bug.
+
+   Dentro da `escolha`, toda marcação que começa do zero (uma escolha nova)
+   já nasce sem a marca; e a capa e "Meus horários" apagam a de quem desistiu
+   no meio. */
 function remarcarNaNuvem(token){
   // `meusDaNuvem` é { ags, fila } — não uma lista. Procurar direto nele
   // devolvia sempre `undefined`, e o botão não fazia absolutamente nada.
@@ -4078,9 +4169,17 @@ function remarcarNaNuvem(token){
         + 'Cancele e marque de novo, por favor.');
     return;
   }
+  /* Serviço (ou profissional) que saiu do link desde a marcação: sem isto a
+     tela de horários estourava (`duracaoMin` de nada) e ficava morta. */
+  if(!ids.every(i => acharServico(i)) || !acharProf(a.profissionalId)){
+    alert('Este horário tem um serviço que não se marca mais pelo link.\n\n'
+        + 'Para trocar o dia, fale com o salão pelo WhatsApp — ou cancele '
+        + 'este horário e marque outro serviço.');
+    return;
+  }
   escolha = { servicos: ids.slice(), profissionalId: a.profissionalId,
-              data: null, inicio: null, ...paraQuemDoAgendamento(a) };
-  tokenARemarcar = token;
+              data: null, inicio: null, ...paraQuemDoAgendamento(a),
+              remarcar: token, descontoAntigo: Number(a.desconto) || 0 };
   esquecerVagas();
   irPara('quando');
 }
@@ -4417,6 +4516,7 @@ function desenharCarrinhoFita(){
 
   document.body.classList.toggle('com-fita', mostrar);
   if(!mostrar){ fita.style.display = 'none'; fita.innerHTML = ''; return; }
+  fita.classList.toggle('com-combinar', carrinhoTemSemPreco());
 
   fita.style.display = '';
   fita.innerHTML = `
@@ -4822,8 +4922,10 @@ function desenharProduto(){
 function desenharLoja(){
   const alvo = document.getElementById('listaProdutos');
   if(!alvo) return;
-  const busca = (document.getElementById('buscaProduto').value || '')
-                  .trim().toLowerCase();
+  // Como a busca de serviços: sem acento e sem pontuação — "mascara" acha
+  // "Máscara", "oleo" acha "Óleo", "loreal" acha "L'Oréal".
+  const plano = t => semAcento(t).replace(/[^a-z0-9 ]/g, '');
+  const busca = plano((document.getElementById('buscaProduto').value || '').trim());
   const todos = produtosDaLoja();
 
   lojaCatsAtuais = categoriasDaLoja(todos);
@@ -4839,8 +4941,8 @@ function desenharLoja(){
 
   const lista = todos.filter(p => (!filtroLoja || chaveCategoria(p.categoria) === filtroLoja)
     && (!busca
-      || (p.nome || '').toLowerCase().includes(busca)
-      || (p.marca || '').toLowerCase().includes(busca)));
+      || plano(p.nome).includes(busca)
+      || plano(p.marca).includes(busca)));
 
   if(!lista.length){
     alvo.innerHTML = `<div class="recado">${busca
@@ -4894,9 +4996,9 @@ function desenharLoja(){
                  : `<span data-ico="presente"></span>`}
       </div>
       <div style="flex:1;min-width:0">
-        <div class="rot" style="margin:0">${escapar(p.nome)}</div>
-        ${p.marca ? `<div style="font-size:12.5px;color:var(--txt3)">${escapar(p.marca)}</div>` : ''}
-        ${p.descricao ? `<p style="font-size:13px;color:var(--txt2);margin:5px 0 0">
+        <div class="rot" style="margin:0;overflow-wrap:anywhere">${escapar(p.nome)}</div>
+        ${p.marca ? `<div style="font-size:12.5px;color:var(--txt3);overflow-wrap:anywhere">${escapar(p.marca)}</div>` : ''}
+        ${p.descricao ? `<p style="font-size:13px;color:var(--txt2);margin:5px 0 0;overflow-wrap:anywhere">
             ${escapar(p.descricao)}</p>` : ''}
         <div style="display:flex;align-items:center;justify-content:space-between;
                     gap:10px;margin-top:9px;flex-wrap:wrap">
@@ -4968,6 +5070,18 @@ function textoDoPedido(){
 async function enviarPedido(){
   const zap = zapDoSalao();
   if(!zap || !itensNoCarrinho() || cupomLojaConferindo) return;
+  /* ⚠ O CARRINHO MUDOU FORA DA LOJA (pelo botão da capa) com um cupom
+     aceito: a prévia é de outro pedido, e só a loja pergunta de novo. Mandar
+     daqui saía SEM o cupom e sem aviso nenhum. Então confere antes — na loja,
+     onde a resposta (ou a recusa) aparece. */
+  if(cupomLoja && !cupomLojaVale() && mostraCupomLoja()){
+    if(tela !== 'loja') irPara('loja');
+    // Para aqui de propósito: a cliente vê o desconto novo (ou a recusa) e
+    // toca em Enviar de novo. Abrir o WhatsApp depois de esperar a rede, sem
+    // um toque, o celular bloqueia como pop-up.
+    await aplicarCupomLoja(cupomLoja.codigo);
+    return;
+  }
   const endereco = () => 'https://wa.me/' + zap + '?text=' + encodeURIComponent(textoDoPedido());
   /* `_blank` e não `location.href`: no computador o `wa.me` abre o WhatsApp
      Web numa aba, e trocar a página atual faria a cliente perder a página do
@@ -5276,13 +5390,13 @@ function confirmarAgendamento(){
 
   // Remarcar = marcar o novo e só então soltar o antigo. Nesta ordem: se o
   // horário novo falhar, a pessoa não fica sem nenhum dos dois.
-  if(agendamentoARemarcar){
-    const velho = bd.agendamentos.find(x => x.id === agendamentoARemarcar);
+  if(escolha.remarcarLocal){
+    const velho = bd.agendamentos.find(x => x.id === escolha.remarcarLocal);
     if(velho){
       velho.status = 'cancelado';
       velho.canceladoMotivo = 'remarcado pelo cliente';
     }
-    agendamentoARemarcar = null;
+    delete escolha.remarcarLocal;
   }
 
   salvar();
@@ -5391,6 +5505,7 @@ async function confirmarNaNuvem(profId, prof){
      agendamentos; o cupom é de um). O `agendar()` refaz a conta e recusa o
      que não valer — a prévia desta tela não decide nada. */
   const cupom = mostraCupomAgenda() && cupomAgendaVale() ? cupomAgenda.codigo : null;
+  let novoToken = null;
 
   /* O `agendar()` devolve o segredo daquela marcação. Guardar aqui, e não
      depois, é o que garante que ele não se perca se a tela seguinte falhar:
@@ -5423,6 +5538,7 @@ async function confirmarNaNuvem(profId, prof){
     });
     const feito = Array.isArray(r) ? r[0] : r;
     if(feito && feito.token){
+      novoToken = novoToken || feito.token;
       guardarToken('agendamentos', feito.token);
       // A pergunta é a mesma de "Meus horários", pelo segredo desta marcação.
       try{
@@ -5450,10 +5566,19 @@ async function confirmarNaNuvem(profId, prof){
       }catch(e2){
         console.error('[AgendaPro] segundo horário:', e2);
         esquecerVagas();
+        /* O motivo é o que o banco disse (horário pego, limite de horários
+           da cliente, agenda congestionada) — e o status do primeiro é o que
+           ele de fato ficou. Escrever "não estava mais livre" e "confirmado"
+           para tudo prometia o que não aconteceu. */
+        const motivo = segundoIso ? (e2 && e2.message) || 'o horário seguinte não está mais livre.'
+                                  : 'o horário seguinte não está mais livre.';
+        const esperando = !salaoConfirmaSozinho || statusDaMarcacao === 'pendente';
         aviso.innerHTML =
           '<div class="recado erro"><b>Marquei só o seu horário.</b><br>'
-          + 'O horário seguinte, de ' + (filho || 'seu acompanhante') + ', não '
-          + 'estava mais livre. O seu está confirmado às ' + hm(escolha.inicio)
+          + 'O de ' + escapar(filho || 'seu acompanhante') + ' não deu: '
+          + escapar(motivo) + ' O seu ' + (esperando
+              ? 'foi enviado ao salão e aguarda confirmação, às '
+              : 'está confirmado às ') + hm(escolha.inicio)
           + ' — fale com o salão pelo WhatsApp para encaixar o segundo.</div>';
         bp.disabled = false; bp.textContent = rotulo;
         return;
@@ -5492,11 +5617,21 @@ async function confirmarNaNuvem(profId, prof){
 
   /* O novo está de pé. Agora solta o antigo — e se ISTO falhar, a pessoa
      precisa saber que ficou com dois, não descobrir na porta do salão. */
-  if(tokenARemarcar){
-    const velho = tokenARemarcar;
-    tokenARemarcar = null;
+  if(escolha.remarcar){
+    const velho = escolha.remarcar;
+    delete escolha.remarcar;
     try{
-      await Dados.chamar('cancelar_agendamento', { p_token: velho });
+      /* Numa chamada só, o banco solta o antigo E passa o cupom dele para o
+         novo (34_cupons.sql). Banco que ainda não tem a função: o caminho de
+         antes, só cancelar. */
+      try{
+        if(!novoToken) throw Object.assign(new Error('sem segredo'), { codigo: 'PGRST202' });
+        await Dados.chamar('remarcar_agendamento', { p_token_antigo: velho, p_token_novo: novoToken });
+      }catch(e1){
+        if(e1 && (e1.codigo === 'PGRST202' || /Could not find the function/.test(e1.message || '')))
+          await Dados.chamar('cancelar_agendamento', { p_token: velho });
+        else throw e1;
+      }
     }catch(e){
       console.error('[AgendaPro] soltar o horário antigo:', e);
       bp.disabled = false; bp.textContent = rotulo;
@@ -5543,7 +5678,7 @@ function remarcar(agId){
     profissionalId: a.profissionalId, data: null, inicio: null,
     ...paraQuemDoAgendamento(a),
   };
-  agendamentoARemarcar = agId;
+  escolha.remarcarLocal = agId;
   irPara('quando');
 }
 
@@ -6703,6 +6838,17 @@ async function sair(){
   sessao = null;
   try{ localStorage.removeItem(CHAVE_SESSAO); }catch(e){}
   meusPacotes = []; meusDaNuvem = null;
+  /* O formulário da marcação guarda o que a última pessoa digitou. Sem
+     limpar, quem pegasse o celular depois começava com o nome, o WhatsApp, o
+     e-mail e o aniversário de quem acabou de sair — e marcava no telefone
+     dela sem perceber. */
+  for(const id of ['dNome','dTel','dNasc','dNascTxt','dCpf','dEmail','dSenha',
+                   'cEmail','cSenha','cNome','cTel','fNome','fRecado']){
+    const el = document.getElementById(id);
+    if(el && 'value' in el) el.value = '';
+  }
+  escolha = { servicos:[], profissionalId:null, data:null, inicio:null,
+              para:'mim', filhoNome:'', quem:null, relacao:null, junto:false };
   historico = [];
   irPara('capa', true);
 }
@@ -6809,6 +6955,7 @@ function registrarServiceWorker(){
        Quem chega aqui sem link chegou por engano; a saída é pedir o link a
        quem devia tê-lo mandado. */
     irPara('saloes', true);
+    soORecadoDosSaloes();
     document.getElementById('listaSaloes').innerHTML =
       `<div class="recado"><b>Falta o link do salão.</b><br>
         Cada salão tem o endereço dele, algo como

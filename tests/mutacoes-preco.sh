@@ -108,7 +108,7 @@ troca supabase/33_preco_regras.sql \
 echo "7. o gatilho some: a recepção volta a gravar o que a tela mandar"
 troca supabase/33_preco_regras.sql \
   "create trigger tg_preco_agend_servico
-  before insert on public.agendamento_servicos
+  before insert or update of preco on public.agendamento_servicos
   for each row execute function public.tg_preco_do_agendamento();" \
   "" \
   && rodar "sem gatilho, a linha nasce sem preço" sql

@@ -293,12 +293,37 @@ comment on function public.preco_dos_servicos(uuid, uuid[]) is
    inclusive zero. O que impede a recepção de mandar o número ERRADO não é mais
    este gatilho — é o `precoDaEscada()` do painel, que responde a mesma escada
    e é comparado com o Postgres, caso a caso, no `preco.test.mjs`. */
+/* ⚠ "QUEM NÃO DISSE, O BANCO DIZ" — MAS SÓ O BALCÃO PODE DIZER.
+
+   O contrato acima dava o direito de combinar o valor a qualquer um da
+   equipe, e a policy de escrita da tabela é da equipe inteira. A
+   profissional, logada, mudava o preço do PRÓPRIO atendimento direto pela
+   API — de R$ 80 para R$ 500 — e, no salão sem comanda, a comanda automática
+   nascia com R$ 500 e a comissão dela subia junto. Achado pelo caça-bug.
+
+   Agora: o balcão (dono, admin, recepção — `ve_agenda_toda`) continua
+   mandando o número que quiser, cortesia inclusive. Quem mais estiver logado
+   recebe a escada no insert, e numa alteração o preço fica como estava.
+   Sem ninguém logado (o `agendar()` do link, rotinas do servidor) nada muda:
+   o link já manda nulo. */
 create or replace function public.tg_preco_do_agendamento()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
   v_prof   uuid;
   v_inicio timestamptz;
+  v_salao  uuid;
 begin
+  if auth.uid() is not null
+     and (tg_op = 'INSERT' and new.preco is not null
+          or tg_op = 'UPDATE' and new.preco is distinct from old.preco) then
+    select a.salao_id into v_salao from public.agendamentos a where a.id = new.agendamento_id;
+    if not public.ve_agenda_toda(v_salao) then
+      if tg_op = 'UPDATE' then new.preco := old.preco; return new; end if;
+      new.preco := null;
+    end if;
+  end if;
+  if tg_op = 'UPDATE' then return new; end if;
+
   if new.preco is not null then return new; end if;
 
   select a.profissional_id, a.inicio into v_prof, v_inicio
@@ -324,7 +349,7 @@ alter table public.agendamento_servicos alter column preco drop default;
 
 drop trigger if exists tg_preco_agend_servico on public.agendamento_servicos;
 create trigger tg_preco_agend_servico
-  before insert on public.agendamento_servicos
+  before insert or update of preco on public.agendamento_servicos
   for each row execute function public.tg_preco_do_agendamento();
 
 comment on function public.tg_preco_do_agendamento() is

@@ -72,7 +72,7 @@ alter table public.produtos_profissionais enable row level security;
 drop policy if exists pp_ler on public.produtos_profissionais;
 create policy pp_ler on public.produtos_profissionais for select to authenticated
   using ( exists (select 1 from public.produtos p
-                   where p.id = produto_id and tem_acesso(p.salao_id)) );
+                   where p.id = produto_id and e_equipe(p.salao_id)) );
 drop policy if exists pp_gerir on public.produtos_profissionais;
 create policy pp_gerir on public.produtos_profissionais for all to authenticated
   using ( exists (select 1 from public.produtos p
@@ -216,7 +216,7 @@ alter table public.estoque_mov enable row level security;
 drop policy if exists em_ler on public.estoque_mov;
 create policy em_ler on public.estoque_mov for select to authenticated
   using ( exists (select 1 from public.produtos p
-                   where p.id = produto_id and tem_acesso(p.salao_id)) );
+                   where p.id = produto_id and e_equipe(p.salao_id)) );
 
 grant select on public.estoque_mov to authenticated;
 

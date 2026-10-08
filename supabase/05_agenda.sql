@@ -433,6 +433,16 @@ declare
   v_perfil  uuid := auth.uid();
   v_cliente uuid;
 begin
+  /* ⚠ O TELEFONE SEM O 55 NA FRENTE. Comparado ao pé da letra,
+     "(51) 99999-8888" e "+55 51 99999-8888" eram duas pessoas: nascia uma
+     segunda ficha, com o limite de horários dela, o histórico partido em
+     dois e a marca "precisa de confirmação" ficando para trás. O celular
+     preenche o campo sozinho no formato internacional, então não é caso raro.
+     (A conta é a mesma do `telefone_nacional()` do 09, escrita aqui porque
+     este arquivo vem antes.) */
+  p_tel := nullif(public.so_digitos(p_tel), '');
+  if length(p_tel) >= 12 and left(p_tel, 2) = '55' then p_tel := substr(p_tel, 3); end if;
+
   if v_perfil is not null then
     select c.id into v_cliente from public.clientes c
      where c.salao_id = p_salao and c.perfil_id = v_perfil;
@@ -441,6 +451,12 @@ begin
   if v_cliente is null and p_tel is not null then
     select c.id into v_cliente from public.clientes c
      where c.salao_id = p_salao and c.telefone = p_tel;
+    -- Ficha gravada antes desta regra, com o 55: acha do mesmo jeito.
+    if v_cliente is null then
+      select c.id into v_cliente from public.clientes c
+       where c.salao_id = p_salao and c.telefone = '55' || p_tel
+       limit 1;
+    end if;
   end if;
 
   if v_cliente is null then

@@ -71,10 +71,27 @@ with conferencia(ordem, item, veredito, detalhe) as (
   union all
   -- Sem o gatilho, desligar a comanda no painel faz o mês do salão ir a
   -- zero: o atendimento concluído deixa de virar dinheiro em lugar nenhum.
+  -- E existir não basta: a versão antiga do gatilho cobrava a sessão de
+  -- pacote pelo preço cheio e esquecia o desconto do cupom.
   select 6, 'atendimento concluído vira dinheiro sem comanda',
+         case when not exists (select 1 from pg_trigger
+                                where tgname = 'tg_agend_sem_comanda' and not tgisinternal)
+                then 'FALTA'
+              when pg_get_functiondef('public.tg_agendamento_sem_comanda()'::regprocedure)
+                     not like '%pacote_cliente_id%'
+                or pg_get_functiondef('public.tg_agendamento_sem_comanda()'::regprocedure)
+                     not like '%new.desconto%'
+                then 'ANTIGO'
+              else 'certo' end,
          case when exists (select 1 from pg_trigger
                             where tgname = 'tg_agend_sem_comanda' and not tgisinternal)
-              then 'certo' else 'FALTA' end, ''
+               and (pg_get_functiondef('public.tg_agendamento_sem_comanda()'::regprocedure)
+                      not like '%pacote_cliente_id%'
+                 or pg_get_functiondef('public.tg_agendamento_sem_comanda()'::regprocedure)
+                      not like '%new.desconto%')
+              then 'cole o 00_tudo.sql de novo: a comanda automática ainda cobra a '
+                || 'sessão de pacote e ignora o cupom (28_sem_comanda.sql)'
+              else '' end
 
   union all
   select 7, 'confirmação manual ou automática',
@@ -477,6 +494,56 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or has_function_privilege('authenticated', 'public.cupom_calcular(uuid,text,text,uuid[],uuid,timestamptz,jsonb,text,uuid,boolean)', 'execute')
              or has_function_privilege('anon', 'public.cupom_minha_ficha(uuid)', 'execute')
              then 'a conta do cupom está aberta — rode o 34_cupons.sql de novo'
+           else '' end
+  union all
+  /* O que o caça-bug achou e foi consertado no banco. Cada linha aqui é um
+     defeito reproduzido — se alguma voltar, é porque um arquivo antigo foi
+     colado por cima. */
+  select 25, 'consertos do caça-bug',
+         case
+           when to_regclass('public.estornos') is null
+             or not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'estornos'
+                               and column_name = 'caixa_id')
+             or to_regprocedure('public.remarcar_agendamento(uuid,uuid)') is null
+             then 'FALTA'
+           when exists (select 1 from pg_policies
+                         where schemaname = 'public'
+                           and tablename in ('profissionais','servicos','servicos_profissionais','jornadas')
+                           and cmd = 'SELECT' and qual like '%tem_acesso%')
+             or exists (select 1 from pg_policies
+                         where schemaname = 'public' and tablename = 'clientes'
+                           and policyname in ('cli_eu_editar','cli_eu_criar'))
+             then 'ABERTA'
+           when pg_get_functiondef('public.ficha_do_cliente(uuid,text,text)'::regprocedure)
+                  not like '%''55'' ||%'
+             or not exists (select 1 from pg_trigger
+                             where tgname = 'tg_preco_agend_servico'
+                               and pg_get_triggerdef(oid) like '%UPDATE OF preco%')
+             then 'ANTIGO'
+           else 'certo' end,
+         case
+           when to_regclass('public.estornos') is null
+             or not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'estornos'
+                               and column_name = 'caixa_id')
+             or to_regprocedure('public.remarcar_agendamento(uuid,uuid)') is null
+             then 'cole o 00_tudo.sql de novo (17_caixa e 34_cupons)'
+           when exists (select 1 from pg_policies
+                         where schemaname = 'public'
+                           and tablename in ('profissionais','servicos','servicos_profissionais','jornadas')
+                           and cmd = 'SELECT' and qual like '%tem_acesso%')
+             or exists (select 1 from pg_policies
+                         where schemaname = 'public' and tablename = 'clientes'
+                           and policyname in ('cli_eu_editar','cli_eu_criar'))
+             then 'telefone e comissão da equipe, ou a ficha da cliente, ainda '
+               || 'abertos — cole o 00_tudo.sql de novo (02_rls)'
+           when pg_get_functiondef('public.ficha_do_cliente(uuid,text,text)'::regprocedure)
+                  not like '%''55'' ||%'
+             or not exists (select 1 from pg_trigger
+                             where tgname = 'tg_preco_agend_servico'
+                               and pg_get_triggerdef(oid) like '%UPDATE OF preco%')
+             then 'cole o 00_tudo.sql de novo (05_agenda e 33_preco_regras)'
            else '' end
 )
 select item                                as "o que",

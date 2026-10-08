@@ -101,6 +101,7 @@ preparar() {
   # sem ele, toda marcação dos testes estoura — foi assim que esta lista
   # lembrou de existir de novo.
   carregar "$RAIZ/supabase/34_cupons.sql"
+  carregar "$RAIZ/supabase/35_acesso.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

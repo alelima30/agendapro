@@ -106,6 +106,9 @@ await maria.criarConta({ email:`pac-maria-${marca}@teste.com`, senha:'minhasenha
 /* A ficha nasce da primeira marcação — é assim que o sistema funciona, e
    montar a ficha por fora criaria um estado que a vida real não produz. */
 const soDigitos = t => String(t).replace(/\D/g, '');
+// A ficha guarda o WhatsApp sem o 55 (05_agenda.sql, `ficha_do_cliente`): o
+// mesmo número digitado com ou sem o +55 é a mesma pessoa.
+const nacional = t => { const d = soDigitos(t); return d.length >= 12 && d.startsWith('55') ? d.slice(2) : d; };
 const daquiA = (dias, hora) => {
   const d = new Date(Date.now() + dias * 864e5);
   d.setUTCHours(hora, 0, 0, 0);
@@ -141,7 +144,7 @@ igual('sem pacote ainda, a manutenção custa os R$ 40',
 await desmarcar(primeira[0].id);
 
 const fichaMaria = (await dona.lista('clientes', { salaoId: SALAO }))
-  .find(c => soDigitos(c.telefone) === soDigitos(TEL_MARIA));
+  .find(c => nacional(c.telefone) === nacional(TEL_MARIA));
 verdade('a ficha da Maria existe', !!fichaMaria,
   'sem ficha não há a quem vincular o pacote');
 
@@ -268,7 +271,7 @@ const anaPrimeira = await marcar(ana, [escova.id], daquiA(3, 15),
   'Ana Segunda', TEL_ANA);
 await desmarcar(anaPrimeira[0].id);
 const fichaAna = (await dona.lista('clientes', { salaoId: SALAO }))
-  .find(c => soDigitos(c.telefone) === soDigitos(TEL_ANA));
+  .find(c => nacional(c.telefone) === nacional(TEL_ANA));
 await dona.chamar('vender_pacote', { p_pacote: so2a.id, p_cliente: fichaAna.id });
 
 /* Acha a próxima segunda e a próxima quarta, no fuso do salão. Fixar "daqui a
@@ -340,7 +343,7 @@ const biaPrimeira = await marcar(bia, [manutencao.id], daquiA(3, 16),
   'Bia Trava', TEL_BIA);
 await desmarcar(biaPrimeira[0].id);
 const fichaBia = (await dona.lista('clientes', { salaoId: SALAO }))
-  .find(c => soDigitos(c.telefone) === soDigitos(TEL_BIA));
+  .find(c => nacional(c.telefone) === nacional(TEL_BIA));
 await dona.chamar('vender_pacote', { p_pacote: trava.id, p_cliente: fichaBia.id });
 
 const seg2 = proximo(1, 17), qua2 = proximo(3, 17);
@@ -438,7 +441,7 @@ const dudaPrimeira = await marcar(duda, [escova.id], daquiA(3, 19),
   'Duda Uma Só', TEL_DUDA);
 await desmarcar(dudaPrimeira[0].id);
 const fichaDuda = (await dona.lista('clientes', { salaoId: SALAO }))
-  .find(c => soDigitos(c.telefone) === soDigitos(TEL_DUDA));
+  .find(c => nacional(c.telefone) === nacional(TEL_DUDA));
 await dona.chamar('vender_pacote', { p_pacote: travinha.id, p_cliente: fichaDuda.id });
 
 let dudaBarrada = null;

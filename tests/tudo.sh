@@ -228,6 +228,7 @@ rodar "voltar escrito e produto aberto" node "$AQUI/voltar-produto.test.mjs"
 rodar "aniversário que se digita" node "$AQUI/data-digitavel.test.mjs"
 rodar "cliente que precisa de confirmação" node "$AQUI/confirma-cliente.test.mjs"
 rodar "cupom de desconto" node "$AQUI/cupons.test.mjs"
+rodar "o que o caça-bug achou, na tela" node "$AQUI/caca-bug.test.mjs"
 
 echo ""
 if [ "$falhou" -eq 0 ]; then

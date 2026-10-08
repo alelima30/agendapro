@@ -311,6 +311,86 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 6c) Remarcar pelo link, levando o cupom junto
+--
+-- Remarcar é marcar o novo e soltar o antigo — nessa ordem, para a cliente
+-- não ficar sem nenhum dos dois. Só que, com o antigo ainda de pé, o "1 por
+-- cliente" via o cupom já usado, e o horário novo saía pelo preço cheio: quem
+-- tinha pago R$ 40 terminava em R$ 50 só por trocar o dia. Achado pelo
+-- caça-bug, reproduzido no link e pela API.
+--
+-- Esta função faz as duas coisas de uma vez, no banco: solta o antigo (com a
+-- mesma regra do `cancelar_agendamento()`, das duas horas) e passa o cupom e
+-- o uso dele para o novo. É o MESMO uso que muda de horário, não um uso novo
+-- — por isso não confere validade nem limite de novo, e o desconto é
+-- recalculado para os serviços do horário novo.
+--
+-- ⚠ O novo precisa ser da mesma ficha, do mesmo salão, e recém-marcado; e o
+-- antigo precisa estar de pé agora. Sem isso, um horário com cupom
+-- desmarcado há meses viraria desconto em qualquer marcação nova.
+-- ---------------------------------------------------------------------------
+create or replace function public.remarcar_agendamento(p_token_antigo uuid, p_token_novo uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  a      public.agendamentos%rowtype;
+  n      public.agendamentos%rowtype;
+  c      public.cupons%rowtype;
+  v_base numeric(10,2) := 0;
+  v_desc numeric(10,2) := 0;
+  it     record;
+begin
+  select * into a from public.agendamentos where gerenciar_token = p_token_antigo for update;
+  select * into n from public.agendamentos where gerenciar_token = p_token_novo for update;
+
+  if a.id is null or n.id is null or a.id = n.id
+     or n.salao_id <> a.salao_id or n.cliente_id is distinct from a.cliente_id
+     or n.criado_em < now() - interval '30 minutes' then
+    raise exception 'Não achei esse horário. Confira o link.' using errcode = 'check_violation';
+  end if;
+  if a.status not in ('pendente', 'confirmado') then
+    raise exception 'Este horário já foi %.',
+      case a.status when 'cancelado' then 'cancelado'
+                    when 'concluido' then 'atendido' else a.status end
+      using errcode = 'check_violation';
+  end if;
+  if a.inicio <= now() + interval '2 hours' then
+    raise exception 'Faltam menos de 2 horas. Fale com o salão para desmarcar.'
+      using errcode = 'check_violation';
+  end if;
+
+  update public.agendamentos
+     set status = 'cancelado', cancelado_motivo = 'remarcado pelo cliente'
+   where id = a.id;
+
+  if a.cupom_id is not null and coalesce(a.desconto, 0) > 0
+     and n.cupom_id is null and n.pacote_cliente_id is null
+     and n.status in ('pendente', 'confirmado') then
+    select * into c from public.cupons where id = a.cupom_id;
+    if found then
+      for it in select s.servico_id, s.preco from public.agendamento_servicos s
+                 where s.agendamento_id = n.id loop
+        if c.servicos is null or cardinality(c.servicos) = 0 or it.servico_id = any(c.servicos) then
+          v_base := v_base + coalesce(it.preco, 0);
+        end if;
+      end loop;
+      v_desc := case when c.tipo = 'pct' then round(v_base * c.valor / 100, 2)
+                     else least(c.valor, v_base) end;
+      v_desc := least(v_desc, n.valor_previsto);
+      if v_desc > 0 then
+        update public.agendamentos
+           set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc
+         where id = n.id;
+        update public.cupom_usos
+           set agendamento_id = n.id, desconto = v_desc
+         where agendamento_id = a.id;
+      end if;
+    end if;
+  end if;
+
+  return jsonb_build_object('ok', true, 'desconto', v_desc);
+end $$;
+
+-- ---------------------------------------------------------------------------
 -- 7) Quantas vezes cada cupom foi usado — para a lista do painel
 -- ---------------------------------------------------------------------------
 create or replace function public.usos_dos_cupons(p_salao uuid)
@@ -362,4 +442,8 @@ revoke all on function public.usos_dos_cupons(uuid) from public, anon;
 grant execute on function public.conferir_cupom(uuid, text, text, uuid[], uuid, timestamptz, jsonb) to anon, authenticated;
 grant execute on function public.usar_cupom_no_pedido(uuid, text, jsonb) to anon, authenticated;
 grant execute on function public.salao_tem_cupom(uuid) to anon, authenticated;
+-- Pelo segredo dos dois horários, como o `cancelar_agendamento()`: quem tem o
+-- token é dona do horário.
+revoke all on function public.remarcar_agendamento(uuid, uuid) from public;
+grant execute on function public.remarcar_agendamento(uuid, uuid) to anon, authenticated;
 grant execute on function public.usos_dos_cupons(uuid) to authenticated;

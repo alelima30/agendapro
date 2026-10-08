@@ -40,6 +40,7 @@
 --   32_produto_cadastro.sql  preço escondido, comissão por pessoa, histórico
 --   33_preco_regras.sql      preço por vigência, dia da semana e horário
 --   34_cupons.sql            cupons de desconto no agendamento e na loja
+--   35_acesso.sql            quem lê o quê: catálogo só da equipe, ficha só pelo agendar()
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -1331,19 +1332,29 @@ create policy vinc_gerir on public.vinculos for all to authenticated
 -- ---------------------------------------------------------------------------
 -- 6) CATÁLOGO — profissionais, serviços, jornada
 --
--- Cliente logado LÊ (precisa escolher com quem e o quê), só a gestão ESCREVE.
+-- A EQUIPE lê, só a gestão ESCREVE.
+--
+-- ⚠ ERA `tem_acesso()`, que inclui o papel "cliente" — e virar cliente de um
+-- salão é livre (`vinc_virar_cliente`, logo acima). Qualquer conta criava um
+-- vínculo de cliente com o id que a vitrine pública mostra e passava a ler a
+-- tabela inteira: o TELEFONE pessoal de cada profissional, a comissão de cada
+-- um e de cada serviço, os serviços desligados, a jornada. Achado pelo
+-- caça-bug, reproduzido pela API.
+--
+-- A cliente não precisa das tabelas: o cardápio dela é a `vitrine()` e as
+-- vistas públicas, que mostram só o que a página mostra.
 -- ---------------------------------------------------------------------------
 
 drop policy if exists prof_ler on public.profissionais;
 create policy prof_ler on public.profissionais for select to authenticated
-  using ( tem_acesso(salao_id) );
+  using ( e_equipe(salao_id) );
 drop policy if exists prof_gerir on public.profissionais;
 create policy prof_gerir on public.profissionais for all to authenticated
   using ( e_gestor(salao_id) ) with check ( e_gestor(salao_id) );
 
 drop policy if exists serv_ler on public.servicos;
 create policy serv_ler on public.servicos for select to authenticated
-  using ( tem_acesso(salao_id) );
+  using ( e_equipe(salao_id) );
 drop policy if exists serv_gerir on public.servicos;
 create policy serv_gerir on public.servicos for all to authenticated
   using ( e_gestor(salao_id) ) with check ( e_gestor(salao_id) );
@@ -1351,7 +1362,7 @@ create policy serv_gerir on public.servicos for all to authenticated
 drop policy if exists sp_ler on public.servicos_profissionais;
 create policy sp_ler on public.servicos_profissionais for select to authenticated
   using ( exists (select 1 from public.servicos s
-                   where s.id = servico_id and tem_acesso(s.salao_id)) );
+                   where s.id = servico_id and e_equipe(s.salao_id)) );
 drop policy if exists sp_gerir on public.servicos_profissionais;
 create policy sp_gerir on public.servicos_profissionais for all to authenticated
   using ( exists (select 1 from public.servicos s
@@ -1362,7 +1373,7 @@ create policy sp_gerir on public.servicos_profissionais for all to authenticated
 drop policy if exists jor_ler on public.jornadas;
 create policy jor_ler on public.jornadas for select to authenticated
   using ( exists (select 1 from public.profissionais p
-                   where p.id = profissional_id and tem_acesso(p.salao_id)) );
+                   where p.id = profissional_id and e_equipe(p.salao_id)) );
 drop policy if exists jor_gerir on public.jornadas;
 create policy jor_gerir on public.jornadas for all to authenticated
   using ( exists (select 1 from public.profissionais p
@@ -1409,14 +1420,17 @@ create policy cli_eu on public.clientes for select to authenticated
 --
 -- É seguro: o `with check` amarra a ficha ao próprio perfil, então ninguém
 -- cria ficha em nome de outra pessoa. E o índice único impede duplicar.
+--
+-- ⚠ E POR ISSO ELA NÃO ESCREVE NA TABELA. As duas policies que deixavam
+-- (criar e editar a própria ficha) saíram: a ficha nasce e se completa pelo
+-- `agendar()`, que é `security definer` e decide campo a campo o que
+-- aproveitar. Com o UPDATE aberto, a cliente marcada pelo dono como "precisa
+-- de confirmação" tirava a marca sozinha (`exige_confirmacao = false`), e
+-- reescrevia a anotação do salão e o próprio telefone — reproduzido pela API.
+-- Com o INSERT aberto, uma conta criava antes uma ficha com o telefone de
+-- outra pessoa, e as marcações dessa pessoa pelo link caíam na ficha dela.
 drop policy if exists cli_eu_criar on public.clientes;
-create policy cli_eu_criar on public.clientes for insert to authenticated
-  with check ( perfil_id = auth.uid() );
-
 drop policy if exists cli_eu_editar on public.clientes;
-create policy cli_eu_editar on public.clientes for update to authenticated
-  using ( perfil_id = auth.uid() )
-  with check ( perfil_id = auth.uid() );
 
 -- ---------------------------------------------------------------------------
 -- 8) AGENDA — a policy mais importante do sistema
@@ -2485,6 +2499,16 @@ declare
   v_perfil  uuid := auth.uid();
   v_cliente uuid;
 begin
+  /* ⚠ O TELEFONE SEM O 55 NA FRENTE. Comparado ao pé da letra,
+     "(51) 99999-8888" e "+55 51 99999-8888" eram duas pessoas: nascia uma
+     segunda ficha, com o limite de horários dela, o histórico partido em
+     dois e a marca "precisa de confirmação" ficando para trás. O celular
+     preenche o campo sozinho no formato internacional, então não é caso raro.
+     (A conta é a mesma do `telefone_nacional()` do 09, escrita aqui porque
+     este arquivo vem antes.) */
+  p_tel := nullif(public.so_digitos(p_tel), '');
+  if length(p_tel) >= 12 and left(p_tel, 2) = '55' then p_tel := substr(p_tel, 3); end if;
+
   if v_perfil is not null then
     select c.id into v_cliente from public.clientes c
      where c.salao_id = p_salao and c.perfil_id = v_perfil;
@@ -2493,6 +2517,12 @@ begin
   if v_cliente is null and p_tel is not null then
     select c.id into v_cliente from public.clientes c
      where c.salao_id = p_salao and c.telefone = p_tel;
+    -- Ficha gravada antes desta regra, com o 55: acha do mesmo jeito.
+    if v_cliente is null then
+      select c.id into v_cliente from public.clientes c
+       where c.salao_id = p_salao and c.telefone = '55' || p_tel
+       limit 1;
+    end if;
   end if;
 
   if v_cliente is null then
@@ -3978,6 +4008,11 @@ language sql stable security definer set search_path = public as $$
       'status',    a.status,
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
+      /* O desconto do cupom (34_cupons.sql), para a remarcação mostrar que
+         ele vai junto. Lido por `to_jsonb` porque este arquivo vem antes do
+         34: função SQL valida as colunas na hora de criar, e `a.desconto`
+         aqui derrubaria a instalação de quem ainda não tem a coluna. */
+      'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),
       'salao',     sa.nome,
       'slug',      sa.slug,
       'fuso',      sa.fuso,
@@ -7498,6 +7533,25 @@ create table if not exists public.estornos (
 
 create index if not exists ix_estorno_pgto on public.estornos(pagamento_id);
 
+/* ⚠ O ESTORNO SAI DA GAVETA DE HOJE, NÃO DA DO DIA DO PAGAMENTO.
+
+   A conferência descontava o estorno no caixa onde o PAGAMENTO caiu. Com o
+   pagamento de ontem estornado hoje, o caixa de ontem — já contado e fechado
+   com diferença zero — passava a mostrar "sobra de R$ 100", e o de hoje
+   esperava R$ 100 que tinham saído da gaveta. Um caixa fechado mudando
+   sozinho, e o de hoje acusando falta. Achado pelo caça-bug.
+
+   Agora o estorno guarda o caixa ABERTO na hora em que foi feito (o gatilho
+   preenche). O que já existia fica no caixa do pagamento, que era como já
+   estava sendo contado — nada muda no que foi fechado antes. */
+alter table public.estornos
+  add column if not exists caixa_id uuid references public.caixas(id) on delete set null;
+update public.estornos e
+   set caixa_id = p.caixa_id
+  from public.pagamentos p
+ where p.id = e.pagamento_id and e.caixa_id is null and p.caixa_id is not null;
+create index if not exists ix_estorno_caixa on public.estornos(caixa_id);
+
 alter table public.estornos enable row level security;
 alter table public.estornos force row level security;
 
@@ -7525,9 +7579,10 @@ declare
   v_ja     numeric;
   v_status text;
   v_salao  uuid;
+  v_caixa  uuid;
 begin
-  select p.valor, c.status, c.salao_id
-    into v_valor, v_status, v_salao
+  select p.valor, c.status, c.salao_id, p.caixa_id
+    into v_valor, v_status, v_salao, v_caixa
     from public.pagamentos p
     join public.comandas c on c.id = p.comanda_id
    where p.id = new.pagamento_id;
@@ -7538,6 +7593,14 @@ begin
 
   -- 1) o salão do estorno é o da comanda, e não o que a tela disser
   new.salao_id := v_salao;
+
+  -- 1b) a gaveta de onde o dinheiro sai é a ABERTA agora; sem caixa aberto,
+  --     fica no do pagamento (era como contava antes). A tela não escolhe.
+  select k.id into new.caixa_id
+    from public.caixas k
+   where k.salao_id = v_salao and k.fechado_em is null
+   limit 1;
+  if new.caixa_id is null then new.caixa_id := v_caixa; end if;
 
   -- 2) comanda fechada não estorna. Ver o cabeçalho: estornar sem reabrir
   --    deixaria a comanda fechada e devendo ao mesmo tempo.
@@ -7698,14 +7761,14 @@ begin
   end if;
 
   -- Só dinheiro entra na conta da gaveta, e já descontado o que foi
-  -- estornado: devolver R$ 50 tira R$ 50 da gaveta.
-  select coalesce(sum(g.valor), 0) - coalesce(sum(e.estornado), 0)
-    into v_dinheiro
-    from public.pagamentos g
-    left join (select x.pagamento_id, sum(x.valor) as estornado
-                 from public.estornos x group by x.pagamento_id) e
-           on e.pagamento_id = g.id
-   where g.caixa_id = p_caixa and g.forma = 'dinheiro';
+  -- estornado DESTA gaveta: devolver R$ 50 hoje tira R$ 50 da de hoje, mesmo
+  -- que o pagamento tenha entrado ontem (ver o `caixa_id` do estorno).
+  select (select coalesce(sum(g.valor), 0) from public.pagamentos g
+           where g.caixa_id = p_caixa and g.forma = 'dinheiro')
+       - (select coalesce(sum(x.valor), 0) from public.estornos x
+            join public.pagamentos g on g.id = x.pagamento_id
+           where coalesce(x.caixa_id, g.caixa_id) = p_caixa and g.forma = 'dinheiro')
+    into v_dinheiro;
 
   select coalesce(sum(m.valor) filter (where m.tipo = 'sangria'), 0),
          coalesce(sum(m.valor) filter (where m.tipo = 'suprimento'), 0)
@@ -7732,14 +7795,17 @@ begin
     'outrosMeios', coalesce((
       select jsonb_agg(jsonb_build_object('forma', y.forma, 'valor', y.valor)
                        order by y.valor desc)
-        from (select g.forma,
-                     round(sum(g.valor) - coalesce(sum(e.estornado), 0), 2) as valor
-                from public.pagamentos g
-                left join (select x.pagamento_id, sum(x.valor) as estornado
-                             from public.estornos x group by x.pagamento_id) e
-                       on e.pagamento_id = g.id
-               where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
-               group by g.forma) y), '[]'::jsonb),
+        from (select z.forma, round(sum(z.valor), 2) as valor
+                from (select g.forma, g.valor
+                        from public.pagamentos g
+                       where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
+                      union all
+                      select g.forma, -x.valor
+                        from public.estornos x
+                        join public.pagamentos g on g.id = x.pagamento_id
+                       where coalesce(x.caixa_id, g.caixa_id) = p_caixa
+                         and g.forma <> 'dinheiro') z
+               group by z.forma) y), '[]'::jsonb),
     'movimentos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'tipo', m.tipo, 'valor', m.valor, 'motivo', m.motivo,
@@ -11914,6 +11980,12 @@ begin
 
   if public.usa_comanda(new.salao_id) then return new; end if;
   if new.cliente_id is null then return new; end if;
+  /* Sessão de PACOTE não é dinheiro de hoje: a cliente pagou adiantado, e o
+     `agendar()` já gravou o valor zero. Mas a linha do serviço guarda o preço
+     cheio (é sobre ele que a escada de preço e a comissão olham), e somar
+     essas linhas fazia a sessão virar uma comanda fechada de preço cheio —
+     faturamento em dobro e comissão de um serviço que não entrou no caixa. */
+  if new.pacote_cliente_id is not null then return new; end if;
   if exists (select 1 from public.comandas c
               where c.agendamento_id = new.id) then return new; end if;
 
@@ -12675,7 +12747,7 @@ alter table public.produtos_profissionais enable row level security;
 drop policy if exists pp_ler on public.produtos_profissionais;
 create policy pp_ler on public.produtos_profissionais for select to authenticated
   using ( exists (select 1 from public.produtos p
-                   where p.id = produto_id and tem_acesso(p.salao_id)) );
+                   where p.id = produto_id and e_equipe(p.salao_id)) );
 drop policy if exists pp_gerir on public.produtos_profissionais;
 create policy pp_gerir on public.produtos_profissionais for all to authenticated
   using ( exists (select 1 from public.produtos p
@@ -12819,7 +12891,7 @@ alter table public.estoque_mov enable row level security;
 drop policy if exists em_ler on public.estoque_mov;
 create policy em_ler on public.estoque_mov for select to authenticated
   using ( exists (select 1 from public.produtos p
-                   where p.id = produto_id and tem_acesso(p.salao_id)) );
+                   where p.id = produto_id and e_equipe(p.salao_id)) );
 
 grant select on public.estoque_mov to authenticated;
 
@@ -13251,12 +13323,37 @@ comment on function public.preco_dos_servicos(uuid, uuid[]) is
    inclusive zero. O que impede a recepção de mandar o número ERRADO não é mais
    este gatilho — é o `precoDaEscada()` do painel, que responde a mesma escada
    e é comparado com o Postgres, caso a caso, no `preco.test.mjs`. */
+/* ⚠ "QUEM NÃO DISSE, O BANCO DIZ" — MAS SÓ O BALCÃO PODE DIZER.
+
+   O contrato acima dava o direito de combinar o valor a qualquer um da
+   equipe, e a policy de escrita da tabela é da equipe inteira. A
+   profissional, logada, mudava o preço do PRÓPRIO atendimento direto pela
+   API — de R$ 80 para R$ 500 — e, no salão sem comanda, a comanda automática
+   nascia com R$ 500 e a comissão dela subia junto. Achado pelo caça-bug.
+
+   Agora: o balcão (dono, admin, recepção — `ve_agenda_toda`) continua
+   mandando o número que quiser, cortesia inclusive. Quem mais estiver logado
+   recebe a escada no insert, e numa alteração o preço fica como estava.
+   Sem ninguém logado (o `agendar()` do link, rotinas do servidor) nada muda:
+   o link já manda nulo. */
 create or replace function public.tg_preco_do_agendamento()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare
   v_prof   uuid;
   v_inicio timestamptz;
+  v_salao  uuid;
 begin
+  if auth.uid() is not null
+     and (tg_op = 'INSERT' and new.preco is not null
+          or tg_op = 'UPDATE' and new.preco is distinct from old.preco) then
+    select a.salao_id into v_salao from public.agendamentos a where a.id = new.agendamento_id;
+    if not public.ve_agenda_toda(v_salao) then
+      if tg_op = 'UPDATE' then new.preco := old.preco; return new; end if;
+      new.preco := null;
+    end if;
+  end if;
+  if tg_op = 'UPDATE' then return new; end if;
+
   if new.preco is not null then return new; end if;
 
   select a.profissional_id, a.inicio into v_prof, v_inicio
@@ -13282,7 +13379,7 @@ alter table public.agendamento_servicos alter column preco drop default;
 
 drop trigger if exists tg_preco_agend_servico on public.agendamento_servicos;
 create trigger tg_preco_agend_servico
-  before insert on public.agendamento_servicos
+  before insert or update of preco on public.agendamento_servicos
   for each row execute function public.tg_preco_do_agendamento();
 
 comment on function public.tg_preco_do_agendamento() is
@@ -13672,6 +13769,86 @@ returns jsonb language sql stable security definer set search_path = public as $
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 6c) Remarcar pelo link, levando o cupom junto
+--
+-- Remarcar é marcar o novo e soltar o antigo — nessa ordem, para a cliente
+-- não ficar sem nenhum dos dois. Só que, com o antigo ainda de pé, o "1 por
+-- cliente" via o cupom já usado, e o horário novo saía pelo preço cheio: quem
+-- tinha pago R$ 40 terminava em R$ 50 só por trocar o dia. Achado pelo
+-- caça-bug, reproduzido no link e pela API.
+--
+-- Esta função faz as duas coisas de uma vez, no banco: solta o antigo (com a
+-- mesma regra do `cancelar_agendamento()`, das duas horas) e passa o cupom e
+-- o uso dele para o novo. É o MESMO uso que muda de horário, não um uso novo
+-- — por isso não confere validade nem limite de novo, e o desconto é
+-- recalculado para os serviços do horário novo.
+--
+-- ⚠ O novo precisa ser da mesma ficha, do mesmo salão, e recém-marcado; e o
+-- antigo precisa estar de pé agora. Sem isso, um horário com cupom
+-- desmarcado há meses viraria desconto em qualquer marcação nova.
+-- ---------------------------------------------------------------------------
+create or replace function public.remarcar_agendamento(p_token_antigo uuid, p_token_novo uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  a      public.agendamentos%rowtype;
+  n      public.agendamentos%rowtype;
+  c      public.cupons%rowtype;
+  v_base numeric(10,2) := 0;
+  v_desc numeric(10,2) := 0;
+  it     record;
+begin
+  select * into a from public.agendamentos where gerenciar_token = p_token_antigo for update;
+  select * into n from public.agendamentos where gerenciar_token = p_token_novo for update;
+
+  if a.id is null or n.id is null or a.id = n.id
+     or n.salao_id <> a.salao_id or n.cliente_id is distinct from a.cliente_id
+     or n.criado_em < now() - interval '30 minutes' then
+    raise exception 'Não achei esse horário. Confira o link.' using errcode = 'check_violation';
+  end if;
+  if a.status not in ('pendente', 'confirmado') then
+    raise exception 'Este horário já foi %.',
+      case a.status when 'cancelado' then 'cancelado'
+                    when 'concluido' then 'atendido' else a.status end
+      using errcode = 'check_violation';
+  end if;
+  if a.inicio <= now() + interval '2 hours' then
+    raise exception 'Faltam menos de 2 horas. Fale com o salão para desmarcar.'
+      using errcode = 'check_violation';
+  end if;
+
+  update public.agendamentos
+     set status = 'cancelado', cancelado_motivo = 'remarcado pelo cliente'
+   where id = a.id;
+
+  if a.cupom_id is not null and coalesce(a.desconto, 0) > 0
+     and n.cupom_id is null and n.pacote_cliente_id is null
+     and n.status in ('pendente', 'confirmado') then
+    select * into c from public.cupons where id = a.cupom_id;
+    if found then
+      for it in select s.servico_id, s.preco from public.agendamento_servicos s
+                 where s.agendamento_id = n.id loop
+        if c.servicos is null or cardinality(c.servicos) = 0 or it.servico_id = any(c.servicos) then
+          v_base := v_base + coalesce(it.preco, 0);
+        end if;
+      end loop;
+      v_desc := case when c.tipo = 'pct' then round(v_base * c.valor / 100, 2)
+                     else least(c.valor, v_base) end;
+      v_desc := least(v_desc, n.valor_previsto);
+      if v_desc > 0 then
+        update public.agendamentos
+           set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc
+         where id = n.id;
+        update public.cupom_usos
+           set agendamento_id = n.id, desconto = v_desc
+         where agendamento_id = a.id;
+      end if;
+    end if;
+  end if;
+
+  return jsonb_build_object('ok', true, 'desconto', v_desc);
+end $$;
+
+-- ---------------------------------------------------------------------------
 -- 7) Quantas vezes cada cupom foi usado — para a lista do painel
 -- ---------------------------------------------------------------------------
 create or replace function public.usos_dos_cupons(p_salao uuid)
@@ -13723,4 +13900,65 @@ revoke all on function public.usos_dos_cupons(uuid) from public, anon;
 grant execute on function public.conferir_cupom(uuid, text, text, uuid[], uuid, timestamptz, jsonb) to anon, authenticated;
 grant execute on function public.usar_cupom_no_pedido(uuid, text, jsonb) to anon, authenticated;
 grant execute on function public.salao_tem_cupom(uuid) to anon, authenticated;
+-- Pelo segredo dos dois horários, como o `cancelar_agendamento()`: quem tem o
+-- token é dona do horário.
+revoke all on function public.remarcar_agendamento(uuid, uuid) from public;
+grant execute on function public.remarcar_agendamento(uuid, uuid) to anon, authenticated;
 grant execute on function public.usos_dos_cupons(uuid) to authenticated;
+
+-- ###########################################################################
+-- ## 35_acesso.sql
+-- ###########################################################################
+
+-- ===========================================================================
+-- AgendaPro — 35: QUEM LÊ O QUÊ (os consertos de acesso do caça-bug)
+--
+-- As mesmas regras já escritas no 02_rls.sql, repetidas aqui para QUEM
+-- ATUALIZA: o 98_modulos.sql não leva o 02, e sem este arquivo um banco
+-- atualizado continuaria com as portas abertas que a instalação nova já não
+-- tem. `drop ... if exists` e `create` de novo: colar duas vezes dá no mesmo.
+--
+-- 1) O CATÁLOGO É DA EQUIPE. Era `tem_acesso()`, que inclui o papel
+--    "cliente" — e virar cliente de um salão é livre (`vinc_virar_cliente`).
+--    Qualquer conta criava o vínculo com o id que a vitrine mostra e lia o
+--    telefone pessoal e a comissão de cada profissional, a comissão de cada
+--    serviço, os serviços desligados e a jornada. A cliente escolhe pela
+--    `vitrine()` e pelas vistas públicas, que mostram só o que a página mostra.
+--
+-- 2) A CLIENTE NÃO ESCREVE NA PRÓPRIA FICHA. A ficha nasce e se completa
+--    pelo `agendar()` (security definer). Com o UPDATE aberto ela tirava a
+--    marca "precisa de confirmação" e reescrevia a anotação do salão; com o
+--    INSERT aberto, uma conta criava antes uma ficha com o telefone de outra
+--    pessoa e passava a receber as marcações dela.
+-- ===========================================================================
+
+drop policy if exists prof_ler on public.profissionais;
+create policy prof_ler on public.profissionais for select to authenticated
+  using ( public.e_equipe(salao_id) );
+
+drop policy if exists serv_ler on public.servicos;
+create policy serv_ler on public.servicos for select to authenticated
+  using ( public.e_equipe(salao_id) );
+
+drop policy if exists sp_ler on public.servicos_profissionais;
+create policy sp_ler on public.servicos_profissionais for select to authenticated
+  using ( exists (select 1 from public.servicos s
+                   where s.id = servico_id and public.e_equipe(s.salao_id)) );
+
+drop policy if exists jor_ler on public.jornadas;
+create policy jor_ler on public.jornadas for select to authenticated
+  using ( exists (select 1 from public.profissionais p
+                   where p.id = profissional_id and public.e_equipe(p.salao_id)) );
+
+drop policy if exists pp_ler on public.produtos_profissionais;
+create policy pp_ler on public.produtos_profissionais for select to authenticated
+  using ( exists (select 1 from public.produtos p
+                   where p.id = produto_id and public.e_equipe(p.salao_id)) );
+
+drop policy if exists em_ler on public.estoque_mov;
+create policy em_ler on public.estoque_mov for select to authenticated
+  using ( exists (select 1 from public.produtos p
+                   where p.id = produto_id and public.e_equipe(p.salao_id)) );
+
+drop policy if exists cli_eu_criar  on public.clientes;
+drop policy if exists cli_eu_editar on public.clientes;

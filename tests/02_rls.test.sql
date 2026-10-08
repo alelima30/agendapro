@@ -107,10 +107,13 @@ begin;
     'só enxerga o próprio perfil',
     (select count(*) from public.perfis), 1); end $$;
 
-  -- Ela precisa ver o cardápio dos dois salões onde é cliente.
+  -- O cardápio dela é a `vitrine()` e as vistas públicas, e não a tabela:
+  -- a tabela tem o telefone pessoal e a comissão de cada profissional. Era
+  -- 3 aqui ("vê os profissionais dos salões em que é cliente"), e qualquer
+  -- conta virava "cliente" de qualquer salão com um insert em `vinculos`.
   do $$ begin perform t_igual(
-    'vê os profissionais dos salões em que é cliente',
-    (select count(*) from public.profissionais), 3); end $$;
+    'não lê a tabela de profissionais (telefone e comissão da equipe)',
+    (select count(*) from public.profissionais), 0); end $$;
 
   -- Mas não a agenda de férias de ninguém.
   do $$ begin perform t_igual(

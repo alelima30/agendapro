@@ -472,6 +472,11 @@ language sql stable security definer set search_path = public as $$
       'status',    a.status,
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
+      /* O desconto do cupom (34_cupons.sql), para a remarcação mostrar que
+         ele vai junto. Lido por `to_jsonb` porque este arquivo vem antes do
+         34: função SQL valida as colunas na hora de criar, e `a.desconto`
+         aqui derrubaria a instalação de quem ainda não tem a coluna. */
+      'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),
       'salao',     sa.nome,
       'slug',      sa.slug,
       'fuso',      sa.fuso,

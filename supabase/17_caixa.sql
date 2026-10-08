@@ -193,6 +193,25 @@ create table if not exists public.estornos (
 
 create index if not exists ix_estorno_pgto on public.estornos(pagamento_id);
 
+/* ⚠ O ESTORNO SAI DA GAVETA DE HOJE, NÃO DA DO DIA DO PAGAMENTO.
+
+   A conferência descontava o estorno no caixa onde o PAGAMENTO caiu. Com o
+   pagamento de ontem estornado hoje, o caixa de ontem — já contado e fechado
+   com diferença zero — passava a mostrar "sobra de R$ 100", e o de hoje
+   esperava R$ 100 que tinham saído da gaveta. Um caixa fechado mudando
+   sozinho, e o de hoje acusando falta. Achado pelo caça-bug.
+
+   Agora o estorno guarda o caixa ABERTO na hora em que foi feito (o gatilho
+   preenche). O que já existia fica no caixa do pagamento, que era como já
+   estava sendo contado — nada muda no que foi fechado antes. */
+alter table public.estornos
+  add column if not exists caixa_id uuid references public.caixas(id) on delete set null;
+update public.estornos e
+   set caixa_id = p.caixa_id
+  from public.pagamentos p
+ where p.id = e.pagamento_id and e.caixa_id is null and p.caixa_id is not null;
+create index if not exists ix_estorno_caixa on public.estornos(caixa_id);
+
 alter table public.estornos enable row level security;
 alter table public.estornos force row level security;
 
@@ -220,9 +239,10 @@ declare
   v_ja     numeric;
   v_status text;
   v_salao  uuid;
+  v_caixa  uuid;
 begin
-  select p.valor, c.status, c.salao_id
-    into v_valor, v_status, v_salao
+  select p.valor, c.status, c.salao_id, p.caixa_id
+    into v_valor, v_status, v_salao, v_caixa
     from public.pagamentos p
     join public.comandas c on c.id = p.comanda_id
    where p.id = new.pagamento_id;
@@ -233,6 +253,14 @@ begin
 
   -- 1) o salão do estorno é o da comanda, e não o que a tela disser
   new.salao_id := v_salao;
+
+  -- 1b) a gaveta de onde o dinheiro sai é a ABERTA agora; sem caixa aberto,
+  --     fica no do pagamento (era como contava antes). A tela não escolhe.
+  select k.id into new.caixa_id
+    from public.caixas k
+   where k.salao_id = v_salao and k.fechado_em is null
+   limit 1;
+  if new.caixa_id is null then new.caixa_id := v_caixa; end if;
 
   -- 2) comanda fechada não estorna. Ver o cabeçalho: estornar sem reabrir
   --    deixaria a comanda fechada e devendo ao mesmo tempo.
@@ -393,14 +421,14 @@ begin
   end if;
 
   -- Só dinheiro entra na conta da gaveta, e já descontado o que foi
-  -- estornado: devolver R$ 50 tira R$ 50 da gaveta.
-  select coalesce(sum(g.valor), 0) - coalesce(sum(e.estornado), 0)
-    into v_dinheiro
-    from public.pagamentos g
-    left join (select x.pagamento_id, sum(x.valor) as estornado
-                 from public.estornos x group by x.pagamento_id) e
-           on e.pagamento_id = g.id
-   where g.caixa_id = p_caixa and g.forma = 'dinheiro';
+  -- estornado DESTA gaveta: devolver R$ 50 hoje tira R$ 50 da de hoje, mesmo
+  -- que o pagamento tenha entrado ontem (ver o `caixa_id` do estorno).
+  select (select coalesce(sum(g.valor), 0) from public.pagamentos g
+           where g.caixa_id = p_caixa and g.forma = 'dinheiro')
+       - (select coalesce(sum(x.valor), 0) from public.estornos x
+            join public.pagamentos g on g.id = x.pagamento_id
+           where coalesce(x.caixa_id, g.caixa_id) = p_caixa and g.forma = 'dinheiro')
+    into v_dinheiro;
 
   select coalesce(sum(m.valor) filter (where m.tipo = 'sangria'), 0),
          coalesce(sum(m.valor) filter (where m.tipo = 'suprimento'), 0)
@@ -427,14 +455,17 @@ begin
     'outrosMeios', coalesce((
       select jsonb_agg(jsonb_build_object('forma', y.forma, 'valor', y.valor)
                        order by y.valor desc)
-        from (select g.forma,
-                     round(sum(g.valor) - coalesce(sum(e.estornado), 0), 2) as valor
-                from public.pagamentos g
-                left join (select x.pagamento_id, sum(x.valor) as estornado
-                             from public.estornos x group by x.pagamento_id) e
-                       on e.pagamento_id = g.id
-               where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
-               group by g.forma) y), '[]'::jsonb),
+        from (select z.forma, round(sum(z.valor), 2) as valor
+                from (select g.forma, g.valor
+                        from public.pagamentos g
+                       where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
+                      union all
+                      select g.forma, -x.valor
+                        from public.estornos x
+                        join public.pagamentos g on g.id = x.pagamento_id
+                       where coalesce(x.caixa_id, g.caixa_id) = p_caixa
+                         and g.forma <> 'dinheiro') z
+               group by z.forma) y), '[]'::jsonb),
     'movimentos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'tipo', m.tipo, 'valor', m.valor, 'motivo', m.motivo,

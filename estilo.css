@@ -1709,7 +1709,9 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
 .pr-grade{
   display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:11px;
 }
-@media (min-width:560px){ .pr-grade{ grid-template-columns:repeat(4, minmax(0,1fr)) } }
+/* Sem as 4 colunas a partir de 560px: a página da cliente tem no máximo
+   480px de largura, então no computador (e no celular deitado) os cartões
+   ficavam com 100px e o nome virava "Conc", "Pent". Duas colunas sempre. */
 .pr-cartao{
   background:var(--painel); border:1px solid var(--borda);
   border-radius:var(--r); overflow:hidden; box-shadow:var(--sombra);
@@ -1803,7 +1805,7 @@ body.capa-com-foto[data-passo="capa"] .cabeca{ display:none }
   border:2px solid var(--painel);
   font-size:10.5px; font-weight:800; line-height:15px; text-align:center;
 }
-.pr-add.tem .pr-n{ background:var(--painel); color:var(--acao) }
+.pr-add.tem .pr-n{ background:var(--painel); color:var(--ac-600, var(--acao)) }
 
 /* ── ⚠ A MOLDURA DOS PRODUTOS É A MESMA DOS SERVIÇOS ─────────────────────
    Pedido: "as molduras aparecerem de várias maneiras, com ondinha ou só
@@ -1945,7 +1947,8 @@ body.sem-brilho .carrinho-fita::after{ animation:none; opacity:0 }
 .cf-n{
   position:absolute; top:-3px; right:-4px; min-width:17px; height:17px;
   padding:0 4px; border-radius:9px;
-  background:var(--painel); color:var(--acao);
+  /* A cor ESCRITA da marca: a crua, num tema claro, ficava 1,5:1 no branco. */
+  background:var(--painel); color:var(--ac-600, var(--acao));
   font-size:11px; font-weight:800; line-height:17px; text-align:center;
 }
 /* ⚠ SÓ DENTRO DA FITA. O cartão de "Confira seu agendamento" usa o mesmo
@@ -1994,6 +1997,11 @@ body.com-fita .conteudo{ padding-bottom:78px }
   .carrinho-fita .cf-zap .cf-zap-txt{ display:none }
   .carrinho-fita .cf-zap{ padding:0 13px }
 }
+/* Com produto sem preço o total vira "R$ 80,00 + a combinar", e o `nowrap`
+   cortava justamente o "a combinar". Nesse caso o rótulo do botão sai em
+   qualquer largura e o total ganha o espaço. */
+.carrinho-fita.com-combinar .cf-zap .cf-zap-txt{ display:none }
+.carrinho-fita.com-combinar .cf-zap{ padding:0 13px }
 
 /* A espera, sem palavra nenhuma. Ver o comentário do `#p-abrindo`. */
 .abrindo{ display:grid; place-items:center; min-height:52vh }
@@ -3858,6 +3866,12 @@ body.tem-gradiente .boas, body.tem-papel .boas{
 .recurso-ic{ display:inline-flex; color:var(--at-tinta, var(--ico-destaque, var(--ac-marca, var(--ac-600)))) }
 .recurso-ic svg{ width:24px; height:24px }
 .recurso-rot{ max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+/* Em 360px "Pagamentos" e "Informações" não cabem e viravam "Pagament…":
+   ali a letra diminui um ponto e o rótulo pode quebrar. */
+@media (max-width:370px){
+  .recurso-rot{ white-space:normal; overflow:visible; text-overflow:clip;
+                font-size:12px; line-height:1.15; overflow-wrap:anywhere }
+}
 /* O Horários é o destaque da fileira, como no pedido: fundo suave na cor da
    marca, letra na cor da marca. É o que a cliente mais procura aqui. */
 .recurso.destaque{

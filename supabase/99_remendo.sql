@@ -1,3 +1,70 @@
+create or replace function public.tg_notificar_agendamento()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_tel_cli  text;
+  v_tel_prof text;
+  v_min      int;
+  v_quando   timestamptz;
+  v_corpo    text;
+begin
+  if new.status not in ('pendente','confirmado') or new.arquivado_em is not null then
+    return new;
+  end if;
+  if new.inicio <= now() then return new; end if;
+  select public.so_digitos(c.telefone) into v_tel_cli
+    from public.clientes c where c.id = new.cliente_id;
+  if v_tel_cli is not null
+     and new.status = 'confirmado'
+     and public.notif_liga(new.salao_id, 'notifConfirma', true) then
+    v_corpo := public.texto_agendamento(new.id, 'confirmacao');
+    if v_corpo is not null then
+      insert into public.notificacoes
+        (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo,
+         chave, modelo, variaveis)
+      values (new.salao_id, 'confirmacao', v_tel_cli, new.cliente_id, new.id,
+              now(), v_corpo, 'confirmacao:' || new.id,
+              public.modelo_de('confirmacao'),
+              public.variaveis_agendamento(new.id, 'confirmacao'))
+      on conflict (salao_id, chave) do nothing;
+    end if;
+  end if;
+  v_min := public.lembrete_minutos(new.salao_id);
+  if v_tel_cli is not null and new.status = 'confirmado' and v_min > 0 then
+    v_quando := new.inicio - make_interval(mins => v_min);
+    if v_quando > now() then
+      v_corpo := public.texto_agendamento(new.id, 'lembrete');
+      if v_corpo is not null then
+        insert into public.notificacoes
+          (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo,
+           chave, modelo, variaveis)
+        values (new.salao_id, 'lembrete', v_tel_cli, new.cliente_id, new.id,
+                v_quando, v_corpo, 'lembrete:' || new.id,
+                public.modelo_de('lembrete'),
+                public.variaveis_agendamento(new.id, 'lembrete'))
+        on conflict (salao_id, chave) do nothing;
+      end if;
+    end if;
+  end if;
+  select public.so_digitos(pr.telefone) into v_tel_prof
+    from public.profissionais pr
+   where pr.id = new.profissional_id and pr.notif_novo;
+  if v_tel_prof is not null
+     and public.notif_liga(new.salao_id, 'notifProfNovo', true) then
+    v_corpo := public.texto_agendamento(new.id, 'novo');
+    if v_corpo is not null then
+      insert into public.notificacoes
+        (salao_id, tipo, destino, profissional_id, agendamento_id, quando, corpo,
+         chave, modelo, variaveis)
+      values (new.salao_id, 'novo', v_tel_prof, new.profissional_id, new.id,
+              now(), v_corpo, 'novo:' || new.id,
+              public.modelo_de('novo'),
+              public.variaveis_agendamento(new.id, 'novo'))
+      on conflict (salao_id, chave) do nothing;
+    end if;
+  end if;
+  return new;
+end $$;
+
 alter table public.agendamentos
   add column if not exists arquivado_em timestamptz;
 do $trava_choque$
@@ -435,6 +502,8 @@ declare
   v_perfil  uuid := auth.uid();
   v_cliente uuid;
 begin
+  p_tel := nullif(public.so_digitos(p_tel), '');
+  if length(p_tel) >= 12 and left(p_tel, 2) = '55' then p_tel := substr(p_tel, 3); end if;
   if v_perfil is not null then
     select c.id into v_cliente from public.clientes c
      where c.salao_id = p_salao and c.perfil_id = v_perfil;
@@ -442,6 +511,11 @@ begin
   if v_cliente is null and p_tel is not null then
     select c.id into v_cliente from public.clientes c
      where c.salao_id = p_salao and c.telefone = p_tel;
+    if v_cliente is null then
+      select c.id into v_cliente from public.clientes c
+       where c.salao_id = p_salao and c.telefone = '55' || p_tel
+       limit 1;
+    end if;
   end if;
   if v_cliente is null then
     insert into public.clientes (salao_id, perfil_id, nome, telefone)
@@ -855,7 +929,18 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare
   v_prof   uuid;
   v_inicio timestamptz;
+  v_salao  uuid;
 begin
+  if auth.uid() is not null
+     and (tg_op = 'INSERT' and new.preco is not null
+          or tg_op = 'UPDATE' and new.preco is distinct from old.preco) then
+    select a.salao_id into v_salao from public.agendamentos a where a.id = new.agendamento_id;
+    if not public.ve_agenda_toda(v_salao) then
+      if tg_op = 'UPDATE' then new.preco := old.preco; return new; end if;
+      new.preco := null;
+    end if;
+  end if;
+  if tg_op = 'UPDATE' then return new; end if;
   if new.preco is not null then return new; end if;
   select a.profissional_id, a.inicio into v_prof, v_inicio
     from public.agendamentos a where a.id = new.agendamento_id;
@@ -866,7 +951,7 @@ end $$;
 alter table public.agendamento_servicos alter column preco drop default;
 drop trigger if exists tg_preco_agend_servico on public.agendamento_servicos;
 create trigger tg_preco_agend_servico
-  before insert on public.agendamento_servicos
+  before insert or update of preco on public.agendamento_servicos
   for each row execute function public.tg_preco_do_agendamento();
 comment on function public.tg_preco_do_agendamento() is
   'Reescreve o preço da linha do agendamento com a escada do banco. É o que faz a regra valer também para o que a recepção marca.';
@@ -1100,6 +1185,62 @@ returns jsonb language sql stable security definer set search_path = public as $
      and (c.inicio is null or c.inicio <= hoje.d)
      and (c.fim is null or c.fim >= hoje.d)
 $$;
+create or replace function public.remarcar_agendamento(p_token_antigo uuid, p_token_novo uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  a      public.agendamentos%rowtype;
+  n      public.agendamentos%rowtype;
+  c      public.cupons%rowtype;
+  v_base numeric(10,2) := 0;
+  v_desc numeric(10,2) := 0;
+  it     record;
+begin
+  select * into a from public.agendamentos where gerenciar_token = p_token_antigo for update;
+  select * into n from public.agendamentos where gerenciar_token = p_token_novo for update;
+  if a.id is null or n.id is null or a.id = n.id
+     or n.salao_id <> a.salao_id or n.cliente_id is distinct from a.cliente_id
+     or n.criado_em < now() - interval '30 minutes' then
+    raise exception 'Não achei esse horário. Confira o link.' using errcode = 'check_violation';
+  end if;
+  if a.status not in ('pendente', 'confirmado') then
+    raise exception 'Este horário já foi %.',
+      case a.status when 'cancelado' then 'cancelado'
+                    when 'concluido' then 'atendido' else a.status end
+      using errcode = 'check_violation';
+  end if;
+  if a.inicio <= now() + interval '2 hours' then
+    raise exception 'Faltam menos de 2 horas. Fale com o salão para desmarcar.'
+      using errcode = 'check_violation';
+  end if;
+  update public.agendamentos
+     set status = 'cancelado', cancelado_motivo = 'remarcado pelo cliente'
+   where id = a.id;
+  if a.cupom_id is not null and coalesce(a.desconto, 0) > 0
+     and n.cupom_id is null and n.pacote_cliente_id is null
+     and n.status in ('pendente', 'confirmado') then
+    select * into c from public.cupons where id = a.cupom_id;
+    if found then
+      for it in select s.servico_id, s.preco from public.agendamento_servicos s
+                 where s.agendamento_id = n.id loop
+        if c.servicos is null or cardinality(c.servicos) = 0 or it.servico_id = any(c.servicos) then
+          v_base := v_base + coalesce(it.preco, 0);
+        end if;
+      end loop;
+      v_desc := case when c.tipo = 'pct' then round(v_base * c.valor / 100, 2)
+                     else least(c.valor, v_base) end;
+      v_desc := least(v_desc, n.valor_previsto);
+      if v_desc > 0 then
+        update public.agendamentos
+           set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc
+         where id = n.id;
+        update public.cupom_usos
+           set agendamento_id = n.id, desconto = v_desc
+         where agendamento_id = a.id;
+      end if;
+    end if;
+  end if;
+  return jsonb_build_object('ok', true, 'desconto', v_desc);
+end $$;
 create or replace function public.usos_dos_cupons(p_salao uuid)
 returns jsonb language sql stable security definer set search_path = public as $$
   select coalesce(jsonb_object_agg(x.cupom_id, x.n), '{}'::jsonb)
@@ -1135,6 +1276,8 @@ revoke all on function public.usos_dos_cupons(uuid) from public, anon;
 grant execute on function public.conferir_cupom(uuid, text, text, uuid[], uuid, timestamptz, jsonb) to anon, authenticated;
 grant execute on function public.usar_cupom_no_pedido(uuid, text, jsonb) to anon, authenticated;
 grant execute on function public.salao_tem_cupom(uuid) to anon, authenticated;
+revoke all on function public.remarcar_agendamento(uuid, uuid) from public;
+grant execute on function public.remarcar_agendamento(uuid, uuid) to anon, authenticated;
 grant execute on function public.usos_dos_cupons(uuid) to authenticated;
 
 alter table public.agendamentos
@@ -1337,6 +1480,7 @@ language sql stable security definer set search_path = public as $$
       'status',    a.status,
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
+      'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),
       'salao',     sa.nome,
       'slug',      sa.slug,
       'fuso',      sa.fuso,
@@ -1575,7 +1719,28 @@ revoke all on function public.meus_agendamentos_da_conta()  from public, anon;
 grant execute on function public.ligar_minha_ficha(uuid)      to authenticated;
 grant execute on function public.meus_agendamentos_da_conta() to authenticated;
 
+alter table public.servicos
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+
+alter table public.produtos
+  add column if not exists comissao_fixa numeric(10,2)
+    check (comissao_fixa >= 0);
+
+alter table public.produtos add column if not exists foto text;
+
+alter table public.produtos add column if not exists descricao text;
+
 alter table public.produtos add column if not exists categoria text;
+
+alter table public.produtos
+  add column if not exists venda_online boolean not null default false;
+
+alter table public.servicos
+  add column if not exists dias smallint[];
+
+alter table public.produtos
+  add column if not exists preco_visivel boolean not null default true;
 
 create or replace function public.vitrine(p_slug text)
 returns jsonb
@@ -1821,6 +1986,80 @@ language sql stable security definer set search_path = public as $$
   where s.slug = p_slug and s.status = 'ativo'
 $$;
 
+create or replace function public.minutos_de_jornada(
+  p_profissional uuid, p_data date)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(sum(extract(epoch from (j.fim - j.inicio)) / 60), 0)::int
+    from public.jornada_costurada(p_profissional, p_data) j
+$$;
+
+create or replace function public.minutos_online_no_dia(
+  p_profissional uuid, p_data date)
+returns int language sql stable security definer set search_path = public as $$
+  select coalesce(sum(
+           extract(epoch from (a.fim - a.inicio)) / 60), 0)::int
+    from public.agendamentos a
+    join public.profissionais p on p.id = a.profissional_id
+    join public.saloes s        on s.id = p.salao_id
+   where a.profissional_id = p_profissional
+     and a.origem = 'online'
+     and a.arquivado_em is null
+     and a.status in ('pendente','confirmado','em_atendimento','concluido')
+     and (a.inicio at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date = p_data
+$$;
+
+create or replace function public.rajada_online(p_salao uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int
+    from public.agendamentos a
+    join public.clientes c on c.id = a.cliente_id
+   where a.salao_id = p_salao
+     and a.origem = 'online'
+     and a.criado_em > now() - interval '10 minutes'
+     and c.criado_em > now() - interval '24 hours'
+$$;
+
+create or replace function public.servico_fora_do_dia(
+  p_servicos uuid[], p_data date)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  v_dia   smallint;
+  v_nome  text;
+  v_dias  smallint[];
+begin
+  if p_servicos is null or cardinality(p_servicos) = 0 or p_data is null then
+    return null;
+  end if;
+  v_dia := extract(dow from p_data)::smallint;
+  select s.nome, s.dias into v_nome, v_dias
+    from public.servicos s
+   where s.id = any(p_servicos)
+     and s.dias is not null
+     and cardinality(s.dias) > 0
+     and not (v_dia = any(s.dias))
+   order by s.nome
+   limit 1;
+  if v_nome is null then return null; end if;
+  return format(
+    '%s: só %s. Escolha um desses dias, tire este serviço do pedido, '
+    || 'ou chame o salão no WhatsApp.',
+    v_nome, public.dias_por_extenso(v_dias));
+end $$;
+
+create or replace function public.teto_online_pct(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select greatest(10, least(100,
+    coalesce((select (cfg->>'tetoOnlinePct')::int from public.saloes
+               where id = p_salao and cfg->>'tetoOnlinePct' ~ '^[0-9]+$'), 70)))
+$$;
+
+create or replace function public.teto_online_rajada(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select greatest(1, least(100,
+    coalesce((select (cfg->>'tetoOnlineRajada')::int from public.saloes
+               where id = p_salao and cfg->>'tetoOnlineRajada' ~ '^[0-9]+$'), 10)))
+$$;
+
 create or replace function public.porque_nao_agenda(
   p_profissional uuid, p_data date, p_servicos uuid[])
 returns text language plpgsql stable security definer set search_path = public as $$
@@ -1908,76 +2147,22 @@ begin
   return public.servico_fora_do_dia(p_servicos, p_de);
 end $$;
 
-create or replace function public.tg_notificar_agendamento()
-returns trigger language plpgsql security definer set search_path = public as $$
-declare
-  v_tel_cli  text;
-  v_tel_prof text;
-  v_min      int;
-  v_quando   timestamptz;
-  v_corpo    text;
-begin
-  if new.status not in ('pendente','confirmado') or new.arquivado_em is not null then
-    return new;
-  end if;
-  if new.inicio <= now() then return new; end if;
-  select public.so_digitos(c.telefone) into v_tel_cli
-    from public.clientes c where c.id = new.cliente_id;
-  if v_tel_cli is not null
-     and new.status = 'confirmado'
-     and public.notif_liga(new.salao_id, 'notifConfirma', true) then
-    v_corpo := public.texto_agendamento(new.id, 'confirmacao');
-    if v_corpo is not null then
-      insert into public.notificacoes
-        (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo,
-         chave, modelo, variaveis)
-      values (new.salao_id, 'confirmacao', v_tel_cli, new.cliente_id, new.id,
-              now(), v_corpo, 'confirmacao:' || new.id,
-              public.modelo_de('confirmacao'),
-              public.variaveis_agendamento(new.id, 'confirmacao'))
-      on conflict (salao_id, chave) do nothing;
-    end if;
-  end if;
-  v_min := public.lembrete_minutos(new.salao_id);
-  if v_tel_cli is not null and new.status = 'confirmado' and v_min > 0 then
-    v_quando := new.inicio - make_interval(mins => v_min);
-    if v_quando > now() then
-      v_corpo := public.texto_agendamento(new.id, 'lembrete');
-      if v_corpo is not null then
-        insert into public.notificacoes
-          (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo,
-           chave, modelo, variaveis)
-        values (new.salao_id, 'lembrete', v_tel_cli, new.cliente_id, new.id,
-                v_quando, v_corpo, 'lembrete:' || new.id,
-                public.modelo_de('lembrete'),
-                public.variaveis_agendamento(new.id, 'lembrete'))
-        on conflict (salao_id, chave) do nothing;
-      end if;
-    end if;
-  end if;
-  select public.so_digitos(pr.telefone) into v_tel_prof
-    from public.profissionais pr
-   where pr.id = new.profissional_id and pr.notif_novo;
-  if v_tel_prof is not null
-     and public.notif_liga(new.salao_id, 'notifProfNovo', true) then
-    v_corpo := public.texto_agendamento(new.id, 'novo');
-    if v_corpo is not null then
-      insert into public.notificacoes
-        (salao_id, tipo, destino, profissional_id, agendamento_id, quando, corpo,
-         chave, modelo, variaveis)
-      values (new.salao_id, 'novo', v_tel_prof, new.profissional_id, new.id,
-              now(), v_corpo, 'novo:' || new.id,
-              public.modelo_de('novo'),
-              public.variaveis_agendamento(new.id, 'novo'))
-      on conflict (salao_id, chave) do nothing;
-    end if;
-  end if;
-  return new;
-end $$;
+create or replace function public.notif_liga(p_salao uuid, p_chave text,
+                                             p_padrao boolean default true)
+returns boolean language sql stable set search_path = public as $$
+  select coalesce(
+    (select (cfg->>p_chave)::boolean from public.saloes
+      where id = p_salao and cfg->>p_chave in ('true','false')),
+    p_padrao)
+$$;
 
-create or replace function public.travar_agenda(p_salao uuid)
-returns void language sql set search_path = public as $$
-  select pg_advisory_xact_lock(hashtext(p_salao::text))
+create or replace function public.notif_num(p_salao uuid, p_chave text,
+                                            p_padrao int)
+returns int language sql stable set search_path = public as $$
+  select coalesce(
+    (select (cfg->>p_chave)::int from public.saloes
+      where id = p_salao and cfg->>p_chave ~ '^[0-9]+$'),
+    p_padrao)
 $$;
 
 create or replace function public.lembrete_minutos(p_salao uuid)
@@ -1986,28 +2171,6 @@ returns int language sql stable set search_path = public as $$
               then greatest(0, least(1440,
                      public.notif_num(p_salao, 'notifLembreteMin', 120)))
               else 0 end
-$$;
-
-create or replace function public.minutos_de_jornada(
-  p_profissional uuid, p_data date)
-returns int language sql stable security definer set search_path = public as $$
-  select coalesce(sum(extract(epoch from (j.fim - j.inicio)) / 60), 0)::int
-    from public.jornada_costurada(p_profissional, p_data) j
-$$;
-
-create or replace function public.minutos_online_no_dia(
-  p_profissional uuid, p_data date)
-returns int language sql stable security definer set search_path = public as $$
-  select coalesce(sum(
-           extract(epoch from (a.fim - a.inicio)) / 60), 0)::int
-    from public.agendamentos a
-    join public.profissionais p on p.id = a.profissional_id
-    join public.saloes s        on s.id = p.salao_id
-   where a.profissional_id = p_profissional
-     and a.origem = 'online'
-     and a.arquivado_em is null
-     and a.status in ('pendente','confirmado','em_atendimento','concluido')
-     and (a.inicio at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date = p_data
 $$;
 
 create or replace function public.modelo_de(p_tipo text)
@@ -2020,66 +2183,34 @@ returns text language sql immutable set search_path = public as $$
   end
 $$;
 
-create or replace function public.notif_liga(p_salao uuid, p_chave text,
-                                             p_padrao boolean default true)
-returns boolean language sql stable set search_path = public as $$
-  select coalesce(
-    (select (cfg->>p_chave)::boolean from public.saloes
-      where id = p_salao and cfg->>p_chave in ('true','false')),
-    p_padrao)
-$$;
-
-create or replace function public.rajada_online(p_salao uuid)
-returns int language sql stable security definer set search_path = public as $$
-  select count(*)::int
-    from public.agendamentos a
-    join public.clientes c on c.id = a.cliente_id
-   where a.salao_id = p_salao
-     and a.origem = 'online'
-     and a.criado_em > now() - interval '10 minutes'
-     and c.criado_em > now() - interval '24 hours'
-$$;
-
-create or replace function public.servico_fora_do_dia(
-  p_servicos uuid[], p_data date)
-returns text language plpgsql stable security definer set search_path = public as $$
+create or replace function public.pecas_agendamento(p_agendamento uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
 declare
-  v_dia   smallint;
-  v_nome  text;
-  v_dias  smallint[];
+  a public.agendamentos%rowtype;
+  v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
 begin
-  if p_servicos is null or cardinality(p_servicos) = 0 or p_data is null then
-    return null;
-  end if;
-  v_dia := extract(dow from p_data)::smallint;
-  select s.nome, s.dias into v_nome, v_dias
-    from public.servicos s
-   where s.id = any(p_servicos)
-     and s.dias is not null
-     and cardinality(s.dias) > 0
-     and not (v_dia = any(s.dias))
-   order by s.nome
-   limit 1;
-  if v_nome is null then return null; end if;
-  return format(
-    '%s: só %s. Escolha um desses dias, tire este serviço do pedido, '
-    || 'ou chame o salão no WhatsApp.',
-    v_nome, public.dias_por_extenso(v_dias));
+  select * into a from public.agendamentos where id = p_agendamento;
+  if a.id is null then return null; end if;
+  select coalesce(s.fuso, 'America/Sao_Paulo'), s.nome
+    into v_fuso, v_casa
+    from public.saloes s where s.id = a.salao_id;
+  select coalesce(c.nome, a.atendido_nome, 'cliente') into v_cli
+    from public.clientes c where c.id = a.cliente_id;
+  select coalesce(p.apelido, p.nome, '—') into v_prof
+    from public.profissionais p where p.id = a.profissional_id;
+  select string_agg(sv.nome, ' + ' order by asv.ordem) into v_serv
+    from public.agendamento_servicos asv
+    join public.servicos sv on sv.id = asv.servico_id
+   where asv.agendamento_id = a.id;
+  return jsonb_build_object(
+    'cliente',  coalesce(v_cli, 'cliente'),
+    'primeiro', split_part(coalesce(v_cli, 'cliente'), ' ', 1),
+    'prof',     coalesce(v_prof, '—'),
+    'servico',  coalesce(v_serv, 'atendimento'),
+    'casa',     coalesce(v_casa, '—'),
+    'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
+    'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'));
 end $$;
-
-create or replace function public.teto_online_pct(p_salao uuid)
-returns int language sql stable set search_path = public as $$
-  select greatest(10, least(100,
-    coalesce((select (cfg->>'tetoOnlinePct')::int from public.saloes
-               where id = p_salao and cfg->>'tetoOnlinePct' ~ '^[0-9]+$'), 70)))
-$$;
-
-create or replace function public.teto_online_rajada(p_salao uuid)
-returns int language sql stable set search_path = public as $$
-  select greatest(1, least(100,
-    coalesce((select (cfg->>'tetoOnlineRajada')::int from public.saloes
-               where id = p_salao and cfg->>'tetoOnlineRajada' ~ '^[0-9]+$'), 10)))
-$$;
 
 create or replace function public.texto_agendamento(
   p_agendamento uuid, p_tipo text)
@@ -2125,6 +2256,16 @@ begin
   return null;
 end $$;
 
+create or replace function public.variavel_limpa(p_texto text, p_teto int default 900)
+returns text language sql immutable set search_path = public as $$
+  select case
+    when t = '' then '—'
+    when length(t) > p_teto then left(t, p_teto - 1) || '…'
+    else t
+  end
+  from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
+$$;
+
 create or replace function public.variaveis_agendamento(
   p_agendamento uuid, p_tipo text)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
@@ -2145,50 +2286,7 @@ begin
   return null;
 end $$;
 
-create or replace function public.notif_num(p_salao uuid, p_chave text,
-                                            p_padrao int)
-returns int language sql stable set search_path = public as $$
-  select coalesce(
-    (select (cfg->>p_chave)::int from public.saloes
-      where id = p_salao and cfg->>p_chave ~ '^[0-9]+$'),
-    p_padrao)
-$$;
-
-create or replace function public.pecas_agendamento(p_agendamento uuid)
-returns jsonb language plpgsql stable security definer set search_path = public as $$
-declare
-  a public.agendamentos%rowtype;
-  v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
-begin
-  select * into a from public.agendamentos where id = p_agendamento;
-  if a.id is null then return null; end if;
-  select coalesce(s.fuso, 'America/Sao_Paulo'), s.nome
-    into v_fuso, v_casa
-    from public.saloes s where s.id = a.salao_id;
-  select coalesce(c.nome, a.atendido_nome, 'cliente') into v_cli
-    from public.clientes c where c.id = a.cliente_id;
-  select coalesce(p.apelido, p.nome, '—') into v_prof
-    from public.profissionais p where p.id = a.profissional_id;
-  select string_agg(sv.nome, ' + ' order by asv.ordem) into v_serv
-    from public.agendamento_servicos asv
-    join public.servicos sv on sv.id = asv.servico_id
-   where asv.agendamento_id = a.id;
-  return jsonb_build_object(
-    'cliente',  coalesce(v_cli, 'cliente'),
-    'primeiro', split_part(coalesce(v_cli, 'cliente'), ' ', 1),
-    'prof',     coalesce(v_prof, '—'),
-    'servico',  coalesce(v_serv, 'atendimento'),
-    'casa',     coalesce(v_casa, '—'),
-    'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
-    'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'));
-end $$;
-
-create or replace function public.variavel_limpa(p_texto text, p_teto int default 900)
-returns text language sql immutable set search_path = public as $$
-  select case
-    when t = '' then '—'
-    when length(t) > p_teto then left(t, p_teto - 1) || '…'
-    else t
-  end
-  from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
+create or replace function public.travar_agenda(p_salao uuid)
+returns void language sql set search_path = public as $$
+  select pg_advisory_xact_lock(hashtext(p_salao::text))
 $$;

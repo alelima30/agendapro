@@ -275,10 +275,19 @@ partes = [
 ] + [limpar(x) for f in pacotes + confirmacao + precos + cupons
                 for x in inteiro_com_consertos(f)] + [
     limpar(open('supabase/09_cliente.sql', encoding='utf-8').read()),
-    # A categoria do produto, que a vitrine devolve. Função SQL resolve as
-    # colunas na criação: sem ela, a vitrine do 25 não instala num banco que
-    # ainda não recebeu o 24 de agora.
-    "alter table public.produtos add column if not exists categoria text;",
+] + [
+    # AS COLUNAS que a vitrine lê, de produto e de serviço. Função SQL resolve
+    # as colunas na criação: sem elas, a vitrine do 25 não instala num banco
+    # que ainda não recebeu o 24 e o 25 de agora.
+    #
+    # Era só a `categoria`, escrita à mão — e num banco antigo o remendo morria
+    # em `column pr.descricao does not exist` (achado pelo caça-bug). Agora é
+    # por VARREDURA: todo `add column if not exists` de `produtos` e de
+    # `servicos` dos módulos entra, e a coluna que um módulo novo acrescentar
+    # vem junto sem ninguém lembrar deste arquivo.
+    limpar(m.group(0)) for f in modulos
+    for m in re.finditer(r'alter table public\.(?:produtos|servicos)\s+add column if not exists[^;]+;',
+                         open('supabase/' + f, encoding='utf-8').read())
 ] + [limpar(v) for v in vitrines]
 
 # ── ⚠ O FECHAMENTO DA CADEIA ──────────────────────────────────────────────
@@ -330,16 +339,55 @@ def faltantes(texto):
             fora.append((nome, donos[-1]))
     return fora
 
+extras, voltas = [], []
 for _ in range(12):
-    pendentes = faltantes('\n\n'.join(partes))
+    pendentes = faltantes('\n\n'.join(partes + extras))
     if not pendentes:
         break
-    for nome, arquivo in pendentes:
-        partes.append(limpar(recortar_re(
-            open('supabase/' + arquivo, encoding='utf-8').read(), nome)))
+    volta = [limpar(recortar_re(open('supabase/' + arquivo, encoding='utf-8').read(), nome))
+             for nome, arquivo in pendentes]
+    voltas.append(volta)
+    extras += volta
 else:
     raise SystemExit('a cadeia de dependências do remendo não fechou em 12 '
                      'voltas — provavelmente há um ciclo')
+
+# ⚠ FUNÇÃO DE GATILHO VEM ANTES DE TUDO, e não no fim com as outras.
+#
+# `create trigger ... execute function public.x()` exige que `x` JÁ EXISTA —
+# ao contrário de uma chamada dentro de PL/pgSQL, que só é resolvida ao rodar.
+# O módulo da confirmação (29) entra inteiro e cria um gatilho que usa a
+# `tg_notificar_agendamento()` do 21; ela era puxada pelo fechamento e ia
+# para o FIM do arquivo. Num banco que já tinha o 21 ninguém via; num banco
+# antigo o remendo morria ali, antes de chegar no `agendar()` — o arquivo de
+# resgate não resgatava quem estava mais atrasado. Achado pelo caça-bug.
+#
+# Função de gatilho é sempre PL/pgSQL: criá-la no começo não exige que as
+# tabelas que ela usa já existam.
+#
+# ⚠ E AS OUTRAS, DA VOLTA MAIS FUNDA PARA A MAIS RASA. Função SQL valida, na
+# criação, as funções que ela chama: a `lembrete_minutos()` (1ª volta) chama
+# a `notif_liga()` (2ª volta), e na ordem em que as voltas acontecem ela
+# vinha antes da que chama — num banco sem o 21, o remendo morria ali.
+# A ordem é a das dependências de verdade (quem é chamado vem antes de quem
+# chama), e não a das voltas: duas funções podem entrar na mesma volta e uma
+# chamar a outra.
+def nome_de(x):
+    return re.search(r'create or replace function\s+public\.(\w+)', x).group(1)
+por_nome = {nome_de(x): x for x in extras}
+ordem, visto = [], set()
+def visitar(nome, pilha=()):
+    if nome in visto: return
+    if nome in pilha: raise SystemExit('ciclo no remendo: ' + ' → '.join(pilha + (nome,)))
+    for dep in sorted(set(re.findall(r'public\.(\w+)\s*\(', por_nome[nome]))):
+        if dep in por_nome and dep != nome:
+            visitar(dep, pilha + (nome,))
+    visto.add(nome); ordem.append(por_nome[nome])
+for volta in voltas:
+    for x in volta:
+        visitar(nome_de(x))
+gatilhos = [x for x in ordem if re.search(r'returns\s+trigger', x)]
+partes = gatilhos + partes + [x for x in ordem if x not in gatilhos]
 
 saida = '\n\n'.join(partes) + '\n'
 assert '--' not in saida, 'sobrou comentário: o remendo perde a imunidade'

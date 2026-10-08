@@ -180,6 +180,12 @@ begin
 
   if public.usa_comanda(new.salao_id) then return new; end if;
   if new.cliente_id is null then return new; end if;
+  /* Sessão de PACOTE não é dinheiro de hoje: a cliente pagou adiantado, e o
+     `agendar()` já gravou o valor zero. Mas a linha do serviço guarda o preço
+     cheio (é sobre ele que a escada de preço e a comissão olham), e somar
+     essas linhas fazia a sessão virar uma comanda fechada de preço cheio —
+     faturamento em dobro e comissão de um serviço que não entrou no caixa. */
+  if new.pacote_cliente_id is not null then return new; end if;
   if exists (select 1 from public.comandas c
               where c.agendamento_id = new.id) then return new; end if;
 
