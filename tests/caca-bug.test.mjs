@@ -197,9 +197,10 @@ const TEL_B = tel('82');
   await p.waitForFunction(() => meusDaNuvem && meusDaNuvem.ags && meusDaNuvem.ags.length, null, { timeout: 10000 });
   await p.evaluate(t => remarcarNaNuvem(t), primeiro); await p.waitForTimeout(500);
   verdade('Remarcar leva aos horários com a marca da remarcação', await p.evaluate(() => tela === 'quando' && !!escolha.remarcar));
-  // Desiste (volta) e começa uma marcação nova.
-  await p.evaluate(() => irPara('meus')); await p.waitForTimeout(500);
-  await p.evaluate(() => acaoPrincipal()); await p.waitForTimeout(500);
+  // Desiste: volta à capa e começa uma marcação nova pelo botão de lá — o
+  // caminho que NÃO zera a escolha (o de "Meus horários" zera por conta própria).
+  await p.evaluate(() => irPara('capa')); await p.waitForTimeout(500);
+  await p.click('.boas-cta'); await p.waitForTimeout(500);
   verdade('a marcação nova começa sem a marca', await p.evaluate(() => tela === 'servico' && !escolha.remarcar));
   await ateConfirmar(p, 'Bia Souza', TEL_B, 'Escova', 4);
   await p.click('#btPrincipal'); await p.waitForTimeout(3500);
@@ -384,7 +385,7 @@ secao('13. O painel na demonstração');
   });
   igual('cupom de um serviço desativado: o serviço continua marcado, e salvar não vira "todos"', cupom, [true, true]);
 
-  const pacote = await p.evaluate(() => { diaAtual = somarDias(hoje(), 45); irPara('pacotes');
+  const pacote = await p.evaluate(() => { diaAtual = somarDias(hoje(), 120); irPara('pacotes');
     const t = document.getElementById('listaPacotes').innerText; diaAtual = hoje(); return t; });
   verdade('o pacote conta as clientes pelo dia de hoje, não pelo dia aberto na agenda', /Clientes no pacote \(1\)/.test(pacote), pacote.slice(0, 200));
 
