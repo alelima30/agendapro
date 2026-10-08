@@ -110,9 +110,10 @@ troca supabase/34_cupons.sql \
 
 echo "8. banco: o pedido da loja não registra o uso"
 troca supabase/34_cupons.sql \
-  "  insert into public.cupom_usos (cupom_id, salao_id, origem, telefone, desconto)
+  "  insert into public.cupom_usos (cupom_id, salao_id, origem, telefone, perfil_id, desconto)
        values ((r->>'cupom_id')::uuid, p_salao, 'produtos',
-               nullif(public.telefone_nacional(eu.telefone), ''), (r->>'desconto')::numeric);" \
+               nullif(public.telefone_nacional(eu.telefone), ''), auth.uid(),
+               (r->>'desconto')::numeric);" \
   "  perform 1;" \
   && rodar "o limite da loja nunca chega"
 
@@ -175,8 +176,8 @@ troca agendar.html \
 
 echo "18. link: o total ignora o cupom"
 troca agendar.html \
-  "  const total = coberto ? 'R\$ 0,00' : real(preco - desc);" \
-  "  const total = coberto ? 'R\$ 0,00' : real(preco);" \
+  "  const total = real((coberto ? 0 : precoDela) + precoOutra - desc);" \
+  "  const total = real((coberto ? 0 : precoDela) + precoOutra);" \
   && rodar "aplicou e o total não desce"
 
 echo "19. loja: o carrinho muda e a prévia velha continua"

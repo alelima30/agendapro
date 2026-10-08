@@ -81,6 +81,17 @@ create table if not exists public.cupom_usos (
 );
 create index if not exists ix_cupom_usos_cupom on public.cupom_usos (cupom_id);
 
+/* A CONTA que usou (`auth.uid()`). Na loja é ela que identifica a cliente: o
+   cupom da loja só vale com a cliente dentro da conta (6), e quem só compra
+   pode nem ter ficha no salão — sem ficha não há telefone para o "1 por
+   cliente" comparar. O padrão preenche sozinho, também no `agendar()` de quem
+   está logada; sem login fica nulo. Coluna e padrão em dois passos: o padrão
+   não reescreve as linhas que já existiam. */
+alter table public.cupom_usos
+  add column if not exists perfil_id uuid references auth.users(id) on delete set null;
+alter table public.cupom_usos alter column perfil_id set default auth.uid();
+create index if not exists ix_cupom_usos_perfil on public.cupom_usos (cupom_id, perfil_id);
+
 -- ---------------------------------------------------------------------------
 -- 3) O agendamento guarda o cupom e quanto ele descontou
 -- ---------------------------------------------------------------------------
@@ -251,6 +262,11 @@ begin
   if p_origem not in ('agendamento', 'produtos') then
     return jsonb_build_object('ok', false, 'motivo', 'Cupom não encontrado. Confira as letras e os números.');
   end if;
+  -- Na loja, só com a cliente dentro da conta (6).
+  if p_origem = 'produtos' then
+    r := public.cupom_loja_da_conta(p_salao, p_codigo, false);
+    if r is not null then return r; end if;
+  end if;
   select * into eu from public.cupom_minha_ficha(p_salao);
   r := public.cupom_calcular(p_salao, p_codigo, p_origem, p_servicos, p_profissional,
                              p_inicio, p_itens, eu.telefone, eu.cliente_id, false);
@@ -260,14 +276,73 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 6) O cupom no pedido da loja
+-- 6) O cupom no pedido da loja — SÓ COM A CLIENTE DENTRO DA CONTA
 --
 -- O pedido vai pelo WhatsApp, e o salão fecha preço e pagamento na conversa.
 -- Ainda assim o uso é REGISTRADO aqui, na hora de enviar: é ele que conta
--- para o limite total. "1 por cliente" na loja vale para quem entrou na conta
--- (pela ficha dela, como na prévia); o pedido sem conta chega ao salão pelo
--- WhatsApp da pessoa, e é ali que o dono vê quem é.
+-- para o limite total.
+--
+-- ⚠ POR QUE A CONTA. Aberta a qualquer um, esta função gastava o cupom sem
+-- pedido nenhum: chamada em repetição por fora do link, ela registrava um uso
+-- por chamada até o limite, e o cupom do salão morria antes de a primeira
+-- cliente de verdade chegar (achado pelo caça-bug; decisão do dono do
+-- produto: cupom na loja só com login). Com a conta:
+--   · o mesmo pedido mandado de novo no MESMO DIA (ela corrigiu o carrinho)
+--     não gasta outro uso — chamar em repetição não esgota nada;
+--   · "1 por cliente" compara pela conta, mesmo para quem não tem ficha;
+--   · cada uso tem dono (`perfil_id`), e o salão vê de quem foi.
 -- ---------------------------------------------------------------------------
+create or replace function public.cupom_loja_da_conta(p_salao uuid, p_codigo text,
+                                                      p_travar boolean)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  c      public.cupons%rowtype;
+  v_uid  uuid := auth.uid();
+  v_fuso text;
+  v_ja   numeric(10,2);
+begin
+  if v_uid is null then
+    return jsonb_build_object('ok', false, 'entrar', true,
+      'motivo', 'Entre na sua conta para usar o cupom na loja.');
+  end if;
+
+  select * into c from public.cupons x
+   where x.salao_id = p_salao and x.ativo and x.vale_produtos
+     and x.codigo = upper(regexp_replace(coalesce(p_codigo, ''), '\s', '', 'g'));
+  -- Código que não existe: quem responde é a conta de sempre (cupom_calcular).
+  if not found then return null; end if;
+  if p_travar then
+    perform 1 from public.cupons x where x.id = c.id for update;
+  end if;
+
+  -- O pedido de hoje, mandado de novo: o uso já está registrado.
+  select coalesce(s.fuso, 'America/Sao_Paulo') into v_fuso
+    from public.saloes s where s.id = p_salao;
+  select u.desconto into v_ja from public.cupom_usos u
+   where u.cupom_id = c.id and u.origem = 'produtos' and u.perfil_id = v_uid
+     and (u.criado_em at time zone v_fuso)::date = (now() at time zone v_fuso)::date
+   order by u.criado_em desc limit 1;
+  if found then
+    return jsonb_build_object('ok', true, 'motivo', null, 'codigo', c.codigo,
+      'desconto', v_ja, 'repetido', true,
+      'rotulo', case when c.tipo = 'pct'
+                  then replace(trim(trailing '.' from trim(trailing '0' from c.valor::text)), '.', ',') || '%'
+                  else 'R$ ' || replace(to_char(c.valor, 'FM999999990.00'), '.', ',') end);
+  end if;
+
+  -- 1 por cliente, pela conta (na loja ou num agendamento que ainda vale).
+  if c.um_por_cliente and exists (
+       select 1 from public.cupom_usos u
+         left join public.agendamentos a on a.id = u.agendamento_id
+        where u.cupom_id = c.id and u.perfil_id = v_uid
+          and (u.agendamento_id is null
+               or (a.status <> 'cancelado' and a.arquivado_em is null)))
+  then
+    return jsonb_build_object('ok', false, 'motivo', 'Você já usou este cupom.');
+  end if;
+  return null;
+end $$;
+
 create or replace function public.usar_cupom_no_pedido(
   p_salao    uuid,
   p_codigo   text,
@@ -275,15 +350,18 @@ create or replace function public.usar_cupom_no_pedido(
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare r jsonb; eu record;
 begin
+  r := public.cupom_loja_da_conta(p_salao, p_codigo, true);
+  if r is not null then return r; end if;
   select * into eu from public.cupom_minha_ficha(p_salao);
   r := public.cupom_calcular(p_salao, p_codigo, 'produtos', null, null, null,
                              p_itens, eu.telefone, eu.cliente_id, true);
   if r->>'motivo' is not null then
     return jsonb_build_object('ok', false, 'motivo', r->>'motivo');
   end if;
-  insert into public.cupom_usos (cupom_id, salao_id, origem, telefone, desconto)
+  insert into public.cupom_usos (cupom_id, salao_id, origem, telefone, perfil_id, desconto)
        values ((r->>'cupom_id')::uuid, p_salao, 'produtos',
-               nullif(public.telefone_nacional(eu.telefone), ''), (r->>'desconto')::numeric);
+               nullif(public.telefone_nacional(eu.telefone), ''), auth.uid(),
+               (r->>'desconto')::numeric);
   return jsonb_build_object('ok', true, 'codigo', r->>'codigo',
     'desconto', (r->>'desconto')::numeric, 'rotulo', r->>'rotulo');
 end $$;
@@ -411,8 +489,8 @@ $$;
 -- Os cupons são cadastro do salão: a equipe lê, o gestor escreve. A cliente
 -- não lê a tabela — alcança só a prévia (`conferir_cupom`) e o pedido da loja
 -- (`usar_cupom_no_pedido`), que respondem um código de cada vez.
--- `cupom_calcular` e `cupom_minha_ficha` não são de ninguém: só o `agendar()`
--- e as funções acima chamam.
+-- `cupom_calcular`, `cupom_minha_ficha` e `cupom_loja_da_conta` não são de
+-- ninguém: só o `agendar()` e as funções acima chamam.
 -- ---------------------------------------------------------------------------
 alter table public.cupons     enable row level security;
 alter table public.cupom_usos enable row level security;
@@ -435,6 +513,7 @@ revoke all on public.cupons, public.cupom_usos from anon;
 revoke all on function public.cupom_calcular(uuid, text, text, uuid[], uuid, timestamptz, jsonb, text, uuid, boolean)
   from public, anon, authenticated;
 revoke all on function public.cupom_minha_ficha(uuid) from public, anon, authenticated;
+revoke all on function public.cupom_loja_da_conta(uuid, text, boolean) from public, anon, authenticated;
 revoke all on function public.conferir_cupom(uuid, text, text, uuid[], uuid, timestamptz, jsonb) from public;
 revoke all on function public.usar_cupom_no_pedido(uuid, text, jsonb) from public;
 revoke all on function public.salao_tem_cupom(uuid) from public;

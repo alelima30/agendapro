@@ -4465,6 +4465,10 @@ create table if not exists public.cupom_usos (
   criado_em      timestamptz not null default now()
 );
 create index if not exists ix_cupom_usos_cupom on public.cupom_usos (cupom_id);
+alter table public.cupom_usos
+  add column if not exists perfil_id uuid references auth.users(id) on delete set null;
+alter table public.cupom_usos alter column perfil_id set default auth.uid();
+create index if not exists ix_cupom_usos_perfil on public.cupom_usos (cupom_id, perfil_id);
 alter table public.agendamentos
   add column if not exists cupom_id uuid references public.cupons(id) on delete set null;
 alter table public.agendamentos
@@ -4591,12 +4595,60 @@ begin
   if p_origem not in ('agendamento', 'produtos') then
     return jsonb_build_object('ok', false, 'motivo', 'Cupom não encontrado. Confira as letras e os números.');
   end if;
+  if p_origem = 'produtos' then
+    r := public.cupom_loja_da_conta(p_salao, p_codigo, false);
+    if r is not null then return r; end if;
+  end if;
   select * into eu from public.cupom_minha_ficha(p_salao);
   r := public.cupom_calcular(p_salao, p_codigo, p_origem, p_servicos, p_profissional,
                              p_inicio, p_itens, eu.telefone, eu.cliente_id, false);
   return jsonb_build_object('ok', r->>'motivo' is null, 'codigo', r->>'codigo',
     'desconto', coalesce((r->>'desconto')::numeric, 0), 'rotulo', r->>'rotulo',
     'motivo', r->>'motivo');
+end $$;
+create or replace function public.cupom_loja_da_conta(p_salao uuid, p_codigo text,
+                                                      p_travar boolean)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  c      public.cupons%rowtype;
+  v_uid  uuid := auth.uid();
+  v_fuso text;
+  v_ja   numeric(10,2);
+begin
+  if v_uid is null then
+    return jsonb_build_object('ok', false, 'entrar', true,
+      'motivo', 'Entre na sua conta para usar o cupom na loja.');
+  end if;
+  select * into c from public.cupons x
+   where x.salao_id = p_salao and x.ativo and x.vale_produtos
+     and x.codigo = upper(regexp_replace(coalesce(p_codigo, ''), '\s', '', 'g'));
+  if not found then return null; end if;
+  if p_travar then
+    perform 1 from public.cupons x where x.id = c.id for update;
+  end if;
+  select coalesce(s.fuso, 'America/Sao_Paulo') into v_fuso
+    from public.saloes s where s.id = p_salao;
+  select u.desconto into v_ja from public.cupom_usos u
+   where u.cupom_id = c.id and u.origem = 'produtos' and u.perfil_id = v_uid
+     and (u.criado_em at time zone v_fuso)::date = (now() at time zone v_fuso)::date
+   order by u.criado_em desc limit 1;
+  if found then
+    return jsonb_build_object('ok', true, 'motivo', null, 'codigo', c.codigo,
+      'desconto', v_ja, 'repetido', true,
+      'rotulo', case when c.tipo = 'pct'
+                  then replace(trim(trailing '.' from trim(trailing '0' from c.valor::text)), '.', ',') || '%'
+                  else 'R$ ' || replace(to_char(c.valor, 'FM999999990.00'), '.', ',') end);
+  end if;
+  if c.um_por_cliente and exists (
+       select 1 from public.cupom_usos u
+         left join public.agendamentos a on a.id = u.agendamento_id
+        where u.cupom_id = c.id and u.perfil_id = v_uid
+          and (u.agendamento_id is null
+               or (a.status <> 'cancelado' and a.arquivado_em is null)))
+  then
+    return jsonb_build_object('ok', false, 'motivo', 'Você já usou este cupom.');
+  end if;
+  return null;
 end $$;
 create or replace function public.usar_cupom_no_pedido(
   p_salao    uuid,
@@ -4605,15 +4657,18 @@ create or replace function public.usar_cupom_no_pedido(
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare r jsonb; eu record;
 begin
+  r := public.cupom_loja_da_conta(p_salao, p_codigo, true);
+  if r is not null then return r; end if;
   select * into eu from public.cupom_minha_ficha(p_salao);
   r := public.cupom_calcular(p_salao, p_codigo, 'produtos', null, null, null,
                              p_itens, eu.telefone, eu.cliente_id, true);
   if r->>'motivo' is not null then
     return jsonb_build_object('ok', false, 'motivo', r->>'motivo');
   end if;
-  insert into public.cupom_usos (cupom_id, salao_id, origem, telefone, desconto)
+  insert into public.cupom_usos (cupom_id, salao_id, origem, telefone, perfil_id, desconto)
        values ((r->>'cupom_id')::uuid, p_salao, 'produtos',
-               nullif(public.telefone_nacional(eu.telefone), ''), (r->>'desconto')::numeric);
+               nullif(public.telefone_nacional(eu.telefone), ''), auth.uid(),
+               (r->>'desconto')::numeric);
   return jsonb_build_object('ok', true, 'codigo', r->>'codigo',
     'desconto', (r->>'desconto')::numeric, 'rotulo', r->>'rotulo');
 end $$;
@@ -4715,6 +4770,7 @@ revoke all on public.cupons, public.cupom_usos from anon;
 revoke all on function public.cupom_calcular(uuid, text, text, uuid[], uuid, timestamptz, jsonb, text, uuid, boolean)
   from public, anon, authenticated;
 revoke all on function public.cupom_minha_ficha(uuid) from public, anon, authenticated;
+revoke all on function public.cupom_loja_da_conta(uuid, text, boolean) from public, anon, authenticated;
 revoke all on function public.conferir_cupom(uuid, text, text, uuid[], uuid, timestamptz, jsonb) from public;
 revoke all on function public.usar_cupom_no_pedido(uuid, text, jsonb) from public;
 revoke all on function public.salao_tem_cupom(uuid) from public;
@@ -4779,6 +4835,8 @@ drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, te
                                        text, date);
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
                                        text, date, text);
+drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
+                                       text, date, text, text);
 create or replace function public.agendar(
   p_profissional  uuid,
   p_inicio        timestamptz,
@@ -4790,7 +4848,8 @@ create or replace function public.agendar(
   p_email         text default null,
   p_nascimento    date default null,
   p_cpf           text default null,
-  p_cupom         text default null)
+  p_cupom         text default null,
+  p_acompanhante  boolean default false)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -4867,7 +4926,7 @@ begin
   else
     v_quem := btrim(p_atendido_nome);
   end if;
-  if v_perfil is not null and exists (
+  if v_perfil is not null and not coalesce(p_acompanhante, false) and exists (
        select 1 from public.clientes c
         where c.id = v_cliente and c.perfil_id = v_perfil)
   then
@@ -5130,7 +5189,7 @@ revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
 revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                      text, text, date, text, text) from public;
+                                      text, text, date, text, text, boolean) from public;
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
 grant execute on function public.minha_fila(uuid[])          to anon, authenticated;
@@ -5138,7 +5197,7 @@ grant execute on function public.sair_da_fila(uuid)          to anon, authentica
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                         text, text, date, text, text) to anon, authenticated;
+                                         text, text, date, text, text, boolean) to anon, authenticated;
 create or replace function public.telefone_nacional(p_tel text)
 returns text language sql immutable set search_path = public as $$
   select case when length(d) >= 12 and left(d, 2) = '55' then substr(d, 3) else d end

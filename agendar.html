@@ -2770,7 +2770,9 @@ function desenharServicos(){
                  : real(precoEscolhido())}
              ${escolha.para === 'ambos'
                ? '<br>Como são dois atendimentos, a agenda precisa de '
-                 + duracaoNaAgenda() + ' min seguidos.' : ''}</div>` : '');
+                 + duracaoNaAgenda() + ' min seguidos.'
+                 + (pacoteCobre(escolha.servicos, escolha.data)
+                     ? ' O de quem vem com você é cobrado à parte.' : '') : ''}</div>` : '');
   // Tocar num serviço redesenha a lista: o relógio da moldura curvada é um
   // data-ico, e sem esta linha ele sumia a cada toque.
   if(window.aplicarIcones) aplicarIcones(alvo);
@@ -3654,11 +3656,15 @@ function resumoDoAgendamento(p, compacto){
   // O desconto é o que o banco respondeu na prévia (`conferir_cupom`); quem
   // grava é o `agendar()`, que refaz a conta. Pacote cobrindo: nada a descontar.
   // Na remarcação, o cupom do horário antigo vai junto (remarcar_agendamento).
-  const preco = precoEscolhido() + (ambos ? precoNoHorario(escolha.inicio + duracaoEscolhida()) : 0);
+  /* ⚠ O PACOTE COBRE SÓ O HORÁRIO DELA. No "eu e mais alguém" o da
+     acompanhante é cobrado à parte — o banco grava assim (`p_acompanhante`),
+     e o total aqui tem de dizer o mesmo, e não R$ 0,00 para os dois. */
+  const precoDela = precoEscolhido();
+  const precoOutra = ambos ? precoNoHorario(escolha.inicio + duracaoEscolhida()) : 0;
   const levado = escolha.remarcar && escolha.descontoAntigo > 0;
-  const desc = coberto ? 0 : levado ? Math.min(escolha.descontoAntigo, precoEscolhido())
+  const desc = coberto ? 0 : levado ? Math.min(escolha.descontoAntigo, precoDela)
                                     : descontoDoCupomAgenda();
-  const total = coberto ? 'R$ 0,00' : real(preco - desc);
+  const total = real((coberto ? 0 : precoDela) + precoOutra - desc);
   return topo
     + linha('tesoura', 'Serviço', escapar(nomesEscolhidos()))
     + linha('usuario', 'Profissional', quemAtende)
@@ -3869,12 +3875,28 @@ function blocoDoCupomLoja(){
   }
   const caixa = document.getElementById('lojaCupomCaixa');
   const aberto = !!cupomLojaErro || cupomLojaConferindo || !!(caixa && caixa.open);
-  return `<details class="cf-obs cupom-caixa" id="lojaCupomCaixa" style="margin-top:14px"${aberto ? ' open' : ''}>
-    <summary>
+  const resumo = `<summary>
       <span class="cf-ic" data-ico="cupom"></span>
       <span class="cf-obs-txt"><b>Tem um cupom de desconto?</b></span>
       <span class="cf-obs-seta" data-ico="baixo"></span>
-    </summary>
+    </summary>`;
+  /* ⚠ CUPOM NA LOJA SÓ DENTRO DA CONTA. O banco recusa sem login
+     (`cupom_loja_da_conta`, 34_cupons.sql): aberto a qualquer um, o pedido
+     gastava o cupom em repetição, sem compra nenhuma. Em vez do campo que
+     seria recusado, a caixa já diz o caminho. Entrando, a conta volta para
+     esta loja com o carrinho como estava. */
+  if(!logada()){
+    return `<details class="cf-obs cupom-caixa" id="lojaCupomCaixa" style="margin-top:14px"${aberto ? ' open' : ''}>
+    ${resumo}
+    <p class="cupom-conta">Para usar cupom na loja, entre na sua conta.</p>
+    <div class="cupom-linha">
+      <button type="button" class="cupom-aplicar" onclick="abrirConta('entrar')">Entrar</button>
+      <button type="button" class="link" onclick="abrirConta('criar')">Criar conta</button>
+    </div>
+  </details>`;
+  }
+  return `<details class="cf-obs cupom-caixa" id="lojaCupomCaixa" style="margin-top:14px"${aberto ? ' open' : ''}>
+    ${resumo}
     <div class="cupom-linha">
       <input id="cupomLojaTxt" class="cupom-txt" maxlength="30"
              value="${escapar(digitadoNoCupom('cupomLojaTxt', cupomLoja ? cupomLoja.codigo : ''))}"
@@ -3992,6 +4014,10 @@ function desenharPronto(pendente, prof){
    está, e "seu pacote vale seg, ter e qua" quando o dia é outro. O caso
    barrado (`so_nos_dias`) não chega aqui — ela nem escolheu horário. */
 function avisoDoPacote(){
+  if(pacoteCobre(escolha.servicos, escolha.data) && escolha.para === 'ambos')
+    return `<div class="recado ok" style="margin-top:10px">O seu horário está no
+      seu pacote. O de ${escapar(nomeDoAtendido() || 'quem vem com você')} é
+      cobrado à parte — o pacote é só seu.</div>`;
   if(pacoteCobre(escolha.servicos, escolha.data))
     return `<div class="recado ok" style="margin-top:10px">Este atendimento está
       no seu pacote. Você não paga nada agora.</div>`;
@@ -5511,12 +5537,15 @@ async function confirmarNaNuvem(profId, prof){
      depois, é o que garante que ele não se perca se a tela seguinte falhar:
      marcação feita sem o segredo guardado é marcação que a pessoa não
      consegue mais cancelar sozinha. */
-  const marcar = async (quandoIso, atendido, comCupom) => {
-    const r = await Dados.chamar('agendar', {
+  const marcar = async (quandoIso, atendido, comCupom, acompanhante) => {
+    const args = {
       /* Só quando há cupom: um banco que ainda não recebeu o 34_cupons.sql
          não conhece `p_cupom`, e mandar o campo vazio derrubaria toda
          marcação até o dono rodar o SQL. */
       ...(comCupom && cupom ? { p_cupom: cupom } : {}),
+      /* O horário de quem veio com ela: o banco não usa o pacote dela nele.
+         Só com login — sem conta não há pacote, e o campo não muda nada. */
+      ...(acompanhante && logada() ? { p_acompanhante: true } : {}),
       p_profissional: profId,
       p_inicio: quandoIso,
       p_servicos: escolha.servicos,
@@ -5535,7 +5564,18 @@ async function confirmarNaNuvem(profId, prof){
       p_email: sessao.email || null,
       p_nascimento: sessao.nascimento || null,
       p_cpf: sessao.cpf || null,
-    });
+    };
+    let r;
+    try{
+      r = await Dados.chamar('agendar', args);
+    }catch(e){
+      /* Banco que ainda não recebeu esta versão não conhece `p_acompanhante`:
+         marca como antes, em vez de deixar a acompanhante sem horário. */
+      const semCampo = e && (e.codigo === 'PGRST202' || /Could not find the function/.test(e.message || ''));
+      if(!(semCampo && args.p_acompanhante)) throw e;
+      delete args.p_acompanhante;
+      r = await Dados.chamar('agendar', args);
+    }
     const feito = Array.isArray(r) ? r[0] : r;
     if(feito && feito.token){
       novoToken = novoToken || feito.token;
@@ -5562,7 +5602,7 @@ async function confirmarNaNuvem(profId, prof){
          horário que não existe. */
       try{
         if(!segundoIso) throw new Error('o horário seguinte não está mais livre');
-        await marcar(segundoIso, filho || null);
+        await marcar(segundoIso, filho || null, false, true);
       }catch(e2){
         console.error('[AgendaPro] segundo horário:', e2);
         esquecerVagas();
@@ -6838,6 +6878,8 @@ async function sair(){
   sessao = null;
   try{ localStorage.removeItem(CHAVE_SESSAO); }catch(e){}
   meusPacotes = []; meusDaNuvem = null;
+  // O cupom da loja era da conta que saiu.
+  cupomLoja = null; cupomLojaErro = '';
   /* O formulário da marcação guarda o que a última pessoa digitou. Sem
      limpar, quem pegasse o celular depois começava com o nome, o WhatsApp, o
      e-mail e o aniversário de quem acabou de sair — e marcava no telefone

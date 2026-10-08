@@ -534,10 +534,11 @@ select t_verdade('anon pode executar horarios_livres',
 -- tempo deixariam o PostgREST escolher entre elas, e a antiga engole o
 -- cadastro sem erro nenhum.
 -- Onze desde o cupom (34_cupons.sql): o último é o código que a cliente
--- digitou. A de dez cai no 09, pela mesma razão das anteriores.
+-- digitou. A de dez cai no 09, pela mesma razão das anteriores. Doze desde
+-- `p_acompanhante` (o pacote não cobre quem veio junto); a de onze cai também.
 select t_verdade('anon pode executar agendar',
   has_function_privilege('anon',
-    'public.agendar(uuid, timestamptz, uuid[], text, text, text, text, text, date, text, text)',
+    'public.agendar(uuid, timestamptz, uuid[], text, text, text, text, text, date, text, text, boolean)',
     'execute'));
 
 /* Cumulativo: toda assinatura que já existiu continua cobrada aqui. Tirar
@@ -547,7 +548,7 @@ select t_falso('e nenhuma assinatura antiga de agendar sobrou viva',
   exists (select 1 from pg_proc p
             join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'public' and p.proname = 'agendar'
-             and p.pronargs in (7, 9, 10)));
+             and p.pronargs in (7, 9, 10, 11)));
 
 select t_falso('mas anon NÃO lê a tabela de agendamentos',
   has_table_privilege('anon', 'public.agendamentos', 'select'));

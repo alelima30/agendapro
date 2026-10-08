@@ -136,14 +136,17 @@ revoke all on function public.cliente_exige_confirmacao(uuid, uuid, text)
 -- listada aqui para sempre. Tirar uma da lista, um dia, é deixar viva a
 -- sobrecarga que ela derrubava — num banco que já estava instalado.
 -- ---------------------------------------------------------------------------
--- A de sete (do 05_agenda.sql), a de nove e a de dez (versões anteriores deste
--- arquivo; a de onze, de agora, trouxe o cupom do 34_cupons.sql). Todas caem,
--- sempre, para nunca sobrar sobrecarga viva.
+-- A de sete (do 05_agenda.sql), a de nove, a de dez e a de onze (versões
+-- anteriores deste arquivo; a de onze trouxe o cupom do 34_cupons.sql, e a de
+-- doze, de agora, o `p_acompanhante`). Todas caem, sempre, para nunca sobrar
+-- sobrecarga viva.
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text);
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
                                        text, date);
 drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
                                        text, date, text);
+drop function if exists public.agendar(uuid, timestamptz, uuid[], text, text, text, text,
+                                       text, date, text, text);
 
 create or replace function public.agendar(
   p_profissional  uuid,
@@ -156,7 +159,11 @@ create or replace function public.agendar(
   p_email         text default null,
   p_nascimento    date default null,
   p_cpf           text default null,
-  p_cupom         text default null)
+  p_cupom         text default null,
+  /* O segundo horário de "eu e mais alguém": é de quem veio COM ela. O pacote
+     é dela, e não cobre a acompanhante — esse horário sai pelo preço normal,
+     e a sessão do pacote não é gasta. */
+  p_acompanhante  boolean default false)
 returns table (id uuid, inicio timestamptz, fim timestamptz, valor numeric,
                token uuid)
 language plpgsql security definer set search_path = public as $$
@@ -316,7 +323,13 @@ begin
      E o preço sai DAQUI, nunca do navegador. Quem chamar `agendar()` por fora
      com o mesmo horário leva o preço cheio, porque quem decide é esta linha.
      ══════════════════════════════════════════════════════════════════════ */
-  if v_perfil is not null and exists (
+  /* ⚠ E O PACOTE É DELA, NÃO DE QUEM VEIO JUNTO. No "eu e mais alguém" o
+     segundo horário chega com `p_acompanhante`: sem esta condição, os dois
+     horários saíam por R$ 0,00 e gastavam DUAS sessões do pacote dela — a
+     acompanhante era atendida de graça. Decisão do dono do produto: a
+     acompanhante paga à parte. "Para outra pessoa" (a filha, sozinha) não
+     passa por aqui e continua como era. */
+  if v_perfil is not null and not coalesce(p_acompanhante, false) and exists (
        select 1 from public.clientes c
         where c.id = v_cliente and c.perfil_id = v_perfil)
   then
@@ -738,7 +751,7 @@ revoke all on function public.sair_da_fila(uuid)          from public;
 revoke all on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                              uuid, text, text) from public;
 revoke all on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                      text, text, date, text, text) from public;
+                                      text, text, date, text, text, boolean) from public;
 
 grant execute on function public.meus_agendamentos(uuid[])   to anon, authenticated;
 grant execute on function public.cancelar_agendamento(uuid)  to anon, authenticated;
@@ -747,7 +760,7 @@ grant execute on function public.sair_da_fila(uuid)          to anon, authentica
 grant execute on function public.entrar_na_fila(uuid, uuid[], text, text, date, date,
                                                 uuid, text, text) to anon, authenticated;
 grant execute on function public.agendar(uuid, timestamptz, uuid[], text, text, text,
-                                         text, text, date, text, text) to anon, authenticated;
+                                         text, text, date, text, text, boolean) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 7) A CONTA DA CLIENTE NO LINK

@@ -18,7 +18,9 @@
      7. remarcar leva o cupom junto, e a tela diz isso;
      8. sair da conta limpa o cadastro da tela;
      9. a loja acha sem acento, e reenviar o pedido corrigido não gasta outro
-        uso do cupom.
+        uso do cupom; cupom na loja só dentro da conta;
+    9b. "eu e mais alguém" com pacote: o horário dela sai pelo pacote, o da
+        acompanhante é cobrado à parte — na tela e no banco.
    ── O PAINEL ──────────────────────────────────────────────────────────────
     10. a tela Hoje usa o cartão do mês (nome, status, serviço, valor);
     11. tirar um item da comanda com a rede lenta tira do banco também;
@@ -262,7 +264,14 @@ secao('9. A loja: sem acento, e o pedido corrigido não gasta outro uso');
   await p.evaluate(id => { window.__abertos = []; window.open = u => { window.__abertos.push(u); return null; };
     mudarNoCarrinho(id, 1); }, mascara.id);
   await p.waitForTimeout(400);
-  await p.click('#lojaCupomCaixa summary'); await p.fill('#cupomLojaTxt', 'loja10');
+  // Cupom na loja só dentro da conta: cria a conta pela própria caixa do cupom.
+  await p.click('#lojaCupomCaixa summary');
+  await p.click('#lojaCupomCaixa button:has-text("Criar conta")'); await p.waitForTimeout(300);
+  await p.fill('#cNome', 'Dri Loja'); await p.fill('#cTel', masc(tel('85')));
+  await p.fill('#cEmail', `dri-${m}@t.com`); await p.fill('#cSenha', 'senhadadri1');
+  await p.click('#btPrincipal'); await p.waitForTimeout(2500);
+  if(!(await p.isVisible('#cupomLojaTxt'))) await p.click('#lojaCupomCaixa summary');
+  await p.fill('#cupomLojaTxt', 'loja10');
   await p.click('#lojaCupomCaixa .cupom-aplicar'); await p.waitForTimeout(1200);
   await p.click('#btPrincipal'); await p.waitForTimeout(1500);
   const usos = async () => (um(await dona.chamar('usos_dos_cupons', { p_salao: SALAO })) || {});
@@ -274,6 +283,79 @@ secao('9. A loja: sem acento, e o pedido corrigido não gasta outro uso');
   const msg = decodeURIComponent((await p.evaluate(() => window.__abertos.slice(-1)[0] || '')).split('?text=')[1] || '');
   igual('corrigiu o pedido e mandou de novo: continua 1 uso', (await usos())[LOJA10.id], 1);
   verdade('e a mensagem nova ainda leva o cupom', /Cupom LOJA10/.test(msg), msg);
+  await ctx.close();
+
+  // Por fora do link, direto no banco: sem conta não gasta; com conta, chamar
+  // em repetição no mesmo dia gasta UM uso só.
+  const itens = [{ id: oleo.id, qtd: 1 }];
+  const semConta = um(await aba().chamar('usar_cupom_no_pedido', { p_salao: SALAO, p_codigo: 'LOJA10', p_itens: itens }));
+  igual('sem conta, o pedido da loja não usa o cupom', [semConta.ok, semConta.entrar, (await usos())[LOJA10.id]], [false, true, 1]);
+  const insistente = aba();
+  await insistente.criarConta({ email:`ins-${m}@t.com`, senha:'senhainsistente1', nome:'Ivo Insiste',
+    telefone:'+55' + tel('87') });
+  for(let i = 0; i < 4; i++)
+    await insistente.chamar('usar_cupom_no_pedido', { p_salao: SALAO, p_codigo: 'LOJA10', p_itens: itens });
+  igual('a mesma conta chamando 4 vezes gasta 1 uso (não esgota o cupom)', (await usos())[LOJA10.id], 2);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('9b. "Eu e mais alguém" com pacote: a acompanhante paga à parte');
+{
+  const TEL_L = tel('86');
+  const lia = aba();
+  await lia.criarConta({ email:`lia-${m}@t.com`, senha:'senhadalia1', nome:'Lia Pacote', telefone:'+55' + TEL_L });
+  const anon2 = aba();
+  const livres = async d => {
+    const h = await anon2.chamar('horarios_livres', { p_profissional: prof.id, p_data: diaMais(d), p_servicos: [corte.id] });
+    return (Array.isArray(h) ? h : []).map(x => typeof x === 'string' ? x : Object.values(x)[0]);
+  };
+  let d0 = 9; while(!(await livres(d0)).length) d0++;
+  // A ficha nasce da primeira marcação (com a conta), como na vida real.
+  const primeira = um(await lia.chamar('agendar', { p_profissional: prof.id, p_inicio: (await livres(d0))[0],
+    p_servicos: [corte.id], p_nome: 'Lia Pacote', p_telefone: TEL_L }));
+  await dona.atualizar('agendamentos', primeira.id, { status: 'cancelado' });
+  const ficha = (await dona.lista('clientes', { salaoId: SALAO })).find(c => c.telefone === TEL_L);
+  const pac = await dona.inserir('pacotes', { salaoId: SALAO, nome:'4 Cortes', preco:240, sessoes:4,
+    validadeDias:90, dias:[0,1,2,3,4,5,6], ativo:true });
+  await dona.inserir('pacote_servicos', { pacoteId: pac.id, servicoId: corte.id });
+  await dona.chamar('vender_pacote', { p_pacote: pac.id, p_cliente: ficha.id });
+
+  const { ctx, p } = await abrirLink();
+  await p.evaluate(() => abrirConta('entrar')); await p.waitForTimeout(300);
+  await p.fill('#cEmail', `lia-${m}@t.com`); await p.fill('#cSenha', 'senhadalia1');
+  await p.click('#btPrincipal'); await p.waitForTimeout(2500);
+  verdade('entrou na conta, e o pacote apareceu', await p.evaluate(() => logada() && meusPacotes.length === 1));
+  if(await p.evaluate(() => tela !== 'capa')) await p.evaluate(() => irPara('capa'));
+  await p.click('.boas-cta'); await p.waitForTimeout(300);
+  await p.click('#listaServicos .sv-cartao:has-text("Corte")'); await p.click('#btPrincipal'); await p.waitForTimeout(300);
+  await p.click('#quemOutra'); await p.waitForTimeout(300);
+  await p.evaluate(() => escolherRelacao('outra'));
+  await p.fill('#fAtendido', 'Bia Amiga'); await p.check('#fJunto');
+  await p.click('#btPrincipal'); await p.waitForTimeout(500);
+  if(await p.evaluate(() => tela === 'prof')) await p.click('#btPrincipal');
+  await p.waitForTimeout(1800);
+  await p.locator('#listaDias .dia:not(.sem)').nth(4).click();
+  await p.waitForFunction(() => document.querySelectorAll('#listaHoras .hora').length > 0, null, { timeout: 10000 });
+  await p.click('#listaHoras .hora'); await p.click('#btPrincipal'); await p.waitForTimeout(900);
+  if(await p.evaluate(() => tela === 'dados')){
+    if(await p.isVisible('#dNasc') && !(await p.inputValue('#dNasc'))) await p.fill('#dNasc', '1990-01-01');
+    if(await p.isVisible('#dEmail') && !(await p.inputValue('#dEmail'))) await p.fill('#dEmail', `lia-${m}@t.com`);
+    await p.click('#btPrincipal'); await p.waitForTimeout(1200);
+  }
+  const conf = await p.evaluate(() => ({ tela, para: escolha.para,
+    total: ((document.querySelector('#resumoFinal .cf-total b') || {}).textContent || '').replace(/\s/g, ' '),
+    aviso: ((document.querySelector('#resumoFinal .recado.ok') || {}).textContent || '').replace(/\s+/g, ' ') }));
+  igual('o total é o da acompanhante (R$ 80,00), e não R$ 0,00 para as duas', [conf.tela, conf.para, conf.total],
+    ['confirmar', 'ambos', 'R$ 80,00']);
+  verdade('e a tela diz: o seu no pacote, o da Bia cobrado à parte',
+    /O seu horário está no seu pacote/.test(conf.aviso) && /Bia Amiga é cobrado à parte/.test(conf.aviso), conf.aviso);
+  await p.click('#btPrincipal'); await p.waitForTimeout(4000);
+  const dela = (await dona.lista('agendamentos', { salaoId: SALAO }))
+    .filter(a => a.clienteId === ficha.id && a.status !== 'cancelado')
+    .sort((a, b) => String(a.inicio).localeCompare(String(b.inicio)));
+  igual('no banco: o dela por R$ 0 no pacote, o da Bia por R$ 80 fora dele',
+    [await p.evaluate(() => tela), dela.map(a => [Number(a.valorPrevisto), !!a.pacoteClienteId, a.atendidoNome || null])],
+    ['pronto', [[0, true, null], [80, false, 'Bia Amiga']]]);
   await ctx.close();
 }
 

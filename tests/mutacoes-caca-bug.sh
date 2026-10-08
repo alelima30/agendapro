@@ -16,8 +16,8 @@ T=tests/caca-bug.test.mjs
 export PLAYWRIGHT=${PLAYWRIGHT:-/opt/node22/lib/node_modules/playwright}
 PSQL="psql -h ${PGHOST_BANCADA:-/tmp} -p ${PGPORT_BANCADA:-5444} -U postgres -d app -v ON_ERROR_STOP=1 -q"
 
-ARQS="app.html agendar.html supabase/34_cupons.sql"
-SQLS="supabase/34_cupons.sql"
+ARQS="app.html agendar.html supabase/34_cupons.sql supabase/09_cliente.sql"
+SQLS="supabase/34_cupons.sql supabase/09_cliente.sql"
 guarda(){ echo "/tmp/mcb-$(echo "$1" | tr '/' '_')"; }
 for a in $ARQS; do cp "$a" "$(guarda "$a")"; done
 aplicar(){ for f in $SQLS; do $PSQL -f "$f" >/dev/null 2>&1 || return 1; done; }
@@ -86,8 +86,8 @@ troca agendar.html \
 
 echo "5. link: eu e mais alguém cobra um só"
 troca agendar.html \
-  "  const preco = precoEscolhido() + (ambos ? precoNoHorario(escolha.inicio + duracaoEscolhida()) : 0);" \
-  "  const preco = precoEscolhido();" \
+  "  const precoOutra = ambos ? precoNoHorario(escolha.inicio + duracaoEscolhida()) : 0;" \
+  "  const precoOutra = 0;" \
   && rodar "o total é de uma pessoa"
 
 echo "6. link: a marca da remarcação fica para a próxima marcação"
@@ -222,6 +222,48 @@ troca app.html \
   "  if(ag.pacoteClienteId) return 0;" \
   "  ;" \
   && rodar "a agenda cobra o que o pacote já pagou"
+
+echo "27. banco: o pacote cobre a acompanhante"
+troca supabase/09_cliente.sql \
+  "  if v_perfil is not null and not coalesce(p_acompanhante, false) and exists (" \
+  "  if v_perfil is not null and exists (" \
+  && rodar "a acompanhante é atendida de graça"
+
+echo "28. link: o segundo horário não diz que é da acompanhante"
+troca agendar.html \
+  "        await marcar(segundoIso, filho || null, false, true);" \
+  "        await marcar(segundoIso, filho || null, false, false);" \
+  && rodar "o banco gasta duas sessões"
+
+echo "29. link: o total de eu e mais alguém com pacote volta a R\$ 0"
+troca agendar.html \
+  "  const total = real((coberto ? 0 : precoDela) + precoOutra - desc);" \
+  "  const total = coberto ? 'R\$ 0,00' : real(precoDela + precoOutra - desc);" \
+  && rodar "a tela promete de graça e o salão cobra"
+
+echo "30. banco: cupom na loja sem conta"
+troca supabase/34_cupons.sql \
+  "  if v_uid is null then
+    return jsonb_build_object('ok', false, 'entrar', true," \
+  "  if false then
+    return jsonb_build_object('ok', false, 'entrar', true," \
+  && rodar "qualquer um gasta o cupom por fora"
+
+echo "31. banco: a mesma conta gasta um uso a cada chamada"
+troca supabase/34_cupons.sql \
+  "  if found then
+    return jsonb_build_object('ok', true, 'motivo', null, 'codigo', c.codigo," \
+  "  if false then
+    return jsonb_build_object('ok', true, 'motivo', null, 'codigo', c.codigo," \
+  && rodar "chamar em repetição esgota o cupom"
+
+echo "32. link: a caixa do cupom da loja mostra o campo sem conta"
+troca agendar.html \
+  "  if(!logada()){
+    return \`<details" \
+  "  if(false){
+    return \`<details" \
+  && rodar "a cliente digita e só descobre a recusa no fim"
 
 echo
 echo "mortas: $morta · sobreviveram: $viva · não rodaram: $perdida"

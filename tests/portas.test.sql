@@ -207,7 +207,7 @@ begin
       to_regprocedure('public.vitrine(text)')::oid, 'EXECUTE'));
   perform t_verdade('e ainda consegue marcar horário',
     has_function_privilege('anon',
-      to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text)')::oid,
+      to_regprocedure('public.agendar(uuid,timestamptz,uuid[],text,text,text,text,text,date,text,text,boolean)')::oid,
       'EXECUTE'));
 end $$;
 

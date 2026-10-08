@@ -102,6 +102,11 @@ const DOIS    = await cupom('DOIS',     { valor:50, limiteTotal:2, umPorCliente:
 const LOJA10  = await cupom('LOJA10',   { valor:10, valeAgendamento:false, valeProdutos:true, umPorCliente:false });
 
 const anon = aba();
+/* Cupom NA LOJA só com a cliente dentro da conta (decisão do dono do produto,
+   depois do caça-bug): quem confere o cálculo da loja aqui é uma conta. */
+const compradora = aba();
+await compradora.criarConta({ email:`cp-loja-${m}@teste.com`, senha:'senhadaloja1',
+  nome:'Lu Compras', telefone:'+5511' + (910000000 + (Date.now() % 89999999)) });
 async function vaga(d, servicos){
   const h = await anon.chamar('horarios_livres', { p_profissional: prof.id, p_data: diaMais(d), p_servicos: servicos });
   return (Array.isArray(h) ? h : []).map(x => typeof x === 'string' ? x : Object.values(x)[0])[0];
@@ -133,11 +138,17 @@ igual('o código é guardado em maiúsculas e sem espaço', BEM.codigo, 'BEMVIND
     [des.motivo, inex.motivo], ['Cupom não encontrado. Confira as letras e os números.', 'Cupom não encontrado. Confira as letras e os números.']);
   igual('o da loja não vale no agendamento', (await conferir('LOJA20')).motivo, 'Este cupom vale só para os produtos da loja.');
   igual('o do agendamento não vale na loja',
-    (await conferir('BEMVINDA10', { p_origem:'produtos', p_itens:[{ id: shampoo.id, qtd: 1 }] })).motivo, 'Este cupom vale só para agendamento.');
-  const lj = await conferir('LOJA20', { p_origem:'produtos', p_itens:[{ id: shampoo.id, qtd: 2 }] });
-  igual('20% em dois shampoos de R$ 40: R$ 16 (o preço sai do cadastro)', [lj.ok, Number(lj.desconto)], [true, 16]);
+    (await compradora.chamar('conferir_cupom', { p_salao: SALAO, p_codigo:'BEMVINDA10', p_origem:'produtos',
+      p_itens:[{ id: shampoo.id, qtd: 1 }] }).then(um)).motivo, 'Este cupom vale só para agendamento.');
+  const semConta = await conferir('LOJA20', { p_origem:'produtos', p_itens:[{ id: shampoo.id, qtd: 2 }] });
+  igual('na loja, sem conta, a prévia pede para entrar', [semConta.ok, semConta.entrar, semConta.motivo],
+    [false, true, 'Entre na sua conta para usar o cupom na loja.']);
+  const naLoja = (codigo, itens) => compradora.chamar('conferir_cupom', { p_salao: SALAO, p_codigo: codigo,
+    p_origem:'produtos', p_itens: itens }).then(um);
+  const lj = await naLoja('LOJA20', [{ id: shampoo.id, qtd: 2 }]);
+  igual('logada: 20% em dois shampoos de R$ 40: R$ 16 (o preço sai do cadastro)', [lj.ok, Number(lj.desconto)], [true, 16]);
   igual('item inventado não vira base de desconto',
-    (await conferir('LOJA20', { p_origem:'produtos', p_itens:[{ id: corte.id, qtd: 5 }] })).motivo,
+    (await naLoja('LOJA20', [{ id: corte.id, qtd: 5 }])).motivo,
     'Escolha um produto com preço antes de usar o cupom.');
   igual('o salão tem cupom valendo, nos dois lugares', um(await anon.chamar('salao_tem_cupom', { p_salao: SALAO })),
     { produtos: true, agendamento: true });
@@ -183,10 +194,15 @@ let AG_ANA, AG_CAU;
 /* ══════════════════════════════════════════════════════════════════════════ */
 secao('3. A loja: o uso registrado e o limite');
 {
-  const r1 = um(await anon.chamar('usar_cupom_no_pedido', { p_salao: SALAO, p_codigo:'loja20', p_itens:[{ id: shampoo.id, qtd: 2 }] }));
-  igual('o pedido com cupom registra o uso e devolve o desconto do banco', [r1.ok, Number(r1.desconto), r1.codigo], [true, 16, 'LOJA20']);
-  const r2 = um(await anon.chamar('usar_cupom_no_pedido', { p_salao: SALAO, p_codigo:'LOJA20', p_itens:[{ id: shampoo.id, qtd: 1 }] }));
-  igual('limite de 1: o segundo pedido é recusado', [r2.ok, r2.motivo], [false, 'Este cupom já foi usado o máximo de vezes.']);
+  const r0 = um(await anon.chamar('usar_cupom_no_pedido', { p_salao: SALAO, p_codigo:'loja20', p_itens:[{ id: shampoo.id, qtd: 2 }] }));
+  igual('sem conta, o pedido com cupom é recusado (e não gasta o cupom)', [r0.ok, r0.entrar], [false, true]);
+  const r1 = um(await compradora.chamar('usar_cupom_no_pedido', { p_salao: SALAO, p_codigo:'loja20', p_itens:[{ id: shampoo.id, qtd: 2 }] }));
+  igual('logada, o pedido com cupom registra o uso e devolve o desconto do banco', [r1.ok, Number(r1.desconto), r1.codigo], [true, 16, 'LOJA20']);
+  const outra = aba();
+  await outra.criarConta({ email:`cp-loja2-${m}@teste.com`, senha:'senhadaloja2',
+    nome:'Mel Compras', telefone:'+5511' + (920000000 + (Date.now() % 79999999)) });
+  const r2 = um(await outra.chamar('usar_cupom_no_pedido', { p_salao: SALAO, p_codigo:'LOJA20', p_itens:[{ id: shampoo.id, qtd: 1 }] }));
+  igual('limite de 1: o pedido de outra conta é recusado', [r2.ok, r2.motivo], [false, 'Este cupom já foi usado o máximo de vezes.']);
   const usos = um(await dona.chamar('usos_dos_cupons', { p_salao: SALAO }));
   igual('a contagem do painel: BEMVINDA10 1, DOIS 2 (o desmarcado não conta), LOJA20 1',
     [usos[BEM.id], usos[DOIS.id], usos[LOJA20.id]], [1, 2, 1]);
@@ -422,6 +438,19 @@ secao('8. A loja do link');
     mudarNoCarrinho(id, 1); irPara('loja'); }, shampoo.id);
   await p.waitForTimeout(500);
   verdade('com produto no carrinho, a loja oferece o cupom', await p.isVisible('#lojaCupomCaixa'));
+  await p.click('#lojaCupomCaixa summary'); await p.waitForTimeout(200);
+  igual('sem conta: a caixa pede para entrar, e não mostra o campo do código',
+    await p.evaluate(() => [/entre na sua conta/i.test(document.getElementById('lojaCupomCaixa').innerText),
+      !!document.getElementById('cupomLojaTxt'),
+      [...document.querySelectorAll('#lojaCupomCaixa button')].map(b => b.textContent.trim())]),
+    [true, false, ['Entrar', 'Criar conta']]);
+  await p.click('#lojaCupomCaixa button:has-text("Criar conta")'); await p.waitForTimeout(300);
+  await p.fill('#cNome', 'Gal Prado'); await p.fill('#cTel', masc(tel('97')));
+  await p.fill('#cEmail', `gal-${m}@t.com`); await p.fill('#cSenha', 'senhadagal1');
+  await p.click('#btPrincipal'); await p.waitForTimeout(2500);
+  igual('criou a conta e voltou para a loja, com o carrinho e o campo do código',
+    await p.evaluate(() => [tela, logada(), carrinho[Object.keys(carrinho)[0]], !!document.getElementById('cupomLojaTxt') || null]),
+    ['loja', true, 1, true]);
   await aplicar(p, 'BEMVINDA10', '#cupomLojaTxt');
   igual('o do agendamento é recusado na loja', await p.evaluate(() => (document.querySelector('#listaProdutos .cupom-erro') || {}).textContent || ''),
     'Este cupom vale só para agendamento.');
