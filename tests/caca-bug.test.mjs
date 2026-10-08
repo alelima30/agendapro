@@ -279,10 +279,15 @@ secao('9. A loja: sem acento, e o pedido corrigido não gasta outro uso');
   const LOJA10 = cupons.find(c => c.codigo === 'LOJA10');
   igual('enviou: 1 uso registrado', (await usos())[LOJA10.id], 1);
   await p.evaluate(id => mudarNoCarrinho(id, 1), oleo.id); await p.waitForTimeout(1200);
+  const enviados = await p.evaluate(() => window.__abertos.length);
   await p.click('#btPrincipal'); await p.waitForTimeout(1500);
   const msg = decodeURIComponent((await p.evaluate(() => window.__abertos.slice(-1)[0] || '')).split('?text=')[1] || '');
   igual('corrigiu o pedido e mandou de novo: continua 1 uso', (await usos())[LOJA10.id], 1);
   verdade('e a mensagem nova ainda leva o cupom', /Cupom LOJA10/.test(msg), msg);
+  // O cupom já registrado acompanha o pedido corrigido: a mensagem sai direto
+  // (uma janela, sem pedir ao banco outro uso) e leva o item novo.
+  igual('o pedido corrigido sai direto, sem registrar o cupom de novo, e com o item novo',
+    [await p.evaluate(() => window.__abertos.length) - enviados, /Óleo Argan/.test(msg)], [1, true]);
   await ctx.close();
 
   // Por fora do link, direto no banco: sem conta não gasta; com conta, chamar
