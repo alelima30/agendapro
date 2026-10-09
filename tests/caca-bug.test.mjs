@@ -69,7 +69,12 @@ const m = Date.now().toString(36) + Math.floor(Math.random()*1000);
 const n7 = String(Date.now() % 10000000).padStart(7, '0');
 const tel = k => '51' + k + n7;
 const masc = d => `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
-const diaMais = d => { const x = new Date(); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); };
+/* O dia é o do SALÃO (São Paulo), e não o do relógio UTC: das 21h à
+   meia-noite o UTC já está no dia seguinte, e "ontem" pelo UTC é "hoje" no
+   salão — o cupom vencido "ontem" ainda valia, e o teste reprovava à noite. */
+const hojeNoSalao = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+const diaMais = d => { const [a, m, dd] = hojeNoSalao().split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, dd + d)).toISOString().slice(0, 10); };
 const espaco = t => String(t || '').replace(/\s/g, ' ');
 
 // ── O salão: segunda a sábado, domingo FECHADO ─────────────────────────────
