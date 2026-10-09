@@ -72,11 +72,11 @@ await p.evaluate(() => iniciar());
 await p.waitForTimeout(500);
 e('salão vazio: ele abre sozinho, no passo 1',
   await p.evaluate(() => !document.getElementById('primeiroDia').hidden
-    && document.getElementById('pdContador').textContent === 'Passo 1 de 8'),
+    && document.getElementById('pdContador').textContent === 'Passo 1 de 10'),
   await p.evaluate(() => document.getElementById('pdContador').textContent));
 
 /* ⚠ QUEM TRABALHA NA RECEPÇÃO NÃO DECIDE PREÇO DE SERVIÇO.
-   Um assistente de oito passos de cadastro caindo na tela dela seria oferecer
+   Um assistente de dez passos de cadastro caindo na tela dela seria oferecer
    um trabalho que não é dela — e que o RLS recusaria no meio do caminho. */
 const semRecepcao = await p.evaluate(() => {
   document.getElementById('primeiroDia').hidden = true;
@@ -117,7 +117,7 @@ console.log('\nA barra de progresso');
 await p.evaluate(() => abrirPrimeiroDia(1));
 await p.waitForTimeout(200);
 const passos = [];
-for(let i = 1; i <= 8; i++){
+for(let i = 1; i <= 10; i++){
   passos.push(await p.evaluate(() => ({
     contador: document.getElementById('pdContador').textContent,
     titulo:   document.getElementById('pdTitulo').textContent,
@@ -126,17 +126,17 @@ for(let i = 1; i <= 8; i++){
     voltar:   document.getElementById('pdVoltar').style.visibility,
     proximo:  document.getElementById('pdProximo').textContent.trim(),
   })));
-  if(i < 8) await p.evaluate(() => pdAndar(1));
+  if(i < 10) await p.evaluate(() => pdAndar(1));
   await p.waitForTimeout(120);
 }
-e('os oito passos têm título e corpo',
+e('os dez passos têm título e corpo',
   passos.every(x => x.titulo.length > 3 && x.corpo > 100),
   JSON.stringify(passos.map(x => [x.titulo, x.corpo])));
 e('o contador acompanha — ' + passos.map((_, i) => i + 1).join(','),
-  passos.every((x, i) => x.contador === 'Passo ' + (i + 1) + ' de 8'),
+  passos.every((x, i) => x.contador === 'Passo ' + (i + 1) + ' de 10'),
   JSON.stringify(passos.map(x => x.contador)));
 e('a barra cresce até 100% — ' + passos.map(x => x.barra).join(' '),
-  passos[0].barra === '13%' && passos[7].barra === '100%'
+  passos[0].barra === '10%' && passos[9].barra === '100%'
   && passos.every((x, i) => i === 0 || parseInt(x.barra) > parseInt(passos[i-1].barra)),
   JSON.stringify(passos.map(x => x.barra)));
 /* Sumindo em vez de ficar invisível, os outros botões do rodapé pulariam de
@@ -144,8 +144,8 @@ e('a barra cresce até 100% — ' + passos.map(x => x.barra).join(' '),
 e('no passo 1 o "Voltar" fica invisível, mas ocupa o lugar dele',
   passos[0].voltar === 'hidden' && passos[1].voltar !== 'hidden');
 e('no último passo o botão diz "Terminei", e não "Próximo"',
-  /Terminei/.test(passos[7].proximo) && passos.slice(0, 7)
-    .every(x => /Próximo/.test(x.proximo)), passos[7].proximo);
+  /Terminei/.test(passos[9].proximo) && passos.slice(0, 9)
+    .every(x => /Próximo/.test(x.proximo)), passos[9].proximo);
 
 /* ── 3 · O horário ───────────────────────────────────────────────────────── */
 console.log('\nO horário de atendimento');
@@ -507,6 +507,142 @@ await p.evaluate(() => {
   document.getElementById('primeiroDia').hidden = true;
 });
 
+/* ── 8b · O endereço e o Instagram, no passo 1 ───────────────────────────── */
+console.log('\nO endereço e o Instagram');
+
+await p.evaluate(() => { abrirPrimeiroDia(1); });
+await p.waitForTimeout(200);
+const endereco = await p.evaluate(() => {
+  const campos = ['pdRua','pdNum','pdCompl','pdBairro','pdCep','pdCidade','pdUf','pdInsta']
+    .filter(i => !!document.getElementById(i));
+  const pos = (i, v) => { document.getElementById(i).value = v; };
+  // Valores que o salão de demonstração NÃO tem: com os dele, "não gravou"
+  // passaria despercebido.
+  pos('pdRua', 'Avenida Brasil'); pos('pdNum', '1500'); pos('pdCompl', 'Loja 3');
+  pos('pdBairro', 'Jardim Novo'); pos('pdCep', '13309-123'); pos('pdCidade', 'Salto');
+  pos('pdUf', 'MG'); pos('pdInsta', '@studio.bella');
+  const ok = pdGuardar1();
+  const sl = acharSalao(salaoAtual);
+  return { campos, ok, end: sl.endereco, insta: (sl.cfg || {}).instagram,
+           linha: Endereco.linha(sl.endereco) };
+});
+e('o passo 1 pergunta onde fica: rua, número, complemento, bairro, CEP, cidade, UF e Instagram',
+  endereco.campos.length === 8, JSON.stringify(endereco.campos));
+e('e grava o endereço como Meu salão grava — ' + endereco.linha,
+  endereco.ok && endereco.end.logradouro === 'Avenida Brasil' && endereco.end.numero === '1500'
+  && endereco.end.cep === '13309123' && endereco.end.uf === 'MG' && endereco.end.cidade === 'Salto'
+  && endereco.end.complemento === 'Loja 3' && endereco.end.bairro === 'Jardim Novo',
+  JSON.stringify(endereco.end));
+e('e o Instagram sem o @ — ' + endereco.insta, endereco.insta === 'studio.bella',
+  String(endereco.insta));
+const noMeuSalao = await p.evaluate(() => {
+  document.getElementById('primeiroDia').hidden = true;
+  irPara('salao');
+  return { rua: (document.getElementById('cRua') || {}).value,
+           insta: (document.getElementById('cInsta') || {}).value };
+});
+e('Meu salão mostra o mesmo endereço e o mesmo Instagram',
+  noMeuSalao.rua === 'Avenida Brasil' && noMeuSalao.insta === '@studio.bella',
+  JSON.stringify(noMeuSalao));
+
+/* ── 8c · Como a cliente paga ────────────────────────────────────────────── */
+console.log('\nComo a cliente paga');
+
+await p.evaluate(() => {
+  const sl = acharSalao(salaoAtual);
+  sl.cfg = Object.assign({}, sl.cfg, { pagamentos: null });
+  pdPagamentos = null; salvar();
+  abrirPrimeiroDia(8);
+});
+await p.waitForTimeout(200);
+const pag = await p.evaluate(() => {
+  const titulo = document.getElementById('pdTitulo').textContent;
+  const opcoes = [...document.querySelectorAll('#pdPagGrade .pd-op')].map(b => b.textContent.trim().replace(/\s*✓$/, ''));
+  document.getElementById('pdPagObs').value = 'Parcelamos em até 3x';
+  document.querySelector('#pdPagGrade [data-forma="pix"]').click();
+  document.querySelector('#pdPagGrade [data-forma="credito"]').click();
+  const obsAinda = document.getElementById('pdPagObs').value;
+  const marcados = [...document.querySelectorAll('#pdPagGrade .pd-op.on')].map(b => b.dataset.forma);
+  pdAndar(1);
+  return { titulo, opcoes, obsAinda, marcados, gravado: (acharSalao(salaoAtual).cfg || {}).pagamentos,
+           passo: pdPasso };
+});
+e('o passo 8 é "Como a cliente paga", com as quatro formas de Meu salão',
+  pag.titulo === 'Como a cliente paga'
+  && JSON.stringify(pag.opcoes) === JSON.stringify(['Pix', 'Dinheiro', 'Cartão de débito', 'Cartão de crédito']),
+  JSON.stringify(pag));
+e('marcar uma forma não apaga a observação que está sendo digitada',
+  pag.obsAinda === 'Parcelamos em até 3x' && JSON.stringify(pag.marcados) === '["pix","credito"]',
+  JSON.stringify(pag));
+e('e "Próximo" grava em cfg.pagamentos, o mesmo de Meu salão',
+  pag.passo === 9 && JSON.stringify(pag.gravado) === JSON.stringify({ formas: ['pix', 'credito'], obs: 'Parcelamos em até 3x' }),
+  JSON.stringify(pag.gravado));
+e('Meu salão passa a mostrar as mesmas formas',
+  await p.evaluate(() => { pagEscolhidas = null; return JSON.stringify(pagDoBanco()) === '["pix","credito"]'; }));
+
+/* ── 8d · A cara do link ─────────────────────────────────────────────────── */
+console.log('\nA cara do link');
+
+const cara = await p.evaluate(() => ({
+  titulo: document.getElementById('pdTitulo').textContent,
+  cores: document.querySelectorAll('#pdCores .pd-cor').length,
+  livre: !!document.querySelector('#pdCores input[type="color"]'),
+  arquivos: [...document.querySelectorAll('#pdCorpo input[type="file"]')]
+    .map(i => i.getAttribute('onchange')),
+}));
+e('o passo 9 é "A cara do seu link": logo, foto de capa e as cores da Aparência',
+  cara.titulo === 'A cara do seu link' && cara.cores === 7 && cara.livre
+  && cara.arquivos.length === 2 && cara.arquivos[0].includes("'logo'") && cara.arquivos[1].includes("'capa'"),
+  JSON.stringify(cara));
+
+const cor = await p.evaluate(async () => {
+  pdEscolherCor('#0C7568');
+  await new Promise(r => setTimeout(r, 200));
+  return { cfg: (acharSalao(salaoAtual).cfg || {}).cor, lida: lerAparencia().cor,
+           marcada: (document.querySelector('#pdCores .pd-cor.on') || {}).title };
+});
+e('tocar no Verde grava a cor da marca, e a Aparência lê a mesma',
+  cor.cfg === '#0C7568' && cor.lida === '#0C7568' && cor.marcada === 'Verde', JSON.stringify(cor));
+e('cor que não é cor não é gravada',
+  await p.evaluate(() => { pdEscolherCor('vermelho'); return (acharSalao(salaoAtual).cfg || {}).cor === '#0C7568'; }));
+
+// O logo, por um arquivo de verdade — partindo de um salão SEM logo, para a
+// prévia que aparecer ser a do arquivo escolhido, e não a que já estava lá.
+await p.evaluate(() => { acharSalao(salaoAtual).logo = null; salvar(); pdDesenhar(); });
+await p.waitForTimeout(200);
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+await p.setInputFiles('#pdCorpo input[type="file"][onchange*="logo"]',
+  { name: 'logo.png', mimeType: 'image/png', buffer: png });
+await p.waitForTimeout(1500);
+const logo = await p.evaluate(() => ({
+  gravado: !!imagemDoSalao(acharSalao(salaoAtual), 'logo'),
+  previa: ((document.querySelector('#pdCorpo .fp-logo img') || {}).getAttribute || (() => null))
+    .call(document.querySelector('#pdCorpo .fp-logo img'), 'src') === imagemDoSalao(acharSalao(salaoAtual), 'logo'),
+  remover: [...document.querySelectorAll('#pdCorpo .foto-linha')][0].innerText.includes('Remover'),
+}));
+e('escolher o logo grava e a prévia do passo mostra, com "Remover" ao lado',
+  logo.gravado && logo.previa && logo.remover, JSON.stringify(logo));
+await p.evaluate(async () => { await pdTirarImagem('logo'); });
+await p.waitForTimeout(300);
+e('e "Remover" tira', await p.evaluate(() => !imagemDoSalao(acharSalao(salaoAtual), 'logo')
+  && !document.querySelector('#pdCorpo .fp-logo img')));
+
+/* O fim lembra, sem alarme, do que ficou para depois. */
+const lembra = await p.evaluate(() => {
+  abrirPrimeiroDia(10);
+  const comLogoFaltando = (document.getElementById('pdDepois') || {}).textContent || '';
+  const sl = acharSalao(salaoAtual);
+  sl.logo = 'data:image/png;base64,AAAA';
+  pdDesenhar();
+  const completo = !document.getElementById('pdDepois');
+  sl.logo = null; document.getElementById('primeiroDia').hidden = true;
+  return { comLogoFaltando: comLogoFaltando.replace(/\s+/g, ' '), completo };
+});
+e('o último passo diz o que ficou para depois (aqui, só o logo)',
+  /Ficou para depois/.test(lembra.comLogoFaltando) && /o logo/.test(lembra.comLogoFaltando)
+  && !/endereço|formas de pagamento/.test(lembra.comLogoFaltando), lembra.comLogoFaltando);
+e('e com tudo preenchido não diz nada', lembra.completo);
+
 /* ── 9 · O link e o QR ───────────────────────────────────────────────────── */
 console.log('\nO link, com o QR');
 
@@ -521,7 +657,7 @@ await p.evaluate(() => {
   }
   salvar();
 });
-await p.evaluate(() => { abrirPrimeiroDia(8); });
+await p.evaluate(() => { abrirPrimeiroDia(10); });
 await p.waitForTimeout(250);
 
 const fim = await p.evaluate(() => {
@@ -604,10 +740,10 @@ const voltou = await p.evaluate(() => {
            contador: document.getElementById('pdContador').textContent };
 });
 e('e ao voltar ele recomeça exatamente dali — ' + voltou.contador,
-  voltou.abriu && voltou.contador === 'Passo 3 de 8', JSON.stringify(voltou));
+  voltou.abriu && voltou.contador === 'Passo 3 de 10', JSON.stringify(voltou));
 
 const terminou = await p.evaluate(() => {
-  pdPasso = 8; pdDesenhar(); pdAndar(1);      // "Terminei"
+  pdPasso = 10; pdDesenhar(); pdAndar(1);     // "Terminei"
   const marca = (acharSalao(salaoAtual).cfg || {}).primeiroDia || {};
   pdOferecido.clear();
   iniciar();
@@ -804,7 +940,7 @@ await cel.goto(BASE + 'app.html?demo=1');
 await cel.waitForTimeout(2200);
 
 const noCelular = [];
-for(const passo of [1,2,3,4,5,6,7,8]){
+for(const passo of [1,2,3,4,5,6,7,8,9,10]){
   await cel.evaluate(n => { abrirPrimeiroDia(n); }, passo);
   await cel.waitForTimeout(180);
   noCelular.push(await cel.evaluate(() => {

@@ -3716,6 +3716,28 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .pd-fim .pd-qr svg{ width:100%; height:auto; border-radius:6px }
 .pd-fim .pd-lado{ flex:1; min-width:200px }
 
+/* ── A cara do link: a cor da marca ─────────────────────────────────────────
+   As amostras são as MESMAS cores da Aparência (`CORES`), cada uma pintada
+   pela própria variável `--amostra`. 44px: a regra dos 40px de toque. */
+.pd-cores{ display:flex; flex-wrap:wrap; gap:10px; align-items:center }
+.pd-cor{
+  width:44px; height:44px; border-radius:50%; cursor:pointer; padding:0;
+  background:var(--amostra); border:3px solid var(--painel);
+  box-shadow:0 0 0 1px var(--borda);
+}
+.pd-cor.on{ box-shadow:0 0 0 3px var(--txt) }
+.pd-cor:focus-visible{ outline:2px solid var(--ac-line); outline-offset:3px }
+/* "Outra cor": o seletor do sistema, com o nome escrito ao lado — sem o
+   texto, o círculo parecia só mais uma amostra repetida. */
+.pd-cor-outra{ display:inline-flex; align-items:center; gap:8px; min-height:44px;
+  padding:0 12px 0 0; cursor:pointer; font-size:14px; font-weight:600; color:var(--txt2) }
+.pd-cor-livre{
+  width:44px; height:44px; border-radius:50%; overflow:hidden; cursor:pointer;
+  border:1px dashed var(--borda-forte); display:grid; place-items:center; flex:none;
+}
+.pd-cor-livre input{ width:60px; height:60px; border:0; padding:0; cursor:pointer;
+  background:none }
+
 @media (max-width:520px){
   .pd-fundo{ padding:0 }
   .pd-caixa{ max-height:100vh; height:100vh; border-radius:0 }

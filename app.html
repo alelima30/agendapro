@@ -1842,7 +1842,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.6da6a4';
+const VERSAO_APP = 'v9.7dc4b2';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -14571,12 +14571,14 @@ let pdPasso = 1;
 let pdHorario = null;        // { dia: [[ini,fim], …] } em minutos
 let pdCategorias = null;     // Set de chaves
 let pdProdutosSim = null;    // true / false / null (ainda não perguntado)
+let pdPagamentos = null;     // as formas marcadas no passo "Como a cliente paga"
 let pdDoSalao = null;        // de qual salão é o rascunho acima
 const pdOferecido = new Set();
 
 const PD_PASSOS = [
   { titulo:'Seu estabelecimento',
-    sub:'O nome que a cliente vê na página de agendamento.',
+    sub:'O nome, o WhatsApp e o endereço que a cliente vê na página de '
+      + 'agendamento.',
     desenhar: pdDesenhar1, guardar: pdGuardar1 },
   { titulo:'Horário de atendimento',
     sub:'Os dias e as horas em que o salão está aberto. É o que forma a grade '
@@ -14602,6 +14604,14 @@ const PD_PASSOS = [
     sub:'Duas decisões que mudam o painel inteiro. Nenhuma delas é para '
       + 'sempre: as duas ficam em Meu salão.',
     desenhar: pdDesenhar7, depois: pdPintar7, guardar: pdGuardar7 },
+  { titulo:'Como a cliente paga',
+    sub:'Marque o que o salão aceita. Na hora de marcar pelo link, a cliente '
+      + 'escolhe uma destas — e você vê na agenda como ela vai pagar.',
+    desenhar: pdDesenharPagamento, guardar: pdGuardarPagamento },
+  { titulo:'A cara do seu link',
+    sub:'O logo, a cor e a foto de capa da página que a cliente abre. Dá '
+      + 'para pular e fazer depois em Meu salão → Aparência.',
+    desenhar: pdDesenharCara },
   { titulo:'Pronto — este é o seu link',
     sub:'É este endereço que você manda para a cliente. Ele já está no ar.',
     desenhar: pdDesenhar8 },
@@ -14615,7 +14625,7 @@ function abrirPrimeiroDia(n){
   /* Rascunho de outro salão não atravessa a troca: o horário da unidade do
      centro não pode virar o da unidade do bairro por descuido. */
   if(pdDoSalao !== salaoAtual){
-    pdHorario = null; pdCategorias = null; pdProdutosSim = null;
+    pdHorario = null; pdCategorias = null; pdProdutosSim = null; pdPagamentos = null;
     pdDoSalao = salaoAtual;
   }
   pdPasso = Math.min(Math.max(1, Number(n) || 1), PD_PASSOS.length);
@@ -14732,6 +14742,7 @@ function pdFechar(terminou){
 /* ── Passo 1 · o estabelecimento ─────────────────────────────────────────── */
 function pdDesenhar1(){
   const sl = acharSalao(salaoAtual) || {};
+  const end = Endereco.normalizar(sl.endereco);
   return `
     <div class="campo"><label for="pdNome">Nome do estabelecimento</label>
       <input id="pdNome" value="${escapar(sl.nome || '')}" placeholder="Studio Bella">
@@ -14750,6 +14761,41 @@ function pdDesenhar1(){
              placeholder="(11) 99999-8888">
       <span class="ajuda">É por onde sai a confirmação da cliente. Pode ficar
         em branco agora.</span>
+    </div>
+
+    <!-- Onde fica: a capa do link mostra o endereço logo abaixo do nome, e
+         sem ele a cliente não sabe aonde ir. Os mesmos campos de Meu salão. -->
+    <div class="pd-cat" style="margin-top:20px">Onde fica</div>
+    <div class="tripla">
+      <div class="campo" style="grid-column:span 2"><label for="pdRua">Rua</label>
+        <input id="pdRua" value="${escapar(end.logradouro)}" placeholder="Rua das Flores"></div>
+      <div class="campo"><label for="pdNum">Número</label>
+        <input id="pdNum" value="${escapar(end.numero)}" placeholder="210"></div>
+    </div>
+    <div class="tripla">
+      <div class="campo"><label for="pdCompl">Complemento</label>
+        <input id="pdCompl" value="${escapar(end.complemento)}" placeholder="Sala 2"></div>
+      <div class="campo"><label for="pdBairro">Bairro</label>
+        <input id="pdBairro" value="${escapar(end.bairro)}" placeholder="Centro"></div>
+      <div class="campo"><label for="pdCep">CEP</label>
+        <input id="pdCep" value="${Endereco.mascaraCep(end.cep)}" placeholder="13300-000"
+               inputmode="numeric" oninput="this.value=Endereco.mascaraCep(this.value)"></div>
+    </div>
+    <div class="tripla">
+      <div class="campo" style="grid-column:span 2"><label for="pdCidade">Cidade</label>
+        <input id="pdCidade" value="${escapar(end.cidade)}" placeholder="Itu"></div>
+      <div class="campo"><label for="pdUf">UF</label>
+        <select id="pdUf">
+          <option value="">—</option>
+          ${Endereco.UFS.map(u => `<option ${end.uf === u ? 'selected' : ''}>${u}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="campo"><label for="pdInsta">Instagram
+        <span class="opcional">opcional</span></label>
+      <input id="pdInsta" maxlength="60" autocapitalize="off" spellcheck="false"
+             value="${escapar((sl.cfg || {}).instagram ? '@' + (sl.cfg || {}).instagram : '')}"
+             placeholder="@seusalao">
+      <span class="ajuda">Aparece em "Informações", na página da cliente.</span>
     </div>`;
 }
 
@@ -14760,6 +14806,15 @@ function pdGuardar1(){
   sl.nome     = nome;
   sl.tipo     = document.getElementById('pdTipo').value;
   sl.whatsapp = (document.getElementById('pdZap').value || '').trim();
+  /* O endereço e o Instagram, gravados como Meu salão grava. Por cima do que
+     já havia — um campo que não está nesta tela não é apagado por ela. */
+  const v = idCampo => (document.getElementById(idCampo).value || '').trim();
+  sl.endereco = Object.assign({}, Endereco.normalizar(sl.endereco), {
+    logradouro: v('pdRua'), numero: v('pdNum'), complemento: v('pdCompl'),
+    bairro: v('pdBairro'), cidade: v('pdCidade'), uf: v('pdUf'),
+    cep: v('pdCep').replace(/\D/g, ''),
+  });
+  sl.cfg = Object.assign({}, sl.cfg, { instagram: instagramLimpo(v('pdInsta')) || null });
   salvar();
   return true;
 }
@@ -15437,7 +15492,129 @@ function pdGuardar7(){
   return true;
 }
 
-/* ── Passo 8 · o link ────────────────────────────────────────────────────── */
+/* ── Passo 8 · como a cliente paga ───────────────────────────────────────────
+   As mesmas formas de Meu salão (`Funcionamento.PAGAMENTOS`), gravadas no
+   mesmo `cfg.pagamentos`. São elas que fazem o link perguntar "Como você vai
+   pagar?" na hora de marcar — com elas marcadas, a cliente escolhe uma, e a
+   forma aparece no cartão da agenda. */
+function pdFormasAtuais(){
+  if(pdPagamentos === null) pdPagamentos = pagDoBanco();
+  return pdPagamentos;
+}
+function pdDesenharPagamento(){
+  const formas = pdFormasAtuais();
+  const pag = ((acharSalao(salaoAtual) || {}).cfg || {}).pagamentos || {};
+  return `
+    <div class="pd-grade" id="pdPagGrade">
+      ${Funcionamento.PAGAMENTOS.map(([k, rot, ico]) => `
+        <button type="button" class="pd-op${formas.includes(k) ? ' on' : ''}" data-forma="${k}"
+                aria-pressed="${formas.includes(k)}" onclick="pdVirarPagamento('${k}', this)">
+          <span data-ico="${ico}"></span>${escapar(rot)}
+          <span class="pd-marca">${formas.includes(k) ? '✓' : ''}</span></button>`).join('')}
+    </div>
+    <div class="campo" style="margin-top:16px"><label for="pdPagObs">Observação
+        <span class="opcional">opcional</span></label>
+      <input id="pdPagObs" maxlength="200" value="${escapar(pag.obs || '')}"
+             placeholder="Parcelamos em até 3x no crédito">
+    </div>
+    <p class="ajuda">O pagamento continua sendo no salão, no dia — isto é só
+      para a cliente dizer como vai pagar, e você se preparar. Sem nenhuma
+      marcada, o link mostra as quatro e a escolha fica opcional.</p>`;
+}
+// Vira só o botão: redesenhar o passo perderia a observação que está sendo digitada.
+function pdVirarPagamento(k, bt){
+  const formas = pdFormasAtuais();
+  pdPagamentos = formas.includes(k) ? formas.filter(x => x !== k) : formas.concat(k);
+  const on = pdPagamentos.includes(k);
+  if(bt){
+    bt.classList.toggle('on', on);
+    bt.setAttribute('aria-pressed', String(on));
+    const marca = bt.querySelector('.pd-marca');
+    if(marca) marca.textContent = on ? '✓' : '';
+  }
+}
+function pdGuardarPagamento(){
+  const sl = acharSalao(salaoAtual);
+  const obs = (document.getElementById('pdPagObs') || {}).value || '';
+  sl.cfg = Object.assign({}, sl.cfg, {
+    pagamentos: Funcionamento.pagamentos({ formas: pdFormasAtuais(), obs }),
+  });
+  // Meu salão relê do salão na próxima vez, em vez de mostrar o rascunho dele.
+  pagEscolhidas = null;
+  salvar();
+  return true;
+}
+
+/* ── Passo 9 · a cara do link ────────────────────────────────────────────────
+   O mínimo que muda a página: logo, cor e foto de capa. Usa as MESMAS
+   funções de Meu salão (`subirImagemSalao`, `tirarImagemSalao`) e grava a
+   cor no mesmo `cfg.cor` da Aparência — o resto (modelos, fundo, botões)
+   continua lá, sem um segundo editor para envelhecer aqui. */
+function pdCorAtual(){
+  const ap = aparencia && aparenciaDoSalao === salaoAtual ? aparencia : lerAparencia();
+  return ap.cor;
+}
+function pdDesenharCara(){
+  const sl = acharSalao(salaoAtual) || {};
+  const cor = pdCorAtual();
+  const logo = imagemDoSalao(sl, 'logo'), capa = imagemDoSalao(sl, 'capa');
+  const cartao = (chave, titulo, explica, img) => `
+    <div class="foto-linha" style="margin-bottom:14px">
+      <div class="foto-previa fp-${chave}">
+        ${img ? `<img src="${escapar(img)}" alt="">`
+              : `<span data-ico="${chave === 'logo' ? 'predio' : 'casa'}"></span>`}
+      </div>
+      <div class="foto-txt">
+        <b>${escapar(titulo)}</b>
+        <p>${explica}</p>
+        <div class="foto-acoes">
+          <label class="btn btn-peq pd-arquivo">
+            ${img ? 'Trocar' : 'Escolher'} imagem
+            <input type="file" accept="image/*" hidden
+                   onchange="pdSubirImagem('${chave}', this)">
+          </label>
+          ${img ? `<button type="button" class="btn btn-peq"
+             onclick="pdTirarImagem('${chave}')">Remover</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  return cartao('logo', 'Logo', 'Aparece no alto da página e no ícone de quem instalar o app.', logo)
+    + cartao('capa', 'Foto de capa', 'A foto grande do topo — o salão, a fachada, um trabalho seu.', capa)
+    + `<div class="pd-cat">Cor da sua marca</div>
+    <div class="pd-cores" id="pdCores">
+      ${CORES.map(([hex, nome]) => `
+        <button type="button" class="pd-cor${hex.toLowerCase() === cor.toLowerCase() ? ' on' : ''}"
+                style="--amostra:${hex}" title="${escapar(nome)}" aria-label="${escapar(nome)}"
+                aria-pressed="${hex.toLowerCase() === cor.toLowerCase()}"
+                onclick="pdEscolherCor('${hex}')"></button>`).join('')}
+      <label class="pd-cor-outra">
+        <span class="pd-cor-livre"><input type="color" value="${escapar(cor)}"
+               onchange="pdEscolherCor(this.value)"></span>
+        Outra cor
+      </label>
+    </div>
+    <p class="ajuda">Os botões, os ícones e os detalhes da página saem desta cor.
+      Modelos prontos, fundo e o resto ficam em <b>Meu salão → Aparência</b>.</p>`;
+}
+async function pdSubirImagem(chave, campo){
+  await subirImagemSalao(chave, campo);
+  pdDesenhar();
+}
+async function pdTirarImagem(chave){
+  await tirarImagemSalao(chave);
+  pdDesenhar();
+}
+function pdEscolherCor(hex){
+  if(!/^#[0-9a-f]{6}$/i.test(String(hex || ''))) return;
+  const sl = acharSalao(salaoAtual);
+  sl.cfg = Object.assign({}, sl.cfg, { cor: hex });
+  /* A Aparência aberta antes guarda o rascunho dela: ele passa a ter esta cor,
+     e o que mais o dono tiver mexido lá continua como estava. */
+  if(aparencia && aparenciaDoSalao === salaoAtual) aparencia.cor = hex;
+  pdGravar();
+}
+
+/* ── Passo 10 · o link ───────────────────────────────────────────────────── */
 function pdLinkDoSalao(){
   const sl = acharSalao(salaoAtual) || {};
   return location.href.replace(/\/[^\/]*$/, '/') + 'agendar.html?salao=' + sl.slug + sufixoDemo();
@@ -15484,6 +15661,11 @@ function pdDesenhar8(){
   const falta = [];
   if(!servicos) falta.push('nenhum serviço cadastrado');
   if(!equipe)   falta.push('ninguém com horário na agenda');
+  /* O que não impede marcar, mas a cliente sente falta: dito sem alarme. */
+  const depois = [];
+  if(!Endereco.linha(sl.endereco)) depois.push('o endereço');
+  if(!pagDoBanco().length)         depois.push('as formas de pagamento');
+  if(!imagemDoSalao(sl, 'logo'))   depois.push('o logo');
 
   return `
     <div class="pd-fim">
@@ -15516,7 +15698,11 @@ function pdDesenhar8(){
         ${servicos === 1 ? 'serviço' : 'serviços'}, ${equipe}
         ${equipe === 1 ? 'pessoa atendendo' : 'pessoas atendendo'}.
         Quem abrir esse link agora consegue marcar um horário.
-      </div>`}`;
+      </div>`}
+    ${depois.length ? `
+      <p class="ajuda" id="pdDepois" style="margin-top:10px">Ficou para depois, em
+        <b>Meu salão</b>: ${escapar(depois.join(', '))}. O link funciona sem
+        isso, mas fica mais completo com.</p>` : ''}`;
 }
 
 /* ── Quando ele aparece sozinho ──────────────────────────────────────────── */

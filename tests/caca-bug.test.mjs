@@ -402,7 +402,11 @@ secao('10 a 12. O painel na nuvem');
   const pedidos = await p.evaluate(async () => {
     const orig = Dados.chamar; let n = 0;
     Dados.chamar = (f, a) => { if(f === 'painel_grafico') n++; return orig(f, a); };
-    irPara('dashboard'); await new Promise(r => setTimeout(r, 1500));
+    irPara('dashboard');
+    // Espera a PRIMEIRA resposta chegar, e não um tempo fixo: com a máquina
+    // ocupada ela passava de 1,5 s, e a conta abaixo começava cedo demais.
+    for(let i = 0; i < 100 && !(dashDados && dashSalao === salaoAtual); i++)
+      await new Promise(r => setTimeout(r, 100));
     const aberto = n; await carregarDash(); const mesmo = n - aberto;
     const antes = salaoAtual; salaoAtual = '00000000-0000-4000-8000-000000000000';
     await carregarDash().catch(() => {}); const outro = n - aberto;
