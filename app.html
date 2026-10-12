@@ -405,6 +405,23 @@ body.carregando-tudo .tela{ display:none }
 .busca-serv{margin-bottom:8px}
 .serv-nada{font-size:13px;color:var(--txt2);padding:8px 2px}
 
+/* ── O horário do "+ Agendamento": os livres em botões ──────────────────
+   No lugar do relógio nativo, que no Android escondia o botão de confirmar.
+   40px de altura (a regra de toque da casa); só variáveis do tema. */
+.hl-nota{margin:0 0 8px}
+.hl-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(68px,1fr));gap:7px;
+  max-height:232px;overflow:auto;padding:2px;margin-bottom:10px}
+.hl-op{min-height:40px;border:1.5px solid var(--borda);border-radius:10px;background:var(--painel);
+  color:var(--txt);font:inherit;font-size:14px;font-weight:600;cursor:pointer;
+  font-variant-numeric:tabular-nums}
+.hl-op:hover{border-color:var(--borda-forte)}
+.hl-op.on{border-color:var(--marca);background:var(--ac-soft);color:var(--marca)}
+.hl-op:focus-visible{outline:2px solid var(--marca);outline-offset:1px}
+.hl-dias{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px}
+.hl-dia{min-height:40px;padding:0 12px;border:1.5px solid var(--borda);border-radius:10px;
+  background:var(--painel);color:var(--txt);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
+.hora-digitada{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+
 /* ── Página pública (ver como cliente) ───────────────────────────────── */
 .publico{max-width:560px;margin:0 auto}
 .pub-topo{
@@ -992,6 +1009,37 @@ function minDe(hhmm){
   const [h,m] = String(hhmm).split(':').map(Number);
   return (h||0)*60 + (m||0);
 }
+/* ⚠ HORA DIGITADA, E NÃO O RELÓGIO DO CELULAR.
+   Os campos `type="time"` abriam o relógio do sistema, e no Android, em
+   alguns aparelhos, o botão de confirmar dele ficava fora da tela: a hora
+   não era escolhida. Agora todo campo de hora do painel é texto com teclado
+   numérico, e esta máscara não deixa passar hora que não existe: a hora vai
+   até 23 (um dígito só se começar de 3 a 9) e os minutos começam de 0 a 5.
+   "930" vira 9:30, "1430" vira 14:30. */
+function mascaraHora(el){
+  const d = String(el.value || '').replace(/\D/g, '');
+  let h = '', i = 0;
+  if(d.length){
+    if(d[0] > '2' || (d.length >= 2 && d[0] === '2' && d[1] > '3')){ h = d[0]; i = 1; }
+    else { h = d.slice(0, 2); i = h.length; }
+  }
+  let m = d.slice(i, i + 2);
+  if(m && m[0] > '5') m = '';
+  el.value = h + (m ? ':' + m : '');
+}
+// Ao sair do campo: "9" vira 09:00, "9:3" vira 09:30, "14:30" fica.
+function horaNormal(v){
+  const t = String(v || '').trim();
+  const m = /^(\d{1,2})(?::(\d{0,2}))?$/.exec(t);
+  if(!m) return t;
+  const h = Number(m[1]);
+  const mi = m[2] ? Number(m[2].padEnd(2, '0')) : 0;
+  if(h > 23 || mi > 59) return t;
+  return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+}
+// Os atributos de todo campo de hora: teclado numérico, máscara, e completa ao sair.
+const ATRIB_HORA = 'type="text" inputmode="numeric" maxlength="5" autocomplete="off" '
+  + 'class="hora-digitada" oninput="mascaraHora(this)"';
 /* ── Texto de gente, dentro de HTML ───────────────────────────────────────
    Todo nome, observação ou endereço aqui foi digitado por alguém — e um
    deles não precisa nem ter conta: `agendar()` é liberada para `anon`, então
@@ -1842,7 +1890,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.7dc4b2';
+const VERSAO_APP = 'v9.49496f';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -5710,11 +5758,21 @@ function abrirNovo(profId, min){
           <span class="serv-marca" aria-hidden="true"></span>
         </label>`).join('')}</div>
       <div class="serv-nada" id="servNada" style="display:none">Nenhum serviço com esse nome.</div></div>
-    <div class="dupla">
-      <div class="campo"><label>Data</label>
-        <input type="date" id="fData" value="${diaAtual}" onchange="recalcularFim()"></div>
-      <div class="campo"><label>Início</label>
-        <input type="time" id="fInicio" value="${hm(min || 9*60)}" step="900" onchange="recalcularFim()"></div>
+    <div class="campo"><label for="fData">Data</label>
+      <input type="date" id="fData" value="${diaAtual}" onchange="recalcularFim()"></div>
+    <!-- ⚠ O HORÁRIO NÃO DEPENDE DO RELÓGIO DO CELULAR. Era um campo de hora
+         nativo: no Android ele abre o relógio do sistema, e em alguns aparelhos
+         o botão de confirmar desse relógio fica fora da tela. A hora não era
+         escolhida, o campo ficava vazio — e vazio era lido como 00:00, que
+         virava "Fora da jornada" no aviso. Agora: os horários LIVRES daquele
+         profissional, naquele dia, em botões (a mesma conta da agenda), e um
+         campo de texto para digitar a hora de um encaixe. -->
+    <div class="campo"><label for="fInicio">Horário</label>
+      <div id="fLivres" aria-live="polite"></div>
+      <input id="fInicio" class="hora-digitada" inputmode="numeric" maxlength="5"
+             autocomplete="off" placeholder="ou digite a hora, ex.: 14:30"
+             value="${Number.isFinite(min) ? hm(min) : ''}" oninput="digitarHora(this)"
+             onchange="this.value = horaNormal(this.value); recalcularFim()">
     </div>
     <div class="campo"><label>Como vai pagar</label>
       <select id="fFormaPag">${opcoesDeFormaPagamento('')}</select></div>
@@ -5758,6 +5816,82 @@ function filtrarServicosNoForm(){
 }
 
 // Mostra ao vivo em que horário aquilo termina, e se bate em alguém.
+/* ── O HORÁRIO DO "+ AGENDAMENTO" ──────────────────────────────────────────
+   A hora digitada vira minutos — ou `null`, quando o campo está vazio ou
+   incompleto. NUNCA zero: o campo vazio lido como 00:00 dizia "Fora da
+   jornada" a quem só não tinha escolhido a hora ainda. */
+function horaDoCampo(){
+  const v = String((document.getElementById('fInicio') || {}).value || '').trim();
+  const m = /^(\d{1,2}):(\d{2})$/.exec(v);
+  if(!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]);
+  return h <= 23 && mi <= 59 ? h * 60 + mi : null;
+}
+function digitarHora(el){
+  mascaraHora(el);
+  recalcularFim();
+}
+function escolherHoraNoForm(t){
+  document.getElementById('fInicio').value = hm(t);
+  recalcularFim();
+}
+function irParaDiaNoForm(d){
+  document.getElementById('fData').value = d;
+  recalcularFim();
+}
+/* Os horários livres de quem atende, no dia escolhido, para a duração dos
+   serviços marcados — a mesma conta da agenda (`horariosLivres`). Hoje, só
+   o que ainda não passou, na hora do salão. Dia sem vaga mostra os próximos
+   dias que têm. */
+function pintarLivresDoForm(profId, data, dur, ini){
+  const alvo = document.getElementById('fLivres');
+  if(!alvo) return;
+  if(!dur){
+    alvo.dataset.chave = '';
+    alvo.innerHTML = '<p class="ajuda hl-nota">Escolha o serviço para ver os horários livres.</p>';
+    return;
+  }
+  const p = acharProf(profId);
+  const com = p ? ' com ' + escapar(p.nome) : '';
+  let livres = data ? horariosLivres(profId, data, dur) : [];
+  const sl = acharSalao(salaoAtual);
+  const agora = sl && sl.fuso
+    ? instanteParaTela(new Date().toISOString(), sl.fuso)
+    : { data: iso(new Date()), min: new Date().getHours() * 60 + new Date().getMinutes() };
+  if(data === agora.data) livres = livres.filter(t => t >= agora.min);
+
+  /* ⚠ A MESMA LISTA NÃO É REDESENHADA, só a marcação muda. Quem digitou a
+     hora e depois toca num botão faz o campo perder o foco: o `change` dele
+     roda o `recalcularFim()` ENTRE o dedo descer e o clique — e, refeitos,
+     os botões trocavam de lugar no meio do toque. O primeiro toque se
+     perdia, e a pessoa tinha de tocar de novo. */
+  const chave = [profId, data, dur, livres.join(',')].join('|');
+  if(livres.length && alvo.dataset.chave === chave){
+    alvo.querySelectorAll('.hl-op').forEach(b => {
+      const on = Number(b.dataset.t) === ini;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    return;
+  }
+  alvo.dataset.chave = livres.length ? chave : '';
+
+  if(!livres.length){
+    const prox = data ? proximosDiasComVaga(profId, data, dur, 3) : [];
+    alvo.innerHTML = `<p class="ajuda hl-nota"><b>Sem horário livre${com} neste dia.</b>
+        ${prox.length ? 'Próximos dias com vaga:' : 'Para um encaixe, digite a hora abaixo.'}</p>`
+      + (prox.length ? `<div class="hl-dias">${prox.map(d => `
+          <button type="button" class="hl-dia" onclick="irParaDiaNoForm('${d.data}')">
+            ${escapar(porExtenso(d.data).split(', ')[1] || d.data)} · ${d.qtd} ${d.qtd === 1 ? 'vaga' : 'vagas'}</button>`).join('')}
+        </div>` : '');
+    return;
+  }
+  alvo.innerHTML = `<p class="ajuda hl-nota">Livres${com} — toque para escolher:</p>
+    <div class="hl-grade">${livres.map(t => `
+      <button type="button" class="hl-op${t === ini ? ' on' : ''}" aria-pressed="${t === ini}"
+              data-t="${t}" onclick="escolherHoraNoForm(${t})">${hm(t)}</button>`).join('')}</div>`;
+}
+
 function recalcularFim(){
   const aviso = document.getElementById('avisoAg');
   if(!aviso) return;
@@ -5768,7 +5902,11 @@ function recalcularFim(){
   const faltas = avisoDeFaltas(sel ? sel.value : '');
 
   const escolhidos = [...document.querySelectorAll('.serv-op input:checked')].map(c => c.value);
+  const profId = document.getElementById('fProf').value;
+  const data = document.getElementById('fData').value;
+  const ini = horaDoCampo();
   if(!escolhidos.length){
+    pintarLivresDoForm(profId, data, 0, ini);
     aviso.innerHTML = faltas
       + '<div class="aviso info">Escolha ao menos um serviço — é a duração dele que reserva o horário.</div>';
     return;
@@ -5780,9 +5918,13 @@ function recalcularFim(){
   }, 0);
   const preco = escolhidos.reduce((s,i) => s + acharServico(i).preco, 0);
 
-  const profId = document.getElementById('fProf').value;
-  const data = document.getElementById('fData').value;
-  const ini = minDe(document.getElementById('fInicio').value);
+  pintarLivresDoForm(profId, data, dur, ini);
+  if(ini === null){
+    aviso.innerHTML = faltas
+      + `<div class="aviso info"><b>Escolha o horário:</b> toque num dos horários
+         livres abaixo, ou digite a hora. · ${dur} min · ${real(preco)}</div>`;
+    return;
+  }
   const fim = ini + dur;
 
   /* Uma pergunta só, ao motor — em vez das três conferências soltas que
@@ -5813,7 +5955,12 @@ function salvarAgendamento(){
 
   const profId = document.getElementById('fProf').value;
   const data = document.getElementById('fData').value;
-  const ini = minDe(document.getElementById('fInicio').value);
+  const ini = horaDoCampo();
+  // Sem hora escolhida não há o que marcar — e não é meia-noite.
+  if(ini === null){
+    alert('Escolha o horário: toque num dos horários livres, ou digite a hora (ex.: 14:30).');
+    return;
+  }
   const dur = escolhidos.reduce((s,i) => {
     const sv = acharServico(i); return s + sv.duracaoMin + (sv.intervaloMin||0);
   }, 0);
@@ -7031,10 +7178,12 @@ function abrirRegraDePreco(servicoId, r){
     <div id="rgHoraCampos" class="dupla" style="margin:8px 0 0;display:${
       temHora ? '' : 'none'}">
       <div class="campo"><label for="rgHoraIni">Das</label>
-        <input type="time" id="rgHoraIni"
+        <input ${ATRIB_HORA} id="rgHoraIni" placeholder="08:00"
+               onchange="this.value = horaNormal(this.value)"
                value="${temHora ? hhmm(r.horaIni) : '08:00'}"></div>
       <div class="campo"><label for="rgHoraFim">Até</label>
-        <input type="time" id="rgHoraFim"
+        <input ${ATRIB_HORA} id="rgHoraFim" placeholder="12:00"
+               onchange="this.value = horaNormal(this.value)"
                value="${temHora ? hhmm(r.horaFim) : '12:00'}"></div>
     </div>
 
@@ -7789,10 +7938,14 @@ function abrirProf(pid){
     const w2 = (j[d] && j[d][1]) || null;
     return `<tr>
       <td style="font-size:13px;text-transform:capitalize">${DIAS[d]}</td>
-      <td><input type="time" id="j${d}a" value="${w ? hm(w[0]) : ''}" step="900" style="padding:5px"></td>
-      <td><input type="time" id="j${d}b" value="${w ? hm(w[1]) : ''}" step="900" style="padding:5px"></td>
-      <td><input type="time" id="j${d}c" value="${w2 ? hm(w2[0]) : ''}" step="900" style="padding:5px"></td>
-      <td><input type="time" id="j${d}d" value="${w2 ? hm(w2[1]) : ''}" step="900" style="padding:5px"></td>
+      <td><input ${ATRIB_HORA} id="j${d}a" value="${w ? hm(w[0]) : ''}" placeholder="--:--"
+             onchange="this.value = horaNormal(this.value)" style="padding:5px;width:76px"></td>
+      <td><input ${ATRIB_HORA} id="j${d}b" value="${w ? hm(w[1]) : ''}" placeholder="--:--"
+             onchange="this.value = horaNormal(this.value)" style="padding:5px;width:76px"></td>
+      <td><input ${ATRIB_HORA} id="j${d}c" value="${w2 ? hm(w2[0]) : ''}" placeholder="--:--"
+             onchange="this.value = horaNormal(this.value)" style="padding:5px;width:76px"></td>
+      <td><input ${ATRIB_HORA} id="j${d}d" value="${w2 ? hm(w2[1]) : ''}" placeholder="--:--"
+             onchange="this.value = horaNormal(this.value)" style="padding:5px;width:76px"></td>
     </tr>`;
   }).join('');
 
@@ -7916,10 +8069,9 @@ async function salvarProf(pid){
   const jornada = {};
   for(const d of [0,1,2,3,4,5,6]){
     const janelas = [];
-    const a = document.getElementById('j'+d+'a').value;
-    const b = document.getElementById('j'+d+'b').value;
-    const c = document.getElementById('j'+d+'c').value;
-    const e = document.getElementById('j'+d+'d').value;
+    const lerHora = x => minutosDe(horaNormal(document.getElementById('j'+d+x).value)) != null
+      ? horaNormal(document.getElementById('j'+d+x).value) : '';
+    const a = lerHora('a'), b = lerHora('b'), c = lerHora('c'), e = lerHora('d');
     if(a && b && minDe(b) > minDe(a)) janelas.push([minDe(a), minDe(b)]);
     if(c && e && minDe(e) > minDe(c)) janelas.push([minDe(c), minDe(e)]);
     if(janelas.length) jornada[d] = janelas;
@@ -7954,8 +8106,10 @@ function abrirBloqueio(pid){
     <div class="campo"><label>Dia</label>
       <input type="date" id="bData" value="${diaAtual}"></div>
     <div class="dupla">
-      <div class="campo"><label>Das</label><input type="time" id="bIni" value="12:00" step="900"></div>
-      <div class="campo"><label>Às</label><input type="time" id="bFim" value="13:00" step="900"></div>
+      <div class="campo"><label for="bIni">Das</label><input ${ATRIB_HORA} id="bIni" value="12:00"
+        placeholder="12:00" onchange="this.value = horaNormal(this.value)"></div>
+      <div class="campo"><label for="bFim">Às</label><input ${ATRIB_HORA} id="bFim" value="13:00"
+        placeholder="13:00" onchange="this.value = horaNormal(this.value)"></div>
     </div>
     <div class="campo"><label>Motivo (só a equipe vê)</label>
       <input id="bMotivo" placeholder="Almoço"></div>
@@ -7995,8 +8149,9 @@ function removerBloqueio(bid){
 }
 
 function salvarBloqueio(pid){
-  const ini = minDe(document.getElementById('bIni').value);
-  const fim = minDe(document.getElementById('bFim').value);
+  const ini = minutosDe(horaNormal(document.getElementById('bIni').value));
+  const fim = minutosDe(horaNormal(document.getElementById('bFim').value));
+  if(ini == null || fim == null){ alert('Confira as horas do bloqueio (ex.: 12:00 e 13:00).'); return; }
   if(fim <= ini){ alert('O fim precisa ser depois do início.'); return; }
   bd.bloqueios.push({
     id:id(), salaoId:salaoAtual, profissionalId:pid,
@@ -14862,19 +15017,20 @@ function pdDesenhar2(){
         </div>
         ${f ? `
         <div class="pd-faixa">
-          <input type="time" step="900" id="pdH${d}a" value="${hm(abre)}"
-                 aria-label="Abre" onchange="pdLer2()">
+          <input ${ATRIB_HORA} id="pdH${d}a" value="${hm(abre)}"
+                 aria-label="Abre" onchange="this.value = horaNormal(this.value); pdLer2()">
           <span class="pd-ate">às</span>
-          <input type="time" step="900" id="pdH${d}b"
+          <input ${ATRIB_HORA} id="pdH${d}b"
                  value="${hm(almoco ? meio[0] : fecha)}"
-                 aria-label="${almoco ? 'Para o almoço' : 'Fecha'}" onchange="pdLer2()">
+                 aria-label="${almoco ? 'Para o almoço' : 'Fecha'}"
+                 onchange="this.value = horaNormal(this.value); pdLer2()">
           ${almoco ? `
             <span class="pd-ate">· volta</span>
-            <input type="time" step="900" id="pdH${d}c" value="${hm(meio[1])}"
-                   aria-label="Volta do almoço" onchange="pdLer2()">
+            <input ${ATRIB_HORA} id="pdH${d}c" value="${hm(meio[1])}"
+                   aria-label="Volta do almoço" onchange="this.value = horaNormal(this.value); pdLer2()">
             <span class="pd-ate">às</span>
-            <input type="time" step="900" id="pdH${d}d" value="${hm(fecha)}"
-                   aria-label="Fecha" onchange="pdLer2()">
+            <input ${ATRIB_HORA} id="pdH${d}d" value="${hm(fecha)}"
+                   aria-label="Fecha" onchange="this.value = horaNormal(this.value); pdLer2()">
             <button type="button" class="btn btn-peq"
                     onclick="pdAlmoco(${d}, false)">Sem intervalo</button>`
           : `<button type="button" class="btn btn-peq"
@@ -14901,7 +15057,7 @@ function pdLer2(){
     if(!h[d]) continue;
     const ler = s => {
       const el = document.getElementById('pdH' + d + s);
-      return el && el.value ? minDe(el.value) : null;
+      return el && el.value ? minutosDe(horaNormal(el.value)) : null;
     };
     const a = ler('a'), b = ler('b'), c = ler('c'), f = ler('d');
     const faixas = [];

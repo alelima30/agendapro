@@ -209,8 +209,9 @@ secao('Jornada da equipe pela tela');
 await ir('equipe');
 await pg.evaluate(id => abrirProf(id), PROF.id);
 await pg.waitForTimeout(700);
+// Campos de hora digitada (`.hora-digitada`), e não mais o relógio do celular.
 const temJornada = await pg.evaluate(() =>
-  document.querySelectorAll('#modalCorpo input[type=time]').length > 0);
+  document.querySelectorAll('#modalCorpo input.hora-digitada').length > 0);
 verdade('a janela da equipe traz as faixas de horário', temJornada);
 await fechar();
 semErro('equipe');

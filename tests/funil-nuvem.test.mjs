@@ -193,7 +193,7 @@ verdade('o passo a passo do primeiro dia abre sozinho no salão recém-criado',
   await q.evaluate(() => {
     const w = document.getElementById('primeiroDia');
     return !!w && !w.hidden
-        && document.getElementById('pdContador').textContent === 'Passo 1 de 8';
+        && document.getElementById('pdContador').textContent === 'Passo 1 de 10';
   }));
 await q.evaluate(() => pdFechar(true));
 await q.waitForTimeout(2000);           // a marca subindo para o banco
