@@ -143,15 +143,38 @@ async function mandar(alvo: Alvo) {
   };
 }
 
+/* Compara sem parar na primeira letra diferente: o tempo da resposta não
+   conta a quem está chutando quantas letras acertou. */
+function iguais(a: string, b: string): boolean {
+  const ta = new TextEncoder().encode(a);
+  const tb = new TextEncoder().encode(b);
+  let dif = ta.length ^ tb.length;
+  for (let i = 0; i < Math.max(ta.length, tb.length); i++) {
+    dif |= (ta[i] ?? 0) ^ (tb[i] ?? 0);
+  }
+  return dif === 0;
+}
+
 Deno.serve(async (req) => {
-  // Um segredo compartilhado com o `pg_cron`. Sem isto, a URL da função é
-  // um botão de disparo aberto na internet.
-  if (SEGREDO) {
-    const veio = req.headers.get('x-cron-segredo');
-    if (veio !== SEGREDO) {
-      return new Response(JSON.stringify({ erro: 'não autorizado' }), {
-        status: 401, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
-    }
+  /* ⚠ A PORTA É O SEGREDO, E ELA FECHA SEM ELE.
+
+     A função é publicada com --no-verify-jwt: o `pg_cron` chama sem token do
+     Supabase, e o gateway barrava antes de chegar aqui (401 "Missing
+     authorization header" — foi o que apareceu no net._http_response no dia
+     em que o despertador foi ligado). Quem guarda a porta é este cabeçalho.
+
+     E por isso, sem CRON_SEGREDO configurado, NÃO entra ninguém. Antes era
+     "sem segredo, porta aberta" — aceitável enquanto o gateway exigia JWT,
+     um botão de disparo público depois que deixou de exigir. */
+  if (!SEGREDO) {
+    console.error('enviar-notificacoes: falta o segredo CRON_SEGREDO. '
+                + 'Ninguém entra até ele ser configurado.');
+    return new Response(JSON.stringify({ erro: 'CRON_SEGREDO não configurado' }), {
+      status: 503, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+  }
+  if (!iguais(req.headers.get('x-cron-segredo') ?? '', SEGREDO)) {
+    return new Response(JSON.stringify({ erro: 'não autorizado' }), {
+      status: 401, headers: { 'Content-Type': 'application/json; charset=utf-8' } });
   }
 
   /* ⚠ SEM CREDENCIAL, NÃO SE INVENTA ENVIO.

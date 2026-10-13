@@ -56,8 +56,13 @@ jobs:
           version: latest
 
       # As mensagens da agenda: confirmação, lembrete, resumo, aviso à equipe.
+      # SEM verificação de JWT, de propósito: quem chama é o `pg_cron`, que não
+      # manda token do Supabase — com a verificação ligada o gateway respondia
+      # 401 "Missing authorization header" e nada saía. A porta é o cabeçalho
+      # x-cron-segredo, conferido dentro da função, que recusa tudo se o
+      # segredo CRON_SEGREDO não estiver configurado.
       - name: enviar-notificacoes
-        run: supabase functions deploy enviar-notificacoes --project-ref "$PROJETO"
+        run: supabase functions deploy enviar-notificacoes --project-ref "$PROJETO" --no-verify-jwt
 
       # O retorno da Meta (entregue, lido, falhou). SEM verificação de JWT, de
       # propósito: a Meta chama sem token do Supabase — quem guarda a porta é a

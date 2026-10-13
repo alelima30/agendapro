@@ -42,8 +42,15 @@ CRON_SEGREDO          uma frase qualquer, sua, para o cron provar quem é
 Publicar:
 
 ```bash
-supabase functions deploy enviar-notificacoes
+supabase functions deploy enviar-notificacoes --no-verify-jwt
 ```
+
+`--no-verify-jwt` é obrigatório: o `pg_cron` chama sem token do Supabase, e com
+a verificação ligada o gateway responde **401 "Missing authorization header"**
+antes de a função rodar. A porta é o cabeçalho `x-cron-segredo`, conferido lá
+dentro — e sem `CRON_SEGREDO` configurado a função recusa todo mundo.
+
+(O botão do GitHub, `publicar-funcoes.yml`, já publica assim.)
 
 ---
 
