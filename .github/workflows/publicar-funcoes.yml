@@ -30,6 +30,8 @@ on:
       - 'supabase/functions/enviar-notificacoes/**'
       - 'supabase/functions/status-whatsapp/**'
       - 'supabase/functions/enviar-campanha/**'
+      # Texto de ajuda (MODELOS.md, README.md) não é código: mudar não publica.
+      - '!supabase/functions/**/*.md'
 
 jobs:
   publicar:

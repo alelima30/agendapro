@@ -43,6 +43,7 @@ Olá, {{1}}! Seu agendamento foi confirmado.
 🕐 Horário: {{3}}
 ✂️ Serviço: {{4}}
 👤 Profissional: {{5}}
+🏪 Local: {{6}}
 
 Até breve!
 ```
@@ -54,6 +55,11 @@ Até breve!
 | `{{3}}` | horário | 14:30 |
 | `{{4}}` | serviço | Corte + Escova |
 | `{{5}}` | profissional | Ana |
+| `{{6}}` | nome do salão | Salão da Ana |
+
+> **Por que o nome do salão.** O número que manda é do AgendaPro, um só para
+> todos os salões — a cliente vê "Agendapro" no topo da conversa. Sem o nome
+> da casa no texto, ela não sabe onde é o horário.
 
 ---
 
@@ -64,15 +70,21 @@ Sai o tanto de horas antes que o dono escolher (padrão: 2h).
 ```
 🔔 Olá, {{1}}! Passando para lembrar do seu horário.
 
-📅 {{2}}
-🕐 {{3}}
-✂️ {{4}}
-👤 {{5}}
+📅 Data: {{2}}
+🕐 Horário: {{3}}
+✂️ Serviço: {{4}}
+👤 Profissional: {{5}}
+🏪 Local: {{6}}
 
 Esperamos você!
 ```
 
-Mesmas cinco variáveis da confirmação, na mesma ordem.
+Mesmas seis variáveis da confirmação, na mesma ordem.
+
+> **Por que "Data:", "Horário:" e os outros rótulos.** A Meta recusa modelo
+> com variável demais para o tamanho do texto fixo. Sem os rótulos seriam seis
+> variáveis para umas dez palavras — o mesmo modelo, mais curto, volta
+> recusado.
 
 ---
 
@@ -157,5 +169,5 @@ select tipo, modelo, variaveis, corpo
  limit 5;
 ```
 
-`variaveis` tem que ter 5 itens na confirmação e no lembrete, 4 no novo e 2 no
+`variaveis` tem que ter 6 itens na confirmação e no lembrete, 4 no novo e 2 no
 resumo — na ordem das tabelas acima.

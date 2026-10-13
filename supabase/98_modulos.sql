@@ -2356,8 +2356,9 @@ begin
       || E'\n🕐 %s'
       || E'\n✂️ %s'
       || E'\n👤 %s'
+      || E'\n🏪 %s'
       || E'\n\nEsperamos você!',
-      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof);
+      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa);
   elsif p_tipo = 'novo' then
     return format(
       '🔔 Novo agendamento'
@@ -2410,7 +2411,7 @@ begin
     return jsonb_build_array(
       public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
       public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
-      public.variavel_limpa(j->>'prof'));
+      public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'));
   elsif p_tipo = 'novo' then
     return jsonb_build_array(
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
@@ -2418,6 +2419,14 @@ begin
   end if;
   return null;
 end $$;
+update public.notificacoes n
+   set variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, n.tipo), n.variaveis),
+       corpo     = coalesce(public.texto_agendamento(n.agendamento_id, n.tipo), n.corpo)
+ where n.status = 'pendente'
+   and n.tipo in ('confirmacao','lembrete')
+   and n.agendamento_id is not null
+   and n.variaveis is not null
+   and jsonb_array_length(n.variaveis) <> 6;
 create or replace function public.texto_resumo(
   p_salao uuid, p_profissional uuid, p_dia date, p_periodo text default 'dia')
 returns text language plpgsql stable security definer set search_path = public as $$

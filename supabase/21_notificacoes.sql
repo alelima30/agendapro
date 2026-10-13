@@ -286,8 +286,9 @@ begin
       || E'\n🕐 %s'
       || E'\n✂️ %s'
       || E'\n👤 %s'
+      || E'\n🏪 %s'
       || E'\n\nEsperamos você!',
-      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof);
+      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa);
 
   elsif p_tipo = 'novo' then
     return format(
@@ -390,10 +391,18 @@ begin
 
   if p_tipo in ('confirmacao','lembrete') then
     -- {{1}} primeiro nome  {{2}} data  {{3}} hora  {{4}} serviço  {{5}} profissional
+    -- {{6}} salão
+    --
+    -- ⚠ O SALÃO VAI POR ÚLTIMO, E NÃO PODE FALTAR. O número que manda é do
+    -- AgendaPro, um só para todos os salões: a cliente vê "Agendapro" no topo
+    -- da conversa. Sem o nome da casa no texto, ela recebe "seu horário está
+    -- confirmado" sem saber onde — e quem frequenta dois salões que usam o
+    -- sistema não tem como distinguir um do outro. Por último para não mexer
+    -- na posição das cinco que já existiam.
     return jsonb_build_array(
       public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
       public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
-      public.variavel_limpa(j->>'prof'));
+      public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'));
 
   elsif p_tipo = 'novo' then
     -- {{1}} cliente  {{2}} serviço  {{3}} data  {{4}} hora
@@ -403,6 +412,18 @@ begin
   end if;
   return null;
 end $$;
+
+/* O que já estava na fila nasceu com cinco variáveis, e o modelo cadastrado
+   espera seis: sairia com erro 132000 ("number of parameters does not match").
+   Refaz as pendentes. Rodar de novo não muda nada — quem já tem seis fica. */
+update public.notificacoes n
+   set variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, n.tipo), n.variaveis),
+       corpo     = coalesce(public.texto_agendamento(n.agendamento_id, n.tipo), n.corpo)
+ where n.status = 'pendente'
+   and n.tipo in ('confirmacao','lembrete')
+   and n.agendamento_id is not null
+   and n.variaveis is not null
+   and jsonb_array_length(n.variaveis) <> 6;
 
 -- ---------------------------------------------------------------------------
 -- 5) O RESUMO DO DIA

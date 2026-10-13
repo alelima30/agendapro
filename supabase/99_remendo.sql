@@ -2319,8 +2319,9 @@ begin
       || E'\n🕐 %s'
       || E'\n✂️ %s'
       || E'\n👤 %s'
+      || E'\n🏪 %s'
       || E'\n\nEsperamos você!',
-      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof);
+      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa);
   elsif p_tipo = 'novo' then
     return format(
       '🔔 Novo agendamento'
@@ -2354,7 +2355,7 @@ begin
     return jsonb_build_array(
       public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
       public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
-      public.variavel_limpa(j->>'prof'));
+      public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'));
   elsif p_tipo = 'novo' then
     return jsonb_build_array(
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),

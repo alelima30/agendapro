@@ -508,12 +508,16 @@ const linhaM = (await banco.query(
 
 igual('a confirmação nasce com o modelo aprovado',
   linhaM.modelo, 'agendapro_confirmacao');
-igual('e com cinco variáveis, na ordem do texto cadastrado',
-  (linhaM.variaveis || []).length, 5);
+igual('e com seis variáveis, na ordem do texto cadastrado',
+  (linhaM.variaveis || []).length, 6);
 igual('a primeira é o PRIMEIRO nome', linhaM.variaveis[0], 'Rita');
 verdade('a segunda é a data', /^\d{2}\/\d{2}\/\d{4}$/.test(linhaM.variaveis[1]),
   JSON.stringify(linhaM.variaveis));
 igual('a terceira é a hora, no fuso do salão', linhaM.variaveis[2], '15:00');
+/* O número que manda é do AgendaPro, o mesmo para todos os salões. Sem o
+   nome da casa, a cliente recebe "agendamento confirmado" sem saber onde. */
+igual('a sexta é o nome do salão', linhaM.variaveis[5],
+  (await banco.query(`select nome from public.saloes where id=$1`, [M.salao])).rows[0].nome);
 
 /* O aviso ao profissional usa o nome INTEIRO — é ele que a pessoa procura na
    agenda. Confundir os dois foi um erro que eu cometi ao refatorar. */
@@ -559,6 +563,12 @@ if(depoisDeRemarcar){
     depoisDeRemarcar.corpo);
   igual('e a variável da hora junto com ele',
     depoisDeRemarcar.variaveis[2], '17:30');
+  igual('o lembrete também leva seis variáveis, a última o salão',
+    depoisDeRemarcar.variaveis.length + ':' + depoisDeRemarcar.variaveis[5],
+    '6:' + linhaM.variaveis[5]);
+  verdade('e o corpo do lembrete diz o salão',
+    depoisDeRemarcar.corpo.includes('🏪 ' + linhaM.variaveis[5]),
+    depoisDeRemarcar.corpo);
 }
 
 /* A fila entrega o modelo ao worker — sem isso ele cairia em texto livre.
@@ -581,7 +591,7 @@ const daFila = (await banco.query(
 verdade('a fila entrega o modelo ao worker',
   !!daFila && daFila.modelo === 'agendapro_confirmacao', JSON.stringify(daFila));
 verdade('e as variáveis junto',
-  !!daFila && Array.isArray(daFila.variaveis) && daFila.variaveis.length === 5,
+  !!daFila && Array.isArray(daFila.variaveis) && daFila.variaveis.length === 6,
   JSON.stringify(daFila && daFila.variaveis));
 
 /* ══════════════════════════════════════════════════════════════════════════

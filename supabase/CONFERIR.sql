@@ -606,6 +606,25 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (09_cliente): a forma de pagamento '
                || 'que a cliente escolhe não é gravada'
            else '' end
+  union all
+  /* O número do WhatsApp é do AgendaPro, um só para todos os salões. A
+     confirmação e o lembrete têm de levar o nome da casa — e o modelo
+     cadastrado na Meta espera SEIS variáveis. Com cinco, a Meta recusa cada
+     mensagem com o erro 132000. */
+  select 28, 'nome do salão nas mensagens do WhatsApp',
+         case
+           when to_regprocedure('public.variaveis_agendamento(uuid,text)') is null
+             or pg_get_functiondef(to_regprocedure('public.variaveis_agendamento(uuid,text)'))
+                  not like '%''casa''%'
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.variaveis_agendamento(uuid,text)') is null
+             or pg_get_functiondef(to_regprocedure('public.variaveis_agendamento(uuid,text)'))
+                  not like '%''casa''%'
+             then 'cole o 00_tudo.sql de novo (21_notificacoes): a confirmação e o '
+               || 'lembrete saem sem o nome do salão, e a Meta recusa'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",
