@@ -131,7 +131,8 @@ begin
     'public.texto_agendamento(uuid,text)',
     'public.texto_resumo(uuid,uuid,date,text)',
     'public.pecas_agendamento(uuid)',
-    'public.variaveis_agendamento(uuid,text)']
+    'public.variaveis_agendamento(uuid,text)',
+    'public.variaveis_resumo(uuid,uuid,date,text,text)']
   loop
     if to_regprocedure(f) is null then
       perform t_falha(f || ' não existe — a busca envelheceu');

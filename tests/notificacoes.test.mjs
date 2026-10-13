@@ -111,7 +111,8 @@ async function marcar(e, prof, quandoIso, nomeCliente){
 }
 
 const fila = async (salao, extra = '') => (await banco.query(
-  `select tipo, status, destino, quando, corpo, motivo, chave
+  `select tipo, status, destino, quando, corpo, motivo, chave, modelo, variaveis,
+          profissional_id
      from public.notificacoes where salao_id=$1 ${extra} order by criado_em`,
   [salao])).rows;
 
@@ -241,6 +242,22 @@ verdade('com os três atendimentos e o total',
   /09:00/.test(rSozinha[0].corpo) && /14:00/.test(rSozinha[0].corpo)
     && /Total: 3/.test(rSozinha[0].corpo), rSozinha[0].corpo);
 
+/* O QUE VIAJA PARA A META É O CURTO, NÃO A LISTA.
+   A lista achatada numa linha só virava um bloco ilegível no telefone e ainda
+   repetia o "Bom dia" do modelo. O dono escolheu: quantos e o primeiro, e um
+   botão no modelo que abre o painel. O corpo continua com a lista inteira. */
+const vS = rSozinha[0].variaveis || [];
+igual('o resumo vai pelo modelo novo', rSozinha[0].modelo, 'agendapro_agenda_dia');
+igual('com quatro variáveis', vS.length, 4);
+igual('a primeira é o primeiro nome de quem recebe', vS[0], 'Dona');
+igual('a segunda é o salão', vS[1],
+  (await banco.query(`select nome from public.saloes where id=$1`, [S.salao])).rows[0].nome);
+igual('a terceira é quantos', vS[2], '3');
+igual('a quarta é o primeiro horário, com a cliente e o serviço',
+  vS[3], '09:00 com Cliente 09 (Corte)');
+verdade('e nenhuma leva a lista nem o "Bom dia" repetido',
+  vS.every(v => !/ · |Bom dia/.test(v)), JSON.stringify(vS));
+
 /* TESTE 12 do pedido de fase anterior, e item 18 desta: o resumo conta UMA
    mensagem, com três atendimentos dentro. Sai de graça da modelagem. */
 igual('e três atendimentos continuam sendo uma linha na fila',
@@ -276,6 +293,27 @@ verdade('com os três profissionais separados por cabeçalho',
 const doProf = rEquipe.filter(x => x.chave.startsWith('resumo:')
   && !x.chave.startsWith('resumo:casa'));
 igual('e cada profissional recebe o dele', doProf.length, 3);
+
+igual('o resumo da casa conta os três', daCasa && daCasa.variaveis[2], '3');
+igual('e o primeiro da casa é o das 9h, de quem for',
+  daCasa && daCasa.variaveis[3], '09:00 com Cliente da Ju (Corte)');
+const nomes = Object.fromEntries((await banco.query(
+  `select id, nome from public.profissionais where salao_id=$1`, [E.salao])).rows
+  .map(r => [r.id, r.nome.split(' ')[0]]));
+verdade('cada profissional é chamada pelo nome dela, e conta só o dela',
+  doProf.every(x => x.variaveis[0] === nomes[x.profissional_id]
+                 && x.variaveis[2] === '1'),
+  JSON.stringify(doProf.map(x => [nomes[x.profissional_id], x.variaveis])));
+
+/* ⚠ O NÚMERO QUE VIAJA TEM DE SER O "TOTAL" DO CORPO. São duas consultas — o
+   texto_resumo() monta a lista do histórico, o variaveis_resumo() conta — e
+   a janela do período, os status e quem entra têm de ser os mesmos nas duas.
+   Se uma mudar sozinha, o dono lê "Atendimentos: 4" no telefone e vê três no
+   histórico. */
+const todosResumos = [...rSozinha, ...rEquipe];
+verdade('em todo resumo, quantos = o Total do corpo',
+  todosResumos.every(x => (x.corpo.match(/Total: (\d+)/) || [])[1] === x.variaveis[2]),
+  JSON.stringify(todosResumos.map(x => [x.variaveis[2], x.corpo.slice(-30)])));
 verdade('com um atendimento cada, e sem os das colegas',
   doProf.every(x => /Total: 1 atendimento/.test(x.corpo)),
   JSON.stringify(doProf.map(x => x.corpo.slice(-40))));
@@ -308,6 +346,32 @@ const oDiaTodo = (await banco.query(
   [P.salao, HOJE])).rows[0].t;
 verdade('e «dia inteiro» traz os dois',
   /Da Manhã/.test(oDiaTodo) && /Da Tarde/.test(oDiaTodo), oDiaTodo);
+
+// O número que viaja recorta o período igual ao corpo.
+// Sem atendimento a função devolve nulo; vira lista vazia para reprovar com
+// a mensagem do teste, e não com um TypeError.
+const contaP = async per => (await banco.query(
+  `select public.variaveis_resumo($1, null, $2::date, $3, 'Dona') as v`,
+  [P.salao, HOJE, per])).rows[0].v || [];
+igual('«manhã» conta um, e o primeiro é o da manhã',
+  (await contaP('manha')).slice(2).join('|'), '1|09:00 com Da Manhã (Corte)');
+igual('«tarde» conta um, e o primeiro é o da tarde',
+  (await contaP('tarde')).slice(2).join('|'), '1|15:00 com Da Tarde (Corte)');
+igual('«dia inteiro» conta os dois', (await contaP('dia'))[2], '2');
+
+/* Esperando confirmação também é horário do dia — o corpo conta, o número
+   tem de contar. Cancelado não entra em nenhum dos dois. */
+await banco.query(
+  `update public.agendamentos set status='pendente' where salao_id=$1`, [P.salao]);
+igual('quem espera confirmação também conta', (await contaP('dia'))[2], '2');
+await banco.query(
+  `update public.agendamentos set status='cancelado'
+    where id = (select a.id from public.agendamentos a
+                 where a.salao_id=$1 order by a.inicio desc limit 1)`, [P.salao]);
+const corpoP = (await banco.query(
+  `select public.texto_resumo($1, null, $2::date, 'dia') as t`, [P.salao, HOJE])).rows[0].t;
+igual('e cancelado não, igual ao Total do corpo',
+  (await contaP('dia'))[2] + '|' + (corpoP.match(/Total: (\d+)/) || [])[1], '1|1');
 
 /* ══════════════════════════════════════════════════════════════════════════
    TESTE 11 e 12 — a cota do plano e a virada do mês
@@ -522,9 +586,12 @@ igual('a sexta é o nome do salão', linhaM.variaveis[5],
 /* O aviso ao profissional usa o nome INTEIRO — é ele que a pessoa procura na
    agenda. Confundir os dois foi um erro que eu cometi ao refatorar. */
 const novoM = (await banco.query(
-  `select variaveis from public.notificacoes
+  `select modelo, variaveis from public.notificacoes
     where salao_id=$1 and tipo='novo'`, [M.salao])).rows[0];
 if(novoM){
+  // Com o "1": é o nome com que ele foi aprovado na Meta.
+  igual('o aviso ao profissional vai pelo modelo aprovado',
+    novoM.modelo, 'agendapro_novo1');
   igual('o aviso ao profissional leva quatro variáveis',
     (novoM.variaveis || []).length, 4);
   igual('e o nome COMPLETO da cliente, não só o primeiro',

@@ -382,9 +382,20 @@ console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
     novo:        conta(ramo(/p_tipo = 'novo' then([\s\S]*?)end if;/)),
   };
   noSql.lembrete = noSql.confirmacao;            // o mesmo ramo atende os dois
-  // O resumo é montado no gerar_resumos: nome do salão + a lista do dia.
-  noSql.resumo = /modelo_de\('resumo'\)[\s\S]{0,400}?variavel_lista\(/.test(sql)
-    ? 2 : 0;
+  /* O resumo sai do variaveis_resumo(): quem recebe, o salão, quantos e o
+     primeiro. E as DUAS linhas do gerar_resumos (a casa e cada profissional)
+     têm de usá-lo — uma ficando no formato velho mandaria o número errado de
+     variáveis, e a Meta recusa a mensagem inteira. */
+  const corpoVR = (sql.match(
+    /function public\.variaveis_resumo\(([\s\S]*?)\nend \$\$;/) || [])[1] || '';
+  const corpoGR = (sql.match(
+    /function public\.gerar_resumos\(([\s\S]*?)\nend \$\$;/) || [])[1] || '';
+  const usosVR = (corpoGR.match(/modelo_de\('resumo'\),\s*public\.variaveis_resumo\(/g) || []).length;
+  dizer(usosVR === 2,
+    `as duas linhas de resumo usam o variaveis_resumo() (${usosVR})`,
+    'a casa e o de cada profissional têm de mandar as mesmas variáveis');
+  noSql.resumo = conta(
+    (corpoVR.match(/return jsonb_build_array\(([\s\S]*)\);\s*$/) || [])[1] || '');
 
   for(const { tipo, modelo } of nomes){
     const corpo = blocoDe(modelo);

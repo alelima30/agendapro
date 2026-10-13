@@ -2255,8 +2255,8 @@ returns text language sql immutable set search_path = public as $$
   select case p_tipo
     when 'confirmacao' then 'agendapro_confirmacao'
     when 'lembrete'    then 'agendapro_lembrete'
-    when 'novo'        then 'agendapro_novo'
-    when 'resumo'      then 'agendapro_resumo'
+    when 'novo'        then 'agendapro_novo1'
+    when 'resumo'      then 'agendapro_agenda_dia'
   end
 $$;
 

@@ -2396,8 +2396,8 @@ returns text language sql immutable set search_path = public as $$
   select case p_tipo
     when 'confirmacao' then 'agendapro_confirmacao'
     when 'lembrete'    then 'agendapro_lembrete'
-    when 'novo'        then 'agendapro_novo'
-    when 'resumo'      then 'agendapro_resumo'
+    when 'novo'        then 'agendapro_novo1'
+    when 'resumo'      then 'agendapro_agenda_dia'
   end
 $$;
 create or replace function public.variaveis_agendamento(
@@ -2427,6 +2427,12 @@ update public.notificacoes n
    and n.agendamento_id is not null
    and n.variaveis is not null
    and jsonb_array_length(n.variaveis) <> 6;
+update public.notificacoes
+   set status = 'cancelado', motivo = 'modelo antigo do resumo do dia'
+ where status = 'pendente' and tipo = 'resumo' and modelo = 'agendapro_resumo';
+update public.notificacoes
+   set modelo = 'agendapro_novo1'
+ where status = 'pendente' and tipo = 'novo' and modelo = 'agendapro_novo';
 create or replace function public.texto_resumo(
   p_salao uuid, p_profissional uuid, p_dia date, p_periodo text default 'dia')
 returns text language plpgsql stable security definer set search_path = public as $$
@@ -2535,6 +2541,68 @@ begin
                 || E'\n\nTotal: %s agendamento%s',
                 v_casa, v_corpo, v_total,
                 case when v_total = 1 then '' else 's' end);
+end $$;
+create or replace function public.variaveis_resumo(
+  p_salao uuid, p_profissional uuid, p_dia date, p_periodo text, p_quem text)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  v_fuso text; v_casa text;
+  v_h1 int; v_h2 int;
+  v_ini timestamptz; v_fim timestamptz;
+  v_total int;
+  r record;
+begin
+  select coalesce(s.fuso, 'America/Sao_Paulo'), s.nome into v_fuso, v_casa
+    from public.saloes s where s.id = p_salao;
+  if v_fuso is null then return null; end if;
+  if p_periodo = 'manha' then
+    v_h1 := public.notif_num(p_salao, 'notifManhaIni', 0);
+    v_h2 := public.notif_num(p_salao, 'notifManhaFim', 12);
+  elsif p_periodo = 'tarde' then
+    v_h1 := public.notif_num(p_salao, 'notifTardeIni', 12);
+    v_h2 := public.notif_num(p_salao, 'notifTardeFim', 24);
+  else
+    v_h1 := 0; v_h2 := 24;
+  end if;
+  v_ini := ((p_dia::timestamp) + make_interval(hours => v_h1)) at time zone v_fuso;
+  v_fim := ((p_dia::timestamp) + make_interval(hours => v_h2)) at time zone v_fuso;
+  select count(*) into v_total
+    from public.agendamentos a
+   where a.salao_id = p_salao
+     and a.profissional_id in (
+           select pr.id from public.profissionais pr
+            where pr.salao_id = p_salao
+              and (pr.id = p_profissional or (p_profissional is null and pr.ativo)))
+     and a.arquivado_em is null
+     and a.status in ('pendente','confirmado','em_atendimento')
+     and a.inicio >= v_ini and a.inicio < v_fim;
+  if v_total = 0 then return null; end if;
+  select a.inicio,
+         coalesce(c.nome, a.atendido_nome, 'sem nome') as cliente,
+         coalesce((select string_agg(sv.nome, ' + ' order by asv.ordem)
+                     from public.agendamento_servicos asv
+                     join public.servicos sv on sv.id = asv.servico_id
+                    where asv.agendamento_id = a.id), 'atendimento') as servico
+    into r
+    from public.agendamentos a
+    left join public.clientes c on c.id = a.cliente_id
+   where a.salao_id = p_salao
+     and a.profissional_id in (
+           select pr.id from public.profissionais pr
+            where pr.salao_id = p_salao
+              and (pr.id = p_profissional or (p_profissional is null and pr.ativo)))
+     and a.arquivado_em is null
+     and a.status in ('pendente','confirmado','em_atendimento')
+     and a.inicio >= v_ini and a.inicio < v_fim
+   order by a.inicio
+   limit 1;
+  return jsonb_build_array(
+    public.variavel_limpa(coalesce(nullif(split_part(btrim(coalesce(p_quem, '')), ' ', 1), ''),
+                                   'equipe')),
+    public.variavel_limpa(v_casa),
+    public.variavel_limpa(v_total::text),
+    public.variavel_limpa(to_char(r.inicio at time zone v_fuso, 'HH24:MI')
+                          || ' com ' || r.cliente || ' (' || r.servico || ')'));
 end $$;
 create or replace function public.tg_notificar_agendamento()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -2672,6 +2740,7 @@ declare
   v_periodo text;
   v_corpo   text;
   v_tel     text;
+  v_quem    text;
   n int := 0;
 begin
   for s in select id, coalesce(fuso, 'America/Sao_Paulo') as fuso from public.saloes
@@ -2689,7 +2758,8 @@ begin
     if v_periodo not in ('dia','manha','tarde') then v_periodo := 'dia'; end if;
     v_corpo := public.texto_resumo(s.id, null, v_hoje, v_periodo);
     if v_corpo is not null then
-      select public.so_digitos(pr2.telefone) into v_tel
+      select public.so_digitos(pr2.telefone), coalesce(nullif(pr2.apelido, ''), pr2.nome)
+        into v_tel, v_quem
         from public.profissionais pr2
         join public.vinculos v on v.perfil_id = pr2.perfil_id
                               and v.salao_id = pr2.salao_id
@@ -2701,17 +2771,15 @@ begin
           (salao_id, tipo, destino, quando, corpo, chave, modelo, variaveis)
         values (s.id, 'resumo', v_tel, p_agora, v_corpo,
                 'resumo:casa:' || v_hoje, public.modelo_de('resumo'),
-                jsonb_build_array(
-                  public.variavel_limpa(
-                    (select nome from public.saloes where id = s.id)),
-                  public.variavel_lista(v_corpo)))
+                public.variaveis_resumo(s.id, null, v_hoje, v_periodo, v_quem))
         on conflict (salao_id, chave) do nothing;
         n := n + 1;
       end if;
     end if;
     if (select count(*) from public.profissionais
          where salao_id = s.id and ativo) > 1 then
-      for pr in select id, telefone from public.profissionais
+      for pr in select id, telefone, coalesce(nullif(apelido, ''), nome) as quem
+                  from public.profissionais
                  where salao_id = s.id and ativo and notif_resumo
                    and telefone is not null
       loop
@@ -2724,10 +2792,7 @@ begin
           values (s.id, 'resumo', v_tel, pr.id, p_agora, v_corpo,
                   'resumo:' || pr.id || ':' || v_hoje,
                   public.modelo_de('resumo'),
-                  jsonb_build_array(
-                    public.variavel_limpa(
-                      (select nome from public.saloes where id = s.id)),
-                    public.variavel_lista(v_corpo)))
+                  public.variaveis_resumo(s.id, pr.id, v_hoje, v_periodo, pr.quem))
           on conflict (salao_id, chave) do nothing;
           n := n + 1;
         end if;
@@ -2745,6 +2810,8 @@ revoke all on function public.texto_agendamento(uuid, text)
 revoke all on function public.variaveis_agendamento(uuid, text)
   from public, anon, authenticated;
 revoke all on function public.texto_resumo(uuid, uuid, date, text)
+  from public, anon, authenticated;
+revoke all on function public.variaveis_resumo(uuid, uuid, date, text, text)
   from public, anon, authenticated;
 comment on table public.notificacoes is
   'Fila das mensagens que nascem da agenda: confirmação, lembrete, resumo e aviso ao profissional.';

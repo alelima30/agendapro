@@ -9,7 +9,7 @@ Para os quatro, sempre:
 | Categoria | **Utilidade** |
 | Idioma | **Português (BR)** |
 | Cabeçalho | nenhum |
-| Botões | nenhum |
+| Botões | nenhum — **menos no resumo do dia**, que tem um (veja o 4) |
 
 > **Categoria importa muito no bolso.** Utilidade custa cerca de **R$ 0,045**
 > por mensagem no Brasil. Marketing custa **R$ 0,31–0,38** — oito vezes mais.
@@ -88,7 +88,9 @@ Mesmas seis variáveis da confirmação, na mesma ordem.
 
 ---
 
-## 3. `agendapro_novo`
+## 3. `agendapro_novo1`
+
+> O nome tem o **1** no fim: é assim que ele foi cadastrado na Meta.
 
 Vai para o **profissional**, avisando que entrou horário na agenda dele.
 
@@ -115,27 +117,45 @@ Confira na agenda.
 
 ---
 
-## 4. `agendapro_resumo`
+## 4. `agendapro_agenda_dia`
 
-O resumo do dia, uma vez pela manhã.
+O resumo do dia, uma vez pela manhã, para o dono e para cada profissional.
 
 ```
-Bom dia! Segue a agenda de hoje — {{1}}.
+☀️ Bom dia, {{1}}!
 
-{{2}}
+Agenda de hoje — {{2}}
+Atendimentos: {{3}}
+Primeiro horário: {{4}}
 
-Bom trabalho!
+Toque no botão para ver a agenda completa.
 ```
 
 | variável | conteúdo | exemplo |
 |---|---|---|
-| `{{1}}` | nome do salão | Salão da Ana |
-| `{{2}}` | a agenda do dia | `09:00 — Maria — Corte · 10:30 — Joana — Escova · Total: 2 atendimentos` |
+| `{{1}}` | primeiro nome de quem recebe | Ana |
+| `{{2}}` | nome do salão | Salão da Ana |
+| `{{3}}` | quantos atendimentos | 5 |
+| `{{4}}` | o primeiro horário | 09:00 com Maria (Corte) |
 
-> **Por que a lista vem numa linha só, com " · " no meio:** variável de modelo
-> **não aceita quebra de linha** — nem tabulação, nem quatro espaços seguidos.
-> A Meta recusa. O painel continua mostrando a lista bonita, uma por linha; só
-> o que viaja é achatado.
+**Este tem um botão:** Adicionar botão → **Visitar o site**
+
+| campo | valor |
+|---|---|
+| Texto do botão | `Ver agenda` |
+| Tipo de URL | **Estática** |
+| URL | o endereço do painel, o mesmo que você abre para entrar — ex.: `https://alelima30.github.io/agendapro/app.html` |
+
+> **Por que não vai a lista inteira.** Variável de modelo **não aceita quebra
+> de linha**. A lista achatada saía como uma linha só, enorme, e ainda
+> repetia o "Bom dia" e o nome do salão. Agora vão só quantos e o primeiro, e
+> a lista bonita, uma por linha, fica no painel — que é para onde o botão
+> leva. O histórico do painel continua guardando a lista inteira.
+
+> **Por que o nome não é mais `agendapro_resumo`.** Aquele era o modelo da
+> lista numa linha só. Se você chegou a enviá-lo, pode apagar na Meta: o
+> sistema não usa mais. E o nome é outro porque nome de modelo apagado fica
+> preso por semanas.
 
 ---
 
@@ -169,5 +189,5 @@ select tipo, modelo, variaveis, corpo
  limit 5;
 ```
 
-`variaveis` tem que ter 6 itens na confirmação e no lembrete, 4 no novo e 2 no
+`variaveis` tem que ter 6 itens na confirmação e no lembrete, 4 no novo e 4 no
 resumo — na ordem das tabelas acima.
