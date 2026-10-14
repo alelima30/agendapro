@@ -2256,7 +2256,7 @@ returns text language sql immutable set search_path = public as $$
     when 'confirmacao' then 'agendapro_confirmacao'
     when 'lembrete'    then 'agendapro_lembrete'
     when 'novo'        then 'agendapro_aviso_profissional'
-    when 'resumo'      then 'agendapro_agenda_dia'
+    when 'resumo'      then 'agendapro_agenda_hoje'
   end
 $$;
 

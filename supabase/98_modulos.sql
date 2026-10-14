@@ -2399,7 +2399,7 @@ returns text language sql immutable set search_path = public as $$
     when 'confirmacao' then 'agendapro_confirmacao'
     when 'lembrete'    then 'agendapro_lembrete'
     when 'novo'        then 'agendapro_aviso_profissional'
-    when 'resumo'      then 'agendapro_agenda_dia'
+    when 'resumo'      then 'agendapro_agenda_hoje'
   end
 $$;
 create or replace function public.variaveis_agendamento(
@@ -2434,6 +2434,9 @@ update public.notificacoes n
 update public.notificacoes
    set status = 'cancelado', motivo = 'modelo antigo do resumo do dia'
  where status = 'pendente' and tipo = 'resumo' and modelo = 'agendapro_resumo';
+update public.notificacoes
+   set modelo = public.modelo_de('resumo')
+ where status = 'pendente' and tipo = 'resumo' and modelo = 'agendapro_agenda_dia';
 update public.notificacoes n
    set modelo    = public.modelo_de('novo'),
        variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, 'novo'), n.variaveis),

@@ -247,7 +247,8 @@ verdade('com os três atendimentos e o total',
    repetia o "Bom dia" do modelo. O dono escolheu: quantos e o primeiro, e um
    botão no modelo que abre o painel. O corpo continua com a lista inteira. */
 const vS = rSozinha[0].variaveis || [];
-igual('o resumo vai pelo modelo novo', rSozinha[0].modelo, 'agendapro_agenda_dia');
+/* O de UTILIDADE: o 'agendapro_agenda_dia' foi reclassificado como marketing. */
+igual('o resumo vai pelo modelo de utilidade', rSozinha[0].modelo, 'agendapro_agenda_hoje');
 igual('com quatro variáveis', vS.length, 4);
 igual('a primeira é o primeiro nome de quem recebe', vS[0], 'Dona');
 igual('a segunda é o salão', vS[1],

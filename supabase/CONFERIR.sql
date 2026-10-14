@@ -614,7 +614,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
 
      E os nomes têm de ser os que a Meta aprovou: o aviso ao profissional é
      'agendapro_aviso_profissional' (o de utilidade; o 'agendapro_novo1' virou
-     marketing e não chegava), e o resumo do dia é 'agendapro_agenda_dia' (o curto,
+     marketing e não chegava), e o resumo do dia é 'agendapro_agenda_hoje' (o curto,
      com botão). Nome que não existe lá volta 132001. */
   select 28, 'mensagens do WhatsApp: salão no texto e os modelos certos',
          case
@@ -624,7 +624,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or to_regprocedure('public.variaveis_resumo(uuid,uuid,date,text,text)') is null
              or to_regprocedure('public.modelo_de(text)') is null
              or public.modelo_de('novo')   is distinct from 'agendapro_aviso_profissional'
-             or public.modelo_de('resumo') is distinct from 'agendapro_agenda_dia'
+             or public.modelo_de('resumo') is distinct from 'agendapro_agenda_hoje'
              then 'FALTA'
            else 'certo' end,
          case
@@ -634,7 +634,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or to_regprocedure('public.variaveis_resumo(uuid,uuid,date,text,text)') is null
              or to_regprocedure('public.modelo_de(text)') is null
              or public.modelo_de('novo')   is distinct from 'agendapro_aviso_profissional'
-             or public.modelo_de('resumo') is distinct from 'agendapro_agenda_dia'
+             or public.modelo_de('resumo') is distinct from 'agendapro_agenda_hoje'
              then 'cole o 00_tudo.sql de novo (21_notificacoes): as mensagens saem '
                || 'sem o nome do salão ou com nome de modelo que a Meta não tem'
            else '' end

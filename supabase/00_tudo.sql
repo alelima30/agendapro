@@ -8973,10 +8973,14 @@ returns text language sql immutable set search_path = public as $$
        confirmação, que passou como Utilidade: endereçado à pessoa, sobre UM
        agendamento, com o local, e sem chamada para ação. */
     when 'novo'        then 'agendapro_aviso_profissional'
-    -- ⚠ NÃO é mais 'agendapro_resumo': aquele mandava a lista achatada numa
-    -- linha só. Nome novo porque nome de modelo apagado na Meta fica preso
-    -- por semanas — e o velho pode já ter sido enviado para aprovação.
-    when 'resumo'      then 'agendapro_agenda_dia'
+    /* ⚠ NEM 'agendapro_resumo' (a lista achatada numa linha só) NEM
+       'agendapro_agenda_dia': este a Meta reclassificou como MARKETING — o
+       "☀️ Bom dia!" de abertura e o "Toque no botão para ver…" foram lidos
+       como chamada. O novo tem as MESMAS quatro variáveis, na mesma ordem, no
+       formato de aviso de conta: "o resumo da sua agenda de hoje", sem
+       chamada no texto. Nome novo porque nome de modelo apagado na Meta fica
+       preso por semanas. */
+    when 'resumo'      then 'agendapro_agenda_hoje'
   end
 $$;
 
@@ -9047,6 +9051,12 @@ update public.notificacoes n
 update public.notificacoes
    set status = 'cancelado', motivo = 'modelo antigo do resumo do dia'
  where status = 'pendente' and tipo = 'resumo' and modelo = 'agendapro_resumo';
+
+/* O 'agendapro_agenda_dia' tem as mesmas quatro variáveis do modelo de
+   utilidade que o substitui: o que está na fila só troca de nome. */
+update public.notificacoes
+   set modelo = public.modelo_de('resumo')
+ where status = 'pendente' and tipo = 'resumo' and modelo = 'agendapro_agenda_dia';
 
 /* O aviso à profissional trocou de modelo (o de marketing para o de
    utilidade) e de variáveis (4 → 6). O que ainda está na fila é refeito:

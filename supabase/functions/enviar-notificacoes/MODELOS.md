@@ -126,18 +126,18 @@ Aviso automático do sistema de agendamento.
 
 ---
 
-## 4. `agendapro_agenda_dia`
+## 4. `agendapro_agenda_hoje`
 
 O resumo do dia, uma vez pela manhã, para o dono e para cada profissional.
 
 ```
-☀️ Bom dia, {{1}}!
+Olá, {{1}}. Este é o resumo da sua agenda de hoje.
 
-Agenda de hoje — {{2}}
-Atendimentos: {{3}}
-Primeiro horário: {{4}}
+🏪 Local: {{2}}
+📋 Atendimentos: {{3}}
+🕐 Primeiro horário: {{4}}
 
-Toque no botão para ver a agenda completa.
+Aviso automático do sistema de agendamento.
 ```
 
 | variável | conteúdo | exemplo |
@@ -161,10 +161,14 @@ Toque no botão para ver a agenda completa.
 > a lista bonita, uma por linha, fica no painel — que é para onde o botão
 > leva. O histórico do painel continua guardando a lista inteira.
 
-> **Por que o nome não é mais `agendapro_resumo`.** Aquele era o modelo da
-> lista numa linha só. Se você chegou a enviá-lo, pode apagar na Meta: o
-> sistema não usa mais. E o nome é outro porque nome de modelo apagado fica
-> preso por semanas.
+> **Por que o nome não é mais `agendapro_resumo` nem `agendapro_agenda_dia`.**
+> O primeiro mandava a lista numa linha só. O segundo a Meta reclassificou
+> como **Marketing**: o "☀️ Bom dia!" de abertura e o "Toque no botão para
+> ver a agenda completa" foram lidos como chamada — e marketing ela segura
+> para quem nunca conversou com o número. Este tem as mesmas quatro
+> variáveis, no formato de aviso de conta, sem chamada no texto. Os dois
+> antigos podem ser apagados na Meta. E o nome é sempre outro porque nome de
+> modelo apagado fica preso por semanas.
 
 ---
 
