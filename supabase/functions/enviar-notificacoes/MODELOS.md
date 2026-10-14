@@ -88,32 +88,41 @@ Mesmas seis variáveis da confirmação, na mesma ordem.
 
 ---
 
-## 3. `agendapro_novo1`
+## 3. `agendapro_aviso_profissional`
 
-> O nome tem o **1** no fim: é assim que ele foi cadastrado na Meta.
-
-Vai para o **profissional**, avisando que entrou horário na agenda dele.
+Vai para **quem atende**, avisando que entrou horário na agenda dela.
 
 ```
-🔔 Novo agendamento na sua agenda.
+Olá, {{1}}. Um horário foi agendado com você.
 
-Cliente: {{1}}
-Serviço: {{2}}
-Data: {{3}}
-Horário: {{4}}
+👤 Cliente: {{2}}
+✂️ Serviço: {{3}}
+📅 Data: {{4}}
+🕐 Horário: {{5}}
+🏪 Local: {{6}}
 
-Confira na agenda.
+Aviso automático do sistema de agendamento.
 ```
 
 | variável | conteúdo | exemplo |
 |---|---|---|
-| `{{1}}` | nome completo da cliente | Maria Souza |
-| `{{2}}` | serviço | Corte + Escova |
-| `{{3}}` | data | 15/09/2026 |
-| `{{4}}` | horário | 14:30 |
+| `{{1}}` | primeiro nome de quem atende | Ana |
+| `{{2}}` | nome completo da cliente | Maria Souza |
+| `{{3}}` | serviço | Corte + Escova |
+| `{{4}}` | data | 15/10/2026 |
+| `{{5}}` | horário | 14:30 |
+| `{{6}}` | nome do salão | Salão da Ana |
 
-> Aqui é o nome **completo**, e não só o primeiro: é ele que a pessoa vai
-> procurar na agenda.
+> Aqui é o nome **completo** da cliente, e não só o primeiro: é ele que a
+> profissional vai procurar na agenda.
+
+> **Por que não é mais o `agendapro_novo1`.** A Meta o reclassificou como
+> **Marketing** — o "🔔 Novo agendamento… Confira na agenda" foi lido como
+> chamada — e mensagem de marketing ela segura para quem nunca conversou com
+> o número: o aviso saía como "enviado" e não chegava. Este segue a forma da
+> confirmação, que passou como Utilidade: endereçado à pessoa, sobre **um**
+> agendamento, com o local, sem chamada para ação. O `agendapro_novo1` pode ser
+> apagado na Meta: o sistema não usa mais.
 
 ---
 
@@ -189,5 +198,5 @@ select tipo, modelo, variaveis, corpo
  limit 5;
 ```
 
-`variaveis` tem que ter 6 itens na confirmação e no lembrete, 4 no novo e 4 no
-resumo — na ordem das tabelas acima.
+`variaveis` tem que ter 6 itens na confirmação, no lembrete e no aviso à
+profissional, e 4 no resumo — na ordem das tabelas acima.

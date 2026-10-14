@@ -586,16 +586,29 @@ igual('a sexta é o nome do salão', linhaM.variaveis[5],
 /* O aviso ao profissional usa o nome INTEIRO — é ele que a pessoa procura na
    agenda. Confundir os dois foi um erro que eu cometi ao refatorar. */
 const novoM = (await banco.query(
-  `select modelo, variaveis from public.notificacoes
-    where salao_id=$1 and tipo='novo'`, [M.salao])).rows[0];
+  `select n.modelo, n.variaveis, n.corpo, p.nome as prof
+     from public.notificacoes n
+     join public.profissionais p on p.id = n.profissional_id
+    where n.salao_id=$1 and n.tipo='novo'`, [M.salao])).rows[0];
+/* ⚠ Sem `if(novoM)`: com ele, um aviso que deixasse de nascer passava calado
+   por todas as linhas abaixo. */
+verdade('o aviso à profissional nasceu', !!novoM);
 if(novoM){
-  // Com o "1": é o nome com que ele foi aprovado na Meta.
-  igual('o aviso ao profissional vai pelo modelo aprovado',
-    novoM.modelo, 'agendapro_novo1');
-  igual('o aviso ao profissional leva quatro variáveis',
-    (novoM.variaveis || []).length, 4);
-  igual('e o nome COMPLETO da cliente, não só o primeiro',
-    novoM.variaveis[0], 'Rita Souza');
+  /* O modelo de UTILIDADE. O 'agendapro_novo1' foi reclassificado como
+     marketing pela Meta, e o aviso saía "enviado" sem chegar. */
+  igual('o aviso à profissional vai pelo modelo de utilidade',
+    novoM.modelo, 'agendapro_aviso_profissional');
+  igual('com seis variáveis', (novoM.variaveis || []).length, 6);
+  igual('a primeira é o primeiro nome de quem atende',
+    novoM.variaveis[0], novoM.prof.split(' ')[0]);
+  igual('e a cliente pelo nome COMPLETO, não só o primeiro',
+    novoM.variaveis[1], 'Rita Souza');
+  igual('a sexta é o salão', novoM.variaveis[5],
+    (await banco.query(`select nome from public.saloes where id=$1`, [M.salao])).rows[0].nome);
+  verdade('e o corpo do histórico diz o mesmo, sem a chamada "Confira"',
+    /Um horário foi agendado com você/.test(novoM.corpo)
+      && novoM.corpo.includes('🏪 Local: ' + novoM.variaveis[5])
+      && !/Confira/.test(novoM.corpo), novoM.corpo);
 }
 
 /* ⚠ NENHUMA VARIÁVEL PODE TER QUEBRA DE LINHA NEM VIR VAZIA — a Meta recusa a

@@ -292,12 +292,14 @@ begin
 
   elsif p_tipo = 'novo' then
     return format(
-      '🔔 Novo agendamento'
-      || E'\n\nCliente: %s'
-      || E'\nServiço: %s'
-      || E'\nData: %s'
-      || E'\nHorário: %s',
-      v_cli, v_serv, v_data, v_hora);
+      'Olá, %s. Um horário foi agendado com você.'
+      || E'\n\n👤 Cliente: %s'
+      || E'\n✂️ Serviço: %s'
+      || E'\n📅 Data: %s'
+      || E'\n🕐 Horário: %s'
+      || E'\n🏪 Local: %s'
+      || E'\n\nAviso automático do sistema de agendamento.',
+      split_part(v_prof, ' ', 1), v_cli, v_serv, v_data, v_hora, v_casa);
   end if;
   return null;
 end $$;
@@ -366,8 +368,13 @@ returns text language sql immutable set search_path = public as $$
   select case p_tipo
     when 'confirmacao' then 'agendapro_confirmacao'
     when 'lembrete'    then 'agendapro_lembrete'
-    -- Com o "1": é o nome com que o modelo foi cadastrado e aprovado na Meta.
-    when 'novo'        then 'agendapro_novo1'
+    /* ⚠ NÃO é mais 'agendapro_novo1'. A Meta o reclassificou como MARKETING
+       ("🔔 Novo agendamento… Confira na agenda" lido como chamada), e
+       marketing ela segura para quem nunca falou com o número: o aviso saía
+       como "enviado" e a profissional não recebia. O novo segue a forma da
+       confirmação, que passou como Utilidade: endereçado à pessoa, sobre UM
+       agendamento, com o local, e sem chamada para ação. */
+    when 'novo'        then 'agendapro_aviso_profissional'
     -- ⚠ NÃO é mais 'agendapro_resumo': aquele mandava a lista achatada numa
     -- linha só. Nome novo porque nome de modelo apagado na Meta fica preso
     -- por semanas — e o velho pode já ter sido enviado para aprovação.
@@ -410,10 +417,17 @@ begin
       public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'));
 
   elsif p_tipo = 'novo' then
-    -- {{1}} cliente  {{2}} serviço  {{3}} data  {{4}} hora
+    -- {{1}} primeiro nome de quem atende  {{2}} cliente (nome INTEIRO)
+    -- {{3}} serviço  {{4}} data  {{5}} hora  {{6}} salão
+    --
+    -- O nome inteiro da cliente, e não só o primeiro: é ele que a
+    -- profissional procura na agenda. E o salão, porque quem trabalha em duas
+    -- casas que usam o sistema recebe os dois avisos do mesmo número.
     return jsonb_build_array(
+      public.variavel_limpa(split_part(j->>'prof', ' ', 1)),
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
-      public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'));
+      public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'),
+      public.variavel_limpa(j->>'casa'));
   end if;
   return null;
 end $$;
@@ -436,10 +450,16 @@ update public.notificacoes
    set status = 'cancelado', motivo = 'modelo antigo do resumo do dia'
  where status = 'pendente' and tipo = 'resumo' and modelo = 'agendapro_resumo';
 
--- O aviso ao profissional foi aprovado na Meta como 'agendapro_novo1'.
-update public.notificacoes
-   set modelo = 'agendapro_novo1'
- where status = 'pendente' and tipo = 'novo' and modelo = 'agendapro_novo';
+/* O aviso à profissional trocou de modelo (o de marketing para o de
+   utilidade) e de variáveis (4 → 6). O que ainda está na fila é refeito:
+   sairia com o nome velho, ou com o número errado de variáveis e erro 132000.
+   Rodar de novo não muda nada — quem já está no modelo novo fica. */
+update public.notificacoes n
+   set modelo    = public.modelo_de('novo'),
+       variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, 'novo'), n.variaveis),
+       corpo     = coalesce(public.texto_agendamento(n.agendamento_id, 'novo'), n.corpo)
+ where n.status = 'pendente' and n.tipo = 'novo' and n.agendamento_id is not null
+   and n.modelo is distinct from public.modelo_de('novo');
 
 -- ---------------------------------------------------------------------------
 -- 5) O RESUMO DO DIA

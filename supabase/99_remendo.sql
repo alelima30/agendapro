@@ -2255,7 +2255,7 @@ returns text language sql immutable set search_path = public as $$
   select case p_tipo
     when 'confirmacao' then 'agendapro_confirmacao'
     when 'lembrete'    then 'agendapro_lembrete'
-    when 'novo'        then 'agendapro_novo1'
+    when 'novo'        then 'agendapro_aviso_profissional'
     when 'resumo'      then 'agendapro_agenda_dia'
   end
 $$;
@@ -2324,12 +2324,14 @@ begin
       split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa);
   elsif p_tipo = 'novo' then
     return format(
-      '🔔 Novo agendamento'
-      || E'\n\nCliente: %s'
-      || E'\nServiço: %s'
-      || E'\nData: %s'
-      || E'\nHorário: %s',
-      v_cli, v_serv, v_data, v_hora);
+      'Olá, %s. Um horário foi agendado com você.'
+      || E'\n\n👤 Cliente: %s'
+      || E'\n✂️ Serviço: %s'
+      || E'\n📅 Data: %s'
+      || E'\n🕐 Horário: %s'
+      || E'\n🏪 Local: %s'
+      || E'\n\nAviso automático do sistema de agendamento.',
+      split_part(v_prof, ' ', 1), v_cli, v_serv, v_data, v_hora, v_casa);
   end if;
   return null;
 end $$;
@@ -2358,8 +2360,10 @@ begin
       public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'));
   elsif p_tipo = 'novo' then
     return jsonb_build_array(
+      public.variavel_limpa(split_part(j->>'prof', ' ', 1)),
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
-      public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'));
+      public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'),
+      public.variavel_limpa(j->>'casa'));
   end if;
   return null;
 end $$;
