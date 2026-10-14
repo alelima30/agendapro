@@ -405,6 +405,18 @@ body.carregando-tudo .tela{ display:none }
 .busca-serv{margin-bottom:8px}
 .serv-nada{font-size:13px;color:var(--txt2);padding:8px 2px}
 
+/* ── Aniversariantes: o cartão do Hoje e o do Dashboard ─────────────────
+   Uma linha por pessoa, o botão à direita. Só variáveis do tema. */
+.niver-titulo{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:16px}
+.niver-linha{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 0;border-top:1px solid var(--borda)}
+.niver-linha:first-of-type{border-top:0}
+.niver-quem{min-width:0}
+.niver-quem b{display:block;overflow-wrap:anywhere}
+.niver-quando{color:var(--txt2);font-size:13px}
+.niver-linha .btn{flex-shrink:0;min-height:40px}
+.niver-sub{margin:12px 0 2px;font-size:13px;font-weight:600;color:var(--txt2)}
+
 /* ── O horário do "+ Agendamento": os livres em botões ──────────────────
    No lugar do relógio nativo, que no Android escondia o botão de confirmar.
    40px de altura (a regra de toque da casa); só variáveis do tema. */
@@ -1890,7 +1902,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.49496f';
+const VERSAO_APP = 'v9.d3a4fe';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -4285,7 +4297,9 @@ function desenharHoje(p){
     : '<div class="vazio" style="margin-top:18px"><b>Ninguém mais hoje</b>'
       + 'O que estava marcado já passou.</div>';
 
-  document.getElementById('hojeCorpo').innerHTML = kpis + gaveta + prox;
+  const alvoHoje = document.getElementById('hojeCorpo');
+  alvoHoje.innerHTML = kpis + gaveta + blocoNiverHoje() + prox;
+  if(window.aplicarIcones) aplicarIcones(alvoHoje);
 }
 
 /* A hora no fuso do SALÃO, e é por isso que o `painel_hoje()` devolve o
@@ -4501,6 +4515,133 @@ async function confirmarFecharGaveta(){
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   ANIVERSARIANTES
+
+   "Como lembrar os parabéns das clientes?" — a data já era guardada (o link
+   pede, a ficha tem o campo) e o recado "Dar os parabéns" já existia em Meu
+   salão. Faltava o principal: nenhuma tela dizia QUEM faz aniversário. O
+   recado só aparecia ao tocar no WhatsApp de um horário marcado, e ninguém
+   marca horário no dia do próprio aniversário para ganhar parabéns.
+
+   ⚠ SÓ AVISA, NÃO MANDA. Decisão do dono do produto: "que apareça somente no
+   app por enquanto". O botão abre o WhatsApp DO SALÃO com o recado escrito,
+   pelo `wa.me` — o mesmo caminho dos outros recados manuais. Nada sai pela
+   API da Meta, nada custa, nada gasta a cota do plano.
+
+   A conta é aqui, e não no banco, porque a tela já tem as fichas em memória
+   (`clientesDo()`), e são as mesmas que a pessoa vê em Clientes — quem não
+   enxerga a ficha também não enxerga o aniversário dela.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Quem faz aniversário de hoje até daqui a `dias` dias, no calendário DO
+   SALÃO (`hoje()` usa o fuso dele: às 22h em São Paulo ainda é hoje lá, mesmo
+   que o relógio do mundo já tenha virado).
+
+   ⚠ 29 DE FEVEREIRO. Quem nasceu nele faz aniversário só de quatro em quatro
+   anos no calendário — e sumiria do aviso nos outros três. No ano que não é
+   bissexto, a festa é no dia 28. */
+function aniversariantes(dias){
+  const hj = hoje();
+  const bissexto = a => a % 4 === 0 && (a % 100 !== 0 || a % 400 === 0);
+  const lista = [];
+  for(const c of clientesDo()){
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(c.nascimento || ''));
+    if(!m) continue;
+    const anoN = Number(m[1]), mesN = Number(m[2]), diaN = Number(m[3]);
+    for(let k = 0; k <= dias; k++){
+      const d = somarDias(hj, k);
+      const [a, mm, dd] = d.split('-').map(Number);
+      const caiHoje = mm === mesN && (dd === diaN
+        || (mesN === 2 && diaN === 29 && dd === 28 && !bissexto(a)));
+      if(!caiHoje) continue;
+      /* A idade só quando o ano é plausível: ficha antiga com ano 1900 ou
+         0001 — data digitada só com dia e mês — diria "faz 126 anos". */
+      const idade = a - anoN;
+      lista.push({ id: c.id, chamada: c.nome, dia: d, faltam: k,
+                   idade: anoN >= 1900 && idade > 0 && idade < 120 ? idade : null });
+      break;
+    }
+  }
+  return lista.sort((x, y) => x.faltam - y.faltam
+    || String(x.chamada).localeCompare(String(y.chamada), 'pt-BR'));
+}
+
+/* "hoje", "amanhã" ou "sex, 17/10". */
+function quandoNiver(x){
+  if(x.faltam === 0) return 'hoje';
+  if(x.faltam === 1) return 'amanhã';
+  const [, m, d] = x.dia.split('-');
+  return DIAS[diaDaSemana(x.dia)].slice(0, 3).toLowerCase() + ', ' + d + '/' + m;
+}
+
+/* Uma linha: o nome, quando (e quantos anos), e — no dia — o botão. Antes do
+   dia não há botão: parabéns adiantado é estranho, e o botão ali convidaria
+   a mandar. */
+function linhaNiver(x){
+  const idade = x.idade ? ` · faz ${x.idade} anos` : '';
+  return `<div class="niver-linha">
+    <span class="niver-quem"><b>${escapar(x.chamada)}</b>
+      <span class="niver-quando">${quandoNiver(x)}${idade}</span></span>
+    ${x.faltam === 0
+      ? `<button type="button" class="btn btn-peq" onclick="darParabens('${x.id}')">
+           <span data-ico="whatsapp"></span> Dar os parabéns</button>`
+      : ''}
+  </div>`;
+}
+
+/* O cartão do Hoje: só aparece quando ALGUÉM faz aniversário hoje. Um cartão
+   dizendo "ninguém faz aniversário" todo santo dia, na primeira tela que o
+   dono abre, é ruído — e ruído diário é o que ensina a não olhar. */
+function blocoNiverHoje(){
+  const hoje0 = aniversariantes(0);
+  if(!hoje0.length) return '';
+  return `<div class="card" id="niverHoje" style="margin-bottom:16px">
+    <h3 class="niver-titulo"><span data-ico="presente"></span>
+      ${hoje0.length === 1 ? 'Aniversário hoje' : 'Aniversários hoje'}</h3>
+    ${hoje0.map(linhaNiver).join('')}
+  </div>`;
+}
+
+/* O cartão do Dashboard: hoje e os próximos sete dias. Este fica mesmo
+   vazio — foi o dono que o ligou, e sumir seria pior que dizer "ninguém".
+   ⚠ `d` não é usado: a conta é das fichas em memória, não do
+   `painel_grafico()`. O parâmetro fica para o cartão ter a mesma forma dos
+   outros no `CARTOES_DASH`. */
+function dashAniversarios(){
+  const lista = aniversariantes(7);
+  if(!lista.length){
+    const algumaData = clientesDo().some(c => c.nascimento);
+    return '<div class="vazio">Ninguém faz aniversário nos próximos 7 dias.'
+      + (algumaData ? '' : '<br>Nenhuma ficha tem a data ainda: o link de '
+        + 'agendamento pede, e dá para preencher em Clientes.')
+      + '</div>';
+  }
+  const hoje0 = lista.filter(x => x.faltam === 0);
+  const depois = lista.filter(x => x.faltam > 0);
+  return (hoje0.length ? hoje0.map(linhaNiver).join('') : '')
+    + (depois.length
+        ? `<p class="niver-sub">Próximos dias</p>${depois.map(linhaNiver).join('')}`
+        : '');
+}
+
+/* O recado de parabéns direto, sem a janela de escolher recado: quem tocou
+   em "Dar os parabéns" já escolheu. O texto é o de Meu salão (ou o padrão),
+   e o `${horario}` sai limpo — ver `preencherRecado()`. */
+function darParabens(clienteId){
+  const num = zapDoCliente(clienteId);
+  if(!num){
+    alert('Esta ficha não tem telefone.\n\nAbra a ficha da pessoa em Clientes '
+        + 'e cadastre o WhatsApp dela.');
+    return;
+  }
+  mandarRecado(num, 'aniversario', JSON.stringify({
+    cliente: (nomeCliente(clienteId) || '').split(' ')[0],
+    horario: '',
+    empresa: (acharSalao(salaoAtual) || {}).nome || 'salão',
+  }));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    O DASHBOARD
 
    Cartões que o dono liga, desliga e põe na ordem que quiser.
@@ -4539,6 +4680,7 @@ const CARTOES_DASH = [
   ['topServicos', 'O que mais vende',       d => dashRanque(d.topServicos, 'qtd', 'vez')],
   ['topClientes', 'Quem mais gasta',        d => dashRanque(d.topClientes, 'visitas', 'visita')],
   ['sumidas',     'Clientes que sumiram',   d => dashSumidas(d)],
+  ['aniversarios','Aniversariantes',        () => dashAniversarios()],
 ];
 
 /* O que um salão vê sem ter escolhido nada: os dois gráficos, porque são o

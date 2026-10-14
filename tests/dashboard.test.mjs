@@ -252,6 +252,10 @@ secao('Ligar, desligar e ordenar');
 await p.evaluate(() => abrirConfigDash());
 await p.waitForTimeout(500);
 
+/* O total vem do CATÁLOGO, e não de um número escrito aqui: com o cartão de
+   aniversariantes eram oito, e o "7" fixo reprovava um acréscimo, não um
+   defeito. O que este teste guarda é "todos", não "sete". */
+const NO_CATALOGO = await p.evaluate(() => CARTOES_DASH.length);
 const naJanela = await p.evaluate(() => ({
   linhas: document.querySelectorAll('#dashConfig .dash-cfg').length,
   ligados: document.querySelectorAll('#dashConfig .dash-cfg.on').length,
@@ -259,7 +263,8 @@ const naJanela = await p.evaluate(() => ({
 }));
 console.log('      ' + JSON.stringify(naJanela));
 igual('a janela lista TODOS os cartões, ligados e desligados',
-  naJanela.linhas, 7);
+  naJanela.linhas, NO_CATALOGO);
+verdade('e o catálogo tem pelo menos os sete de antes', NO_CATALOGO >= 7, String(NO_CATALOGO));
 /* ⚠ O DESLIGADO APARECE APAGADO, E NÃO SOME. Lista que só mostra o que já
    está ligado não ensina o que mais existe — a pessoa precisa ver para
    poder querer. */
@@ -370,12 +375,12 @@ igual('e a tela não traz o padrão de volta', semNada.cartoes, []);
 verdade('ela explica o que aconteceu e onde desfazer',
   /Nenhum cartão escolhido/i.test(semNada.texto), semNada.texto.slice(0, 160));
 
-/* E a janela continua listando os sete, senão não haveria como voltar
+/* E a janela continua listando todos, senão não haveria como voltar
    atrás: uma tela vazia sem caminho de volta é uma armadilha. */
 await p.evaluate(() => abrirConfigDash());
 await p.waitForTimeout(400);
-igual('e a configuração ainda lista os sete, para dar meia-volta',
-  await p.evaluate(() => document.querySelectorAll('#dashConfig .dash-cfg').length), 7);
+igual('e a configuração ainda lista todos, para dar meia-volta',
+  await p.evaluate(() => document.querySelectorAll('#dashConfig .dash-cfg').length), NO_CATALOGO);
 await p.evaluate(() => fecharModal());
 await p.waitForTimeout(300);
 
