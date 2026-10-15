@@ -204,6 +204,39 @@ const beco = await p.evaluate(() => {
 e('nenhum aviso manda "assine um plano"', !beco.assine);
 e('nem "troque de plano"', !beco.troque);
 
+/* ── O LINK DE TESTE ──────────────────────────────────────────────────────
+   `?oferta=1` mostra a oferta só para quem abriu por ele — é por onde o dono
+   da plataforma faz o primeiro Pix de verdade. Tem de: aparecer com o link,
+   CONTINUAR na mesma aba sem o link (o painel recarrega, o dono navega), e
+   sumir com `?oferta=0` e numa aba nova. Sem o cartão ligado, que é quando o
+   botão de assinar apareceria. */
+console.log('\n── O LINK DE TESTE (?oferta=1) ─────────────────────────────');
+sql(`update public.assinaturas set mp_preapproval = null, cartao_desde = null
+     where salao_id='${SALAO}'`);
+const abrirPlano = async (pg, sufixo) => {
+  await pg.goto(BASE + '/app.html' + sufixo);
+  await pg.waitForTimeout(3000);
+  await pg.evaluate(() => irPara('plano'));
+  await pg.waitForTimeout(1500);
+  return pg.evaluate(() => ({
+    oferta: !!(document.getElementById('ofertaPlano')
+               && document.getElementById('ofertaPlano').offsetParent !== null),
+    texto: document.getElementById('tela-plano').innerText }));
+};
+let lt = await abrirPlano(p, '?oferta=1');
+e('com ?oferta=1, a oferta aparece', lt.oferta, lt.texto.slice(0, 200));
+e('com o botão de assinar', /Assinar/i.test(lt.texto), lt.texto.slice(0, 250));
+lt = await abrirPlano(p, '');
+e('e continua na mesma aba, sem o link', lt.oferta);
+lt = await abrirPlano(p, '?oferta=0');
+e('?oferta=0 esconde de novo', !lt.oferta && !/Assinar/i.test(lt.texto));
+await abrirPlano(p, '?oferta=1');
+const outra = await ctx.newPage();
+outra.on('pageerror', x => erros.push(x.message));
+lt = await abrirPlano(outra, '');
+e('numa aba nova, sem o link, continua escondida', !lt.oferta && !/Assinar/i.test(lt.texto));
+await outra.close();
+
 console.log('\n── ERROS ───────────────────────────────────────────────────');
 e('sem erro de JavaScript', erros.length === 0, erros.slice(0,3).join(' | '));
 

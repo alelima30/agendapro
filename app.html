@@ -1902,7 +1902,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.9ec729';
+const VERSAO_APP = 'v9.e8d80f';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -13231,8 +13231,24 @@ function assinaturaAtual(){
    tomada para o botão do Pix. No dia em que for definitivo, a recusa vai no
    BANCO, como foi feito com o boleto — tela não é lugar de trava.
 
-   Para religar a venda: `true` nesta linha. Nada mais. */
-const OFERTA_DE_PLANO = false;
+   Para religar a venda: `true` nesta linha. Nada mais.
+
+   ── O LINK DE TESTE ───────────────────────────────────────────────────────
+   `app.html?oferta=1` mostra a oferta SÓ para quem abriu por ele, e lembra
+   até fechar a aba (`?oferta=0` esquece). Existe para o dono da plataforma
+   fazer o primeiro Pix de verdade sem mostrar preço a salão nenhum. Não abre
+   nada que o console já não abrisse — ver o parágrafo de cima: a trava, se
+   um dia houver, mora no banco. */
+const OFERTA_DE_PLANO = false || ofertaPorLinkDeTeste();
+
+function ofertaPorLinkDeTeste(){
+  try{
+    const q = new URLSearchParams(location.search).get('oferta');
+    if(q === '1') sessionStorage.setItem('agendapro.oferta', '1');
+    if(q === '0') sessionStorage.removeItem('agendapro.oferta');
+    return sessionStorage.getItem('agendapro.oferta') === '1';
+  }catch(e){ return false; }
+}
 
 /* A saída para quem bateu no limite. Com a venda ligada, é assinar; com ela
    desligada, apontar para a tela que não oferece nada seria um beco. Sai
