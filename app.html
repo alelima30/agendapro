@@ -1902,7 +1902,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.8695fe';
+const VERSAO_APP = 'v9.8a2c09';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -13312,6 +13312,41 @@ function diasDeTeste(){
   const [y2,m2,d2] = hoje().split('-').map(Number);
   return Math.max(Math.round((new Date(y,m-1,d) - new Date(y2,m2-1,d2)) / 86400000), 0);
 }
+/* Quantos dias faltam para a assinatura PAGA vencer — negativo se já venceu.
+   `null` quando não é assinatura paga com data: teste, Grátis, ou plano posto
+   à mão sem vencimento. Mesmo relógio do salão que o `diasDeTeste()`. */
+function diasParaVencer(){
+  const a = assinaturaAtual();
+  if(!a || a.status !== 'ativa' || !a.venceEm) return null;
+  const [y,m,d] = String(a.venceEm).slice(0, 10).split('-').map(Number);
+  const [y2,m2,d2] = hoje().split('-').map(Number);
+  return Math.round((new Date(y,m-1,d) - new Date(y2,m2-1,d2)) / 86400000);
+}
+
+/* EM DIA, E ATÉ QUANDO.
+   Depois de pagar, a tela continuava oferecendo "Assinar com Pix" para o
+   mesmo plano, como se nada tivesse acontecido — e não dizia até quando
+   estava pago. Pix é um mês por vez: o dono precisa ver o prazo, e ver o
+   botão de renovar quando ele estiver perto (5 dias), não antes. Com a venda
+   desligada na tela, o prazo continua aparecendo (não é oferta, é a conta
+   dele); só o botão dá lugar a "fale com quem cuida do seu sistema". */
+const DIAS_PARA_RENOVAR = 5;
+function avisoDeVencimento(a, p, faltam){
+  const quando = porExtenso(String(a.venceEm).slice(0, 10));
+  const nome = escapar(p ? p.nome : '');
+  if(faltam > DIAS_PARA_RENOVAR) return `<div class="aviso ok" id="avisoRenovacao"
+      style="margin-top:13px;margin-bottom:0">
+    <b>Você está em dia.</b> ${nome} pago até ${quando} — faltam ${faltam} dias.</div>`;
+  const prazo = faltam === 0 ? 'hoje' : faltam === 1 ? 'amanhã' : `em ${faltam} dias`;
+  return `<div class="aviso atencao" id="avisoRenovacao" style="margin-top:13px;margin-bottom:0">
+    <b>Sua assinatura vence ${prazo} (${quando}).</b><br>
+    Renove para continuar no ${nome}. Sem renovar, o salão passa para o plano
+    Grátis — a agenda não fecha, mas volta aos limites dele.
+    ${OFERTA_DE_PLANO && NA_NUVEM && p
+      ? `<div style="margin-top:9px"><button class="btn btn-p btn-peq"
+           onclick="assinar('${p.codigo}','pix')">Renovar com Pix</button></div>`
+      : `<br>Para renovar, ${COMO_CRESCER}.`}</div>`;
+}
 
 // Um medidor: rótulo, "x de y" e a barra. Dois deles na tela do plano, e a
 // barra fica âmbar quando encosta no teto.
@@ -13447,6 +13482,8 @@ function pintarPlano(){
   // "Caiu para o Grátis" é diferente de "escolheu o Grátis": no primeiro caso
   // o dono precisa saber que existia algo contratado e parou de valer.
   const caiu = contratado && p && contratado.codigo !== p.codigo;
+  const faltam = diasParaVencer();
+  const emDia  = !caiu && faltam !== null && faltam >= 0;
 
   document.getElementById('painelPlano').innerHTML = `
     <div class="card">
@@ -13457,6 +13494,7 @@ function pintarPlano(){
               ? `Teste grátis — faltam ${dias} dia(s)`
               : caiu && a.status === 'trial' ? 'O teste grátis terminou'
               : caiu ? `A assinatura ${escapar(contratado.nome)} não está em vigor`
+              : emDia ? `Assinatura ativa — paga até ${porExtenso(String(a.venceEm).slice(0, 10))}`
               : a && a.status === 'ativa' ? 'Assinatura ativa'
               : 'Plano sem custo, sem prazo'}</p>
         </div>
@@ -13470,6 +13508,7 @@ function pintarPlano(){
           <div style="font-size:12px;color:var(--txt2)">${p && p.precoMes ? 'por mês' : ''}</div>
         </div>` : ''}
       </div>
+      ${emDia ? avisoDeVencimento(a, p, faltam) : ''}
       ${medidor('Profissionais na agenda', usados, limite)}
       ${tetoMes != null ? medidor('Horários em ' + mesPorExtenso(diaAtual), noMes, tetoMes) : ''}
       <!-- Os tres medidores novos vem do BANCO, pelo uso_do_plano(). Contar
@@ -13546,10 +13585,15 @@ function pintarPlano(){
 
   const recomendado = planos.find(x => x.maxProfissionais >= planoEscolhido)
                    || planos[planos.length-1];
+  /* O recomendado É o plano que ele já paga e está em dia: o cartão vira
+     "seu plano atual", diz até quando, e só oferece renovar quando faltar
+     pouco. Escolhendo outro tamanho na régua, volta a ser oferta normal. */
+  const atual = emDia && recomendado && p && recomendado.codigo === p.codigo;
+  const pagoAte = atual ? porExtenso(String(a.venceEm).slice(0, 10)) : '';
   document.getElementById('cartaoPlano').innerHTML = recomendado ? `
     <div class="card" style="margin-top:14px">
       <div style="font-size:12px;font-weight:800;color:var(--marca);letter-spacing:.05em">
-        PLANO RECOMENDADO</div>
+        ${atual ? 'SEU PLANO ATUAL' : 'PLANO RECOMENDADO'}</div>
       <h3 style="font-size:20px;margin-top:4px">${escapar(recomendado.nome)}</h3>
       <div style="font-size:26px;font-weight:800;margin:6px 0">
         ${real(recomendado.precoMes)}<span style="font-size:14px;font-weight:600;
@@ -13566,7 +13610,17 @@ function pintarPlano(){
            ligado e pagar duas vezes o mesmo mes.
            (Sem crase e sem acento: comentario dentro de template literal.) -->
       <div class="card-acoes" id="botoesAssinar" style="gap:8px;flex-wrap:wrap">
-        ${NA_NUVEM
+        ${NA_NUVEM && atual && faltam <= DIAS_PARA_RENOVAR
+          ? `<button class="btn btn-p" onclick="assinar('${recomendado.codigo}','pix')">
+               Renovar com Pix</button>
+             <button class="btn" onclick="assinarCartao('${recomendado.codigo}')">
+               Ativar renovação no cartão</button>`
+          : NA_NUVEM && atual
+          ? `<span style="font-size:13.5px;color:var(--txt2);align-self:center">
+               ✓ Pago até ${pagoAte} — faltam ${faltam} dias.</span>
+             <button class="btn" onclick="assinarCartao('${recomendado.codigo}')">
+               Ativar renovação no cartão</button>`
+          : NA_NUVEM
           ? `<button class="btn btn-p" onclick="assinar('${recomendado.codigo}','pix')">
                Assinar com Pix</button>
              <button class="btn" onclick="assinarCartao('${recomendado.codigo}')">
@@ -13575,7 +13629,12 @@ function pintarPlano(){
                Assinar ${escapar(recomendado.nome)}</button>`}
       </div>
       <p style="font-size:12px;color:var(--txt3);margin-top:10px">
-        ${NA_NUVEM
+        ${NA_NUVEM && atual
+          ? 'No Pix você paga um mês por vez: o botão de renovar aparece '
+            + DIAS_PARA_RENOVAR + ' dias antes de vencer, e o mês novo conta a '
+            + 'partir do vencimento — renovar antes não perde dia nenhum. No '
+            + 'cartão a renovação é automática, e dá para desligar quando quiser.'
+          : NA_NUVEM
           ? 'No Pix você paga um mês por vez. No cartão a renovação é '
             + 'automática, e dá para desligar quando quiser. Quem confirma o '
             + 'pagamento é o banco: esta tela não troca o plano sozinha.'
@@ -13662,6 +13721,10 @@ async function mostrarCartao(){
     if(botoes) botoes.innerHTML = '<span style="font-size:13px;color:var(--txt2)">'
       + 'Para trocar de plano, desligue a renovação automática abaixo e assine '
       + 'de novo.</span>';
+    // No cartão a renovação é sozinha: "renove pelo Pix" seria mandar pagar
+    // duas vezes. A caixa do cartão, logo abaixo, diz a próxima cobrança.
+    const renovar = document.getElementById('avisoRenovacao');
+    if(renovar) renovar.remove();
 
     const p = planoDe(c.plano);
     /* O NOME do plano fica; o PREÇO acompanha a oferta. Quem está no cartão

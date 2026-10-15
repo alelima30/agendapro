@@ -260,6 +260,56 @@ lt = await abrirPlano(outra, '');
 e('numa aba nova, sem o link, continua escondida', !lt.oferta && !/Assinar/i.test(lt.texto));
 await outra.close();
 
+/* ── EM DIA, E ATÉ QUANDO ─────────────────────────────────────────────────
+   Pedido do dono depois do primeiro Pix: "quando fizer o pagamento e estiver
+   em dia tem que mudar — informar que plano está com ele e falta tantos dias
+   para pagar". Salão no Essencial, pago, sem cartão e sem Pix em aberto. */
+console.log('\n── EM DIA, E ATÉ QUANDO ────────────────────────────────────');
+sql(`update public.cobrancas set status='cancelada' where salao_id='${SALAO}' and status='pendente'`);
+sql(`update public.assinaturas set plano='individual', status='ativa',
+       vence_em = current_date + 20, mp_preapproval = null, cartao_desde = null
+     where salao_id='${SALAO}'`);
+const telaPlano = async (sufixo) => {
+  await abrirPlano(p, sufixo);
+  return p.evaluate(() => ({
+    topo: (document.getElementById('painelPlano') || {}).innerText || '',
+    cartao: (document.getElementById('cartaoPlano') || {}).innerText || '',
+    renovar: !!document.querySelector('#tela-plano button[onclick*="assinar("]')
+      && [...document.querySelectorAll('#tela-plano button')].some(b => /Renovar com Pix/.test(b.textContent)),
+    assinarPix: [...document.querySelectorAll('#tela-plano button')].some(b => /Assinar com Pix/.test(b.textContent)),
+  }));
+};
+let ed = await telaPlano('?oferta=1');
+e('o topo diz até quando está paga', /Assinatura ativa — paga até/.test(ed.topo), ed.topo.slice(0, 200));
+e('"Você está em dia", com os dias que faltam', /Você está em dia/.test(ed.topo) && /faltam 20 dias/.test(ed.topo),
+  ed.topo.slice(0, 300));
+e('o cartão do plano diz "SEU PLANO ATUAL"', /SEU PLANO ATUAL/.test(ed.cartao), ed.cartao.slice(0, 200));
+e('e não oferece "Assinar com Pix" de novo o mesmo plano', !ed.assinarPix);
+e('nem "Renovar" com 20 dias pela frente', !ed.renovar);
+
+sql(`update public.assinaturas set vence_em = current_date + 3 where salao_id='${SALAO}'`);
+ed = await telaPlano('');
+e('a 3 dias: avisa que vence em 3 dias', /vence em 3 dias/.test(ed.topo), ed.topo.slice(0, 300));
+e('e aparece "Renovar com Pix"', ed.renovar);
+
+/* Com a venda desligada na tela, o prazo continua (é a conta dele, não
+   oferta) — mas sem botão de pagar. */
+ed = await telaPlano('?oferta=0');
+e('venda desligada: o prazo continua aparecendo', /vence em 3 dias/.test(ed.topo), ed.topo.slice(0, 300));
+e('mas sem botão de pagar, e dizendo com quem falar',
+  !ed.renovar && /fale com quem cuida/.test(ed.topo), ed.topo.slice(0, 300));
+
+/* No cartão a renovação é sozinha: nada de "renove pelo Pix". */
+sql(`update public.assinaturas set mp_preapproval='pre-teste2-${marca}', cartao_desde=now()
+     where salao_id='${SALAO}'`);
+ed = await telaPlano('?oferta=1');
+await p.waitForTimeout(1500);
+const comCartao = await p.evaluate(() => ({
+  aviso: !!document.getElementById('avisoRenovacao'),
+  texto: (document.getElementById('tela-plano') || {}).innerText || '' }));
+e('no cartão: some o aviso de renovar pelo Pix', !comCartao.aviso && !/Renovar com Pix/.test(comCartao.texto),
+  comCartao.texto.slice(0, 300));
+
 console.log('\n── ERROS ───────────────────────────────────────────────────');
 e('sem erro de JavaScript', erros.length === 0, erros.slice(0,3).join(' | '));
 
