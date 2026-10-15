@@ -672,6 +672,39 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (21_notificacoes): o lembrete para '
                || 'o salão não está instalado'
            else '' end
+  union all
+  /* A franquia nova (teste 100, Essencial 500…), a reserva da cliente no
+     worker, e o prazo: mensagem de horário que já começou não sai. */
+  select 30, 'franquia de mensagens e reserva da cliente',
+         case
+           when (select (recursos->>'mensagens_mes')::int from public.planos
+                  where codigo = 'trial') is distinct from 100
+             or (select (recursos->>'mensagens_mes')::int from public.planos
+                  where codigo = 'individual') is distinct from 500
+             or to_regprocedure('public.pode_enviar_tipo(uuid,text)') is null
+             or pg_get_functiondef(to_regprocedure('public.notificacao_proxima(integer)'))
+                  not like '%pode_enviar_tipo%'
+             or pg_get_functiondef(to_regprocedure('public.notificacao_proxima(integer)'))
+                  not like '%o horário já passou%'
+             or pg_get_functiondef(to_regprocedure('public.uso_do_plano(uuid)'))
+                  not like '%tetoSalao%'
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when (select (recursos->>'mensagens_mes')::int from public.planos
+                  where codigo = 'trial') is distinct from 100
+             or (select (recursos->>'mensagens_mes')::int from public.planos
+                  where codigo = 'individual') is distinct from 500
+             or to_regprocedure('public.pode_enviar_tipo(uuid,text)') is null
+             or pg_get_functiondef(to_regprocedure('public.notificacao_proxima(integer)'))
+                  not like '%pode_enviar_tipo%'
+             or pg_get_functiondef(to_regprocedure('public.notificacao_proxima(integer)'))
+                  not like '%o horário já passou%'
+             or pg_get_functiondef(to_regprocedure('public.uso_do_plano(uuid)'))
+                  not like '%tetoSalao%'
+             then 'cole o 00_tudo.sql de novo (22_cotas e 24_produtos): a franquia '
+               || 'nova ou a reserva da cliente não está instalada'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

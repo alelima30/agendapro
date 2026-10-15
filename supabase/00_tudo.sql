@@ -9950,24 +9950,41 @@ update public.planos set recursos = recursos || jsonb_build_object(
     'max_clientes',  100, 'max_servicos',  10, 'mensagens_mes',   0)
   where codigo = 'gratuito';
 
+/* ── A FRANQUIA DE MENSAGENS, REVISTA PELO USO DE VERDADE ─────────────────
+   Cada atendimento gasta duas mensagens da cliente (confirmação e lembrete).
+   Com 300, um profissional sozinho que atende 6 por dia acabava a franquia no
+   fim do mês — e o lembrete é justamente o que ele paga para ter. A conta
+   nova cobre ~300–350 por profissional, que é o que a cliente gasta:
+
+     Teste grátis   100   (7 dias; custo máximo ~R$ 5 por teste)
+     Essencial      500   Dupla   800   Time  1.100
+     Equipe       2.000   Salão 3.600
+
+   A ~R$ 0,05 por mensagem, a franquia usada inteira fica entre 26% e 36% da
+   mensalidade — e quase ninguém usa inteira. Quando chega ao fim, as do salão
+   param antes (seção 2b), e as últimas ficam para a cliente. */
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 300)
-  where codigo in ('trial','individual');
+    'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 100)
+  where codigo = 'trial';
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 1000, 'max_servicos', 100, 'mensagens_mes', 500)
+    'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 500)
+  where codigo = 'individual';
+
+update public.planos set recursos = recursos || jsonb_build_object(
+    'max_clientes', 1000, 'max_servicos', 100, 'mensagens_mes', 800)
   where codigo = 'duo';
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 2000, 'max_servicos', 200, 'mensagens_mes', 700)
+    'max_clientes', 2000, 'max_servicos', 200, 'mensagens_mes',1100)
   where codigo = 'time';
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 3500, 'max_servicos', 350, 'mensagens_mes',1200)
+    'max_clientes', 3500, 'max_servicos', 350, 'mensagens_mes',2000)
   where codigo = 'equipe';
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 5000, 'max_servicos', 500, 'mensagens_mes',2200)
+    'max_clientes', 5000, 'max_servicos', 500, 'mensagens_mes',3600)
   where codigo = 'salao';
 
 -- ---------------------------------------------------------------------------
@@ -10093,6 +10110,41 @@ grant execute on function public.teto_mensagens(uuid)   to authenticated;
 grant execute on function public.pode_enviar(uuid)      to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 2b) A RESERVA DA CLIENTE
+--
+-- Quando a franquia está no fim, nem toda mensagem vale o mesmo. A cliente
+-- que não recebe o lembrete é a que falta; o salão tem a agenda aberta no
+-- celular. Então as mensagens PARA O SALÃO — aviso de horário novo, lembrete
+-- para o salão, resumo do dia — usam até 90% da franquia, e os últimos 10%
+-- ficam só para a confirmação e o lembrete da cliente.
+--
+-- No teto, para tudo, como antes: a franquia é o que o plano paga, e passar
+-- dela é custo que ninguém cobriu.
+--
+-- Tipo que não seja da cliente cai na regra do salão, inclusive um que ainda
+-- não existe: errar para o lado de gastar menos.
+-- ---------------------------------------------------------------------------
+create or replace function public.teto_mensagens_salao(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select case when x.t is null then null else floor(x.t * 0.9)::int end
+    from (select public.teto_mensagens(p_salao) as t) x
+$$;
+
+create or replace function public.pode_enviar_tipo(p_salao uuid, p_tipo text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when public.teto_mensagens(p_salao) is null then true
+    when p_tipo in ('confirmacao', 'lembrete')
+      then public.mensagens_no_mes(p_salao) < public.teto_mensagens(p_salao)
+    else public.mensagens_no_mes(p_salao) < public.teto_mensagens_salao(p_salao)
+  end
+$$;
+
+-- Só o worker (service_role) e o `uso_do_plano()` (security definer) leem.
+revoke all on function public.teto_mensagens_salao(uuid)   from public, anon, authenticated;
+revoke all on function public.pode_enviar_tipo(uuid, text) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 3) OS TETOS DE CADASTRO
 --
 -- Mesmo padrão do `max_profissionais` que já existia: gatilho `before insert`,
@@ -10177,7 +10229,9 @@ begin
       'teto',  public.recurso_num(p_salao, 'max_servicos')),
     'mensagens', jsonb_build_object(
       'usado', public.mensagens_no_mes(p_salao),
-      'teto',  public.teto_mensagens(p_salao)));
+      'teto',  public.teto_mensagens(p_salao),
+      -- até onde vão as do salão; o resto é a reserva da cliente (22, 2b)
+      'tetoSalao', public.teto_mensagens_salao(p_salao)));
 end $$;
 
 revoke all on function public.uso_do_plano(uuid) from public, anon;
@@ -10206,7 +10260,13 @@ grant execute on function public.uso_do_plano(uuid) to authenticated;
        horário é daqui a duas horas", entregue no dia seguinte, é pior que
        silêncio;
      · o salão pode enviar — cota do plano, conferida AQUI, no servidor. A
-       tela também mostra, mas quem recusa é esta linha. */
+       tela também mostra, mas quem recusa é esta linha. Conferida POR TIPO:
+       perto do fim, as do salão param antes e as da cliente seguem (2b).
+
+   E um quarto, que as seis horas não pegavam: a mensagem de um horário que
+   JÁ COMEÇOU não sai. Um lembrete das 12h para as 14h, parado pela
+   franquia, ainda estava "dentro do prazo" às 17h — e sairia, se um
+   `falhou` devolvesse crédito, três horas depois do atendimento. */
 /* ⚠ O tipo de retorno mudou: entrou `modelo` e `variaveis`. Postgres não troca
    assinatura de função que devolve tabela com `create or replace` — tem que
    derrubar antes. */
@@ -10221,6 +10281,17 @@ begin
      set status = 'cancelado', motivo = 'venceu antes de ser enviada'
    where status = 'pendente' and quando < now() - interval '6 hours';
 
+  -- E o que é de um horário que já começou. O resumo não tem agendamento
+  -- (fala do dia inteiro) e por isso não entra aqui. Os tipos vão escritos
+  -- para que uma mensagem futura de DEPOIS do atendimento não caia nisto.
+  update public.notificacoes n
+     set status = 'cancelado', motivo = 'o horário já passou'
+    from public.agendamentos a
+   where n.status = 'pendente'
+     and n.tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
+     and n.agendamento_id = a.id
+     and a.inicio <= now();
+
   return query
   with alvo as (
     select n.id
@@ -10228,7 +10299,7 @@ begin
      where n.status = 'pendente'
        and n.quando <= now()
        and (n.proxima_em is null or n.proxima_em <= now())
-       and public.pode_enviar(n.salao_id)
+       and public.pode_enviar_tipo(n.salao_id, n.tipo)
      order by n.quando
      limit greatest(1, p_lote)
      for update skip locked)
@@ -11068,7 +11139,9 @@ begin
       'teto',  public.recurso_num(p_salao, 'max_produtos')),
     'mensagens', jsonb_build_object(
       'usado', public.mensagens_no_mes(p_salao),
-      'teto',  public.teto_mensagens(p_salao)));
+      'teto',  public.teto_mensagens(p_salao),
+      -- até onde vão as do salão; o resto é a reserva da cliente (22, 2b)
+      'tetoSalao', public.teto_mensagens_salao(p_salao)));
 end $$;
 
 revoke all on function public.uso_do_plano(uuid) from public, anon;

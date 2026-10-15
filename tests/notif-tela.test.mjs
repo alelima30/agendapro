@@ -321,6 +321,49 @@ verdade('e o número de clientes bate com o do banco',
     [SALAO])).rows[0].n + ' de ').test(doPlano || ''),
   (doPlano || '').slice(0, 200));
 
+/* ══════════════════════════════════════════════════════════════════════════
+   7b. O MESMO CONTADOR ONDE SE LIGAM AS MENSAGENS
+
+   É em Mensagens da agenda que o dono decide ligar o lembrete para o salão
+   ou o resumo — e é ali que ele precisa ver quanto já gastou, e o que para
+   primeiro quando a franquia está no fim (22_cotas, 2b).
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('7b) O contador em Mensagens da agenda');
+
+const consumo = async () => {
+  await abrirNotif();
+  await p.waitForTimeout(1500);
+  return (await p.textContent('#consumoMensagens')) || '';
+};
+const gastarTela = (n, de) => banco.query(
+  `insert into public.notificacoes
+     (salao_id, tipo, destino, quando, corpo, chave, status, enviado_em)
+   select $1, 'lembrete', '11999', now(), 'x', 'tela-gasto:' || g, 'enviado', now()
+     from generate_series($2::int + 1, $2::int + $3::int) g`, [SALAO, de, n]);
+
+let c = await consumo();
+verdade('mostra o que já saiu no mês, com o número do banco (1 de 3600)',
+  /Mensagens deste mês/.test(c) && /1 de 3600/.test(c), c.slice(0, 200));
+verdade('e explica que as últimas ficam para o cliente',
+  /usam até 3240/.test(c) && /360\s+ficam guardadas para o cliente/.test(c), c.slice(0, 300));
+verdade('folgado, sem aviso de limite', !/pararam|acabaram|próximo do limite/.test(c), c);
+
+await gastarTela(3239, 0);                       // 1 + 3239 = 3240, a marca dos 90%
+c = await consumo();
+verdade('aos 90%, diz que as do salão pararam',
+  /As mensagens para o salão pararam/.test(c), c.slice(0, 300));
+verdade('e quantas sobram para o cliente', /360 que faltam/.test(c), c.slice(0, 300));
+
+await gastarTela(360, 3239);                     // 3600, o teto
+c = await consumo();
+verdade('no teto, diz que acabaram — inclusive para o cliente',
+  /acabaram/.test(c) && /nem para o cliente/.test(c), c.slice(0, 300));
+
+await p.click('#abas .aba[data-chave="plano"]');
+await p.waitForTimeout(2500);
+verdade('e Meu Plano diz o mesmo',
+  /acabaram/.test((await p.textContent('#medidoresDoPlano')) || ''));
+
 secao('8) O console');
 igual('nenhum erro de JavaScript', erros.length, 0, erros.join(' | '));
 

@@ -2994,19 +2994,22 @@ update public.planos set recursos = recursos || jsonb_build_object(
     'max_clientes',  100, 'max_servicos',  10, 'mensagens_mes',   0)
   where codigo = 'gratuito';
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 300)
-  where codigo in ('trial','individual');
+    'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 100)
+  where codigo = 'trial';
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 1000, 'max_servicos', 100, 'mensagens_mes', 500)
+    'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 500)
+  where codigo = 'individual';
+update public.planos set recursos = recursos || jsonb_build_object(
+    'max_clientes', 1000, 'max_servicos', 100, 'mensagens_mes', 800)
   where codigo = 'duo';
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 2000, 'max_servicos', 200, 'mensagens_mes', 700)
+    'max_clientes', 2000, 'max_servicos', 200, 'mensagens_mes',1100)
   where codigo = 'time';
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 3500, 'max_servicos', 350, 'mensagens_mes',1200)
+    'max_clientes', 3500, 'max_servicos', 350, 'mensagens_mes',2000)
   where codigo = 'equipe';
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes', 5000, 'max_servicos', 500, 'mensagens_mes',2200)
+    'max_clientes', 5000, 'max_servicos', 500, 'mensagens_mes',3600)
   where codigo = 'salao';
 do $$
 declare v_estourando int;
@@ -3065,6 +3068,22 @@ revoke all on function public.pode_enviar(uuid)      from public, anon;
 grant execute on function public.mensagens_no_mes(uuid) to authenticated;
 grant execute on function public.teto_mensagens(uuid)   to authenticated;
 grant execute on function public.pode_enviar(uuid)      to authenticated;
+create or replace function public.teto_mensagens_salao(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select case when x.t is null then null else floor(x.t * 0.9)::int end
+    from (select public.teto_mensagens(p_salao) as t) x
+$$;
+create or replace function public.pode_enviar_tipo(p_salao uuid, p_tipo text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when public.teto_mensagens(p_salao) is null then true
+    when p_tipo in ('confirmacao', 'lembrete')
+      then public.mensagens_no_mes(p_salao) < public.teto_mensagens(p_salao)
+    else public.mensagens_no_mes(p_salao) < public.teto_mensagens_salao(p_salao)
+  end
+$$;
+revoke all on function public.teto_mensagens_salao(uuid)   from public, anon, authenticated;
+revoke all on function public.pode_enviar_tipo(uuid, text) from public, anon, authenticated;
 create or replace function public.checar_limite_clientes()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare teto int; usados int;
@@ -3125,7 +3144,8 @@ begin
       'teto',  public.recurso_num(p_salao, 'max_servicos')),
     'mensagens', jsonb_build_object(
       'usado', public.mensagens_no_mes(p_salao),
-      'teto',  public.teto_mensagens(p_salao)));
+      'teto',  public.teto_mensagens(p_salao),
+      'tetoSalao', public.teto_mensagens_salao(p_salao)));
 end $$;
 revoke all on function public.uso_do_plano(uuid) from public, anon;
 grant execute on function public.uso_do_plano(uuid) to authenticated;
@@ -3138,6 +3158,13 @@ begin
   update public.notificacoes
      set status = 'cancelado', motivo = 'venceu antes de ser enviada'
    where status = 'pendente' and quando < now() - interval '6 hours';
+  update public.notificacoes n
+     set status = 'cancelado', motivo = 'o horário já passou'
+    from public.agendamentos a
+   where n.status = 'pendente'
+     and n.tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
+     and n.agendamento_id = a.id
+     and a.inicio <= now();
   return query
   with alvo as (
     select n.id
@@ -3145,7 +3172,7 @@ begin
      where n.status = 'pendente'
        and n.quando <= now()
        and (n.proxima_em is null or n.proxima_em <= now())
-       and public.pode_enviar(n.salao_id)
+       and public.pode_enviar_tipo(n.salao_id, n.tipo)
      order by n.quando
      limit greatest(1, p_lote)
      for update skip locked)
@@ -3560,7 +3587,8 @@ begin
       'teto',  public.recurso_num(p_salao, 'max_produtos')),
     'mensagens', jsonb_build_object(
       'usado', public.mensagens_no_mes(p_salao),
-      'teto',  public.teto_mensagens(p_salao)));
+      'teto',  public.teto_mensagens(p_salao),
+      'tetoSalao', public.teto_mensagens_salao(p_salao)));
 end $$;
 revoke all on function public.uso_do_plano(uuid) from public, anon;
 grant execute on function public.uso_do_plano(uuid) to authenticated;

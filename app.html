@@ -1902,7 +1902,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.dd393a';
+const VERSAO_APP = 'v9.9ec729';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -9337,6 +9337,7 @@ function pintarSalao(){
         atendimento e o resumo do dia. Nada de promoção.</p>
 
       <div id="avisoWhats"></div>
+      <div id="consumoMensagens"></div>
 
       <div class="campo" style="margin-top:16px">
         <label class="check"><input type="checkbox" id="nConfirma">
@@ -9701,7 +9702,7 @@ function trocarAbaSalao(qual){
   /* O histórico só é buscado quando alguém abre a aba. Buscar sempre seria
      uma ida ao servidor por abertura de "Meu salão", para uma tabela que a
      maioria das visitas nem olha. */
-  if(qual === 'notificacoes') pintarHistoricoNotif();
+  if(qual === 'notificacoes'){ pintarHistoricoNotif(); carregarUsoDoPlano(); }
   if(window.aplicarIcones) aplicarIcones(document.getElementById('painelSalao'));
 }
 
@@ -13338,6 +13339,7 @@ async function carregarUsoDoPlano(){
 }
 
 function pintarMedidoresDoPlano(){
+  pintarConsumoMensagens();
   const alvo = document.getElementById('medidoresDoPlano');
   if(!alvo) return;
   const u = usoDoPlano;
@@ -13356,22 +13358,60 @@ function pintarMedidoresDoPlano(){
 }
 
 /* Os três degraus do item 28. O aviso muda de tom com o quanto falta, porque
-   "está perto" e "acabou" pedem reações diferentes do dono. */
+   "está perto" e "acabou" pedem reações diferentes do dono.
+
+   ⚠ `tetoSalao` só vem do banco novo (22, 2b: a reserva da cliente). Sem ele
+   o banco ainda para tudo junto no teto, e o aviso tem de dizer ISSO — a
+   tela sai no ar antes de o SQL ser colado, e não pode prometer uma reserva
+   que o servidor ainda não faz. */
 function avisoDeMensagens(m){
   if(!m || m.teto == null || Number(m.teto) === 0) return '';
   const usado = Number(m.usado || 0), teto = Number(m.teto);
+  const reserva = m.tetoSalao != null ? Number(m.tetoSalao) : null;
   const pct = teto ? usado / teto : 0;
   if(pct >= 1) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
-    <b>O limite de mensagens do seu plano foi atingido.</b><br>
-    Confirmação, lembrete e resumo param até virar o mês. A agenda continua
-    funcionando normalmente.</div>`;
-  if(pct >= 0.9) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
+    <b>As mensagens deste mês acabaram.</b><br>
+    Nenhuma mensagem automática sai até virar o mês, nem para o cliente. A
+    agenda continua funcionando normalmente.</div>`;
+  if(reserva != null && usado >= reserva) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
+    <b>As mensagens para o salão pararam.</b><br>
+    Aviso de horário novo, lembrete para o salão e resumo do dia voltam quando
+    virar o mês. As ${teto - usado} que faltam ficam para a confirmação e o
+    lembrete do cliente.</div>`;
+  if(reserva == null && pct >= 0.9) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
     <b>Atenção: você está usando quase todo o limite de mensagens.</b><br>
     Faltam ${teto - usado} de ${teto} neste mês.</div>`;
   if(pct >= 0.8) return `<div class="aviso info" style="margin-top:13px;margin-bottom:0">
     Você está próximo do limite de mensagens do seu plano —
-    ${usado} de ${teto} neste mês.</div>`;
+    ${usado} de ${teto} neste mês.${reserva != null ? ` Ao chegar a ${reserva},
+    as mensagens para o salão param e o resto fica para o cliente.` : ''}</div>`;
   return '';
+}
+
+/* O MESMO CONTADOR, NA TELA ONDE O DONO LIGA AS MENSAGENS.
+   É ali que ele decide ligar o lembrete para o salão ou o resumo — e é ali
+   que precisa ver quanto já gastou. O número é o do `uso_do_plano()`, o
+   mesmo que o worker usa para recusar; a tela não conta nada sozinha. */
+function pintarConsumoMensagens(){
+  const alvo = document.getElementById('consumoMensagens');
+  if(!alvo) return;
+  const m = usoDoPlano && usoDoPlano.mensagens;
+  if(!m || m.teto == null){ alvo.innerHTML = ''; return; }
+  const usado = Number(m.usado || 0), teto = Number(m.teto);
+  if(teto === 0){
+    alvo.innerHTML = `<div class="aviso info" style="margin-top:13px;margin-bottom:0">
+      <b>Seu plano não inclui mensagens automáticas.</b><br>
+      Nada desta lista sai pelo WhatsApp do AgendaPro. Mandar mensagem pelo
+      WhatsApp do salão continua funcionando normalmente.</div>`;
+    return;
+  }
+  const reserva = m.tetoSalao != null ? Number(m.tetoSalao) : null;
+  alvo.innerHTML = medidor('Mensagens deste mês', usado, teto)
+    + (reserva != null && reserva < teto
+        ? `<div style="font-size:12px;color:var(--txt2);margin-top:6px">
+             As mensagens para o salão usam até ${reserva}; as últimas
+             ${teto - reserva} ficam guardadas para o cliente.</div>` : '')
+    + avisoDeMensagens(m);
 }
 
 function pintarPlano(){

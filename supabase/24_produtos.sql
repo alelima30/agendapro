@@ -158,7 +158,9 @@ begin
       'teto',  public.recurso_num(p_salao, 'max_produtos')),
     'mensagens', jsonb_build_object(
       'usado', public.mensagens_no_mes(p_salao),
-      'teto',  public.teto_mensagens(p_salao)));
+      'teto',  public.teto_mensagens(p_salao),
+      -- até onde vão as do salão; o resto é a reserva da cliente (22, 2b)
+      'tetoSalao', public.teto_mensagens_salao(p_salao)));
 end $$;
 
 revoke all on function public.uso_do_plano(uuid) from public, anon;

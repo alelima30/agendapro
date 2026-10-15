@@ -383,9 +383,9 @@ const C = await montar('Cota', 1);
 await banco.query(
   `update public.assinaturas set plano='individual' where salao_id=$1`, [C.salao]);
 
-igual('o plano Individual dá 300 mensagens no mês',
+igual('o plano Individual (Essencial) dá 500 mensagens no mês',
   Number((await banco.query(`select public.teto_mensagens($1) as t`, [C.salao])).rows[0].t),
-  300);
+  500);
 verdade('e com zero enviadas, pode enviar',
   (await banco.query(`select public.pode_enviar($1) as p`, [C.salao])).rows[0].p);
 
@@ -394,11 +394,11 @@ await banco.query(
   `insert into public.notificacoes
      (salao_id, tipo, destino, quando, corpo, chave, status, enviado_em)
    select $1, 'lembrete', '11999', now(), 'x', 'cheia:' || g, 'enviado', now()
-     from generate_series(1, 300) g`, [C.salao]);
+     from generate_series(1, 500) g`, [C.salao]);
 
-igual('trezentas enviadas contam trezentas',
+igual('quinhentas enviadas contam quinhentas',
   Number((await banco.query(`select public.mensagens_no_mes($1) as n`, [C.salao])).rows[0].n),
-  300);
+  500);
 verdade('no teto, o banco recusa novos envios',
   (await banco.query(`select public.pode_enviar($1) as p`, [C.salao])).rows[0].p === false);
 
@@ -426,7 +426,7 @@ igual('no mês novo o contador zera',
 igual('e o histórico não foi apagado',
   Number((await banco.query(
     `select count(*)::int as n from public.notificacoes
-      where salao_id=$1 and chave like 'cheia:%'`, [C.salao])).rows[0].n), 300);
+      where salao_id=$1 and chave like 'cheia:%'`, [C.salao])).rows[0].n), 500);
 
 /* ══════════════════════════════════════════════════════════════════════════
    AS OUTRAS COTAS — itens 25, 30 e 33
