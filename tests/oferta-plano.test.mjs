@@ -226,6 +226,29 @@ const abrirPlano = async (pg, sufixo) => {
 let lt = await abrirPlano(p, '?oferta=1');
 e('com ?oferta=1, a oferta aparece', lt.oferta, lt.texto.slice(0, 200));
 e('com o botão de assinar', /Assinar/i.test(lt.texto), lt.texto.slice(0, 250));
+e('nos dois jeitos: Pix e cartão',
+  /Assinar com Pix/.test(lt.texto) && /Assinar no cartão/.test(lt.texto),
+  lt.texto.slice(0, 300));
+/* O botão do Pix abre a cobrança pela borda — com o salão e o plano, e
+   nada de preço (o valor é lido de `planos`, no banco). A borda é simulada:
+   o que está em teste aqui é a tela chamar o caminho certo. */
+let pedidoPix = null;
+await p.route('**/functions/v1/criar-cobranca', async rota => {
+  pedidoPix = JSON.parse(rota.request().postData() || '{}');
+  await rota.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ ok: true, cobranca: { id: 'c-teste', plano: pedidoPix.plano,
+      valor: 97, metodo: 'pix', status: 'pendente', pixCopiaCola: '000201PIX-TESTE',
+      venceEm: new Date(Date.now() + 864e5).toISOString() } }) });
+});
+await p.click('#botoesAssinar button:has-text("Assinar com Pix")');
+await p.waitForTimeout(1500);
+e('tocar em "Assinar com Pix" pede a cobrança por Pix',
+  pedidoPix && pedidoPix.metodo === 'pix' && pedidoPix.salaoId === SALAO
+    && !('valor' in pedidoPix), JSON.stringify(pedidoPix));
+e('e mostra o copia-e-cola',
+  /000201PIX-TESTE/.test(await p.inputValue('#pixCodigo').catch(() => '')));
+await p.unroute('**/functions/v1/criar-cobranca');
+await p.evaluate(() => fecharModal());
 lt = await abrirPlano(p, '');
 e('e continua na mesma aba, sem o link', lt.oferta);
 lt = await abrirPlano(p, '?oferta=0');
