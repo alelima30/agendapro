@@ -98,7 +98,7 @@ async function ligarDaPreapproval(pre: Record<string, unknown>) {
    endereço que é público por obrigação: deixá-la presa dentro de um arquivo
    que só o Deno executa seria a parte mais crítica do sistema sendo a única
    sem teste. */
-import { assinaturaConfere } from './assinatura.js';
+import { motivoDaRecusa } from './assinatura.js';
 
 Deno.serve(async (req) => {
   if(req.method !== 'POST') return new Response('ok', { status: 200 });
@@ -122,15 +122,18 @@ Deno.serve(async (req) => {
 
     if(!dataId) return new Response('sem id', { status: 200 });
 
-    const confere = await assinaturaConfere({
+    const motivo = await motivoDaRecusa({
       segredo: MP_SEGREDO,
       xSignature: req.headers.get('x-signature'),
       xRequestId: req.headers.get('x-request-id'),
       dataId,
     });
-    if(!confere){
-      if(!MP_SEGREDO) console.error('MP_WEBHOOK_SECRET não configurado.');
-      console.error('webhook-mp: assinatura inválida', { tipo, dataId });
+    if(motivo !== null){
+      /* O motivo e de onde veio o id — e nada de segredo, hash ou corpo. É o
+         que separa "a chave está errada" de "este aviso não veio do painel". */
+      console.error('webhook-mp: assinatura inválida', { tipo, dataId, motivo,
+        idNaUrl: url.searchParams.has('data.id'),
+        temRequestId: !!req.headers.get('x-request-id') });
       return new Response('assinatura inválida', { status: 401 });
     }
 

@@ -39,8 +39,12 @@ não existe "esconder" ali.
    ```
 
    Marque o evento **Pagamentos** (`payment`). Ao salvar, o Mercado Pago
-   mostra uma **assinatura secreta** — copie. É o `MP_WEBHOOK_SECRET`, e ele
-   só aparece nesse momento.
+   mostra uma **assinatura secreta** — copie. É o `MP_WEBHOOK_SECRET`.
+
+   ⚠ **No MODO PRODUTIVO**, e não só no de teste: pagamento de verdade avisa
+   pela configuração do modo produtivo. Se as duas abas mostrarem chaves
+   diferentes, a do `MP_WEBHOOK_SECRET` é a do modo produtivo. Quando a chave
+   não bate, o log do `webhook-mp` diz exatamente isso no campo `motivo`.
 
 > **Comece pelas credenciais de teste.** Elas começam com `TEST-`, e o
 > Mercado Pago tem usuários de teste para pagar sem dinheiro de verdade.
@@ -116,7 +120,7 @@ Supabase → **Edge Functions** → **Secrets**:
 |---|---|
 | `MP_ACCESS_TOKEN` | Mercado Pago → Suas integrações → Credenciais |
 | `MP_WEBHOOK_SECRET` | Mercado Pago → Webhooks → assinatura secreta |
-| `MP_WEBHOOK_URL` | `https://SEU_REF.supabase.co/functions/v1/webhook-mp` |
+| ~~`MP_WEBHOOK_URL`~~ | **não é mais usado.** O Pix ia com `notification_url` no pedido, e esse aviso não vem assinado com a chave do painel — todo pagamento era recusado com "assinatura inválida". O aviso chega só pelo webhook do painel |
 | `SUPABASE_URL` | já vem preenchida |
 | `SUPABASE_ANON_KEY` | já vem preenchida |
 | `SUPABASE_SERVICE_ROLE_KEY` | já vem preenchida |

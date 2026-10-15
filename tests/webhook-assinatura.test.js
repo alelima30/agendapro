@@ -11,7 +11,8 @@
    Este arquivo importa o MESMO módulo que o Deno importa. Não é uma cópia da
    lógica: é a lógica.
    =========================================================================== */
-import { assinaturaConfere, hmacHex, manifesto, iguaisEmTempoConstante }
+import { assinaturaConfere, hmacHex, manifesto, iguaisEmTempoConstante,
+         motivoDaRecusa }
   from '../supabase/functions/webhook-mp/assinatura.js';
 
 let passou = 0, falhou = 0;
@@ -19,6 +20,7 @@ const ok  = m => { console.log('  ✓ ' + m); passou++; };
 const nao = (m, d) => { console.log('  ✗ ' + m + (d ? '\n      ' + d : '')); falhou++; };
 const verdade = (m, c, d) => c ? ok(m) : nao(m, d);
 const falso   = (m, c, d) => !c ? ok(m) : nao(m, d);
+const igual = (m, a, b) => a === b ? ok(m) : nao(m, `esperava ${JSON.stringify(b)}, veio ${JSON.stringify(a)}`);
 const secao = t => console.log('\n' + t);
 
 const SEGREDO = 'segredo-do-painel-do-mercado-pago';
@@ -139,6 +141,32 @@ secao('O formato do manifesto');
 const m = manifesto('ABC123', 'req-1', 1767225600);
 verdade('id em minúsculas, na ordem certa, com os pontos-e-vírgulas',
   m === 'id:abc123;request-id:req-1;ts:1767225600;', m);
+
+/* A regra do Mercado Pago: valor que não veio no aviso sai do texto. Com
+   `request-id:;` vazio no meio, um aviso legítimo sem x-request-id era
+   recusado. */
+const semReq = manifesto('ABC123', '', 1767225600);
+verdade('sem x-request-id, a parte sai do texto',
+  semReq === 'id:abc123;ts:1767225600;', semReq);
+verdade('e um aviso assim, assinado do jeito do Mercado Pago, passa',
+  await confere(await avisoDeVerdade({ requestId: '' })));
+
+/* O MOTIVO DA RECUSA vai para o log. "assinatura inválida" sozinho não dizia
+   se a chave estava errada ou se o aviso nem veio do painel — e foram duas
+   horas no primeiro Pix de verdade para descobrir qual. */
+secao('O log diz por que recusou');
+const motivo = async (extra) => motivoDaRecusa({ segredo: SEGREDO, agoraMs: AGORA, ...extra });
+igual('aviso de verdade: sem motivo', await motivo(await avisoDeVerdade()), null);
+verdade('sem cabeçalho: diz que não veio do painel',
+  /x-signature/.test(await motivo({ ...await avisoDeVerdade(), xSignature: '' })));
+verdade('chave errada: diz que não bate com o MP_WEBHOOK_SECRET',
+  /MP_WEBHOOK_SECRET/.test(await motivo(await avisoDeVerdade({ segredo: 'outra' }))));
+verdade('velho: diz que está fora da janela',
+  /janela/.test(await motivo(await avisoDeVerdade({ ts: Math.floor(AGORA/1000) - 1200 }))));
+verdade('sem segredo configurado: diz isso',
+  /não configurado/.test(await motivoDaRecusa({ ...await avisoDeVerdade(), segredo: '', agoraMs: AGORA })));
+verdade('e nenhum motivo leva o segredo',
+  ![await motivo(await avisoDeVerdade({ segredo: 'outra' }))].some(t => t.includes(SEGREDO)));
 
 console.log(`\n${passou} passaram, ${falhou} falharam`);
 process.exit(falhou ? 1 : 0);

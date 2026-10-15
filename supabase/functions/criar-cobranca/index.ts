@@ -33,9 +33,14 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const ANON_KEY     = Deno.env.get('SUPABASE_ANON_KEY')!;
 const MP_TOKEN     = Deno.env.get('MP_ACCESS_TOKEN')!;
-// Para onde o Mercado Pago avisa que pagou. Sem isto a cobrança nasce e
-// ninguém nunca fica sabendo que foi paga.
-const MP_WEBHOOK   = Deno.env.get('MP_WEBHOOK_URL') ?? '';
+/* ⚠ SEM `notification_url` NO PEDIDO — de propósito, como no assinar-cartao.
+   O aviso de pagamento chega pelo webhook cadastrado no PAINEL do Mercado
+   Pago (modo produtivo), que é o único que vem assinado com a chave do
+   painel (MP_WEBHOOK_SECRET). Com `notification_url` no pedido, o Mercado
+   Pago avisava NAQUELE endereço, por pagamento, sem a assinatura do painel —
+   e o webhook-mp recusava todo aviso com "assinatura inválida". Foi o que
+   aconteceu no primeiro Pix de verdade: o dinheiro caiu e a assinatura não
+   ativou. O MP_WEBHOOK_URL deixou de ser usado. */
 
 const CORS = {
   'Access-Control-Allow-Origin': Deno.env.get('PAINEL_ORIGEM') ?? '*',
@@ -152,7 +157,6 @@ Deno.serve(async (req) => {
           : undefined,
       },
     };
-    if(MP_WEBHOOK) pedido.notification_url = MP_WEBHOOK;
 
     const r = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',

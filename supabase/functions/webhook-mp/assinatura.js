@@ -18,8 +18,13 @@
 /* O texto que o Mercado Pago assinou, exatamente nesta ordem e com estes
    pontos-e-vírgulas. Errar um caractere aqui faz TODO aviso legítimo ser
    recusado — e o sintoma seria "ninguém consegue assinar", dias depois. */
+/* E sem as partes que não vieram: a regra do Mercado Pago é tirar do texto o
+   valor que não estiver no aviso — `request-id:;` vazio faria a conta dar
+   outra, e um aviso legítimo sem `x-request-id` seria recusado. */
 export function manifesto(dataId, requestId, ts){
-  return `id:${String(dataId).toLowerCase()};request-id:${requestId};ts:${ts};`;
+  return (dataId ? `id:${String(dataId).toLowerCase()};` : '')
+       + (requestId ? `request-id:${requestId};` : '')
+       + (ts ? `ts:${ts};` : '');
 }
 
 /* ⚠ Comparar com `===` vaza, pelo tempo, o tamanho do prefixo que bateu. É
@@ -47,15 +52,24 @@ export async function hmacHex(segredo, texto){
 
    `agoraMs` entra por parâmetro para o teste poder envelhecer um aviso sem
    mexer no relógio da máquina. */
-export async function assinaturaConfere(
+export async function assinaturaConfere(opcoes){
+  return (await motivoDaRecusa(opcoes)) === null;
+}
+
+/* POR QUE recusou — ou `null`, quando confere. Vai para o log do webhook-mp,
+   e só ele: "assinatura inválida" sozinho não dizia se faltou o cabeçalho
+   (aviso que não veio do painel), se o aviso era velho, ou se a chave do
+   Supabase não é a do painel. Nenhum motivo leva o segredo nem o hash. */
+export async function motivoDaRecusa(
   { segredo, xSignature, xRequestId, dataId, agoraMs = Date.now(),
     janelaSegundos = 600 }){
 
   /* Sem segredo configurado não há o que conferir. Recusar é o certo: aceitar
      deixaria o endereço aberto justamente enquanto ninguém terminou de
      configurar — que é quando ninguém está olhando. */
-  if(!segredo) return false;
-  if(!xSignature || !dataId) return false;
+  if(!segredo) return 'MP_WEBHOOK_SECRET não configurado';
+  if(!xSignature) return 'sem o cabeçalho x-signature (aviso que não veio do webhook do painel)';
+  if(!dataId) return 'sem o id do pagamento';
 
   const partes = new Map();
   for(const p of String(xSignature).split(',')){
@@ -65,16 +79,19 @@ export async function assinaturaConfere(
   }
   const ts = partes.get('ts');
   const v1 = partes.get('v1');
-  if(!ts || !v1) return false;
+  if(!ts || !v1) return 'o x-signature não traz ts e v1';
 
   /* Janela de tempo. Sem ela, um aviso legítimo capturado hoje pode ser
      reenviado daqui a um ano e a assinatura continuaria válida — para sempre.
      A idempotência do banco já cobriria o estrago, mas defesa em profundidade
      custa cinco linhas. */
   const idade = Math.abs(agoraMs / 1000 - Number(ts));
-  if(!Number.isFinite(idade) || idade > janelaSegundos) return false;
+  if(!Number.isFinite(idade)) return 'ts não é número';
+  if(idade > janelaSegundos) return `aviso fora da janela de ${janelaSegundos} s (${Math.round(idade)} s)`;
 
   const meu = await hmacHex(segredo,
     manifesto(dataId, xRequestId ?? '', ts));
-  return iguaisEmTempoConstante(meu, v1);
+  return iguaisEmTempoConstante(meu, v1)
+    ? null
+    : 'a conta não bate com o MP_WEBHOOK_SECRET (chave diferente da do painel, ou do outro modo)';
 }
