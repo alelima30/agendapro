@@ -173,6 +173,11 @@ console.log('\nO funil inteiro');
   verdade('dizendo o que acontece depois dos 7 dias',
     (await p.textContent('#textoPronto')).toLowerCase().includes('plano grátis'));
 
+  verdade('e, na demonstração, o rodapé avisa que nada vai para servidor',
+    await p.evaluate(() => {
+      const r = document.getElementById('rodape');
+      return !!r && r.offsetParent !== null && /demonstração/i.test(r.textContent);
+    }));
   igual('nenhum erro de JavaScript no caminho todo', p.erros.length, 0);
   await p.context().close();
 }

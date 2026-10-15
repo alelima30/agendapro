@@ -968,6 +968,12 @@ function registrarServiceWorker(){
 (function(){
   bd = carregar();
   registrarServiceWorker();
+  /* O rodapé diz "demonstração, nada é enviado para servidor". Ligado ao
+     banco isso é mentira — e aparecia no fim do cadastro de verdade, no
+     minuto em que a pessoa acabou de criar a conta. Some, como no app.html. */
+  if(window.Dados && Dados.ligado){
+    document.getElementById('rodape').style.display = 'none';
+  }
   if(location.protocol === 'file:'){
     document.getElementById('rodape').innerHTML =
       'Aberto direto do arquivo — funciona, mas para instalar como app sirva '

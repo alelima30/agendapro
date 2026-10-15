@@ -118,6 +118,14 @@ igual('o cadastro chega ao passo 3', await passoAtual(p), 3);
 const link = await p.textContent('#linkFinal');
 verdade('e entrega o link da cliente com o apelido do salão',
   /agendar\.html\?salao=studio-funil-/.test(link));
+/* O rodapé de demonstração ("nada é enviado para servidor nenhum") aparecia
+   aqui, no fim do cadastro de verdade — logo depois de a conta ser criada no
+   servidor. */
+verdade('e não diz que é demonstração, que nada vai para o servidor',
+  !(await p.evaluate(() => {
+    const r = document.getElementById('rodape');
+    return r && r.offsetParent !== null && /demonstração/i.test(r.textContent);
+  })));
 igual('sem nenhum erro de JavaScript', p.erros.length, 0);
 igual('e sem nenhuma resposta de erro do servidor', p.ruins.join(' | '), '');
 await ctx1.close();
