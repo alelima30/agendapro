@@ -3040,7 +3040,7 @@ revoke all on function public.plano_do_salao(uuid) from public, anon;
 grant execute on function public.plano_do_salao(uuid) to authenticated;
 insert into public.planos (codigo, nome, max_profissionais, preco_mes, ordem, recursos)
 values ('basico', 'Básico', 1, 49.90, 2, '{}'::jsonb)
-on conflict (codigo) do nothing;
+on conflict (codigo) do update set nome = excluded.nome;
 update public.planos set recursos = recursos || jsonb_build_object(
     'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 0,
     'agenda_online', true, 'lembrete_whatsapp', false)

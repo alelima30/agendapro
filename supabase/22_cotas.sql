@@ -89,7 +89,9 @@ grant execute on function public.plano_do_salao(uuid) to authenticated;
 
 insert into public.planos (codigo, nome, max_profissionais, preco_mes, ordem, recursos)
 values ('basico', 'Básico', 1, 49.90, 2, '{}'::jsonb)
-on conflict (codigo) do nothing;           -- preço é decisão comercial: não reseta
+on conflict (codigo) do update set nome = excluded.nome;
+-- preço é decisão comercial: não reseta. O NOME volta sempre — colado uma vez
+-- com os acentos trocados, só assim o "Básico" se conserta colando de novo.
 
 update public.planos set recursos = recursos || jsonb_build_object(
     'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 0,

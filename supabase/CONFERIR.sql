@@ -763,6 +763,30 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or has_function_privilege('anon', 'public.plano_do_salao(uuid)', 'execute')
              then 'cole o 00_tudo.sql de novo (planos novos e travas de módulo)'
            else '' end
+  union all
+  /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
+     lugar de "ã" — no nome do plano que o dono vê e em todo texto das
+     funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um
+     caractere entre U+0080 e U+00BF, que português de verdade nunca tem) é
+     montado com chr() para esta conferência funcionar mesmo se ela própria
+     tiver sido colada com os acentos trocados. Vem primeiro na lista. */
+  select 0, 'Acentos do banco sem troca',
+         case
+           when exists (select 1 from public.planos
+                         where nome ~ (chr(195) || '[' || chr(128) || '-' || chr(191) || ']'))
+             or exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                         where n.nspname = 'public'
+                           and p.prosrc ~ (chr(195) || '[' || chr(128) || '-' || chr(191) || ']'))
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when exists (select 1 from public.planos
+                         where nome ~ (chr(195) || '[' || chr(128) || '-' || chr(191) || ']'))
+             or exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                         where n.nspname = 'public'
+                           and p.prosrc ~ (chr(195) || '[' || chr(128) || '-' || chr(191) || ']'))
+             then 'os acentos chegaram trocados: abra o 00_tudo.sql pelo link do GitHub (raw), copie tudo e cole de novo'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

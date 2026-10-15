@@ -63,6 +63,19 @@ cat > "$SAIDA" <<'CAB'
 -- Depois de rodar, cole tests/conferir_instalacao.sql para checar.
 -- ===========================================================================
 
+-- A TRAVA DOS ACENTOS. Aberto com a codificacao errada, este arquivo chega
+-- ao banco com acento trocado em nome de plano, em mensagem de erro e em
+-- texto que vai para a cliente. A letra entre aspas abaixo chega aqui como
+-- dois caracteres, e esta checagem para TUDO antes de gravar qualquer coisa.
+-- O aviso e escrito sem acento de proposito: ele precisa sair legivel
+-- justamente quando os acentos chegaram trocados.
+do $$
+begin
+  if encode(convert_to('ã', 'UTF8'), 'hex') <> 'c3a3' then
+    raise exception 'PAREI SEM GRAVAR NADA: os acentos deste arquivo chegaram trocados (arquivo aberto com a codificacao errada). Abra o 00_tudo.sql pelo link do GitHub (raw), copie tudo e cole de novo.';
+  end if;
+end $$;
+
 CAB
 
 for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql; do
