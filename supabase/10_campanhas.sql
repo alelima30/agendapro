@@ -302,6 +302,12 @@ begin
   if c.status not in ('rascunho','agendada') then
     raise exception 'Esta campanha já foi iniciada.' using errcode = 'check_violation';
   end if;
+  -- A recusa mora aqui, no banco (22_cotas, 2c): sem tela de campanha, o
+  -- caminho era o console — e console não passa por botão escondido.
+  if not public.campanha_liberada(c.salao_id) then
+    raise exception 'O envio de campanhas pelo WhatsApp não está liberado no seu plano, ou as mensagens do mês acabaram.'
+      using errcode = 'check_violation';
+  end if;
 
   select count(*) into n from public.campanha_destinatarios
    where campanha_id = c.id and status = 'pendente';
@@ -422,6 +428,9 @@ begin
      where d.status = 'pendente'
        and c.status = 'processando'
        and (d.proxima_em is null or d.proxima_em <= now())
+       -- O plano libera campanha E ainda há franquia (22_cotas, 2c). Sem
+       -- isto a campanha era a porta dos fundos do limite de mensagens.
+       and public.campanha_liberada(d.salao_id)
      order by d.criado_em
      for update of d skip locked
      limit greatest(coalesce(p_lote, 1), 1)

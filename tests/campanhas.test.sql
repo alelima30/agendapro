@@ -34,6 +34,13 @@ insert into public.assinaturas (salao_id, plano, status) values
   ('a0000000-1111-0000-0000-000000000001', 'time', 'ativa'),
   ('b0000000-1111-0000-0000-000000000001', 'time', 'ativa');
 
+-- Este arquivo confere a MECÂNICA da campanha (isolamento, fila, quem não
+-- quer promoção). A trava do plano e da franquia (22_cotas, 2c) é conferida
+-- no tests/franquia.test.mjs — aqui o plano libera, para a mecânica rodar.
+-- O banco é descartável (rodar.sh cria e derruba).
+update public.planos set recursos = recursos || '{"campanhas_whatsapp": true}'
+ where codigo = 'time';
+
 insert into public.vinculos (perfil_id, salao_id, papel, status) values
   ('a0000000-0000-0000-0000-00000000000a',
    'a0000000-1111-0000-0000-000000000001', 'dono', 'ativo'),

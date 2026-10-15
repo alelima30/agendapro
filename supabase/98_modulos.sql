@@ -266,6 +266,10 @@ begin
   if c.status not in ('rascunho','agendada') then
     raise exception 'Esta campanha já foi iniciada.' using errcode = 'check_violation';
   end if;
+  if not public.campanha_liberada(c.salao_id) then
+    raise exception 'O envio de campanhas pelo WhatsApp não está liberado no seu plano, ou as mensagens do mês acabaram.'
+      using errcode = 'check_violation';
+  end if;
   select count(*) into n from public.campanha_destinatarios
    where campanha_id = c.id and status = 'pendente';
   if n = 0 then
@@ -343,6 +347,7 @@ begin
      where d.status = 'pendente'
        and c.status = 'processando'
        and (d.proxima_em is null or d.proxima_em <= now())
+       and public.campanha_liberada(d.salao_id)
      order by d.criado_em
      for update of d skip locked
      limit greatest(coalesce(p_lote, 1), 1)
@@ -776,6 +781,18 @@ create policy cobranca_gerir on public.cobrancas for all to authenticated
   using ( is_super() ) with check ( is_super() );
 revoke all on public.cobrancas from anon, authenticated;
 grant select on public.cobrancas to authenticated;
+alter table public.assinaturas
+  add column if not exists precos_especiais jsonb not null default '{}'::jsonb;
+create or replace function public.preco_do_plano(p_salao uuid, p_plano text)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select (a.precos_especiais ->> p_plano)::numeric(10,2)
+       from public.assinaturas a
+      where a.salao_id = p_salao
+        and jsonb_typeof(a.precos_especiais -> p_plano) = 'number'),
+    (select pl.preco_mes from public.planos pl where pl.codigo = p_plano))
+$$;
+revoke all on function public.preco_do_plano(uuid, text) from public, anon, authenticated;
 create or replace function public.abrir_cobranca(
   p_salao uuid, p_plano text, p_metodo text, p_quem uuid)
 returns public.cobrancas
@@ -804,7 +821,10 @@ begin
   if p_metodo <> 'pix' then
     raise exception 'Forma de pagamento desconhecida.' using errcode = 'check_violation';
   end if;
-  select preco_mes into v_preco from public.planos where codigo = p_plano;
+  if not exists (select 1 from public.planos where codigo = p_plano) then
+    raise exception 'Plano não encontrado.' using errcode = 'check_violation';
+  end if;
+  v_preco := public.preco_do_plano(p_salao, p_plano);
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -3042,14 +3062,21 @@ update public.planos set preco_mes = 497.00, max_profissionais = 12
  where codigo = 'salao' and preco_mes = 297.00;
 create or replace function public.mensagens_no_mes(p_salao uuid)
 returns int language sql stable security definer set search_path = public as $$
-  select count(*)::int
-    from public.notificacoes n
-    join public.saloes s on s.id = n.salao_id
-   where n.salao_id = p_salao
-     and n.status in ('enviado','entregue','lido')
-     and n.enviado_em >= (date_trunc('month',
-           now() at time zone coalesce(s.fuso, 'America/Sao_Paulo')))
-           at time zone coalesce(s.fuso, 'America/Sao_Paulo')
+  with mes as (
+    select (date_trunc('month',
+              now() at time zone coalesce(s.fuso, 'America/Sao_Paulo')))
+              at time zone coalesce(s.fuso, 'America/Sao_Paulo') as ini
+      from public.saloes s where s.id = p_salao)
+  select ((select count(*)
+             from public.notificacoes n, mes
+            where n.salao_id = p_salao
+              and n.status in ('enviado','entregue','lido')
+              and n.enviado_em >= mes.ini)
+        + (select count(*)
+             from public.campanha_destinatarios d, mes
+            where d.salao_id = p_salao
+              and d.status = 'enviado'
+              and d.enviado_em >= mes.ini))::int
 $$;
 create or replace function public.teto_mensagens(p_salao uuid)
 returns int language sql stable set search_path = public as $$
@@ -3084,6 +3111,12 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 revoke all on function public.teto_mensagens_salao(uuid)   from public, anon, authenticated;
 revoke all on function public.pode_enviar_tipo(uuid, text) from public, anon, authenticated;
+create or replace function public.campanha_liberada(p_salao uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.recurso_bool(p_salao, 'campanhas_whatsapp')
+     and public.pode_enviar_tipo(p_salao, 'campanha')
+$$;
+revoke all on function public.campanha_liberada(uuid) from public, anon, authenticated;
 create or replace function public.checar_limite_clientes()
 returns trigger language plpgsql security definer set search_path = public as $$
 declare teto int; usados int;
@@ -3310,6 +3343,7 @@ begin
   end if;
   select preco_mes, nome into v_preco, v_nome
     from public.planos where codigo = p_plano;
+  if v_preco is not null then v_preco := public.preco_do_plano(p_salao, p_plano); end if;
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -3449,7 +3483,7 @@ begin
   if exists (select 1 from public.cobrancas where mp_id = p_mp_id) then
     return jsonb_build_object('ok', true, 'motivo', 'ja_registrada');
   end if;
-  select preco_mes into v_preco from public.planos where codigo = a.plano;
+  v_preco := public.preco_do_plano(a.salao_id, a.plano);
   if coalesce(v_preco, 0) <= 0 then
     return jsonb_build_object('ok', false, 'motivo', 'plano_sem_preco');
   end if;

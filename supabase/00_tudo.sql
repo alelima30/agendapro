@@ -4756,6 +4756,12 @@ begin
   if c.status not in ('rascunho','agendada') then
     raise exception 'Esta campanha já foi iniciada.' using errcode = 'check_violation';
   end if;
+  -- A recusa mora aqui, no banco (22_cotas, 2c): sem tela de campanha, o
+  -- caminho era o console — e console não passa por botão escondido.
+  if not public.campanha_liberada(c.salao_id) then
+    raise exception 'O envio de campanhas pelo WhatsApp não está liberado no seu plano, ou as mensagens do mês acabaram.'
+      using errcode = 'check_violation';
+  end if;
 
   select count(*) into n from public.campanha_destinatarios
    where campanha_id = c.id and status = 'pendente';
@@ -4876,6 +4882,9 @@ begin
      where d.status = 'pendente'
        and c.status = 'processando'
        and (d.proxima_em is null or d.proxima_em <= now())
+       -- O plano libera campanha E ainda há franquia (22_cotas, 2c). Sem
+       -- isto a campanha era a porta dos fundos do limite de mensagens.
+       and public.campanha_liberada(d.salao_id)
      order by d.criado_em
      for update of d skip locked
      limit greatest(coalesce(p_lote, 1), 1)
@@ -5678,6 +5687,36 @@ revoke all on public.cobrancas from anon, authenticated;
 grant select on public.cobrancas to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 1b) PREÇO ESPECIAL POR SALÃO
+--
+-- O preço é do PLANO, e vale para todo salão. Mas tem casos de um salão só:
+-- o salão de teste do dono da plataforma (o Essencial a R$ 1 para pagar um
+-- Pix de verdade sem gastar R$ 97), um combinado com um cliente, um
+-- desconto de lançamento. Mudar o preço do plano para isso mudaria para
+-- todos — e foi exatamente a armadilha de abrir a venda com o Essencial a
+-- R$ 1 na tabela.
+--
+-- `precos_especiais` é por salão, por plano: {"individual": 1.00}. Plano
+-- fora do mapa usa o preço normal. Quem escreve é só a plataforma: a tabela
+-- `assinaturas` já não aceita escrita do salão (policy `is_super()`), então
+-- ninguém dá desconto a si mesmo. Quem lê o preço — Pix, cartão e a
+-- recorrência do cartão — lê por `preco_do_plano()`, e só por ela.
+-- ---------------------------------------------------------------------------
+alter table public.assinaturas
+  add column if not exists precos_especiais jsonb not null default '{}'::jsonb;
+
+create or replace function public.preco_do_plano(p_salao uuid, p_plano text)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select (a.precos_especiais ->> p_plano)::numeric(10,2)
+       from public.assinaturas a
+      where a.salao_id = p_salao
+        and jsonb_typeof(a.precos_especiais -> p_plano) = 'number'),
+    (select pl.preco_mes from public.planos pl where pl.codigo = p_plano))
+$$;
+revoke all on function public.preco_do_plano(uuid, text) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 2) ABRIR UMA COBRANÇA
 --
 -- Chamada pela função de borda `criar-cobranca` com a chave de serviço,
@@ -5742,7 +5781,11 @@ begin
     raise exception 'Forma de pagamento desconhecida.' using errcode = 'check_violation';
   end if;
 
-  select preco_mes into v_preco from public.planos where codigo = p_plano;
+  -- O preço do plano PARA ESTE SALÃO (1b): o normal, ou o especial dele.
+  if not exists (select 1 from public.planos where codigo = p_plano) then
+    raise exception 'Plano não encontrado.' using errcode = 'check_violation';
+  end if;
+  v_preco := public.preco_do_plano(p_salao, p_plano);
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -10075,16 +10118,27 @@ update public.planos set preco_mes = 497.00, max_profissionais = 12
 -- ⚠ O resumo do dia conta UM, com dez atendimentos dentro — e conta um porque
 -- é uma linha, não porque exista um contador especial para ele.
 -- ---------------------------------------------------------------------------
+/* ⚠ E A CAMPANHA CONTA TAMBÉM (2c). Mensagem de campanha sai pelo mesmo
+   número e é paga do mesmo jeito; uma franquia que não a contasse seria uma
+   franquia com porta dos fundos. Hoje nenhuma sai (nenhum plano libera),
+   então o número não muda — mas no dia em que liberar, já conta. */
 create or replace function public.mensagens_no_mes(p_salao uuid)
 returns int language sql stable security definer set search_path = public as $$
-  select count(*)::int
-    from public.notificacoes n
-    join public.saloes s on s.id = n.salao_id
-   where n.salao_id = p_salao
-     and n.status in ('enviado','entregue','lido')
-     and n.enviado_em >= (date_trunc('month',
-           now() at time zone coalesce(s.fuso, 'America/Sao_Paulo')))
-           at time zone coalesce(s.fuso, 'America/Sao_Paulo')
+  with mes as (
+    select (date_trunc('month',
+              now() at time zone coalesce(s.fuso, 'America/Sao_Paulo')))
+              at time zone coalesce(s.fuso, 'America/Sao_Paulo') as ini
+      from public.saloes s where s.id = p_salao)
+  select ((select count(*)
+             from public.notificacoes n, mes
+            where n.salao_id = p_salao
+              and n.status in ('enviado','entregue','lido')
+              and n.enviado_em >= mes.ini)
+        + (select count(*)
+             from public.campanha_destinatarios d, mes
+            where d.salao_id = p_salao
+              and d.status = 'enviado'
+              and d.enviado_em >= mes.ini))::int
 $$;
 
 /* O teto do plano. Null = sem teto; zero = plano sem WhatsApp. Os dois são
@@ -10143,6 +10197,30 @@ $$;
 -- Só o worker (service_role) e o `uso_do_plano()` (security definer) leem.
 revoke all on function public.teto_mensagens_salao(uuid)   from public, anon, authenticated;
 revoke all on function public.pode_enviar_tipo(uuid, text) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 2c) A CAMPANHA NÃO PASSA POR FORA DO LIMITE
+--
+-- As campanhas (promoção, aniversário — 10_campanhas) tinham fila própria, e
+-- o `fila_proxima()` não perguntava por cota nenhuma: um salão no Grátis,
+-- pelo console do navegador, montava uma campanha para a clientela inteira
+-- e ela sairia pelo número do AgendaPro, sem limite e sem contar no mês —
+-- e mensagem de promoção é a mais cara (~R$ 0,35) e a que mais arrisca o
+-- número, que é um só para todos os salões. Não há tela de campanha hoje;
+-- a porta estava aberta pelo banco.
+--
+-- Agora: campanha só sai se o PLANO tiver `campanhas_whatsapp` ligado (nenhum
+-- tem — ausente é não), e ainda assim dentro da franquia, pela regra das
+-- mensagens do salão (para nos 90%, a reserva fica para a cliente). Quem
+-- confere é o banco, no `iniciar_campanha()` e no `fila_proxima()` — a tela
+-- não decide nada.
+-- ---------------------------------------------------------------------------
+create or replace function public.campanha_liberada(p_salao uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.recurso_bool(p_salao, 'campanhas_whatsapp')
+     and public.pode_enviar_tipo(p_salao, 'campanha')
+$$;
+revoke all on function public.campanha_liberada(uuid) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 3) OS TETOS DE CADASTRO
@@ -10592,6 +10670,9 @@ begin
 
   select preco_mes, nome into v_preco, v_nome
     from public.planos where codigo = p_plano;
+  -- Com o preço especial do salão, se houver (13_cobranca, 1b): a
+  -- mensalidade do cartão nasce aqui e se repete todo mês.
+  if v_preco is not null then v_preco := public.preco_do_plano(p_salao, p_plano); end if;
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -10850,7 +10931,9 @@ begin
     return jsonb_build_object('ok', true, 'motivo', 'ja_registrada');
   end if;
 
-  select preco_mes into v_preco from public.planos where codigo = a.plano;
+  -- O mesmo preço que a pré-aprovação nasceu (13_cobranca, 1b): sem isso o
+  -- salão de preço especial teria a 2ª mensalidade recusada por divergir.
+  v_preco := public.preco_do_plano(a.salao_id, a.plano);
   if coalesce(v_preco, 0) <= 0 then
     return jsonb_build_object('ok', false, 'motivo', 'plano_sem_preco');
   end if;

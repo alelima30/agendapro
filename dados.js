@@ -141,7 +141,7 @@ const COLUNAS = {
   planos:        { maxProfissionais:'max_profissionais', precoMes:'preco_mes' },
   assinaturas:   { salaoId:'salao_id', trialAte:'trial_ate', venceEm:'vence_em',
                    indicadoPor:'indicado_por', criadoEm:'criado_em',
-                   atualizadoEm:'atualizado_em' },
+                   atualizadoEm:'atualizado_em', precosEspeciais:'precos_especiais' },
 };
 
 // Campos que existem só na tela e NÃO devem ir para o banco. Mandar coluna

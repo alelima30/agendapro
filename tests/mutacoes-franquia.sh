@@ -15,9 +15,10 @@ cd "$(dirname "$0")/.."
 T=tests/franquia.test.mjs
 PSQL="psql -h ${PGHOST_BANCADA:-/tmp} -p ${PGPORT_BANCADA:-5444} -U postgres -d app -v ON_ERROR_STOP=1 -q"
 
-# 24 depois do 22: o 24 redefine o uso_do_plano().
-ARQS="supabase/22_cotas.sql supabase/24_produtos.sql"
-SQLS="supabase/22_cotas.sql supabase/24_produtos.sql"
+# Na ordem do 00_tudo: o 24 redefine o uso_do_plano() do 22; o 10 (campanhas)
+# chama a regra do 22 em tempo de execução.
+ARQS="supabase/10_campanhas.sql supabase/22_cotas.sql supabase/24_produtos.sql"
+SQLS="supabase/10_campanhas.sql supabase/22_cotas.sql supabase/24_produtos.sql"
 guarda(){ echo "/tmp/mfr-$(echo "$1" | tr '/' '_')"; }
 for a in $ARQS; do cp "$a" "$(guarda "$a")"; done
 aplicar(){ for f in $SQLS; do $PSQL -f "$f" >/dev/null 2>&1 || return 1; done; }
@@ -121,6 +122,39 @@ troca $F \
   "revoke all on function public.pode_enviar_tipo(uuid, text) from public, anon, authenticated;" \
   "grant execute on function public.pode_enviar_tipo(uuid, text) to anon, authenticated;" \
   && rodar "a função do worker fica na mão da rua"
+
+echo "11. a fila de campanha não pergunta pelo limite"
+troca supabase/10_campanhas.sql \
+  "       and public.campanha_liberada(d.salao_id)
+     order by d.criado_em" \
+  "     order by d.criado_em" \
+  && rodar "campanha pelo console sai sem limite, pelo número de todos"
+
+echo "12. iniciar a campanha não recusa"
+troca supabase/10_campanhas.sql \
+  "  if not public.campanha_liberada(c.salao_id) then" \
+  "  if false then" \
+  && rodar "o dono do Grátis inicia campanha pelo console"
+
+echo "13. a regra da campanha esquece o plano"
+troca $F \
+  "  select public.recurso_bool(p_salao, 'campanhas_whatsapp')
+     and public.pode_enviar_tipo(p_salao, 'campanha')" \
+  "  select public.pode_enviar_tipo(p_salao, 'campanha')" \
+  && rodar "todo plano manda promoção pelo número do AgendaPro"
+
+echo "14. a regra da campanha esquece a franquia"
+troca $F \
+  "  select public.recurso_bool(p_salao, 'campanhas_whatsapp')
+     and public.pode_enviar_tipo(p_salao, 'campanha')" \
+  "  select public.recurso_bool(p_salao, 'campanhas_whatsapp')" \
+  && rodar "plano que libera campanha manda sem teto"
+
+echo "15. campanha enviada não conta no mês"
+troca $F \
+  "              and d.status = 'enviado'" \
+  "              and false" \
+  && rodar "a franquia com porta dos fundos"
 
 echo
 echo "mortas: $morta · sobreviveram: $viva · não rodaram: $perdida"

@@ -115,6 +115,36 @@ revoke all on public.cobrancas from anon, authenticated;
 grant select on public.cobrancas to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 1b) PREÇO ESPECIAL POR SALÃO
+--
+-- O preço é do PLANO, e vale para todo salão. Mas tem casos de um salão só:
+-- o salão de teste do dono da plataforma (o Essencial a R$ 1 para pagar um
+-- Pix de verdade sem gastar R$ 97), um combinado com um cliente, um
+-- desconto de lançamento. Mudar o preço do plano para isso mudaria para
+-- todos — e foi exatamente a armadilha de abrir a venda com o Essencial a
+-- R$ 1 na tabela.
+--
+-- `precos_especiais` é por salão, por plano: {"individual": 1.00}. Plano
+-- fora do mapa usa o preço normal. Quem escreve é só a plataforma: a tabela
+-- `assinaturas` já não aceita escrita do salão (policy `is_super()`), então
+-- ninguém dá desconto a si mesmo. Quem lê o preço — Pix, cartão e a
+-- recorrência do cartão — lê por `preco_do_plano()`, e só por ela.
+-- ---------------------------------------------------------------------------
+alter table public.assinaturas
+  add column if not exists precos_especiais jsonb not null default '{}'::jsonb;
+
+create or replace function public.preco_do_plano(p_salao uuid, p_plano text)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select (a.precos_especiais ->> p_plano)::numeric(10,2)
+       from public.assinaturas a
+      where a.salao_id = p_salao
+        and jsonb_typeof(a.precos_especiais -> p_plano) = 'number'),
+    (select pl.preco_mes from public.planos pl where pl.codigo = p_plano))
+$$;
+revoke all on function public.preco_do_plano(uuid, text) from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 2) ABRIR UMA COBRANÇA
 --
 -- Chamada pela função de borda `criar-cobranca` com a chave de serviço,
@@ -179,7 +209,11 @@ begin
     raise exception 'Forma de pagamento desconhecida.' using errcode = 'check_violation';
   end if;
 
-  select preco_mes into v_preco from public.planos where codigo = p_plano;
+  -- O preço do plano PARA ESTE SALÃO (1b): o normal, ou o especial dele.
+  if not exists (select 1 from public.planos where codigo = p_plano) then
+    raise exception 'Plano não encontrado.' using errcode = 'check_violation';
+  end if;
+  v_preco := public.preco_do_plano(p_salao, p_plano);
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;

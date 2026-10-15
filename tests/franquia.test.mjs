@@ -244,6 +244,67 @@ for(const papel of ['anon', 'authenticated'])
     verdade(`${papel} não executa ${f.replace('public.', '')}`,
       (await um(`select has_function_privilege($1, $2, 'execute') as p`, [papel, f])).p === false);
 
+/* ══════════════════════════════════════════════════════════════════════════
+   6 — A CAMPANHA NÃO É PORTA DOS FUNDOS
+   "Não pode escapar para que o usuário não consiga usar mensagens que não
+   estão liberadas pra ele." A fila de campanhas não perguntava por cota: um
+   salão montava uma campanha pelo console e ela sairia sem limite.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('6) Campanha não passa por fora do limite');
+
+const K = await montar('Camp', 'salao');
+const cliK = (await um(
+  `insert into public.clientes (salao_id, nome, telefone) values ($1, 'Rosa Camp', '11966665555')
+   returning id`, [K.salao])).id;
+// O que o console conseguiria: criar a campanha (o RLS deixa o gestor) e
+// montar a fila pelo RPC, com a sessão do dono.
+const campK = (await um(
+  `insert into public.campanhas (salao_id, nome, tipo, corpo) values ($1, 'Promo de teste', 'promocao', 'Oi')
+   returning id`, [K.salao])).id;
+const naFila = await K.d.chamar('montar_fila', { p_campanha: campK, p_criterio: 'todos', p_dias: 90, p_ids: null })
+  .catch(e => 'erro: ' + e.message);
+verdade('(a fila da campanha foi montada pelo dono)', Number(naFila) >= 1, String(naFila));
+
+let recusa = null;
+await K.d.chamar('iniciar_campanha', { p_campanha: campK }).catch(e => { recusa = e.message; });
+verdade('iniciar a campanha pelo console é recusado pelo banco',
+  recusa && /não está liberado/.test(recusa), String(recusa));
+
+// E mesmo forçando o status por fora, a fila não serve.
+await banco.query(`update public.campanhas set status='processando' where id=$1`, [campK]);
+const filaK = async () => {
+  const r = await banco.query(`select * from public.fila_proxima(500)`);
+  const meus = r.rows.filter(x => x.campanha_id === campK).length;
+  // Devolve à fila o que foi tomado, para a próxima pergunta.
+  await banco.query(`update public.campanha_destinatarios set status='pendente'
+                      where campanha_id=$1 and status='processando'`, [campK]);
+  return meus;
+};
+igual('com o status forçado, a fila não entrega nada do salão', await filaK(), 0);
+
+/* E o dia em que um plano liberar campanha: só dentro da franquia, pela regra
+   das mensagens do salão (para nos 90%). */
+try{
+  await banco.query(`update public.planos set recursos = recursos || '{"campanhas_whatsapp": true}'
+                      where codigo = 'salao'`);
+  igual('plano que libera, com franquia sobrando: a fila entrega', await filaK(), 1);
+  const tetoK = Number((await um(`select public.teto_mensagens_salao($1) as t`, [K.salao])).t);
+  await gastar(K.salao, tetoK);
+  igual('plano que libera, mas a franquia do salão acabou: não entrega', await filaK(), 0);
+} finally {
+  await banco.query(`update public.planos set recursos = recursos - 'campanhas_whatsapp'
+                      where codigo = 'salao'`);
+}
+
+// O que sai por campanha conta no mês, como o resto.
+const antesK = Number((await um(`select public.mensagens_no_mes($1) as n`, [K.salao])).n);
+await banco.query(`update public.campanha_destinatarios set status='enviado', enviado_em=now()
+                    where campanha_id=$1`, [campK]);
+igual('mensagem de campanha enviada conta no consumo do mês',
+  Number((await um(`select public.mensagens_no_mes($1) as n`, [K.salao])).n), antesK + 1);
+verdade('e a função da regra é só do servidor',
+  (await um(`select has_function_privilege('authenticated', 'public.campanha_liberada(uuid)', 'execute') as p`)).p === false);
+
 await banco.end();
 console.log(`\n${falhou ? '✗' : '✓'} ${passou} verificações da franquia${
   falhou ? `, ${falhou} falharam` : ''}.`);

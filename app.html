@@ -1902,7 +1902,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.8a2c09';
+const VERSAO_APP = 'v9.74f65e';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -13260,6 +13260,16 @@ const COMO_CRESCER = OFERTA_DE_PLANO
 function planoDe(codigo){
   return (bd.planos || []).find(p => p.codigo === codigo) || null;
 }
+/* O preço do plano PARA ESTE SALÃO: o especial dele, se a plataforma deu um
+   (13_cobranca, 1b), ou o normal. Só para mostrar — quem cobra é o banco,
+   pela mesma regra (`preco_do_plano`), e a tela não manda valor nenhum. */
+function precoDoPlano(codigo){
+  const a = assinaturaAtual();
+  const esp = a && a.precosEspeciais && a.precosEspeciais[codigo];
+  if(typeof esp === 'number' && esp >= 0) return esp;
+  const p = planoDe(codigo);
+  return p ? Number(p.precoMes || 0) : 0;
+}
 /* Qual plano vale HOJE. Espelha `plano_efetivo()` no banco — e tem que
    espelhar mesmo: se a tela disser um limite e o banco outro, o dono clica em
    cadastrar e leva um erro que não bate com o que está escrito na frente dele.
@@ -13504,8 +13514,8 @@ function pintarPlano(){
         ${OFERTA_DE_PLANO ? `
         <div style="text-align:right">
           <div style="font-size:22px;font-weight:800">${
-            p && p.precoMes ? real(p.precoMes) : 'Grátis'}</div>
-          <div style="font-size:12px;color:var(--txt2)">${p && p.precoMes ? 'por mês' : ''}</div>
+            p && precoDoPlano(p.codigo) ? real(precoDoPlano(p.codigo)) : 'Grátis'}</div>
+          <div style="font-size:12px;color:var(--txt2)">${p && precoDoPlano(p.codigo) ? 'por mês' : ''}</div>
         </div>` : ''}
       </div>
       ${emDia ? avisoDeVencimento(a, p, faltam) : ''}
@@ -13596,7 +13606,7 @@ function pintarPlano(){
         ${atual ? 'SEU PLANO ATUAL' : 'PLANO RECOMENDADO'}</div>
       <h3 style="font-size:20px;margin-top:4px">${escapar(recomendado.nome)}</h3>
       <div style="font-size:26px;font-weight:800;margin:6px 0">
-        ${real(recomendado.precoMes)}<span style="font-size:14px;font-weight:600;
+        ${real(precoDoPlano(recomendado.codigo))}<span style="font-size:14px;font-weight:600;
         color:var(--txt2)"> /mês</span></div>
       <p>Até ${recomendado.maxProfissionais} profissional(is) na agenda.</p>
       <!-- OS DOIS JEITOS DE PAGAR, LADO A LADO: Pix (um mes por vez) e
@@ -13733,7 +13743,7 @@ async function mostrarCartao(){
     alvo.innerHTML = `<div class="aviso ok" style="margin-top:14px">
       <b>Renovação automática ligada.</b>
       ${p ? escapar(p.nome) + (OFERTA_DE_PLANO
-              ? ' · ' + real(p.precoMes) + ' por mês.' : '.') : ''}
+              ? ' · ' + real(precoDoPlano(p.codigo)) + ' por mês.' : '.') : ''}
       ${/^\d{4}-\d{2}-\d{2}/.test(String(c.proxima || ''))
           ? 'A próxima cobrança é em '
             + escapar(porExtenso(String(c.proxima).slice(0, 10))) + '.' : ''}
@@ -13773,7 +13783,7 @@ async function assinarCartao(codigo){
        do aviso do Mercado Pago chegar. */
     alvo.outerHTML = `<div id="cartaoCorpo">
       <div class="aviso info" style="margin-top:0">
-        <b>${escapar(p ? p.nome : codigo)} · ${p ? real(p.precoMes) : ''} por mês,
+        <b>${escapar(p ? p.nome : codigo)} · ${p ? real(precoDoPlano(codigo)) : ''} por mês,
         com renovação automática.</b><br>
         O cartão é digitado na página do Mercado Pago — ele não passa pelo
         AgendaPro e não fica guardado aqui.

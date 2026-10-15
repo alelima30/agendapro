@@ -310,6 +310,24 @@ const comCartao = await p.evaluate(() => ({
 e('no cartão: some o aviso de renovar pelo Pix', !comCartao.aviso && !/Renovar com Pix/.test(comCartao.texto),
   comCartao.texto.slice(0, 300));
 
+/* ── O PREÇO ESPECIAL DO SALÃO (13_cobranca, 1b) ──────────────────────────
+   O salão de teste do dono vê R$ 1 no Essencial; o preço do plano continua
+   o mesmo para os outros — e outro plano, no mesmo salão, também. */
+console.log('\n── PREÇO ESPECIAL DO SALÃO ─────────────────────────────────');
+sql(`update public.assinaturas set mp_preapproval = null, cartao_desde = null,
+       vence_em = current_date + 20, precos_especiais = '{"individual": 1.00}'
+     where salao_id='${SALAO}'`);
+await abrirPlano(p, '?oferta=1');
+let pe = await p.evaluate(() => (document.getElementById('tela-plano') || {}).innerText || '');
+e('o Essencial aparece a R$ 1,00 para este salão', /R\$\s*1,00/.test(pe), pe.slice(0, 300));
+await p.evaluate(() => { planoEscolhido = 2; pintarPlano(); });
+await p.waitForTimeout(600);
+const precoDupla = Number(sql(`select preco_mes from public.planos where codigo='duo'`));
+pe = await p.evaluate(() => (document.getElementById('cartaoPlano') || {}).innerText || '');
+e('e outro plano, no mesmo salão, pelo preço normal',
+  pe.includes(precoDupla.toFixed(2).replace('.', ',')) && !/R\$\s*1,00/.test(pe), pe.slice(0, 200));
+sql(`update public.assinaturas set precos_especiais = '{}' where salao_id='${SALAO}'`);
+
 console.log('\n── ERROS ───────────────────────────────────────────────────');
 e('sem erro de JavaScript', erros.length === 0, erros.slice(0,3).join(' | '));
 

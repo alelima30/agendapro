@@ -705,6 +705,34 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (22_cotas e 24_produtos): a franquia '
                || 'nova ou a reserva da cliente não está instalada'
            else '' end
+  union all
+  /* O preço especial por salão (13, 1b) lido pelo Pix, e a campanha presa
+     ao plano e à franquia (22, 2c) — a porta dos fundos do limite. */
+  select 31, 'preço especial por salão e campanha dentro do limite',
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'assinaturas'
+                               and column_name = 'precos_especiais')
+             or to_regprocedure('public.preco_do_plano(uuid,text)') is null
+             or pg_get_functiondef(to_regprocedure('public.abrir_cobranca(uuid,text,text,uuid)'))
+                  not like '%preco_do_plano%'
+             or to_regprocedure('public.campanha_liberada(uuid)') is null
+             or pg_get_functiondef(to_regprocedure('public.fila_proxima(integer)'))
+                  not like '%campanha_liberada%'
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'assinaturas'
+                               and column_name = 'precos_especiais')
+             or to_regprocedure('public.preco_do_plano(uuid,text)') is null
+             or pg_get_functiondef(to_regprocedure('public.abrir_cobranca(uuid,text,text,uuid)'))
+                  not like '%preco_do_plano%'
+             or to_regprocedure('public.campanha_liberada(uuid)') is null
+             or pg_get_functiondef(to_regprocedure('public.fila_proxima(integer)'))
+                  not like '%campanha_liberada%'
+             then 'cole o 00_tudo.sql de novo (13_cobranca, 10_campanhas e 22_cotas)'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

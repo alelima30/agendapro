@@ -173,6 +173,9 @@ begin
 
   select preco_mes, nome into v_preco, v_nome
     from public.planos where codigo = p_plano;
+  -- Com o preço especial do salão, se houver (13_cobranca, 1b): a
+  -- mensalidade do cartão nasce aqui e se repete todo mês.
+  if v_preco is not null then v_preco := public.preco_do_plano(p_salao, p_plano); end if;
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -431,7 +434,9 @@ begin
     return jsonb_build_object('ok', true, 'motivo', 'ja_registrada');
   end if;
 
-  select preco_mes into v_preco from public.planos where codigo = a.plano;
+  -- O mesmo preço que a pré-aprovação nasceu (13_cobranca, 1b): sem isso o
+  -- salão de preço especial teria a 2ª mensalidade recusada por divergir.
+  v_preco := public.preco_do_plano(a.salao_id, a.plano);
   if coalesce(v_preco, 0) <= 0 then
     return jsonb_build_object('ok', false, 'motivo', 'plano_sem_preco');
   end if;
