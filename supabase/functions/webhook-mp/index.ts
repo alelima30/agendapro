@@ -98,7 +98,7 @@ async function ligarDaPreapproval(pre: Record<string, unknown>) {
    endereço que é público por obrigação: deixá-la presa dentro de um arquivo
    que só o Deno executa seria a parte mais crítica do sistema sendo a única
    sem teste. */
-import { motivoDaRecusa } from './assinatura.js';
+import { conferirAssinatura } from './assinatura.js';
 
 Deno.serve(async (req) => {
   if(req.method !== 'POST') return new Response('ok', { status: 200 });
@@ -122,20 +122,23 @@ Deno.serve(async (req) => {
 
     if(!dataId) return new Response('sem id', { status: 200 });
 
-    const motivo = await motivoDaRecusa({
+    const conf = await conferirAssinatura({
       segredo: MP_SEGREDO,
       xSignature: req.headers.get('x-signature'),
       xRequestId: req.headers.get('x-request-id'),
-      dataId,
+      dataId: url.searchParams.get('data.id') ?? '',
+      dataIdCorpo: corpo?.data?.id ?? '',
     });
-    if(motivo !== null){
-      /* O motivo e de onde veio o id — e nada de segredo, hash ou corpo. É o
-         que separa "a chave está errada" de "este aviso não veio do painel". */
-      console.error('webhook-mp: assinatura inválida', { tipo, dataId, motivo,
-        idNaUrl: url.searchParams.has('data.id'),
-        temRequestId: !!req.headers.get('x-request-id') });
+    if(!conf.ok){
+      /* O motivo e o diagnóstico — e nada de segredo, hash ou corpo. É o que
+         separa "a chave está errada" de "este aviso não veio do painel". */
+      console.error('webhook-mp: assinatura inválida', { tipo, dataId,
+        motivo: conf.motivo, ...(conf.diag || {}) });
       return new Response('assinatura inválida', { status: 401 });
     }
+    // Qual forma bateu. "regra do Mercado Pago" é a esperada; outra qualquer
+    // aqui é pista para fixar a regra certa (assinatura.js).
+    console.log('webhook-mp: assinatura conferida', { tipo, dataId, variante: conf.variante });
 
     /* ── O CARTÃO FOI AUTORIZADO, OU DEIXOU DE SER ───────────────────────────
        Este é o único lugar do sistema que liga o cartão de um salão. A borda

@@ -53,23 +53,49 @@ export async function hmacHex(segredo, texto){
    `agoraMs` entra por parâmetro para o teste poder envelhecer um aviso sem
    mexer no relógio da máquina. */
 export async function assinaturaConfere(opcoes){
-  return (await motivoDaRecusa(opcoes)) === null;
+  return (await conferirAssinatura(opcoes)).ok;
 }
 
-/* POR QUE recusou — ou `null`, quando confere. Vai para o log do webhook-mp,
-   e só ele: "assinatura inválida" sozinho não dizia se faltou o cabeçalho
-   (aviso que não veio do painel), se o aviso era velho, ou se a chave do
-   Supabase não é a do painel. Nenhum motivo leva o segredo nem o hash. */
-export async function motivoDaRecusa(
-  { segredo, xSignature, xRequestId, dataId, agoraMs = Date.now(),
-    janelaSegundos = 600 }){
+/* POR QUE recusou — ou `null`, quando confere. */
+export async function motivoDaRecusa(opcoes){
+  return (await conferirAssinatura(opcoes)).motivo;
+}
+
+/* A conferência com o relatório: { ok, motivo, variante, diag }.
+
+   ── AS VARIAÇÕES, E POR QUE ELAS NÃO ABREM PORTA NENHUMA ──────────────────
+   No primeiro Pix de verdade o aviso chegou do painel e a conta não bateu.
+   Ou a chave colada no Supabase não é a do painel, ou o texto que o Mercado
+   Pago assinou não é exatamente o que montamos — e "assinatura inválida" não
+   diz qual. Então a conferência tenta, nesta ordem:
+
+     1. a regra do Mercado Pago: id DA URL (sem ele, a parte sai), request-id
+        se veio, ts;
+     2. o id do CORPO, quando a URL não trouxe;
+     3. sem o request-id — o cabeçalho pode ter sido reescrito no caminho até
+        a função;
+     4. cada uma com a chave aparada (espaço ou quebra de linha colados junto
+        no Supabase).
+
+   TODAS exigem a chave secreta: quem não a tem não acerta nenhuma. O id
+   trocado continua recusado (ele entra na conta), e o aviso velho também (a
+   janela vem antes). `variante` diz qual bateu, para o log mostrar — e a
+   gente fixar a regra certa e tirar as outras. `diag` diz, quando nada bate,
+   o que veio e o que não veio — sem nunca levar chave ou hash. */
+export async function conferirAssinatura(
+  { segredo, xSignature, xRequestId, dataId, dataIdCorpo,
+    agoraMs = Date.now(), janelaSegundos = 600 }){
+
+  const recusa = (motivo, diag) => ({ ok: false, motivo, variante: null, diag: diag || null });
 
   /* Sem segredo configurado não há o que conferir. Recusar é o certo: aceitar
      deixaria o endereço aberto justamente enquanto ninguém terminou de
      configurar — que é quando ninguém está olhando. */
-  if(!segredo) return 'MP_WEBHOOK_SECRET não configurado';
-  if(!xSignature) return 'sem o cabeçalho x-signature (aviso que não veio do webhook do painel)';
-  if(!dataId) return 'sem o id do pagamento';
+  if(!segredo) return recusa('MP_WEBHOOK_SECRET não configurado');
+  if(!xSignature) return recusa('sem o cabeçalho x-signature (aviso que não veio do webhook do painel)');
+  const idUrl = dataId ? String(dataId) : '';
+  const idCorpo = dataIdCorpo ? String(dataIdCorpo) : '';
+  if(!idUrl && !idCorpo) return recusa('sem o id do pagamento');
 
   const partes = new Map();
   for(const p of String(xSignature).split(',')){
@@ -79,19 +105,34 @@ export async function motivoDaRecusa(
   }
   const ts = partes.get('ts');
   const v1 = partes.get('v1');
-  if(!ts || !v1) return 'o x-signature não traz ts e v1';
+  if(!ts || !v1) return recusa('o x-signature não traz ts e v1');
 
   /* Janela de tempo. Sem ela, um aviso legítimo capturado hoje pode ser
      reenviado daqui a um ano e a assinatura continuaria válida — para sempre.
      A idempotência do banco já cobriria o estrago, mas defesa em profundidade
      custa cinco linhas. */
   const idade = Math.abs(agoraMs / 1000 - Number(ts));
-  if(!Number.isFinite(idade)) return 'ts não é número';
-  if(idade > janelaSegundos) return `aviso fora da janela de ${janelaSegundos} s (${Math.round(idade)} s)`;
+  if(!Number.isFinite(idade)) return recusa('ts não é número');
+  if(idade > janelaSegundos) return recusa(`aviso fora da janela de ${janelaSegundos} s (${Math.round(idade)} s)`);
 
-  const meu = await hmacHex(segredo,
-    manifesto(dataId, xRequestId ?? '', ts));
-  return iguaisEmTempoConstante(meu, v1)
-    ? null
-    : 'a conta não bate com o MP_WEBHOOK_SECRET (chave diferente da do painel, ou do outro modo)';
+  const req = xRequestId ? String(xRequestId) : '';
+  const textos = [['regra do Mercado Pago', manifesto(idUrl, req, ts)]];
+  if(!idUrl && idCorpo) textos.push(['id do corpo', manifesto(idCorpo, req, ts)]);
+  if(req) textos.push(['sem request-id', manifesto(idUrl || idCorpo, '', ts)]);
+
+  const chaves = [['', segredo]];
+  if(String(segredo).trim() !== segredo) chaves.push([' (chave aparada)', String(segredo).trim()]);
+
+  for(const [nomeChave, chave] of chaves){
+    for(const [nome, texto] of textos){
+      if(iguaisEmTempoConstante(await hmacHex(chave, texto), v1)){
+        return { ok: true, motivo: null, variante: nome + nomeChave, diag: null };
+      }
+    }
+  }
+  return recusa('a conta não bate com o MP_WEBHOOK_SECRET (chave diferente da do painel, ou do outro modo)', {
+    idNaUrl: !!idUrl, idNoCorpo: !!idCorpo, temRequestId: !!req,
+    tamanhoChave: String(segredo).length,
+    chaveComEspaco: String(segredo).trim() !== segredo,
+  });
 }

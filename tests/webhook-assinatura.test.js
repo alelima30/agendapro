@@ -12,7 +12,7 @@
    lógica: é a lógica.
    =========================================================================== */
 import { assinaturaConfere, hmacHex, manifesto, iguaisEmTempoConstante,
-         motivoDaRecusa }
+         motivoDaRecusa, conferirAssinatura }
   from '../supabase/functions/webhook-mp/assinatura.js';
 
 let passou = 0, falhou = 0;
@@ -167,6 +167,58 @@ verdade('sem segredo configurado: diz isso',
   /não configurado/.test(await motivoDaRecusa({ ...await avisoDeVerdade(), segredo: '', agoraMs: AGORA })));
 verdade('e nenhum motivo leva o segredo',
   ![await motivo(await avisoDeVerdade({ segredo: 'outra' }))].some(t => t.includes(SEGREDO)));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AS VARIAÇÕES — todas exigem a chave; nenhuma abre porta
+   (o primeiro Pix de verdade chegou do painel e a conta não bateu)
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('As variações da conferência');
+const conf = (extra) => conferirAssinatura({ segredo: SEGREDO, agoraMs: AGORA, ...extra });
+{
+  const r = await conf(await avisoDeVerdade());
+  igual('o aviso normal confere pela regra do Mercado Pago', r.variante, 'regra do Mercado Pago');
+}
+{
+  // Chave colada no Supabase com uma quebra de linha no fim.
+  const r = await conferirAssinatura({ ...await avisoDeVerdade(), segredo: SEGREDO + '\n', agoraMs: AGORA });
+  verdade('chave com quebra de linha no fim: confere, e diz que foi aparada',
+    r.ok && /aparada/.test(r.variante), JSON.stringify(r));
+}
+{
+  // Assinado sem request-id, mas a função recebeu um (cabeçalho reescrito).
+  const a = await avisoDeVerdade({ requestId: '' });
+  const r = await conf({ ...a, xRequestId: 'reescrito-no-caminho' });
+  verdade('request-id reescrito no caminho: confere pela variante sem request-id',
+    r.ok && r.variante === 'sem request-id', JSON.stringify(r));
+}
+{
+  // A URL sem id: o Mercado Pago assina sem a parte do id.
+  const ts = Math.floor(AGORA/1000);
+  const v1 = await hmacHex(SEGREDO, manifesto('', REQ, ts));
+  const r = await conf({ xSignature: `ts=${ts},v1=${v1}`, xRequestId: REQ, dataId: '', dataIdCorpo: ID });
+  verdade('URL sem id: confere pela regra (a parte do id sai do texto)', r.ok, JSON.stringify(r));
+}
+{
+  // Assinado com o id do corpo, URL sem id.
+  const a = await avisoDeVerdade();
+  const r = await conf({ ...a, dataId: '', dataIdCorpo: ID });
+  verdade('URL sem id e assinado com o do corpo: confere pela variante do corpo',
+    r.ok && r.variante === 'id do corpo', JSON.stringify(r));
+}
+{
+  const r = await conf(await avisoDeVerdade({ segredo: 'outra-chave' }));
+  verdade('chave errada: nenhuma variação confere', !r.ok && /MP_WEBHOOK_SECRET/.test(r.motivo));
+  verdade('e o diagnóstico diz o que veio, e o tamanho da chave — sem a chave',
+    r.diag && r.diag.idNaUrl === true && r.diag.temRequestId === true
+      && r.diag.tamanhoChave === SEGREDO.length && !JSON.stringify(r).includes(SEGREDO),
+    JSON.stringify(r.diag));
+}
+{
+  // O ataque realista continua barrado: id trocado depois de assinar.
+  const a = await avisoDeVerdade();
+  falso('id trocado continua recusado, com as variações', (await conf({ ...a, dataId: '9999999999' })).ok);
+  falso('e trocado pelo corpo também', (await conf({ ...a, dataId: '', dataIdCorpo: '9999999999' })).ok);
+}
 
 console.log(`\n${passou} passaram, ${falhou} falharam`);
 process.exit(falhou ? 1 : 0);
