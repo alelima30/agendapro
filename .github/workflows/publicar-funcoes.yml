@@ -1,11 +1,12 @@
 # ===========================================================================
-# AgendaPro — publicar as funções do WhatsApp no Supabase, sem computador
+# AgendaPro — publicar as funções do servidor no Supabase, sem computador
 #
 # POR QUE ISTO EXISTE
-# As mensagens da agenda saem por funções que rodam NO SERVIDOR do Supabase
-# (supabase/functions/). Publicá-las pedia a CLI do Supabase num computador.
-# Aqui é um botão: GitHub → Actions → "Publicar as funções do WhatsApp" →
-# Run workflow. E roda sozinho quando uma dessas funções muda no `main`.
+# As mensagens da agenda e o pagamento pelo Mercado Pago passam por funções
+# que rodam NO SERVIDOR do Supabase (supabase/functions/). Publicá-las pedia a
+# CLI do Supabase num computador. Aqui é um botão: GitHub → Actions →
+# "Publicar as funções (WhatsApp e Mercado Pago)" → Run workflow. E roda
+# sozinho quando uma dessas funções muda no `main`.
 #
 # O QUE PRECISA, UMA VEZ
 # Um token de acesso do Supabase guardado como segredo DO REPOSITÓRIO:
@@ -15,12 +16,13 @@
 #     Secret: o token
 # Sem ele o trabalho para no primeiro passo e diz isso — não quebra nada.
 #
-# ⚠ OS SEGREDOS DO WHATSAPP NÃO PASSAM POR AQUI. WHATSAPP_TOKEN,
-# WHATSAPP_PHONE_ID, META_APP_SECRET, WHATSAPP_VERIFY_TOKEN e CRON_SEGREDO
-# moram só no Supabase (Edge Functions → Secrets). Este arquivo publica
-# código; não vê, não grava e não imprime credencial nenhuma.
+# ⚠ OS SEGREDOS NÃO PASSAM POR AQUI. WHATSAPP_TOKEN, WHATSAPP_PHONE_ID,
+# META_APP_SECRET, WHATSAPP_VERIFY_TOKEN, CRON_SEGREDO, MP_ACCESS_TOKEN,
+# MP_WEBHOOK_SECRET e companhia moram só no Supabase (Edge Functions →
+# Secrets). Este arquivo publica código; não vê, não grava e não imprime
+# credencial nenhuma.
 # ===========================================================================
-name: Publicar as funções do WhatsApp
+name: Publicar as funções (WhatsApp e Mercado Pago)
 
 on:
   workflow_dispatch:
@@ -30,6 +32,10 @@ on:
       - 'supabase/functions/enviar-notificacoes/**'
       - 'supabase/functions/status-whatsapp/**'
       - 'supabase/functions/enviar-campanha/**'
+      - 'supabase/functions/criar-cobranca/**'
+      - 'supabase/functions/webhook-mp/**'
+      - 'supabase/functions/assinar-cartao/**'
+      - 'supabase/functions/cancelar-cartao/**'
       # Texto de ajuda (MODELOS.md, README.md) não é código: mudar não publica.
       - '!supabase/functions/**/*.md'
 
@@ -73,3 +79,20 @@ jobs:
       # As campanhas (promoção, aniversário). Só mandam quando há campanha.
       - name: enviar-campanha
         run: supabase functions deploy enviar-campanha --project-ref "$PROJETO"
+
+      # ── O PAGAMENTO PELO MERCADO PAGO (webhook-mp/README.md) ──────────────
+      # Chamadas pelo painel, COM o token de sessão do dono: é ele que diz
+      # quem está pedindo. Por isso a verificação de JWT fica LIGADA.
+      - name: criar-cobranca
+        run: supabase functions deploy criar-cobranca --project-ref "$PROJETO"
+      - name: assinar-cartao
+        run: supabase functions deploy assinar-cartao --project-ref "$PROJETO"
+      - name: cancelar-cartao
+        run: supabase functions deploy cancelar-cartao --project-ref "$PROJETO"
+
+      # O aviso de pagamento. SEM verificação de JWT, de propósito: o Mercado
+      # Pago chama sem token do Supabase — quem guarda a porta é a assinatura
+      # HMAC com o MP_WEBHOOK_SECRET, conferida dentro da função, que recusa
+      # tudo se o segredo não estiver configurado. Só ESTA das quatro.
+      - name: webhook-mp
+        run: supabase functions deploy webhook-mp --project-ref "$PROJETO" --no-verify-jwt
