@@ -41,7 +41,69 @@
 -- tem WhatsApp", e é o que o pedido pede para o START.
 -- ---------------------------------------------------------------------------
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes',  100, 'max_servicos',  10, 'mensagens_mes',   0)
+    'max_clientes',   30, 'max_servicos',   5, 'mensagens_mes',   0,
+    'agendamentos_mes', 20)
+  where codigo = 'gratuito';
+
+/* ── O GRÁTIS É SÓ PARA CONHECER, E O BÁSICO É O SISTEMA SEM MENSAGEM ──────
+   Pedido do dono: "o plano grátis tem que ser bem limitado, mas bem limitado
+   mesmo" — antes ele tinha o sistema inteiro menos a mensagem, e quem não
+   precisa de lembrete nunca pagaria.
+
+     Grátis     R$ 0      1 profissional, 20 horários/mês, 30 clientes,
+                          5 serviços, sem produtos; agenda, clientes e o link
+                          simples (sem personalizar, com o selo AgendaPro)
+     Básico     R$ 49,90  1 profissional, o sistema inteiro, sem mensagens
+                          automáticas (o botão manual do WhatsApp segue)
+     Essencial  R$ 97     o Básico + 500 mensagens
+
+   Os módulos travados no Grátis viram chaves de `recursos`, conferidas pelo
+   banco (`exigir_recurso`, logo abaixo): caixa (com comanda), relatorios, loja
+   (produtos no link), pacotes, cupons, aparencia. Nada se apaga: quem desce
+   para o Grátis guarda tudo, só não lança coisa nova no que travou. */
+/* A TRAVA DE MÓDULO POR PLANO. O Grátis é só para conhecer (agenda, clientes
+   e o link simples); caixa, relatórios, produtos, pacotes, cupons e a
+   aparência do link são do Básico para cima (logo abaixo). Quem recusa é o
+   banco — num gatilho ou no começo da função —, nunca só a tela: o console
+   do navegador não passa por aba escondida. Chave ausente no plano = não. */
+create or replace function public.exigir_recurso(p_salao uuid, p_chave text, p_nome text)
+returns void language plpgsql stable set search_path = public as $$
+begin
+  if not coalesce(public.recurso_bool(p_salao, p_chave), false) then
+    raise exception '% está disponível a partir do plano Básico.', p_nome
+      using errcode = 'check_violation';
+  end if;
+end $$;
+
+/* O PLANO, PARA A EQUIPE. A assinatura só o gestor lê (preço e vencimento são
+   conta do dono). Sem ela, a tela da recepção e da profissional achava que o
+   salão estava no Grátis e trancava o caixa de quem paga o Básico. Isto
+   devolve SÓ o código do plano em vigor — nada de preço, nada de data — e só
+   para quem é da equipe daquele salão. */
+create or replace function public.plano_do_salao(p_salao uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case when public.e_equipe(p_salao) then public.plano_efetivo(p_salao) end
+$$;
+revoke all on function public.plano_do_salao(uuid) from public, anon;
+grant execute on function public.plano_do_salao(uuid) to authenticated;
+
+insert into public.planos (codigo, nome, max_profissionais, preco_mes, ordem, recursos)
+values ('basico', 'Básico', 1, 49.90, 2, '{}'::jsonb)
+on conflict (codigo) do nothing;           -- preço é decisão comercial: não reseta
+
+update public.planos set recursos = recursos || jsonb_build_object(
+    'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 0,
+    'agenda_online', true, 'lembrete_whatsapp', false)
+  where codigo = 'basico';
+
+update public.planos set recursos = recursos || jsonb_build_object(
+    'caixa', true, 'relatorios', true, 'loja', true,
+    'pacotes', true, 'cupons', true, 'aparencia', true)
+  where codigo <> 'gratuito';
+
+update public.planos set recursos = recursos || jsonb_build_object(
+    'caixa', false, 'relatorios', false, 'loja', false,
+    'pacotes', false, 'cupons', false, 'aparencia', false)
   where codigo = 'gratuito';
 
 /* ── A FRANQUIA DE MENSAGENS, REVISTA PELO USO DE VERDADE ─────────────────

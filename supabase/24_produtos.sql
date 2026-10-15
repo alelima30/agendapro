@@ -84,10 +84,11 @@ comment on column public.produtos.venda_online is
 -- o teto existe para o plano Grátis não virar hospedagem de catálogo, não
 -- para espremer quem paga.
 -- ---------------------------------------------------------------------------
-update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 10)
+-- O Grátis não tem produto nenhum (22_cotas: o Grátis é só para conhecer).
+update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 0)
   where codigo = 'gratuito';
 update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 50)
-  where codigo in ('trial','individual');
+  where codigo in ('trial','individual','basico');
 update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 100)
   where codigo = 'duo';
 update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 200)

@@ -93,6 +93,17 @@ create policy caixa_gerir on public.caixas for all to authenticated
 revoke all on public.caixas from anon;
 grant select, insert, update on public.caixas to authenticated;
 
+-- Abrir caixa é do Básico para cima (22_cotas, exigir_recurso).
+create or replace function public.tg_caixa_do_plano() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.exigir_recurso(new.salao_id, 'caixa', 'O caixa');
+  return new;
+end $$;
+drop trigger if exists tg_caixa_do_plano on public.caixas;
+create trigger tg_caixa_do_plano before insert on public.caixas
+  for each row execute function public.tg_caixa_do_plano();
+
 -- ---------------------------------------------------------------------------
 -- 2) SANGRIA E SUPRIMENTO
 -- ---------------------------------------------------------------------------

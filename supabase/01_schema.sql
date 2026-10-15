@@ -139,6 +139,7 @@ returns boolean language sql stable security definer set search_path = public as
     from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)
 $$;
 
+
 -- Os planos de partida. Preço é decisão comercial e muda com um UPDATE —
 -- por isso está em tabela, não espalhado pelo código.
 --

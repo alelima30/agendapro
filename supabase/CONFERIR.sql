@@ -733,6 +733,36 @@ with conferencia(ordem, item, veredito, detalhe) as (
                   not like '%campanha_liberada%'
              then 'cole o 00_tudo.sql de novo (13_cobranca, 10_campanhas e 22_cotas)'
            else '' end
+  union all
+  /* Os planos novos: o Básico (R$ 49,90, sem mensagens) e o Grátis só para
+     conhecer — as travas de módulo no banco e o link simples. */
+  select 32, 'Básico sem mensagens e Grátis bem limitado',
+         case
+           when (select preco_mes from public.planos where codigo = 'basico') is null
+             or (select (recursos->>'mensagens_mes')::int from public.planos where codigo = 'basico') is distinct from 0
+             or (select (recursos->>'caixa')::boolean from public.planos where codigo = 'gratuito') is distinct from false
+             or (select (recursos->>'agendamentos_mes')::int from public.planos where codigo = 'gratuito') is distinct from 20
+             or to_regprocedure('public.exigir_recurso(uuid,text,text)') is null
+             or pg_get_functiondef(to_regprocedure('public.usa_comanda(uuid)')) not like '%caixa%'
+             or pg_get_functiondef(to_regprocedure('public.vitrine(text)')) not like '%aparencia%'
+             or not exists (select 1 from pg_trigger where tgname = 'tg_caixa_do_plano')
+             or to_regprocedure('public.plano_do_salao(uuid)') is null
+             or has_function_privilege('anon', 'public.plano_do_salao(uuid)', 'execute')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when (select preco_mes from public.planos where codigo = 'basico') is null
+             or (select (recursos->>'mensagens_mes')::int from public.planos where codigo = 'basico') is distinct from 0
+             or (select (recursos->>'caixa')::boolean from public.planos where codigo = 'gratuito') is distinct from false
+             or (select (recursos->>'agendamentos_mes')::int from public.planos where codigo = 'gratuito') is distinct from 20
+             or to_regprocedure('public.exigir_recurso(uuid,text,text)') is null
+             or pg_get_functiondef(to_regprocedure('public.usa_comanda(uuid)')) not like '%caixa%'
+             or pg_get_functiondef(to_regprocedure('public.vitrine(text)')) not like '%aparencia%'
+             or not exists (select 1 from pg_trigger where tgname = 'tg_caixa_do_plano')
+             or to_regprocedure('public.plano_do_salao(uuid)') is null
+             or has_function_privilege('anon', 'public.plano_do_salao(uuid)', 'execute')
+             then 'cole o 00_tudo.sql de novo (planos novos e travas de módulo)'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

@@ -16,7 +16,8 @@
 
 \set ON_ERROR_STOP on
 
--- ── Cenário: um salão no plano Grátis, que é o que tem o teto mais baixo ───
+-- ── Cenário: um salão no Básico, o menor plano que tem produtos ────────────
+-- (o Grátis não tem catálogo nenhum — 0 produtos; isso o planos-modulos cobre)
 insert into auth.users (id) values
   ('a1000000-0000-0000-0000-00000000000a') on conflict do nothing;
 insert into public.perfis (id, nome, email) values
@@ -29,7 +30,7 @@ insert into public.vinculos (perfil_id, salao_id, papel, status) values
   ('a1000000-0000-0000-0000-00000000000a',
    'a1000000-1111-0000-0000-00000000000b', 'dono', 'ativo');
 insert into public.assinaturas (salao_id, plano, status) values
-  ('a1000000-1111-0000-0000-00000000000b', 'gratuito', 'ativa');
+  ('a1000000-1111-0000-0000-00000000000b', 'basico', 'ativa');
 
 \echo ''
 \echo 'AS COLUNAS QUE A TELA PRECISA'
@@ -74,12 +75,12 @@ begin
   return null;
 exception when others then return sqlerrm; end $$;
 
--- O teto do Grátis, lido da tabela — nunca escrito à mão aqui.
-select (recursos->>'max_produtos')::int as teto_gratis
-  from public.planos where codigo = 'gratuito' \gset
+-- O teto do Básico, lido da tabela — nunca escrito à mão aqui.
+select (recursos->>'max_produtos')::int as teto_basico
+  from public.planos where codigo = 'basico' \gset
 
-select t_verdade('o plano Grátis tem teto de produtos',
-  :teto_gratis > 0);
+select t_verdade('o plano Básico tem teto de produtos',
+  :teto_basico > 0);
 
 -- Completa até o teto. Já existe 1; faltam teto-1.
 do $$
@@ -94,7 +95,7 @@ end $$;
 
 select t_igual('o salão chegou exatamente ao teto',
   (select count(*) from public.produtos
-    where salao_id = 'a1000000-1111-0000-0000-00000000000b'), :teto_gratis::bigint);
+    where salao_id = 'a1000000-1111-0000-0000-00000000000b'), :teto_basico::bigint);
 
 select t_verdade('e o próximo é recusado, com o número na mensagem',
   criou_produto('a1000000-1111-0000-0000-00000000000b', 'Um a mais')
@@ -121,10 +122,10 @@ select set_config('request.jwt.claim.sub',
 
 select t_igual('uso_do_plano conta os produtos',
   ((public.uso_do_plano('a1000000-1111-0000-0000-00000000000b')
-     ->'produtos'->>'usado')::int)::bigint, :teto_gratis::bigint);
+     ->'produtos'->>'usado')::int)::bigint, :teto_basico::bigint);
 select t_igual('e mostra o teto, para a barra ter fim',
   ((public.uso_do_plano('a1000000-1111-0000-0000-00000000000b')
-     ->'produtos'->>'teto')::int)::bigint, :teto_gratis::bigint);
+     ->'produtos'->>'teto')::int)::bigint, :teto_basico::bigint);
 
 /* As outras chaves não podem sumir quando esta função é reescrita — foi uma
    cópia inteira, e cópia inteira é onde se perde uma linha sem notar. */

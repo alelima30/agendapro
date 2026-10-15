@@ -464,10 +464,14 @@ const PLANOS = [
    ic:'<span data-ico="presente"></span>',
    recursos:['1 profissional','Tudo liberado por 7 dias','Sem cartão de crédito',
              'Depois vira o plano Grátis','Configuração em 5 min']},
-  {codigo:'gratuito',   nome:'Grátis',       quem:'Para sempre',      max:1,  preco:0,
+  {codigo:'gratuito',   nome:'Grátis',       quem:'Para conhecer',    max:1,  preco:0,
    ic:'<span data-ico="casa"></span>',
-   recursos:['1 profissional','40 horários por mês','Link de agendamento',
-             'Comanda e comissão','Sem lembrete automático']},
+   recursos:['1 profissional','20 horários por mês','Link de agendamento simples',
+             'Sem caixa, relatórios e produtos','Sem lembrete automático']},
+  {codigo:'basico',     nome:'Básico',       quem:'O sistema sem mensagens', max:1, preco:49.9,
+   ic:'<span data-ico="usuario"></span>',
+   recursos:['1 profissional','Caixa, relatórios, produtos','Pacotes e cupons',
+             'Link com a sua cara','Sem lembrete automático']},
   {codigo:'individual', nome:'Individual',   quem:'Para 1 profissional', max:1, preco:57,
    ic:'<span data-ico="usuario"></span>',
    recursos:['1 profissional','Horários ilimitados','Lembrete no WhatsApp',
@@ -814,8 +818,8 @@ async function criarConta(){
                 + 'agendar.html?salao=' + apelido;
       document.getElementById('textoPronto').innerHTML =
         `<b>${nomeSalao}</b> está no ar, com tudo liberado por 7 dias. `
-      + `Depois ele continua funcionando no plano grátis — você só `
-      + `assina se quiser mais.`;
+      + `Depois ele continua no plano Grátis, com a agenda e o link simples — `
+      + `caixa, relatórios, produtos e lembretes ficam no Básico e nos maiores.`;
       document.getElementById('linkFinal').textContent = url;
       irPasso(3);
     }catch(e){
@@ -885,8 +889,8 @@ async function criarConta(){
   const url = location.href.replace(/\/[^\/]*$/, '/') + 'agendar.html?salao=' + slug;
   document.getElementById('textoPronto').innerHTML =
     `<b>${nomeSalao}</b> está no ar, com tudo liberado por 7 dias. `
-      + `Depois ele continua funcionando no plano grátis — você só `
-      + `assina se quiser mais.`;
+      + `Depois ele continua no plano Grátis, com a agenda e o link simples — `
+      + `caixa, relatórios, produtos e lembretes ficam no Básico e nos maiores.`;
   document.getElementById('linkFinal').textContent = url;
   // Na demonstração, a agenda também: sem o `?demo=1` o painel pedia login
   // e o salão recém-criado sumia (achado pelo caça-bug).

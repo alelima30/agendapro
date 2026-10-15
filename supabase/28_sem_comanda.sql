@@ -56,6 +56,10 @@
 -- — chave ausente, vazia, escrita errada — deixa ligado, que é o lado seguro:
 -- um erro de digitação nunca apaga a comanda de ninguém.
 -- ---------------------------------------------------------------------------
+/* ⚠ E O PLANO MANDA ANTES DO INTERRUPTOR: no Grátis não há caixa nem
+   comanda (22_cotas), e o salão trabalha como o "sem comanda" daqui — o
+   atendimento concluído vira comanda sozinho, e o dinheiro do dia não se
+   perde. Ligar o interruptor no Grátis não liga nada. */
 create or replace function public.usa_comanda(p_salao uuid)
 returns boolean language sql stable set search_path = public as $$
   select coalesce(
@@ -63,6 +67,7 @@ returns boolean language sql stable set search_path = public as $$
               not in ('false', 'f', '0', 'no', 'nao', 'não')
        from public.saloes sa where sa.id = p_salao),
     true)
+    and coalesce(public.recurso_bool(p_salao, 'caixa'), false)
 $$;
 
 comment on function public.usa_comanda(uuid) is

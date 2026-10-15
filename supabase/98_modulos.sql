@@ -644,6 +644,7 @@ begin
     raise exception 'Sem permissão neste salão.'
       using errcode = 'insufficient_privilege';
   end if;
+  perform public.exigir_recurso(p_salao, 'relatorios', 'O relatório');
   if p_de is null or p_ate is null or p_ate < p_de then
     raise exception 'Confira as datas do período.' using errcode = 'check_violation';
   end if;
@@ -1643,6 +1644,15 @@ create policy caixa_gerir on public.caixas for all to authenticated
   with check ( public.ve_agenda_toda(salao_id) );
 revoke all on public.caixas from anon;
 grant select, insert, update on public.caixas to authenticated;
+create or replace function public.tg_caixa_do_plano() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.exigir_recurso(new.salao_id, 'caixa', 'O caixa');
+  return new;
+end $$;
+drop trigger if exists tg_caixa_do_plano on public.caixas;
+create trigger tg_caixa_do_plano before insert on public.caixas
+  for each row execute function public.tg_caixa_do_plano();
 create table if not exists public.caixa_movimentos (
   id         uuid primary key default gen_random_uuid(),
   caixa_id   uuid not null references public.caixas(id) on delete cascade,
@@ -3011,7 +3021,37 @@ comment on function public.gerar_resumos(timestamptz) is
   'Põe o resumo do dia na fila para os salões cuja hora já chegou. Idempotente por dia.';
 
 update public.planos set recursos = recursos || jsonb_build_object(
-    'max_clientes',  100, 'max_servicos',  10, 'mensagens_mes',   0)
+    'max_clientes',   30, 'max_servicos',   5, 'mensagens_mes',   0,
+    'agendamentos_mes', 20)
+  where codigo = 'gratuito';
+create or replace function public.exigir_recurso(p_salao uuid, p_chave text, p_nome text)
+returns void language plpgsql stable set search_path = public as $$
+begin
+  if not coalesce(public.recurso_bool(p_salao, p_chave), false) then
+    raise exception '% está disponível a partir do plano Básico.', p_nome
+      using errcode = 'check_violation';
+  end if;
+end $$;
+create or replace function public.plano_do_salao(p_salao uuid)
+returns text language sql stable security definer set search_path = public as $$
+  select case when public.e_equipe(p_salao) then public.plano_efetivo(p_salao) end
+$$;
+revoke all on function public.plano_do_salao(uuid) from public, anon;
+grant execute on function public.plano_do_salao(uuid) to authenticated;
+insert into public.planos (codigo, nome, max_profissionais, preco_mes, ordem, recursos)
+values ('basico', 'Básico', 1, 49.90, 2, '{}'::jsonb)
+on conflict (codigo) do nothing;
+update public.planos set recursos = recursos || jsonb_build_object(
+    'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 0,
+    'agenda_online', true, 'lembrete_whatsapp', false)
+  where codigo = 'basico';
+update public.planos set recursos = recursos || jsonb_build_object(
+    'caixa', true, 'relatorios', true, 'loja', true,
+    'pacotes', true, 'cupons', true, 'aparencia', true)
+  where codigo <> 'gratuito';
+update public.planos set recursos = recursos || jsonb_build_object(
+    'caixa', false, 'relatorios', false, 'loja', false,
+    'pacotes', false, 'cupons', false, 'aparencia', false)
   where codigo = 'gratuito';
 update public.planos set recursos = recursos || jsonb_build_object(
     'max_clientes',  500, 'max_servicos',  50, 'mensagens_mes', 100)
@@ -3562,10 +3602,10 @@ create index if not exists ix_produto_salao
   on public.produtos(salao_id) where ativo;
 comment on column public.produtos.venda_online is
   'Se aparece na loja da página pública. Nasce falso de propósito.';
-update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 10)
+update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 0)
   where codigo = 'gratuito';
 update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 50)
-  where codigo in ('trial','individual');
+  where codigo in ('trial','individual','basico');
 update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 100)
   where codigo = 'duo';
 update public.planos set recursos = recursos || jsonb_build_object('max_produtos', 200)
@@ -3660,64 +3700,65 @@ language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'salao', jsonb_build_object(
       'id', s.id, 'slug', s.slug, 'nome', s.nome, 'tipo', s.tipo,
+      'selo', not coalesce(public.recurso_bool(s.id, 'aparencia'), false),
       'logo', s.logo, 'capa', s.capa,
       'telefone', s.telefone, 'whatsapp', s.whatsapp,
       'endereco', s.endereco, 'fuso', s.fuso,
       'diasLiberados', public.dias_liberados(s.id),
-      'cor',  s.cfg->>'cor',
-      'tema', s.cfg->>'tema',
-      'precoNaCapa', lower(btrim(coalesce(s.cfg->>'precoNaCapa', 'false')))
+      'cor',  c.cfg->>'cor',
+      'tema', c.cfg->>'tema',
+      'precoNaCapa', lower(btrim(coalesce(c.cfg->>'precoNaCapa', 'false')))
                        in ('true', 't', '1', 'yes', 'sim'),
-      'fundo', s.cfg->>'fundo',
-      'brilho', lower(btrim(coalesce(s.cfg->>'brilho', 'true')))
+      'fundo', c.cfg->>'fundo',
+      'brilho', lower(btrim(coalesce(c.cfg->>'brilho', 'true')))
                   not in ('false', 'f', '0', 'no', 'nao', 'não'),
-      'letra', s.cfg->>'letra',
-      'slideDe', s.cfg->>'slideDe',
-      'galeria', coalesce(s.cfg->'galeria', '[]'::jsonb),
-      'capaFoco', case when s.cfg->>'capaFoco' ~ '^[0-9]+$'
-                       then (s.cfg->>'capaFoco')::int end,
-      'veu', case when s.cfg->>'veu' ~ '^[0-9]+$'
-                  then (s.cfg->>'veu')::int end,
-      'cartoes', s.cfg->>'cartoes',
-      'moldura', coalesce(s.cfg->>'moldura', 'reta'),
-      'loja', lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+      'letra', c.cfg->>'letra',
+      'slideDe', c.cfg->>'slideDe',
+      'galeria', coalesce(c.cfg->'galeria', '[]'::jsonb),
+      'capaFoco', case when c.cfg->>'capaFoco' ~ '^[0-9]+$'
+                       then (c.cfg->>'capaFoco')::int end,
+      'veu', case when c.cfg->>'veu' ~ '^[0-9]+$'
+                  then (c.cfg->>'veu')::int end,
+      'cartoes', c.cfg->>'cartoes',
+      'moldura', coalesce(c.cfg->>'moldura', 'reta'),
+      'loja', lower(btrim(coalesce(c.cfg->>'loja', 'true')))
                 not in ('false', 'f', '0', 'no', 'nao', 'não'),
-      'usaServicos', lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+      'usaServicos', lower(btrim(coalesce(c.cfg->>'usaServicos', 'true')))
                        not in ('false', 'f', '0', 'no', 'nao', 'não'),
-      'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb),
+      'destaques', coalesce(c.cfg->'destaques', '[]'::jsonb),
       'passoHorarios', case
-        when s.cfg->>'passoHorarios' in ('15','30','60')
-          then (s.cfg->>'passoHorarios')::int else 15 end,
-      'cores',     coalesce(s.cfg->'cores', '{}'::jsonb),
-      'modo',      coalesce(s.cfg->>'modo', 'atual'),
-      'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
-      'logoBorda', coalesce(s.cfg->>'logoBorda', 'media'),
-      'slideForma', coalesce(s.cfg->>'slideForma', 'panoramico'),
-      'fitaMetal',  coalesce(s.cfg->>'fitaMetal', 'media'),
-      'fitaBrilho', lower(btrim(coalesce(s.cfg->>'fitaBrilho', 'true')))
+        when c.cfg->>'passoHorarios' in ('15','30','60')
+          then (c.cfg->>'passoHorarios')::int else 15 end,
+      'cores',     coalesce(c.cfg->'cores', '{}'::jsonb),
+      'modo',      coalesce(c.cfg->>'modo', 'atual'),
+      'logoForma', coalesce(c.cfg->>'logoForma', 'circular'),
+      'logoBorda', coalesce(c.cfg->>'logoBorda', 'media'),
+      'slideForma', coalesce(c.cfg->>'slideForma', 'panoramico'),
+      'fitaMetal',  coalesce(c.cfg->>'fitaMetal', 'media'),
+      'fitaBrilho', lower(btrim(coalesce(c.cfg->>'fitaBrilho', 'true')))
                       not in ('false', 'f', '0', 'no', 'nao', 'não'),
-      'fitaTempo',  coalesce(s.cfg->>'fitaTempo', 'media'),
-      'fitaCor',    s.cfg->>'fitaCor',
-      'fitaBorda',  coalesce(s.cfg->>'fitaBorda', 'reta'),
-      'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
-      'gradiente', s.cfg->>'gradiente'
+      'fitaTempo',  coalesce(c.cfg->>'fitaTempo', 'media'),
+      'fitaCor',    c.cfg->>'fitaCor',
+      'fitaBorda',  coalesce(c.cfg->>'fitaBorda', 'reta'),
+      'fundoTipo', coalesce(c.cfg->>'fundoTipo', 'cor'),
+      'gradiente', c.cfg->>'gradiente'
     )
     || jsonb_build_object(
-      'funcionamento', case when jsonb_typeof(s.cfg->'funcionamento') = 'object'
-                            then s.cfg->'funcionamento' end,
-      'pagamentos',    case when jsonb_typeof(s.cfg->'pagamentos') = 'object'
-                            then s.cfg->'pagamentos' end,
-      'sobre',     nullif(left(btrim(coalesce(s.cfg->>'sobre', '')), 600), ''),
-      'instagram', nullif(left(regexp_replace(coalesce(s.cfg->>'instagram', ''),
+      'funcionamento', case when jsonb_typeof(c.cfg->'funcionamento') = 'object'
+                            then c.cfg->'funcionamento' end,
+      'pagamentos',    case when jsonb_typeof(c.cfg->'pagamentos') = 'object'
+                            then c.cfg->'pagamentos' end,
+      'sobre',     nullif(left(btrim(coalesce(c.cfg->>'sobre', '')), 600), ''),
+      'instagram', nullif(left(regexp_replace(coalesce(c.cfg->>'instagram', ''),
                                               '[^A-Za-z0-9._]', '', 'g'), 30), ''),
-      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end,
-      'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
-                      then s.cfg->'atalhos' end,
-      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
-      'pularComQuem', lower(btrim(coalesce(s.cfg->>'pularComQuem', 'false')))
+      'capaForma', case when c.cfg->>'capaForma' = 'reta' then 'reta' end,
+      'atalhos', case when jsonb_typeof(c.cfg->'atalhos') = 'object'
+                      then c.cfg->'atalhos' end,
+      'botaoProdutos', case when c.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
+      'pularComQuem', lower(btrim(coalesce(c.cfg->>'pularComQuem', 'false')))
                         in ('true', 't', '1', 'yes', 'sim'),
-      'intro', case when jsonb_typeof(s.cfg->'intro') = 'object'
-                    then s.cfg->'intro' end
+      'intro', case when jsonb_typeof(c.cfg->'intro') = 'object'
+                    then c.cfg->'intro' end
     ),
     'produtos', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -3728,7 +3769,7 @@ language sql stable security definer set search_path = public as $$
              order by pr.nome)
         from public.produtos pr
        where pr.salao_id = s.id and pr.ativo and pr.venda_online
-         and lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+         and lower(btrim(coalesce(c.cfg->>'loja', 'true')))
                not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb),
     'servicos', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -3777,7 +3818,7 @@ language sql stable security definer set search_path = public as $$
              order by v.categoria nulls last, v.nome)
         from public.servicos v
        where v.salao_id = s.id and v.ativo and v.aceita_online
-         and lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+         and lower(btrim(coalesce(c.cfg->>'usaServicos', 'true')))
                not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb),
     'profissionais', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -3792,6 +3833,16 @@ language sql stable security definer set search_path = public as $$
          and public.profissional_na_cota(p.id)), '[]'::jsonb)
   )
   from public.saloes s
+  cross join lateral (select
+      case when coalesce(public.recurso_bool(s.id, 'aparencia'), false) then coalesce(s.cfg, '{}'::jsonb)
+           else coalesce(s.cfg, '{}'::jsonb) - array[
+             'atalhos','botaoProdutos','brilho','capaFoco','capaForma','cartoes','cor',
+             'cores','fitaBorda','fitaBrilho','fitaCor','fitaMetal','fitaTempo','fundo',
+             'fundoTipo','galeria','gradiente','intro','letra','logoBorda','logoForma',
+             'modo','moldura','slideDe','slideForma','tema','veu']
+      end
+      || case when coalesce(public.recurso_bool(s.id, 'loja'), false) then '{}'::jsonb
+              else '{"loja": "false"}'::jsonb end as cfg) c
   where s.slug = p_slug and s.status = 'ativo'
 $$;
 
@@ -4013,6 +4064,7 @@ begin
     raise exception 'Só o proprietário ou um administrador pode vender pacote.'
       using errcode = 'insufficient_privilege';
   end if;
+  perform public.exigir_recurso(v_salao, 'pacotes', 'Vender pacote');
   if not exists (select 1 from public.clientes c
                   where c.id = p_cliente and c.salao_id = v_salao) then
     raise exception 'Esta cliente não é deste salão.'
@@ -4043,6 +4095,15 @@ end $$;
 alter table public.pacotes          enable row level security;
 alter table public.pacote_servicos  enable row level security;
 alter table public.pacote_clientes  enable row level security;
+create or replace function public.tg_pacote_do_plano() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.exigir_recurso(new.salao_id, 'pacotes', 'Pacote');
+  return new;
+end $$;
+drop trigger if exists tg_pacote_do_plano on public.pacotes;
+create trigger tg_pacote_do_plano before insert on public.pacotes
+  for each row execute function public.tg_pacote_do_plano();
 drop policy if exists pacotes_ler on public.pacotes;
 create policy pacotes_ler on public.pacotes
   for select using (public.e_equipe(salao_id));
@@ -4096,6 +4157,7 @@ returns boolean language sql stable set search_path = public as $$
               not in ('false', 'f', '0', 'no', 'nao', 'não')
        from public.saloes sa where sa.id = p_salao),
     true)
+    and coalesce(public.recurso_bool(p_salao, 'caixa'), false)
 $$;
 comment on function public.usa_comanda(uuid) is
   'O salão trabalha com comanda e caixa? cfg.usaComanda, padrão LIGADO. Desligado, o atendimento concluído vira comanda sozinho.';
@@ -4755,6 +4817,15 @@ create table if not exists public.cupons (
   constraint cupom_vale_algo check (vale_agendamento or vale_produtos)
 );
 create unique index if not exists ux_cupom_codigo on public.cupons (salao_id, codigo);
+create or replace function public.tg_cupom_do_plano() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.exigir_recurso(new.salao_id, 'cupons', 'Cupom');
+  return new;
+end $$;
+drop trigger if exists tg_cupom_do_plano on public.cupons;
+create trigger tg_cupom_do_plano before insert on public.cupons
+  for each row execute function public.tg_cupom_do_plano();
 create or replace function public.tg_cupom_codigo()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -4806,6 +4877,9 @@ declare
   v_rotulo text;
   it       record;
 begin
+  if not coalesce(public.recurso_bool(p_salao, 'cupons'), false) then
+    return jsonb_build_object('motivo', 'Este estabelecimento não está aceitando cupons agora.');
+  end if;
   if v_cod = '' or p_salao is null then
     return jsonb_build_object('motivo', 'Digite o código do cupom.');
   end if;
@@ -4995,6 +5069,7 @@ returns jsonb language sql stable security definer set search_path = public as $
    where c.salao_id = p_salao and c.ativo
      and (c.inicio is null or c.inicio <= hoje.d)
      and (c.fim is null or c.fim >= hoje.d)
+     and coalesce(public.recurso_bool(p_salao, 'cupons'), false)
 $$;
 create or replace function public.remarcar_agendamento(p_token_antigo uuid, p_token_novo uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$

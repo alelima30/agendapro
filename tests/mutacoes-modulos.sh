@@ -69,22 +69,22 @@ PY
 
 echo "1. a peneira volta a ser ::boolean, e lixo no cfg derruba a vitrine"
 troca supabase/25_loja.sql \
-  "      'loja', lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+  "      'loja', lower(btrim(coalesce(c.cfg->>'loja', 'true')))
                 not in ('false', 'f', '0', 'no', 'nao', 'não')," \
-  "      'loja', coalesce((s.cfg->>'loja')::boolean, true)," \
+  "      'loja', coalesce((c.cfg->>'loja')::boolean, true)," \
   && rodar "cfg lido com ::boolean" sql
 
 echo "2. o banco deixa a lista de serviços sair com o módulo desligado"
 troca supabase/25_loja.sql \
-  "         and lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+  "         and lower(btrim(coalesce(c.cfg->>'usaServicos', 'true')))
                not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb)," \
   "         ), '[]'::jsonb)," \
   && rodar "lista saindo com o módulo desligado" sql
 
 echo "3. chave ausente passa a valer DESLIGADO"
 troca supabase/25_loja.sql \
-  "      'usaServicos', lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))" \
-  "      'usaServicos', lower(btrim(coalesce(s.cfg->>'usaServicos', 'false')))" \
+  "      'usaServicos', lower(btrim(coalesce(c.cfg->>'usaServicos', 'true')))" \
+  "      'usaServicos', lower(btrim(coalesce(c.cfg->>'usaServicos', 'false')))" \
   && rodar "ausente valendo desligado" sql
 
 # ⚠ ESTAS DUAS JÁ SOBREVIVERAM UMA VEZ, e a lição virou outra coisa.

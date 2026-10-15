@@ -442,7 +442,11 @@ verdade('o uso do plano vem num jsonb só, com usado e teto',
   JSON.stringify(uso));
 igual('e o teto de clientes do Individual é 500', uso.clientes.teto, 500);
 
-// Um plano apertado, para a recusa acontecer de verdade.
+// Um plano apertado, para a recusa acontecer de verdade. O teto de verdade
+// é guardado e devolvido no fim: escrever um número à mão aqui deixava o
+// Grátis da bancada diferente do que o 22_cotas diz para as suítes seguintes.
+const servicosDoGratis = (await banco.query(
+  `select recursos->'max_servicos' as v from public.planos where codigo='gratuito'`)).rows[0].v;
 await banco.query(
   `update public.assinaturas set plano='gratuito' where salao_id=$1`, [C.salao]);
 await banco.query(
@@ -462,8 +466,9 @@ igual('e o que já existia continua existindo',
     `select count(*)::int as n from public.servicos where salao_id=$1`,
     [C.salao])).rows[0].n), 1);
 await banco.query(
-  `update public.planos set recursos = recursos - 'max_servicos' || '{"max_servicos":10}'::jsonb
-    where codigo='gratuito'`);
+  `update public.planos set recursos = recursos - 'max_servicos'
+      || jsonb_build_object('max_servicos', $1::jsonb)
+    where codigo='gratuito'`, [JSON.stringify(servicosDoGratis)]);
 
 /* ══════════════════════════════════════════════════════════════════════════
    TESTE 14 — dois salões, nenhum dado cruzado

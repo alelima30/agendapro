@@ -51,6 +51,8 @@ begin
     raise exception 'Sem permissão neste salão.'
       using errcode = 'insufficient_privilege';
   end if;
+  -- Relatórios são do Básico para cima (22_cotas, exigir_recurso).
+  perform public.exigir_recurso(p_salao, 'relatorios', 'O relatório');
   if p_de is null or p_ate is null or p_ate < p_de then
     raise exception 'Confira as datas do período.' using errcode = 'check_violation';
   end if;

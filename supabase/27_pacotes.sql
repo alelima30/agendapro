@@ -412,6 +412,8 @@ begin
     raise exception 'Só o proprietário ou um administrador pode vender pacote.'
       using errcode = 'insufficient_privilege';
   end if;
+  -- Vender pacote é do Básico para cima (22_cotas, exigir_recurso).
+  perform public.exigir_recurso(v_salao, 'pacotes', 'Vender pacote');
 
   -- A ficha tem que ser DESTE salão. Sem isto, um gestor venderia pacote do
   -- salão dele para a cliente de outro salão — e o benefício viajaria junto.
@@ -460,6 +462,17 @@ end $$;
 alter table public.pacotes          enable row level security;
 alter table public.pacote_servicos  enable row level security;
 alter table public.pacote_clientes  enable row level security;
+
+-- Criar pacote é do Básico para cima (22_cotas, exigir_recurso).
+create or replace function public.tg_pacote_do_plano() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.exigir_recurso(new.salao_id, 'pacotes', 'Pacote');
+  return new;
+end $$;
+drop trigger if exists tg_pacote_do_plano on public.pacotes;
+create trigger tg_pacote_do_plano before insert on public.pacotes
+  for each row execute function public.tg_pacote_do_plano();
 
 drop policy if exists pacotes_ler on public.pacotes;
 create policy pacotes_ler on public.pacotes

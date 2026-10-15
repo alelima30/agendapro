@@ -1164,6 +1164,10 @@ function bdDaVitrine(v){
       id: salaoId, slug: s.slug, nome: s.nome, tipo: s.tipo,
       logo: s.logo, capa: s.capa, telefone: s.telefone, whatsapp: s.whatsapp,
       endereco: s.endereco, fuso: s.fuso,
+      // Link simples do plano Grátis: "Feito com AgendaPro" no rodapé. Quem
+      // decide é o banco (vitrine, 22_cotas), que também já manda o link sem
+      // a aparência personalizada nesse plano.
+      selo: s.selo === true,
       // A aparência que o salão escolheu no painel, em Meu salão.
       cor: s.cor, tema: s.tema, precoNaCapa: s.precoNaCapa === true,
       // Ausente = ligado, a mesma regra da vitrine(): salão criado antes
@@ -5872,7 +5876,10 @@ function entrarNoSalao(slug){
      que já ESTÁ no link, isso não informa nada — é o parâmetro de URL do
      sistema exposto no rodapé de um salão de beleza. Some, pelo mesmo motivo
      que saiu o "02_rls.sql" da tela do dono. */
-  document.getElementById('notaRodape').innerHTML = '';
+  document.getElementById('notaRodape').innerHTML = s.selo
+    ? 'Feito com <a href="index.html" target="_blank" rel="noopener">AgendaPro</a>'
+      + ' · agenda online para salões e barbearias'
+    : '';
 
   historico = [];
   irPara('capa', true);

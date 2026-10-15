@@ -95,6 +95,8 @@ language sql stable security definer set search_path = public as $$
   select jsonb_build_object(
     'salao', jsonb_build_object(
       'id', s.id, 'slug', s.slug, 'nome', s.nome, 'tipo', s.tipo,
+      -- "Feito com AgendaPro" no rodapé do link simples (Grátis, 22_cotas).
+      'selo', not coalesce(public.recurso_bool(s.id, 'aparencia'), false),
       'logo', s.logo, 'capa', s.capa,
       'telefone', s.telefone, 'whatsapp', s.whatsapp,
       'endereco', s.endereco, 'fuso', s.fuso,
@@ -113,8 +115,8 @@ language sql stable security definer set search_path = public as $$
          Nulo quer dizer "não escolheu", e a tela usa o padrão dela — assim
          salão antigo, criado antes disto existir, continua bonito sem
          precisar de migração. */
-      'cor',  s.cfg->>'cor',
-      'tema', s.cfg->>'tema',
+      'cor',  c.cfg->>'cor',
+      'tema', c.cfg->>'tema',
       /* ── ⚠ AS QUATRO PENEIRAS, E POR QUE NENHUMA USA `::` DIRETO ──────
          `'abacaxi'::boolean` e `'abacaxi'::int` LEVANTAM no Postgres — não
          devolvem nulo. Dentro da `vitrine()` isso não é "o ajuste não pega":
@@ -136,30 +138,30 @@ language sql stable security definer set search_path = public as $$
          erro custa dinheiro.
          `capaFoco` e `veu` são números sem padrão: lixo vira nulo, e a página
          usa o que ela já usava quando a chave não existia. */
-      'precoNaCapa', lower(btrim(coalesce(s.cfg->>'precoNaCapa', 'false')))
+      'precoNaCapa', lower(btrim(coalesce(c.cfg->>'precoNaCapa', 'false')))
                        in ('true', 't', '1', 'yes', 'sim'),
       -- A imagem de fundo da página, que o dono anexa em Identidade visual.
       -- Mora no `cfg` e não numa coluna própria de propósito: `cfg` é jsonb
       -- e já existe, então nenhum salão precisa de migração de tabela.
-      'fundo', s.cfg->>'fundo',
+      'fundo', c.cfg->>'fundo',
       -- O brilho do botão principal. Ausente quer dizer LIGADO: é o padrão, e
       -- assim salão criado antes disto existir já nasce com ele.
-      'brilho', lower(btrim(coalesce(s.cfg->>'brilho', 'true')))
+      'brilho', lower(btrim(coalesce(c.cfg->>'brilho', 'true')))
                   not in ('false', 'f', '0', 'no', 'nao', 'não'),
       -- A letra do nome na capa. Nulo = a tela decide pelo tipo do negócio.
-      'letra', s.cfg->>'letra',
+      'letra', c.cfg->>'letra',
       /* De onde sai o slide da capa: 'servicos' (as fotos dos serviços) ou
          'galeria' (as mídias que o dono subiu). E a galeria em si — uma
          lista de {url, tipo, legenda}. Vem nomeada, como todo o resto: o
          `cfg` inteiro nunca é devolvido. */
-      'slideDe', s.cfg->>'slideDe',
-      'galeria', coalesce(s.cfg->'galeria', '[]'::jsonb),
+      'slideDe', c.cfg->>'slideDe',
+      'galeria', coalesce(c.cfg->'galeria', '[]'::jsonb),
       -- Enquadramento da foto de capa (0 = topo à vista, 100 = pé) e quanto
       -- da imagem de fundo aparece por baixo do véu. Nulo = o padrão da tela.
-      'capaFoco', case when s.cfg->>'capaFoco' ~ '^[0-9]+$'
-                       then (s.cfg->>'capaFoco')::int end,
-      'veu', case when s.cfg->>'veu' ~ '^[0-9]+$'
-                  then (s.cfg->>'veu')::int end,
+      'capaFoco', case when c.cfg->>'capaFoco' ~ '^[0-9]+$'
+                       then (c.cfg->>'capaFoco')::int end,
+      'veu', case when c.cfg->>'veu' ~ '^[0-9]+$'
+                  then (c.cfg->>'veu')::int end,
       /* Quanto os cartões fecham sobre a foto de fundo: 'auto', 'vidro' ou
          'fechado'. Nulo = 'auto', que é o que a tela faz sozinha — então
          salão criado antes disto não precisa de migração nenhuma.
@@ -168,7 +170,7 @@ language sql stable security definer set search_path = public as $$
          devolvido, cada chave é nomeada uma a uma, e ajuste que não aparece
          nesta lista fica preso no painel: o dono escolhe, o painel grava, a
          prévia obedece, e a página da cliente nunca fica sabendo. */
-      'cartoes', s.cfg->>'cartoes',
+      'cartoes', c.cfg->>'cartoes',
 
       /* A FORMA do cartão de serviço: `reta` (o de sempre) ou
          `elegante`. Ausente vale `reta`, então salão criado antes
@@ -178,7 +180,7 @@ language sql stable security definer set search_path = public as $$
          quanto o cartão FECHA sobre a foto de capa; este decide a
          forma. Juntar os dois tornaria impossível pedir moldura
          elegante com fundo de vidro. */
-      'moldura', coalesce(s.cfg->>'moldura', 'reta'),
+      'moldura', coalesce(c.cfg->>'moldura', 'reta'),
 
       /* ── ⚠ OS DOIS MÓDULOS DA CASA ────────────────────────────────────
          `usaServicos` e `loja` dizem com o que o estabelecimento trabalha:
@@ -215,9 +217,9 @@ language sql stable security definer set search_path = public as $$
          (Inline, e não uma chamada ao `usa_comanda()`: esta é uma função SQL,
          que compila o corpo na hora, e o 29 roda DEPOIS do 25 nos dois
          pacotes. Chamar dali seria a mesma pedra do `v.dias` lá em cima.) */
-      'loja', lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+      'loja', lower(btrim(coalesce(c.cfg->>'loja', 'true')))
                 not in ('false', 'f', '0', 'no', 'nao', 'não'),
-      'usaServicos', lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+      'usaServicos', lower(btrim(coalesce(c.cfg->>'usaServicos', 'true')))
                        not in ('false', 'f', '0', 'no', 'nao', 'não'),
 
       /* ── OS SERVIÇOS QUE APARECEM NA CAPA ─────────────────────────────
@@ -236,7 +238,7 @@ language sql stable security definer set search_path = public as $$
          viraria uma propriedade do serviço, e a mesma pergunta voltaria no
          dia em que a capa quisesse ORDEM — que o id numa lista já dá de
          graça, e uma coluna booleana não dá. */
-      'destaques', coalesce(s.cfg->'destaques', '[]'::jsonb),
+      'destaques', coalesce(c.cfg->'destaques', '[]'::jsonb),
 
       /* ── DE QUANTO EM QUANTO TEMPO O LINK OFERECE HORÁRIO ─────────────
          15, 30 ou 60 minutos. Ausente vale 15, que é o que a agenda sempre
@@ -250,15 +252,15 @@ language sql stable security definer set search_path = public as $$
          marcar em qualquer minuto.
 
          ⚠ E O CAST PASSA POR UMA PENEIRA DE TEXTO, de propósito.
-         `(s.cfg->>'passoHorarios')::int` com lixo dentro — "abc", ou uma
+         `(c.cfg->>'passoHorarios')::int` com lixo dentro — "abc", ou uma
          string vazia gravada por engano — não devolve nulo: ele LEVANTA
          ERRO, e a `vitrine()` inteira morre junto. Quer dizer: a página da
          cliente deixaria de abrir por causa de um valor torto numa chave de
          aparência. É armadilha velha conhecida deste projeto, e a saída é
          sempre a mesma — comparar como texto antes de converter. */
       'passoHorarios', case
-        when s.cfg->>'passoHorarios' in ('15','30','60')
-          then (s.cfg->>'passoHorarios')::int else 15 end,
+        when c.cfg->>'passoHorarios' in ('15','30','60')
+          then (c.cfg->>'passoHorarios')::int else 15 end,
 
       /* ── A CAMADA DE PERSONALIZAÇÃO POR ESTABELECIMENTO ────────────────
          Cinco chaves, e as cinco AUSENTES no salão que nunca mexeu — que é
@@ -273,14 +275,14 @@ language sql stable security definer set search_path = public as $$
 
          `modo` ausente vale `atual`: o visual de hoje, sem nada novo ligado.
          É o que garante que ninguém acorde com a página diferente. */
-      'cores',     coalesce(s.cfg->'cores', '{}'::jsonb),
-      'modo',      coalesce(s.cfg->>'modo', 'atual'),
-      'logoForma', coalesce(s.cfg->>'logoForma', 'circular'),
+      'cores',     coalesce(c.cfg->'cores', '{}'::jsonb),
+      'modo',      coalesce(c.cfg->>'modo', 'atual'),
+      'logoForma', coalesce(c.cfg->>'logoForma', 'circular'),
       -- A espessura do anel em volta da logo. `media` é o que a página fazia
       -- antes desta escolha existir, então salão que nunca mexeu não muda.
-      'logoBorda', coalesce(s.cfg->>'logoBorda', 'media'),
+      'logoBorda', coalesce(c.cfg->>'logoBorda', 'media'),
       -- A forma da caixa do carrossel. `panoramico` é o 16/8 de antes.
-      'slideForma', coalesce(s.cfg->>'slideForma', 'panoramico'),
+      'slideForma', coalesce(c.cfg->>'slideForma', 'panoramico'),
       /* ── A FITA DO CARRINHO, EM METAL ─────────────────────────────────
          Cinco chaves, e as cinco AUSENTES no salão que nunca mexeu. Ausente
          não quer dizer "desligado": quer dizer "o metal de fábrica", que é o
@@ -291,16 +293,16 @@ language sql stable security definer set search_path = public as $$
          mais fácil porque esta chave é gravada por um botão de dois estados
          — se alguém um dia gravar a string "nao" em vez de `false`, um
          `::boolean` derruba a `vitrine()` inteira. */
-      'fitaMetal',  coalesce(s.cfg->>'fitaMetal', 'media'),
-      'fitaBrilho', lower(btrim(coalesce(s.cfg->>'fitaBrilho', 'true')))
+      'fitaMetal',  coalesce(c.cfg->>'fitaMetal', 'media'),
+      'fitaBrilho', lower(btrim(coalesce(c.cfg->>'fitaBrilho', 'true')))
                       not in ('false', 'f', '0', 'no', 'nao', 'não'),
-      'fitaTempo',  coalesce(s.cfg->>'fitaTempo', 'media'),
+      'fitaTempo',  coalesce(c.cfg->>'fitaTempo', 'media'),
       /* Sem coalesce: nulo é "não escolhi", e a página herda a cor do botão.
          Um padrão aqui seria uma cor cravada no banco. */
-      'fitaCor',    s.cfg->>'fitaCor',
-      'fitaBorda',  coalesce(s.cfg->>'fitaBorda', 'reta'),
-      'fundoTipo', coalesce(s.cfg->>'fundoTipo', 'cor'),
-      'gradiente', s.cfg->>'gradiente'
+      'fitaCor',    c.cfg->>'fitaCor',
+      'fitaBorda',  coalesce(c.cfg->>'fitaBorda', 'reta'),
+      'fundoTipo', coalesce(c.cfg->>'fundoTipo', 'cor'),
+      'gradiente', c.cfg->>'gradiente'
     )
     /* ── HORÁRIOS, PAGAMENTOS E A APRESENTAÇÃO ──────────────────────────────
        Num SEGUNDO jsonb_build_object, somado ao primeiro com `||`. Função no
@@ -312,38 +314,38 @@ language sql stable security definer set search_path = public as $$
        (funcionamento.js). `::jsonb` ou `::int` em texto do dono já derrubou a
        vitrine inteira neste projeto, mais de uma vez. */
     || jsonb_build_object(
-      'funcionamento', case when jsonb_typeof(s.cfg->'funcionamento') = 'object'
-                            then s.cfg->'funcionamento' end,
-      'pagamentos',    case when jsonb_typeof(s.cfg->'pagamentos') = 'object'
-                            then s.cfg->'pagamentos' end,
-      'sobre',     nullif(left(btrim(coalesce(s.cfg->>'sobre', '')), 600), ''),
-      'instagram', nullif(left(regexp_replace(coalesce(s.cfg->>'instagram', ''),
+      'funcionamento', case when jsonb_typeof(c.cfg->'funcionamento') = 'object'
+                            then c.cfg->'funcionamento' end,
+      'pagamentos',    case when jsonb_typeof(c.cfg->'pagamentos') = 'object'
+                            then c.cfg->'pagamentos' end,
+      'sobre',     nullif(left(btrim(coalesce(c.cfg->>'sobre', '')), 600), ''),
+      'instagram', nullif(left(regexp_replace(coalesce(c.cfg->>'instagram', ''),
                                               '[^A-Za-z0-9._]', '', 'g'), 30), ''),
       /* Onde a foto de capa encontra o fundo. Só `reta` sai daqui; ausente
          (nulo) é o arco de sempre, então salão que nunca escolheu não muda. */
-      'capaForma', case when s.cfg->>'capaForma' = 'reta' then 'reta' end,
+      'capaForma', case when c.cfg->>'capaForma' = 'reta' then 'reta' end,
       /* O estilo dos atalhos (Pagamentos, Horários, Informações). Só objeto
          passa, sem cast nenhum: os números são peneirados na página. Nulo é
          o cartão com borda de sempre. */
-      'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
-                      then s.cfg->'atalhos' end,
+      'atalhos', case when jsonb_typeof(c.cfg->'atalhos') = 'object'
+                      then c.cfg->'atalhos' end,
       /* O botão "Ver produtos" igual ao Agendar horário. Só 'metal' sai;
          nulo é o discreto de sempre. */
-      'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
+      'botaoProdutos', case when c.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
       /* ── COM UMA PESSOA SÓ NO SERVIÇO, PULAR O "COM QUEM?" ──────────────
          O dono escolhe em Meu salão. Nasce DESLIGADO: a tela aparece, com
          a única pessoa já marcada — é o que o link faz hoje. A peneira é de
          texto, como a do `precoNaCapa`: `'abacaxi'::boolean` LEVANTARIA e
          derrubaria a `vitrine()` inteira; aqui lixo só mostra a tela. */
-      'pularComQuem', lower(btrim(coalesce(s.cfg->>'pularComQuem', 'false')))
+      'pularComQuem', lower(btrim(coalesce(c.cfg->>'pularComQuem', 'false')))
                         in ('true', 't', '1', 'yes', 'sim'),
       /* ── A ABERTURA COM O LOGO ─────────────────────────────────────────
          O dono escolhe em Aparência → Abertura. Só objeto passa, sem cast
          nenhum — como os atalhos: o efeito, o tempo e o fundo são peneirados
          na página (`lerIntro`), e lixo vira "sem abertura". Nulo é o link
          de sempre, que abre direto na página. */
-      'intro', case when jsonb_typeof(s.cfg->'intro') = 'object'
-                    then s.cfg->'intro' end
+      'intro', case when jsonb_typeof(c.cfg->'intro') = 'object'
+                    then c.cfg->'intro' end
     ),
 
     /* ── ⚠ A LOJA, E OS DOIS CAMPOS QUE NÃO PODEM SAIR DAQUI ──────────────
@@ -397,7 +399,7 @@ language sql stable security definer set search_path = public as $$
              order by pr.nome)
         from public.produtos pr
        where pr.salao_id = s.id and pr.ativo and pr.venda_online
-         and lower(btrim(coalesce(s.cfg->>'loja', 'true')))
+         and lower(btrim(coalesce(c.cfg->>'loja', 'true')))
                not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb),
 
     /* ── ⚠ `dias` PRECISA VIR JUNTO, E NÃO É ENFEITE ─────────────────────
@@ -494,7 +496,7 @@ language sql stable security definer set search_path = public as $$
             de um salão que decidiu não trabalhar com serviços — visível a
             quem abrisse o inspetor. É a mesma trava que a loja já tinha, e
             pela mesma razão. */
-         and lower(btrim(coalesce(s.cfg->>'usaServicos', 'true')))
+         and lower(btrim(coalesce(c.cfg->>'usaServicos', 'true')))
                not in ('false', 'f', '0', 'no', 'nao', 'não')), '[]'::jsonb),
 
     'profissionais', coalesce((
@@ -515,5 +517,21 @@ language sql stable security definer set search_path = public as $$
          and public.profissional_na_cota(p.id)), '[]'::jsonb)
   )
   from public.saloes s
+  /* ⚠ O `cfg` QUE O LINK ENXERGA É O DO PLANO (22_cotas). No Grátis o link
+     é o simples: as chaves de aparência saem (cada uma cai no padrão, como
+     num salão recém-criado) e a loja desliga. Feito aqui, no banco, e não
+     na página da cliente: a página obedece o que vem, e o dono não manda no
+     navegador de quem visita. Personalizar continua guardado — volta tudo
+     no dia em que ele assinar. */
+  cross join lateral (select
+      case when coalesce(public.recurso_bool(s.id, 'aparencia'), false) then coalesce(s.cfg, '{}'::jsonb)
+           else coalesce(s.cfg, '{}'::jsonb) - array[
+             'atalhos','botaoProdutos','brilho','capaFoco','capaForma','cartoes','cor',
+             'cores','fitaBorda','fitaBrilho','fitaCor','fitaMetal','fitaTempo','fundo',
+             'fundoTipo','galeria','gradiente','intro','letra','logoBorda','logoForma',
+             'modo','moldura','slideDe','slideForma','tema','veu']
+      end
+      || case when coalesce(public.recurso_bool(s.id, 'loja'), false) then '{}'::jsonb
+              else '{"loja": "false"}'::jsonb end as cfg) c
   where s.slug = p_slug and s.status = 'ativo'
 $$;

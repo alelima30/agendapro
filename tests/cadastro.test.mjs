@@ -171,7 +171,7 @@ console.log('\nO funil inteiro');
   verdade('e entrega o link pronto',
     (await p.textContent('#linkFinal')).includes('salao=studio-prado'));
   verdade('dizendo o que acontece depois dos 7 dias',
-    (await p.textContent('#textoPronto')).includes('plano grátis'));
+    (await p.textContent('#textoPronto')).toLowerCase().includes('plano grátis'));
 
   igual('nenhum erro de JavaScript no caminho todo', p.erros.length, 0);
   await p.context().close();

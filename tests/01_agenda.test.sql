@@ -740,10 +740,11 @@ end $$;
 
 do $$
 begin
-  if public.recurso_num('aaaaaaaa-0000-0000-0000-00000000000f','agendamentos_mes') = 40
+  -- 20, e não mais 40: o Grátis ficou "só para conhecer" (22_cotas).
+  if public.recurso_num('aaaaaaaa-0000-0000-0000-00000000000f','agendamentos_mes') = 20
      and public.recurso_bool('aaaaaaaa-0000-0000-0000-00000000000f','agenda_online')
      and not public.recurso_bool('aaaaaaaa-0000-0000-0000-00000000000f','lembrete_whatsapp')
-  then perform t_ok('o Grátis tem link de agendamento, teto de 40 e nenhum lembrete');
+  then perform t_ok('o Grátis tem link de agendamento, teto de 20 e nenhum lembrete');
   else perform t_falha('os recursos do Grátis não bateram'); end if;
 end $$;
 
@@ -779,7 +780,7 @@ begin
     exception when others then exit;
     end;
   end loop;
-  if entraram = 40 then perform t_ok('o Grátis aceita 40 horários no mês e recusa o 41º');
+  if entraram = 20 then perform t_ok('o Grátis aceita 20 horários no mês e recusa o 21º');
   else perform t_falha('o teto do mês deixou entrar ' || entraram); end if;
 end $$;
 
@@ -833,7 +834,7 @@ begin
             base + (i*3 || ' hours')::interval,
             base + (i*3 || ' hours')::interval + interval '1 hour');
   end loop;
-  perform t_ok('plano pago passa de 40 no mês sem esbarrar em teto');
+  perform t_ok('plano pago passa de 20 no mês sem esbarrar em teto');
 exception when others then
   perform t_falha('o teto do Grátis pegou num plano pago: ' || sqlerrm);
 end $$;

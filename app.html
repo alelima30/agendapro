@@ -83,6 +83,10 @@ button{cursor:pointer;border:none;background:none}
 }
 .aba:hover{color:var(--txt)}
 .aba.on{color:var(--marca);border-bottom-color:var(--marca)}
+/* Módulo fora do plano (22_cotas): a aba aparece, com cadeado, e a tela abre
+   no aviso — o conteúdo fica guardado por baixo, escondido. */
+.aba-cadeado{margin-left:auto;font-size:12px;opacity:.75;padding-left:6px}
+.travada > :not(.trava-plano){display:none !important}
 
 /* ── Conteúdo ────────────────────────────────────────────────────────── */
 /* `width:100%` é o que segura isto num celular. Sem ele, o `.corpo` é item de
@@ -1759,10 +1763,13 @@ function montarAbas(){
        é a única aba que sai do sistema e mostra a página que a cliente vê —
        merece peso diferente das outras, e "Plano" ganha o roxo de destaque
        por ser a única que fala de dinheiro. */
-    html += `<button class="aba${k === telaAtual ? ' on' : ''}" data-chave="${k}"
-                     onclick="irPara('${k}')" ${k === telaAtual ? 'aria-current="page"' : ''}>
+    const travada = MODULO_DA_TELA[k] && !moduloLiberado(MODULO_DA_TELA[k]);
+    html += `<button class="aba${k === telaAtual ? ' on' : ''}${travada ? ' aba-travada' : ''}" data-chave="${k}"
+                     onclick="irPara('${k}')" ${k === telaAtual ? 'aria-current="page"' : ''}
+                     ${travada ? 'title="Disponível a partir do plano Básico"' : ''}>
                <span class="aba-ic" data-ico="${icone}"></span>
                <span class="aba-txt">${rotulo}</span>
+               ${travada ? '<span class="aba-cadeado" aria-label="no plano Básico">🔒</span>' : ''}
              </button>`;
   }
   document.getElementById('abas').innerHTML = html;
@@ -1902,7 +1909,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.74f65e';
+const VERSAO_APP = 'v9.d3efc2';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -8331,6 +8338,7 @@ function rotularTabelas(raiz){
 }
 
 function pintar(){
+  aplicarTravaDaTela(telaAtual);
   if(telaAtual === 'agenda')   pintarAgenda();
   if(telaAtual === 'clientes') pintarClientes();
   if(telaAtual === 'servicos') pintarServicos();
@@ -9703,6 +9711,7 @@ function trocarAbaSalao(qual){
      uma ida ao servidor por abertura de "Meu salão", para uma tabela que a
      maioria das visitas nem olha. */
   if(qual === 'notificacoes'){ pintarHistoricoNotif(); carregarUsoDoPlano(); }
+  travarBloco(document.querySelector('#painelSalao .sub-tela[data-sub="aparencia"]'), 'aparencia');
   if(window.aplicarIcones) aplicarIcones(document.getElementById('painelSalao'));
 }
 
@@ -12238,10 +12247,20 @@ const aparar = (v, min, max, padrao) => {
    pagou para aprender a evitar.
    ═══════════════════════════════════════════════════════════════════════════ */
 const NAO = ['false', 'f', '0', 'no', 'nao', 'não'];
-function usaComanda(sl){
+/* A ESCOLHA do dono (cfg.usaComanda)… */
+function prefereComanda(sl){
   const v = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).usaComanda;
   if(v == null) return true;                        // sem a chave: usa
   return !NAO.includes(String(v).trim().toLowerCase());
+}
+/* …e o que VALE: no Grátis não há caixa nem comanda (22_cotas), igual ao
+   `usa_comanda()` do banco, que pergunta pelo plano antes do interruptor.
+   ⚠ Separados de propósito: a escolha que vai para o `cfg` no Salvar é a
+   do dono, e não a do plano — senão salvar qualquer ajuste no Grátis
+   gravaria "sem comanda" para sempre, e ao assinar o Básico o caixa não
+   voltaria. */
+function usaComanda(sl){
+  return prefereComanda(sl) && moduloLiberado('caixa');
 }
 
 /* A escolha fica numa variável enquanto a tela está aberta, e só vira `cfg` no
@@ -12254,8 +12273,15 @@ function pintarComanda(){
   const alvo = document.getElementById('reguaComanda');
   if(!alvo) return;
   if(comandaEscolhida === null || comandaDoSalao !== salaoAtual){
-    comandaEscolhida = usaComanda();
+    comandaEscolhida = prefereComanda();
     comandaDoSalao = salaoAtual;
+  }
+  if(!moduloLiberado('caixa')){
+    alvo.innerHTML = `<div class="aviso info" style="margin:0">
+      <b>Comanda e caixa estão disponíveis a partir do plano Básico.</b><br>
+      No seu plano, o atendimento concluído entra sozinho no faturamento do
+      dia — você não perde o registro.</div>`;
+    return;
   }
   alvo.innerHTML = [[true, 'Com comanda e caixa'], [false, 'Só a agenda']]
     .map(([v, rot]) => `<button type="button"
@@ -13276,8 +13302,11 @@ function precoDoPlano(codigo){
 
    Assinatura fora de vigor não deixa o salão sem nada: cai no Grátis. Nem todo
    salão vai assinar, e quem não assina continua usando com teto. */
+let planoDaEquipe = {};     // ver carregarTudo(): o plano para quem não lê a assinatura
 function planoEfetivo(){
   const a = assinaturaAtual();
+  if(!a && planoDaEquipe[salaoAtual])
+    return planoDe(planoDaEquipe[salaoAtual]) || planoDe('gratuito') || null;
   const emVigor = a && (
     (a.status === 'ativa' && (!a.venceEm  || a.venceEm  >= hoje())) ||
     (a.status === 'trial' && (!a.trialAte || a.trialAte >= hoje()))
@@ -13291,6 +13320,68 @@ function limiteDoSalao(){
 function recursoDoPlano(chave){
   const p = planoEfetivo();
   return p && p.recursos ? p.recursos[chave] : undefined;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OS MÓDULOS QUE O GRÁTIS NÃO TEM (22_cotas)
+   O Grátis é só para conhecer: agenda, clientes e o link simples. Caixa,
+   relatórios, produtos, pacotes, cupons e a aparência do link são do Básico
+   para cima. Quem RECUSA é o banco (`exigir_recurso`); a tela só não oferece
+   o que vai ser negado — e diz onde está, em vez de esconder: a aba
+   aparece, abre e explica, com o caminho para assinar.
+
+   Na demonstração (sem banco) tudo fica liberado: não há plano nem conta.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function moduloLiberado(chave){
+  if(!NA_NUVEM) return true;
+  // Antes de o banco chegar não há plano para perguntar: não trava no escuro.
+  if(!bd || !bd.planos || !bd.planos.length) return true;
+  /* Chave ausente no plano = o banco ainda não tem as travas (00_tudo antigo):
+     ele também não recusa, então a tela não tranca. Depois de colado, o
+     Grátis tem `false` escrito em cada módulo e o resto tem `true`. */
+  const v = recursoDoPlano(chave);
+  return v === undefined || v === true;
+}
+const MODULO_DA_TELA = { relatorios:'relatorios', produtos:'loja',
+                         pacotes:'pacotes', cupons:'cupons' };
+const NOME_DO_MODULO = {
+  relatorios: ['Relatórios', 'o faturamento do período, por serviço, por profissional e por forma de pagamento'],
+  loja:       ['Produtos', 'o catálogo de produtos, a loja no seu link e o estoque'],
+  pacotes:    ['Pacotes', 'pacotes de sessões para vender às clientes'],
+  cupons:     ['Cupons', 'cupons de desconto no link e na loja'],
+  aparencia:  ['Aparência do link', 'cores, fundo, capa com fotos e o visual da sua página'],
+};
+function avisoDeModulo(chave){
+  const [nome, oQue] = NOME_DO_MODULO[chave] || [chave, ''];
+  return `<div class="card trava-plano">
+    <h3 style="font-size:18px;margin-bottom:6px">${escapar(nome)} — a partir do plano Básico</h3>
+    <p style="color:var(--txt2)">No plano Grátis você usa a agenda, as clientes e o
+      link simples. ${escapar(oQue.charAt(0).toUpperCase() + oQue.slice(1))} fazem
+      parte do plano Básico e dos maiores.</p>
+    <p style="color:var(--txt2);font-size:13px">O que você já tinha cadastrado
+      continua guardado e volta assim que assinar.</p>
+    ${OFERTA_DE_PLANO
+      ? `<button class="btn btn-p" onclick="irPara('plano')">Ver os planos</button>`
+      : `<p style="font-size:13px">Para liberar, ${COMO_CRESCER}.</p>`}
+  </div>`;
+}
+/* Trava (ou destrava) um bloco inteiro sem apagar o que há nele: o aviso
+   entra por cima e o resto some por CSS (.travada). Destravar é só tirar a
+   classe — nada precisa ser redesenhado do zero. */
+function travarBloco(el, chave){
+  if(!el) return;
+  const travar = !moduloLiberado(chave);
+  el.classList.toggle('travada', travar);
+  let aviso = el.querySelector(':scope > .trava-plano');
+  if(travar && !aviso){
+    el.insertAdjacentHTML('afterbegin', avisoDeModulo(chave));
+  } else if(!travar && aviso){
+    aviso.remove();
+  }
+}
+function aplicarTravaDaTela(k){
+  const chave = MODULO_DA_TELA[k];
+  if(chave) travarBloco(document.getElementById('tela-' + k), chave);
 }
 // Horários do MÊS que já contam contra o teto. Cancelado e faltou não contam,
 // igual ao gatilho no banco.
@@ -13343,14 +13434,13 @@ function diasParaVencer(){
 const DIAS_PARA_RENOVAR = 5;
 function avisoDeVencimento(a, p, faltam){
   const quando = porExtenso(String(a.venceEm).slice(0, 10));
-  const nome = escapar(p ? p.nome : '');
   if(faltam > DIAS_PARA_RENOVAR) return `<div class="aviso ok" id="avisoRenovacao"
       style="margin-top:13px;margin-bottom:0">
-    <b>Você está em dia.</b> ${nome} pago até ${quando} — faltam ${faltam} dias.</div>`;
+    <b>Você está em dia.</b> ${escapar(p ? p.nome : '')} pago até ${quando} — faltam ${faltam} dias.</div>`;
   const prazo = faltam === 0 ? 'hoje' : faltam === 1 ? 'amanhã' : `em ${faltam} dias`;
   return `<div class="aviso atencao" id="avisoRenovacao" style="margin-top:13px;margin-bottom:0">
     <b>Sua assinatura vence ${prazo} (${quando}).</b><br>
-    Renove para continuar no ${nome}. Sem renovar, o salão passa para o plano
+    Renove para continuar no ${escapar(p ? p.nome : '')}. Sem renovar, o salão passa para o plano
     Grátis — a agenda não fecha, mas volta aos limites dele.
     ${OFERTA_DE_PLANO && NA_NUVEM && p
       ? `<div style="margin-top:9px"><button class="btn btn-p btn-peq"
@@ -13475,6 +13565,38 @@ function pintarConsumoMensagens(){
     + avisoDeMensagens(m);
 }
 
+/* O cartão do Básico, abaixo do recomendado: o sistema inteiro sem as
+   mensagens automáticas. Mesmas regras do cartão principal — se é o plano
+   que ele já paga e está em dia, vira "seu plano atual" e só oferece renovar
+   perto do vencimento. Os botões ficam num `.botoes-assinar`, que o
+   `mostrarCartao()` também esvazia quando o salão está no cartão. */
+function cartaoAlternativo(alt, p, a, emDia, faltam){
+  const atual = emDia && p && alt.codigo === p.codigo;
+  const pagoAte = atual ? porExtenso(String(a.venceEm).slice(0, 10)) : '';
+  const botoes = !NA_NUVEM
+    ? `<button class="btn" onclick="assinar('${alt.codigo}','pix')">Assinar ${escapar(alt.nome)}</button>`
+    : atual && faltam <= DIAS_PARA_RENOVAR
+    ? `<button class="btn btn-p" onclick="assinar('${alt.codigo}','pix')">Renovar com Pix</button>
+       <button class="btn" onclick="assinarCartao('${alt.codigo}')">Ativar renovação no cartão</button>`
+    : atual
+    ? `<span style="font-size:13.5px;color:var(--txt2);align-self:center">
+         ✓ Pago até ${pagoAte} — faltam ${faltam} dias.</span>`
+    : `<button class="btn" onclick="assinar('${alt.codigo}','pix')">Assinar com Pix</button>
+       <button class="btn" onclick="assinarCartao('${alt.codigo}')">Assinar no cartão</button>`;
+  return `<div class="card" style="margin-top:12px" id="cartaoBasico">
+      <div style="font-size:12px;font-weight:800;color:var(--txt2);letter-spacing:.05em">
+        ${atual ? 'SEU PLANO ATUAL' : 'MAIS EM CONTA · SEM MENSAGENS AUTOMÁTICAS'}</div>
+      <h3 style="font-size:18px;margin-top:4px">${escapar(alt.nome)}</h3>
+      <div style="font-size:22px;font-weight:800;margin:4px 0">
+        ${real(precoDoPlano(alt.codigo))}<span style="font-size:13px;font-weight:600;
+        color:var(--txt2)"> /mês</span></div>
+      <p style="color:var(--txt2)">O sistema inteiro — caixa, relatórios, produtos,
+        pacotes, cupons e o link com a sua cara —, sem os lembretes automáticos
+        pelo WhatsApp. O botão de mandar mensagem pelo seu WhatsApp continua.</p>
+      <div class="card-acoes botoes-assinar" style="gap:8px;flex-wrap:wrap">${botoes}</div>
+    </div>`;
+}
+
 function pintarPlano(){
   const a = assinaturaAtual();
   const p = planoEfetivo();                    // o que vale hoje, não o contratado
@@ -13546,9 +13668,10 @@ function pintarPlano(){
         Desativar não apaga o histórico dele.</div>` : ''}
       ${dias !== null && dias <= 2 && !caiu ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>O teste acaba ${dias === 0 ? 'hoje' : 'em ' + dias + ' dia(s)'}.</b><br>
-        A agenda não fecha: você passa para o plano Grátis, com 1 profissional
-        e ${(planoDe('gratuito')||{recursos:{}}).recursos.agendamentos_mes} horários
-        por mês.</div>` : ''}
+        A agenda não fecha: você passa para o plano Grátis, com 1 profissional,
+        ${(planoDe('gratuito')||{recursos:{}}).recursos.agendamentos_mes} horários
+        por mês e sem caixa, relatórios, produtos, pacotes, cupons e mensagens
+        automáticas. O que você cadastrou fica guardado.</div>` : ''}
     </div>`;
 
   /* ⚠ DAQUI PARA BAIXO É A OFERTA, E ELA SAI INTEIRA QUANDO A VENDA ESTÁ
@@ -13593,8 +13716,15 @@ function pintarPlano(){
           ${n === 6 ? '6+' : n}</button>`).join('')}
     </div>`;
 
-  const recomendado = planos.find(x => x.maxProfissionais >= planoEscolhido)
+  /* O recomendado é o plano COM mensagens do tamanho escolhido; o Básico
+     (mesmo tamanho, sem mensagens automáticas) aparece logo abaixo como a
+     opção mais em conta — o dono escolhe com os dois à vista. */
+  const comMsg = x => Number((x.recursos || {}).mensagens_mes || 0) > 0;
+  const recomendado = planos.find(x => x.maxProfissionais >= planoEscolhido && comMsg(x))
+                   || planos.find(x => x.maxProfissionais >= planoEscolhido)
                    || planos[planos.length-1];
+  const alternativa = recomendado && planos.find(x => x.codigo !== recomendado.codigo
+                   && x.maxProfissionais === recomendado.maxProfissionais && !comMsg(x));
   /* O recomendado É o plano que ele já paga e está em dia: o cartão vira
      "seu plano atual", diz até quando, e só oferece renovar quando faltar
      pouco. Escolhendo outro tamanho na régua, volta a ser oferta normal. */
@@ -13619,7 +13749,7 @@ function pintarPlano(){
            um texto, e nenhum dos dois fica na tela. Pix por cima de cartao
            ligado e pagar duas vezes o mesmo mes.
            (Sem crase e sem acento: comentario dentro de template literal.) -->
-      <div class="card-acoes" id="botoesAssinar" style="gap:8px;flex-wrap:wrap">
+      <div class="card-acoes botoes-assinar" id="botoesAssinar" style="gap:8px;flex-wrap:wrap">
         ${NA_NUVEM && atual && faltam <= DIAS_PARA_RENOVAR
           ? `<button class="btn btn-p" onclick="assinar('${recomendado.codigo}','pix')">
                Renovar com Pix</button>
@@ -13653,6 +13783,7 @@ function pintarPlano(){
             + 'confirmação do banco — o dono não edita o próprio plano, '
             + 'senão assinaria o maior de graça.'}</p>
     </div>
+    ${alternativa && !atual ? cartaoAlternativo(alternativa, p, a, emDia, faltam) : ''}
     ${NA_NUVEM
       ? '<div id="cartaoAssinatura"></div><div id="cobrancaPendente"></div>' : ''}` : '';
 
@@ -13727,10 +13858,11 @@ async function mostrarCartao(){
        para uma segunda pré-aprovação — e duas ativas no mesmo salão é
        cobrança dobrada todo mês, descoberta só na fatura. A borda também
        recusa, mas botão que só serve para levar recusa não deve existir. */
-    const botoes = document.getElementById('botoesAssinar');
-    if(botoes) botoes.innerHTML = '<span style="font-size:13px;color:var(--txt2)">'
-      + 'Para trocar de plano, desligue a renovação automática abaixo e assine '
-      + 'de novo.</span>';
+    document.querySelectorAll('#cartaoPlano .botoes-assinar').forEach(botoes => {
+      botoes.innerHTML = '<span style="font-size:13px;color:var(--txt2)">'
+        + 'Para trocar de plano, desligue a renovação automática abaixo e assine '
+        + 'de novo.</span>';
+    });
     // No cartão a renovação é sozinha: "renove pelo Pix" seria mandar pagar
     // duas vezes. A caixa do cartão, logo abaixo, diz a próxima cobrança.
     const renovar = document.getElementById('avisoRenovacao');
@@ -14581,6 +14713,17 @@ async function carregarTudo(){
     _baixado = _copia(cru);
     _bancoAgenda = { ags:   _copia(cru.agendamentos || []),
                      itens: _copia(cru.agendamento_servicos || []) };
+    /* A assinatura só o gestor lê. Para a recepção e a profissional, o banco
+       diz só o código do plano em vigor (`plano_do_salao`) — sem ele, a tela
+       achava que era o Grátis e trancava o caixa de quem paga. */
+    /* Pergunta salão por salão porque, na primeira carga, o `salaoAtual`
+       ainda não foi escolhido — ele sai justamente deste retrato. */
+    planoDaEquipe = {};
+    for(const s of (cru.saloes || [])){
+      if((cru.assinaturas || []).some(a => a.salaoId === s.id)) continue;
+      try{ planoDaEquipe[s.id] = await Dados.chamar('plano_do_salao', { p_salao: s.id }); }
+      catch(e){ console.info('[AgendaPro] plano do salão:', e.message); }
+    }
     return montarAgenda(montarJornadas(cru));
   }catch(e){
     console.error('[AgendaPro] não consegui ler o banco:', e);
@@ -15978,7 +16121,7 @@ function pdDesenhar6(){
 /* ── Passo 7 · como o salão trabalha ─────────────────────────────────────── */
 function pdDesenhar7(){
   if(comandaEscolhida === null || comandaDoSalao !== salaoAtual){
-    comandaEscolhida = usaComanda(); comandaDoSalao = salaoAtual;
+    comandaEscolhida = prefereComanda(); comandaDoSalao = salaoAtual;
   }
   if(confirmaEscolhida === null || confirmaDoSalao !== salaoAtual){
     confirmaEscolhida = confirmaAuto(); confirmaDoSalao = salaoAtual;

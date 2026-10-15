@@ -129,7 +129,7 @@ troca agendar.html \
 # apague-o e remonte a bancada inteira em vez de consertá-lo.
 echo "8. a vitrine() não leva as cores escolhidas"
 if troca supabase/25_loja.sql \
-  "'cores',     coalesce(s.cfg->'cores', '{}'::jsonb)," \
+  "'cores',     coalesce(c.cfg->'cores', '{}'::jsonb)," \
   "'cores',     '{}'::jsonb,"; then
   psql -q -d app -v ON_ERROR_STOP=1 -f supabase/25_loja.sql >/dev/null 2>&1
   rodar "vitrine() sem as cores"

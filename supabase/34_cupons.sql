@@ -51,6 +51,17 @@ create unique index if not exists ux_cupom_codigo on public.cupons (salao_id, co
 /* O código é guardado em MAIÚSCULAS e sem espaço, pelo banco. A cliente
    digita "bemvinda10 " no celular e tem que valer; e dois cupons "Natal" e
    "NATAL" no mesmo salão seriam o mesmo para quem digita. */
+-- Criar cupom é do Básico para cima (22_cotas, exigir_recurso).
+create or replace function public.tg_cupom_do_plano() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  perform public.exigir_recurso(new.salao_id, 'cupons', 'Cupom');
+  return new;
+end $$;
+drop trigger if exists tg_cupom_do_plano on public.cupons;
+create trigger tg_cupom_do_plano before insert on public.cupons
+  for each row execute function public.tg_cupom_do_plano();
+
 create or replace function public.tg_cupom_codigo()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -138,6 +149,10 @@ declare
   v_rotulo text;
   it       record;
 begin
+  -- Cupom é do Básico para cima (22_cotas): no Grátis, nem os antigos valem.
+  if not coalesce(public.recurso_bool(p_salao, 'cupons'), false) then
+    return jsonb_build_object('motivo', 'Este estabelecimento não está aceitando cupons agora.');
+  end if;
   if v_cod = '' or p_salao is null then
     return jsonb_build_object('motivo', 'Digite o código do cupom.');
   end if;
@@ -386,6 +401,8 @@ returns jsonb language sql stable security definer set search_path = public as $
    where c.salao_id = p_salao and c.ativo
      and (c.inicio is null or c.inicio <= hoje.d)
      and (c.fim is null or c.fim >= hoje.d)
+     -- No Grátis o campo de cupom nem aparece no link (22_cotas).
+     and coalesce(public.recurso_bool(p_salao, 'cupons'), false)
 $$;
 
 -- ---------------------------------------------------------------------------

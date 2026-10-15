@@ -68,15 +68,15 @@ PY
 
 echo "1. a vitrine para de devolver o metal escolhido"
 troca supabase/25_loja.sql \
-  "      'fitaMetal',  coalesce(s.cfg->>'fitaMetal', 'media')," \
+  "      'fitaMetal',  coalesce(c.cfg->>'fitaMetal', 'media')," \
   "      'fitaMetal',  'media'," \
   && rodar "escolha presa no painel" sql
 
 echo "2. fitaBrilho volta a ser lido com ::boolean"
 troca supabase/25_loja.sql \
-  "      'fitaBrilho', lower(btrim(coalesce(s.cfg->>'fitaBrilho', 'true')))
+  "      'fitaBrilho', lower(btrim(coalesce(c.cfg->>'fitaBrilho', 'true')))
                       not in ('false', 'f', '0', 'no', 'nao', 'não')," \
-  "      'fitaBrilho', coalesce((s.cfg->>'fitaBrilho')::boolean, true)," \
+  "      'fitaBrilho', coalesce((c.cfg->>'fitaBrilho')::boolean, true)," \
   && rodar "peneira de brilho com ::boolean" sql
 
 echo "3. a ponte esquece a cor da fita"
