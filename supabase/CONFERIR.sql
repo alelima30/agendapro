@@ -638,6 +638,40 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (21_notificacoes): as mensagens saem '
                || 'sem o nome do salão ou com nome de modelo que a Meta não tem'
            else '' end
+  union all
+  /* O lembrete para o salão: a vontade de cada pessoa, o tipo novo na fila,
+     o modelo, e a varredura de carona no agendador (sem ela, ligar o lembrete
+     não valeria para o que já estava marcado). */
+  select 29, 'lembrete para o salão (quem atende / dono)',
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'profissionais'
+                               and column_name = 'notif_lembrete')
+             or to_regprocedure('public.refazer_lembrete_equipe(uuid)') is null
+             or to_regprocedure('public.gerar_lembretes_equipe()') is null
+             or not exists (select 1 from pg_constraint
+                             where conname = 'notificacoes_tipo_check'
+                               and pg_get_constraintdef(oid) like '%lembrete_equipe%')
+             or public.modelo_de('lembrete_equipe') is distinct from 'agendapro_lembrete_equipe'
+             or pg_get_functiondef(to_regprocedure('public.gerar_resumos(timestamptz)'))
+                  not like '%gerar_lembretes_equipe%'
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'profissionais'
+                               and column_name = 'notif_lembrete')
+             or to_regprocedure('public.refazer_lembrete_equipe(uuid)') is null
+             or to_regprocedure('public.gerar_lembretes_equipe()') is null
+             or not exists (select 1 from pg_constraint
+                             where conname = 'notificacoes_tipo_check'
+                               and pg_get_constraintdef(oid) like '%lembrete_equipe%')
+             or public.modelo_de('lembrete_equipe') is distinct from 'agendapro_lembrete_equipe'
+             or pg_get_functiondef(to_regprocedure('public.gerar_resumos(timestamptz)'))
+                  not like '%gerar_lembretes_equipe%'
+             then 'cole o 00_tudo.sql de novo (21_notificacoes): o lembrete para '
+               || 'o salão não está instalado'
+           else '' end
 )
 select item                                as "o que",
        veredito                            as "está",

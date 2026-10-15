@@ -62,6 +62,7 @@ begin
       on conflict (salao_id, chave) do nothing;
     end if;
   end if;
+  perform public.refazer_lembrete_equipe(new.id);
   return new;
 end $$;
 
@@ -2257,6 +2258,7 @@ returns text language sql immutable set search_path = public as $$
     when 'lembrete'    then 'agendapro_lembrete'
     when 'novo'        then 'agendapro_aviso_profissional'
     when 'resumo'      then 'agendapro_agenda_hoje'
+    when 'lembrete_equipe' then 'agendapro_lembrete_equipe'
   end
 $$;
 
@@ -2287,6 +2289,129 @@ begin
     'casa',     coalesce(v_casa, '—'),
     'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
     'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'));
+end $$;
+
+create or replace function public.variavel_limpa(p_texto text, p_teto int default 900)
+returns text language sql immutable set search_path = public as $$
+  select case
+    when t = '' then '—'
+    when length(t) > p_teto then left(t, p_teto - 1) || '…'
+    else t
+  end
+  from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
+$$;
+
+create or replace function public.variaveis_lembrete_equipe(
+  p_agendamento uuid, p_destinatario uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare j jsonb; v_quem text;
+begin
+  j := public.pecas_agendamento(p_agendamento);
+  if j is null then return null; end if;
+  select coalesce(nullif(btrim(pr.apelido), ''), pr.nome) into v_quem
+    from public.profissionais pr where pr.id = p_destinatario;
+  return jsonb_build_array(
+    public.variavel_limpa(coalesce(nullif(split_part(btrim(coalesce(v_quem, '')), ' ', 1), ''),
+                                   'equipe')),
+    public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
+    public.variavel_limpa(j->>'prof'),    public.variavel_limpa(j->>'data'),
+    public.variavel_limpa(j->>'hora'),    public.variavel_limpa(j->>'casa'));
+end $$;
+
+create or replace function public.texto_lembrete_equipe(
+  p_agendamento uuid, p_destinatario uuid)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare v jsonb;
+begin
+  v := public.variaveis_lembrete_equipe(p_agendamento, p_destinatario);
+  if v is null then return null; end if;
+  return format(
+    'Olá, %s. Lembrete de um horário agendado.'
+    || E'\n\n👤 Cliente: %s'
+    || E'\n✂️ Serviço: %s'
+    || E'\n💼 Profissional: %s'
+    || E'\n📅 Data: %s'
+    || E'\n🕐 Horário: %s'
+    || E'\n🏪 Local: %s'
+    || E'\n\nAviso automático do sistema de agendamento.',
+    v->>0, v->>1, v->>2, v->>3, v->>4, v->>5, v->>6);
+end $$;
+
+create or replace function public.refazer_lembrete_equipe(p_agendamento uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  a        public.agendamentos%rowtype;
+  v_min    int;
+  v_quando timestamptz;
+  v_para   text;
+  v_ids    uuid[] := '{}';
+  v_tels   text[] := '{}';
+  v_chaves text[] := '{}';
+  v_id     uuid;
+  v_tel    text;
+  i        int;
+begin
+  select * into a from public.agendamentos where id = p_agendamento;
+  if a.id is null then return; end if;
+  if a.status = 'confirmado' and a.arquivado_em is null and a.inicio > now()
+     and public.notif_liga(a.salao_id, 'notifLembreteEquipe', false) then
+    v_min    := greatest(0, least(1440,
+                  public.notif_num(a.salao_id, 'notifLembreteEquipeMin', 60)));
+    v_quando := a.inicio - make_interval(mins => v_min);
+    if v_min > 0 and v_quando > now() then
+      select coalesce(cfg->>'notifLembreteEquipePara', 'atende') into v_para
+        from public.saloes where id = a.salao_id;
+      if v_para not in ('atende', 'dono', 'ambos') then v_para := 'atende'; end if;
+      if v_para in ('atende', 'ambos') then
+        select pr.id, public.so_digitos(pr.telefone) into v_id, v_tel
+          from public.profissionais pr
+         where pr.id = a.profissional_id and pr.notif_lembrete;
+        if v_tel is not null then
+          v_ids := v_ids || v_id; v_tels := v_tels || v_tel;
+        end if;
+      end if;
+      if v_para in ('dono', 'ambos') then
+        v_id := null; v_tel := null;
+        select pr.id, public.so_digitos(pr.telefone) into v_id, v_tel
+          from public.profissionais pr
+          join public.vinculos v on v.perfil_id = pr.perfil_id
+                                and v.salao_id  = pr.salao_id
+         where pr.salao_id = a.salao_id and pr.notif_lembrete
+           and v.papel in ('dono', 'admin') and v.status = 'ativo'
+           and public.so_digitos(pr.telefone) is not null
+         order by (v.papel = 'dono') desc
+         limit 1;
+        if v_tel is not null and not (v_tel = any(v_tels)) then
+          v_ids := v_ids || v_id; v_tels := v_tels || v_tel;
+        end if;
+      end if;
+      for i in 1 .. coalesce(array_length(v_tels, 1), 0) loop
+        v_chaves := v_chaves || ('lembrete_equipe:' || a.id || ':' || v_tels[i] || ':'
+                    || to_char(v_quando at time zone 'UTC', 'YYYYMMDDHH24MI'));
+      end loop;
+    end if;
+  end if;
+  update public.notificacoes n
+     set status = 'cancelado',
+         motivo = 'o horário, quem atende ou o ajuste do lembrete mudou'
+   where n.agendamento_id = a.id and n.tipo = 'lembrete_equipe'
+     and n.status = 'pendente'
+     and not (n.chave = any(v_chaves));
+  for i in 1 .. coalesce(array_length(v_tels, 1), 0) loop
+    insert into public.notificacoes
+      (salao_id, tipo, destino, profissional_id, agendamento_id, quando, corpo,
+       chave, modelo, variaveis)
+    values (a.salao_id, 'lembrete_equipe', v_tels[i], v_ids[i], a.id, v_quando,
+            coalesce(public.texto_lembrete_equipe(a.id, v_ids[i]), 'Lembrete de horário'),
+            v_chaves[i], public.modelo_de('lembrete_equipe'),
+            public.variaveis_lembrete_equipe(a.id, v_ids[i]))
+    on conflict (salao_id, chave) do update
+       set status = 'pendente', motivo = null, tentativas = 0, proxima_em = null,
+           erro_codigo = null, erro_msg = null,
+           corpo = excluded.corpo, variaveis = excluded.variaveis,
+           profissional_id = excluded.profissional_id
+     where public.notificacoes.status = 'cancelado';
+  end loop;
 end $$;
 
 create or replace function public.texto_agendamento(
@@ -2335,16 +2460,6 @@ begin
   end if;
   return null;
 end $$;
-
-create or replace function public.variavel_limpa(p_texto text, p_teto int default 900)
-returns text language sql immutable set search_path = public as $$
-  select case
-    when t = '' then '—'
-    when length(t) > p_teto then left(t, p_teto - 1) || '…'
-    else t
-  end
-  from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
-$$;
 
 create or replace function public.variaveis_agendamento(
   p_agendamento uuid, p_tipo text)

@@ -110,11 +110,17 @@ verdade('a aba existe em Meu salão',
     !!document.querySelector('.sub-tela[data-sub="notificacoes"].on')),
   'sem a aba, os ajustes só existem no SQL Editor do Supabase');
 
+/* ⚠ O AVISO DIZ O QUE A FILA DIZ. Era fixo — "o WhatsApp ainda não está
+   conectado" — e continuou dizendo depois que a conta foi aprovada e as
+   mensagens começaram a sair. Salão sem nenhuma mensagem enviada ainda lê
+   isso, e o que "pendente" quer dizer; nada de afirmar que está desligado. */
 const aviso = await p.textContent('#avisoWhats');
-verdade('e avisa, na cara de quem liga, que o WhatsApp não está conectado',
-  /não está conectado/i.test(aviso || ''), aviso);
-verdade('dizendo o que acontece nesse meio-tempo: fica pendente',
-  /pendente/i.test(aviso || ''), aviso);
+verdade('salão sem mensagem enviada: o aviso diz que nenhuma saiu ainda',
+  /Nenhuma mensagem desta agenda saiu/i.test(aviso || ''), aviso);
+verdade('dizendo o que pendente quer dizer: ainda não saiu',
+  /pendente/i.test(aviso || '') && /não enviada/i.test(aviso || ''), aviso);
+verdade('e sem afirmar que o WhatsApp está desligado',
+  !/não está conectado/i.test(aviso || ''), aviso);
 
 /* ══════════════════════════════════════════════════════════════════════════
    2. OS PADRÕES DA TELA SÃO OS PADRÕES DO BANCO
@@ -132,6 +138,24 @@ igual('em 2 horas antes', await p.inputValue('#nLembreteMin'), '120');
    mandar mensagem que ninguém pediu e cobrar a cota dele por ela. */
 igual('e o resumo do dia vem DESLIGADO', await p.isChecked('#nResumo'), false);
 
+/* "Preciso que apareça lá que é pro cliente": o lembrete da cliente diz de
+   quem é, e o do salão é outro, à parte. */
+verdade('o lembrete diz que é para o cliente', await p.evaluate(() =>
+  /Lembrete para o cliente/.test(document.getElementById('nLembrete').closest('label').innerText)));
+igual('o lembrete para o salão existe e vem DESLIGADO',
+  await p.isChecked('#nLembEquipe'), false);
+igual('desligado, as opções dele nem aparecem', await p.evaluate(() =>
+  getComputedStyle(document.getElementById('caixaLembEquipe')).display), 'none');
+await p.check('#nLembEquipe');
+await p.waitForTimeout(200);
+igual('ligando, aparecem: quanto antes e quem recebe', await p.evaluate(() =>
+  getComputedStyle(document.getElementById('caixaLembEquipe')).display !== 'none'), true);
+igual('com 1 hora antes de padrão', await p.inputValue('#nLembEquipeMin'), '60');
+igual('e para quem vai atender', await p.inputValue('#nLembEquipePara'), 'atende');
+igual('as três escolhas de quem recebe', JSON.stringify(await p.evaluate(() =>
+  [...document.querySelectorAll('#nLembEquipePara option')].map(o => o.value))),
+  JSON.stringify(['atende', 'dono', 'ambos']));
+
 igual('o banco concorda sobre o lembrete',
   Number((await banco.query(`select public.lembrete_minutos($1) as m`, [SALAO]))
     .rows[0].m), 120);
@@ -145,6 +169,8 @@ igual('e sobre o resumo',
 secao('3) Trocar o lembrete muda quando a mensagem sai');
 
 await p.selectOption('#nLembreteMin', '1440');   // 24 horas antes
+await p.selectOption('#nLembEquipeMin', '120');
+await p.selectOption('#nLembEquipePara', 'ambos');
 await p.check('#nResumo');
 await p.waitForTimeout(200);
 await p.selectOption('#nResumoHora', '7');
@@ -160,6 +186,14 @@ igual('e o resumo passa a estar ligado',
     [SALAO])).rows[0].l, true);
 igual('às 7h', Number((await banco.query(
   `select public.notif_num($1,'notifResumoHora',8) as h`, [SALAO])).rows[0].h), 7);
+const lembSalao = (await banco.query(
+  `select public.notif_liga($1,'notifLembreteEquipe',false) as l,
+          public.notif_num($1,'notifLembreteEquipeMin',60) as m,
+          (select cfg->>'notifLembreteEquipePara' from public.saloes where id=$1) as para`,
+  [SALAO])).rows[0];
+igual('o lembrete para o salão chega ligado ao banco, 2h antes, para os dois',
+  JSON.stringify([lembSalao.l, Number(lembSalao.m), lembSalao.para]),
+  JSON.stringify([true, 120, 'ambos']));
 
 /* ⚠ E o que importa: um agendamento novo nasce com o lembrete na hora NOVA.
    O `cfg` mudar sem o gatilho obedecer seria o ajuste mais inútil possível. */
@@ -195,6 +229,9 @@ igual('o lembrete volta em 24 horas', await p.inputValue('#nLembreteMin'), '1440
 igual('o resumo volta ligado', await p.isChecked('#nResumo'), true);
 igual('na hora escolhida', await p.inputValue('#nResumoHora'), '7');
 igual('e no período escolhido', await p.inputValue('#nResumoPeriodo'), 'manha');
+igual('o lembrete para o salão volta ligado, 2h, para os dois',
+  JSON.stringify([await p.isChecked('#nLembEquipe'), await p.inputValue('#nLembEquipeMin'),
+   await p.inputValue('#nLembEquipePara')]), JSON.stringify([true, '120', 'ambos']));
 
 /* Ajuste que não vale não fica na tela pedindo atenção: com o período em
    "dia inteiro", os horários de manhã e tarde somem. */
@@ -215,6 +252,20 @@ verdade('a mensagem preparada aparece no histórico',
 verdade('com o estado pendente, e não "enviado"',
   /pendente/.test(hist || '') && !/enviado/.test(hist || ''),
   (hist || '').slice(0, 300));
+verdade('e o tipo diz de quem é o lembrete',
+  /Lembrete para o cliente/.test(hist || ''), (hist || '').slice(0, 300));
+
+/* Saiu uma mensagem deste salão: o aviso de cima passa a dizer que está
+   ligado. (A linha é marcada à mão aqui; quem marca de verdade é o worker.) */
+await banco.query(
+  `update public.notificacoes set status='enviado', enviado_em=now()
+    where id = (select id from public.notificacoes where salao_id=$1
+                 and tipo='confirmacao' limit 1)`, [SALAO]);
+await abrirNotif();
+await p.waitForTimeout(1500);
+verdade('com mensagem enviada, o aviso diz que o WhatsApp está ligado',
+  /WhatsApp está ligado/.test(await p.textContent('#avisoWhats') || ''),
+  await p.textContent('#avisoWhats'));
 
 /* ══════════════════════════════════════════════════════════════════════════
    6. O TELEFONE DE QUEM ATENDE
@@ -231,16 +282,21 @@ verdade('a ficha tem onde pôr o WhatsApp de quem atende',
   'sem isso o aviso de novo agendamento não tem para onde ir');
 await p.fill('#qTel', '11988776655');
 await p.uncheck('#qNotifResumo');
+verdade('a ficha tem a escolha do lembrete antes de cada atendimento, marcada',
+  await p.isChecked('#qNotifLembrete'));
+await p.uncheck('#qNotifLembrete');
 // O rodapé do modal, e não "qualquer botão Salvar": há quatro na página, e
 // o primeiro que o seletor larga é o "Salvar dados" de Meu salão, escondido.
 await p.click('#modalPe button:has-text("Salvar")');
 await p.waitForTimeout(2500);
 
 const noBanco = (await banco.query(
-  `select telefone, notif_novo, notif_resumo from public.profissionais where id=$1`,
+  `select telefone, notif_novo, notif_resumo, notif_lembrete
+     from public.profissionais where id=$1`,
   [prof.id])).rows[0];
 igual('o telefone chega ao banco', noBanco.telefone, '11988776655');
 igual('e a vontade de cada um também', noBanco.notif_resumo, false);
+igual('inclusive a do lembrete antes do atendimento', noBanco.notif_lembrete, false);
 igual('sem mexer na outra', noBanco.notif_novo, true);
 
 /* ══════════════════════════════════════════════════════════════════════════

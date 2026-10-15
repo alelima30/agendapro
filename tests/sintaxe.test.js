@@ -362,8 +362,8 @@ console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
 
   const nomes = [...sql.matchAll(/when '(\w+)'\s+then '(agendapro_\w+)'/g)]
     .map(m => ({ tipo: m[1], modelo: m[2] }));
-  dizer(nomes.length === 4,
-    `achei os quatro modelos no modelo_de() (${nomes.length})`,
+  dizer(nomes.length === 5,
+    `achei os cinco modelos no modelo_de() (${nomes.length})`,
     'o modelo_de() mudou de forma — conserte esta busca, não apague a verificação');
 
   const blocoDe = nome => {
@@ -396,6 +396,11 @@ console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
     'a casa e o de cada profissional têm de mandar as mesmas variáveis');
   noSql.resumo = conta(
     (corpoVR.match(/return jsonb_build_array\(([\s\S]*)\);\s*$/) || [])[1] || '');
+  // O lembrete para o salão tem função própria: o {{1}} é de QUEM RECEBE.
+  const corpoLE = (sql.match(
+    /function public\.variaveis_lembrete_equipe\(([\s\S]*?)\nend \$\$;/) || [])[1] || '';
+  noSql.lembrete_equipe = conta(
+    (corpoLE.match(/return jsonb_build_array\(([\s\S]*)\);\s*$/) || [])[1] || '');
 
   for(const { tipo, modelo } of nomes){
     const corpo = blocoDe(modelo);

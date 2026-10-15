@@ -1902,7 +1902,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.d3a4fe';
+const VERSAO_APP = 'v9.dd393a';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -8130,6 +8130,12 @@ function abrirProf(pid){
              ${!p || p.notifNovo !== false ? 'checked' : ''}>
         <span>Avisar quando marcarem um horário na agenda dela</span></label>
     </div>
+    <div class="campo">
+      <label class="check"><input type="checkbox" id="qNotifLembrete"
+             ${!p || p.notifLembrete !== false ? 'checked' : ''}>
+        <span>Lembrar antes de cada atendimento (quando o lembrete para o
+          salão estiver ligado em Mensagens da agenda)</span></label>
+    </div>
     <div class="campo" style="margin-bottom:12px">
       <label class="check"><input type="checkbox" id="qNotifResumo"
              ${!p || p.notifResumo !== false ? 'checked' : ''}>
@@ -8232,6 +8238,7 @@ async function salvarProf(pid){
     telefone: (document.getElementById('qTel').value || '').trim() || null,
     notifNovo: document.getElementById('qNotifNovo').checked,
     notifResumo: document.getElementById('qNotifResumo').checked,
+    notifLembrete: document.getElementById('qNotifLembrete').checked,
     foto,
     jornada,
   };
@@ -9325,9 +9332,9 @@ function pintarSalao(){
     <div class="sub-tela" data-sub="notificacoes">
     <div class="card">
       <h3 class="secao" style="margin-top:0">Mensagens da agenda</h3>
-      <p class="secao-sub">Tres mensagens, e so estas tres: quando a cliente
-        marca, um lembrete antes do horario, e o resumo do dia para quem
-        trabalha. Nada de promocao.</p>
+      <p class="secao-sub">Para o cliente: a confirmação e o lembrete antes
+        do horário. Para o salão: o aviso de horário novo, o lembrete antes do
+        atendimento e o resumo do dia. Nada de promoção.</p>
 
       <div id="avisoWhats"></div>
 
@@ -9349,7 +9356,8 @@ function pintarSalao(){
       <div class="campo">
         <label class="check"><input type="checkbox" id="nLembrete"
                  onchange="pintarNotificacoes(true)">
-          <span><b>Lembrete</b> — uma vez, antes do horário.</span></label>
+          <span><b>Lembrete para o cliente</b> — uma vez, antes do horário,
+          no WhatsApp do cliente.</span></label>
       </div>
       <div class="campo" id="caixaLembrete" style="margin-top:10px">
         <label>Enviar</label>
@@ -9362,6 +9370,40 @@ function pintarSalao(){
           <option value="720">12 horas antes</option>
           <option value="1440">24 horas antes</option>
         </select>
+      </div>
+
+      <div class="linha-fina" style="margin:18px 0"></div>
+
+      <!-- O LEMBRETE PARA O SALAO (21, secao 7c). Desligado de fabrica: e
+           mensagem nova, e cada uma gasta a cota do plano. -->
+      <div class="campo">
+        <label class="check"><input type="checkbox" id="nLembEquipe"
+                 onchange="pintarNotificacoes(true)">
+          <span><b>Lembrete para o salão</b> — antes de cada atendimento,
+          avisa com quem, o quê e a que horas. Vai para o WhatsApp cadastrado
+          em Equipe.</span></label>
+      </div>
+      <div id="caixaLembEquipe">
+        <div class="dupla" style="margin-top:10px">
+          <div class="campo"><label>Enviar</label>
+            <select id="nLembEquipeMin">
+              <option value="30">30 minutos antes</option>
+              <option value="60">1 hora antes</option>
+              <option value="120">2 horas antes</option>
+              <option value="180">3 horas antes</option>
+              <option value="360">6 horas antes</option>
+              <option value="720">12 horas antes</option>
+              <option value="1440">24 horas antes</option>
+            </select></div>
+          <div class="campo"><label>Quem recebe</label>
+            <select id="nLembEquipePara">
+              <option value="atende">Quem vai atender</option>
+              <option value="dono">O dono do salão</option>
+              <option value="ambos">Os dois</option>
+            </select></div>
+        </div>
+        <p class="ajuda" style="margin-top:2px">Se o dono for quem atende, ele
+          recebe um lembrete só. Cada pessoa pode desligar o dela em Equipe.</p>
       </div>
 
       <div class="linha-fina" style="margin:18px 0"></div>
@@ -9445,8 +9487,11 @@ function pintarSalao(){
 
      notifConfirma      true    a cliente recebe quando marca
      notifProfNovo      true    quem atende recebe o horário novo
-     notifLembrete      true    existe lembrete
+     notifLembrete      true    existe lembrete (o da CLIENTE)
      notifLembreteMin   120     quantos minutos antes
+     notifLembreteEquipe     false   o lembrete para o SALÃO (7c), desligado
+     notifLembreteEquipeMin  60      o tempo dele, separado do da cliente
+     notifLembreteEquipePara 'atende'  'atende', 'dono' ou 'ambos'
      notifResumo        false   o resumo do dia começa DESLIGADO
      notifResumoHora    8
      notifResumoPeriodo 'dia'
@@ -9458,6 +9503,7 @@ function pintarSalao(){
    ═══════════════════════════════════════════════════════════════════════════ */
 const NOTIF_PADRAO = { notifConfirma:true, notifProfNovo:true,
   notifLembrete:true, notifLembreteMin:120, notifResumo:false,
+  notifLembreteEquipe:false, notifLembreteEquipeMin:60, notifLembreteEquipePara:'atende',
   notifResumoHora:8, notifResumoPeriodo:'dia',
   notifManhaIni:0, notifManhaFim:12, notifTardeIni:12, notifTardeFim:24 };
 
@@ -9479,6 +9525,11 @@ function pintarNotificacoes(soVisibilidade){
     marcar('nProfNovo', cfg.notifProfNovo !== false);
     marcar('nLembrete', cfg.notifLembrete !== false);
     escolher('nLembreteMin', Number(cfg.notifLembreteMin) || 120);
+    marcar('nLembEquipe', cfg.notifLembreteEquipe === true);
+    escolher('nLembEquipeMin', Number(cfg.notifLembreteEquipeMin) || 60);
+    escolher('nLembEquipePara',
+      ['atende', 'dono', 'ambos'].includes(cfg.notifLembreteEquipePara)
+        ? cfg.notifLembreteEquipePara : 'atende');
     marcar('nResumo', cfg.notifResumo === true);
     escolher('nResumoPeriodo', cfg.notifResumoPeriodo || 'dia');
     horasDoDia('nResumoHora', Number(cfg.notifResumoHora ?? 8));
@@ -9498,6 +9549,7 @@ function pintarNotificacoes(soVisibilidade){
   const temResumo   = (document.getElementById('nResumo')   || {}).checked;
   const periodo     = (document.getElementById('nResumoPeriodo') || {}).value;
   ver('caixaLembrete', temLembrete);
+  ver('caixaLembEquipe', !!(document.getElementById('nLembEquipe') || {}).checked);
   ver('caixaResumo',   temResumo);
   ver('caixaPeriodo',  temResumo && periodo !== 'dia');
 
@@ -9509,14 +9561,25 @@ function pintarNotificacoes(soVisibilidade){
    Enquanto a conta na Meta não estiver aprovada, nada sai — e o dono precisa
    ler isso AQUI, na hora de ligar a confirmação, e não descobrir três dias
    depois que a cliente nunca recebeu nada. */
-function pintarAvisoWhats(){
+/* ⚠ E TAMBÉM NÃO PODE NEGAR O QUE JÁ ACONTECE. Este aviso dizia, fixo, "o
+   WhatsApp ainda não está conectado" — e continuou dizendo depois que a conta
+   foi aprovada e as mensagens começaram a sair. Agora quem fala é a própria
+   fila deste salão: houve mensagem enviada, entregue ou lida, está saindo.
+   Sem nenhuma ainda, o aviso não afirma nem uma coisa nem outra — explica o
+   que cada estado quer dizer, que é a verdade nos dois casos. */
+function pintarAvisoWhats(saindo){
   const alvo = document.getElementById('avisoWhats');
   if(!alvo) return;
-  alvo.innerHTML = `<div class="aviso info" style="margin-bottom:0">
-    <b>O WhatsApp ainda não está conectado.</b><br>
-    As mensagens já são preparadas e ficam guardadas com o horário certo —
-    aparecem aqui embaixo como <b>pendentes</b>. No dia em que a conta for
-    aprovada na Meta, elas passam a sair sozinhas, sem mexer em nada.</div>`;
+  alvo.innerHTML = saindo
+    ? `<div class="aviso ok" style="margin-bottom:0">
+        <b>O WhatsApp está ligado.</b> As mensagens desta agenda já estão
+        saindo pelo número do AgendaPro — o estado de cada uma aparece aqui
+        embaixo.</div>`
+    : `<div class="aviso info" style="margin-bottom:0">
+        <b>Nenhuma mensagem desta agenda saiu ainda.</b><br>
+        Elas são preparadas com o horário certo e aparecem aqui embaixo com o
+        estado real: <b>pendente</b> é a que ainda não saiu — pendente quer
+        dizer pendente, não enviada.</div>`;
 }
 
 function salvarNotificacoes(){
@@ -9530,6 +9593,9 @@ function salvarNotificacoes(){
     notifProfNovo: liga('nProfNovo'),
     notifLembrete: liga('nLembrete'),
     notifLembreteMin: num('nLembreteMin') || 120,
+    notifLembreteEquipe: liga('nLembEquipe'),
+    notifLembreteEquipeMin: num('nLembEquipeMin') || 60,
+    notifLembreteEquipePara: (document.getElementById('nLembEquipePara') || {}).value || 'atende',
     notifResumo: liga('nResumo'),
     notifResumoHora: num('nResumoHora') || 0,
     notifResumoPeriodo: (document.getElementById('nResumoPeriodo') || {}).value || 'dia',
@@ -9554,8 +9620,9 @@ function salvarNotificacoes(){
    sincronizador e não deve — ela cresce sem teto, e baixá-la inteira a cada
    abertura do painel seria repetir com mensagem o erro que a clientela já
    tem. Vinte linhas bastam para responder "a cliente recebeu?". */
-const ROTULO_NOTIF = { confirmacao:'Confirmação', lembrete:'Lembrete',
-                       resumo:'Resumo do dia', novo:'Novo agendamento' };
+const ROTULO_NOTIF = { confirmacao:'Confirmação', lembrete:'Lembrete para o cliente',
+                       resumo:'Resumo do dia', novo:'Aviso de horário novo',
+                       lembrete_equipe:'Lembrete para o salão' };
 const ROTULO_ESTADO = { pendente:['pendente','t-pend'], enviando:['enviando','t-pend'],
   enviado:['enviado','t-conf'], entregue:['entregue','t-conf'],
   lido:['lido','t-conc'], falhou:['falhou','t-falt'],
@@ -9577,6 +9644,7 @@ async function pintarHistoricoNotif(){
   }
   linhas = linhas.sort((a, b) =>
     String(b.criadoEm || '').localeCompare(String(a.criadoEm || ''))).slice(0, 20);
+  pintarAvisoWhats(linhas.some(n => ['enviado', 'entregue', 'lido'].includes(n.status)));
 
   if(!linhas.length){
     alvo.innerHTML = '<div class="vazio"><b>Nada preparado ainda</b>'

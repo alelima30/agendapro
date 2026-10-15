@@ -1,8 +1,8 @@
-# Os quatro modelos, para cadastrar na Meta
+# Os cinco modelos, para cadastrar na Meta
 
 **Gerenciador do WhatsApp → Modelos de mensagem → Criar modelo.**
 
-Para os quatro, sempre:
+Para os cinco, sempre:
 
 | campo | valor |
 |---|---|
@@ -172,6 +172,40 @@ Aviso automático do sistema de agendamento.
 
 ---
 
+## 5. `agendapro_lembrete_equipe`
+
+O **lembrete para o salão**: antes do atendimento, para quem vai atender, para
+o dono, ou para os dois — o salão escolhe em **Mensagens da agenda**. Vem
+desligado; o tempo é separado do lembrete da cliente.
+
+```
+Olá, {{1}}. Lembrete de um horário agendado.
+
+👤 Cliente: {{2}}
+✂️ Serviço: {{3}}
+💼 Profissional: {{4}}
+📅 Data: {{5}}
+🕐 Horário: {{6}}
+🏪 Local: {{7}}
+
+Aviso automático do sistema de agendamento.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome de **quem recebe** | Ju |
+| `{{2}}` | nome completo da cliente | Maria Souza |
+| `{{3}}` | serviço | Corte + Escova |
+| `{{4}}` | quem vai atender | Bia |
+| `{{5}}` | data | 15/10/2026 |
+| `{{6}}` | horário | 14:30 |
+| `{{7}}` | nome do salão | Salão da Ana |
+
+> **Por que o {{4}}.** Quem recebe pode não ser quem atende: o dono recebendo o
+> lembrete do horário da Bia precisa ler "Profissional: Bia".
+
+---
+
 ## As regras que quebram o envio sem avisar direito
 
 | regra | o que acontece se quebrar |
@@ -203,4 +237,4 @@ select tipo, modelo, variaveis, corpo
 ```
 
 `variaveis` tem que ter 6 itens na confirmação, no lembrete e no aviso à
-profissional, e 4 no resumo — na ordem das tabelas acima.
+profissional, 4 no resumo e 7 no lembrete para o salão — na ordem das tabelas acima.

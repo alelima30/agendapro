@@ -55,6 +55,7 @@ const COLUNAS = {
                    comissaoPct:'comissao_pct', comissaoFixa:'comissao_fixa',
                    aceitaOnline:'aceita_online',
                    notifNovo:'notif_novo', notifResumo:'notif_resumo',
+                   notifLembrete:'notif_lembrete',
                    criadoEm:'criado_em' },
   /* ⚠ `notificacoes` NÃO entra em TABELAS_SINCRONIZADAS nem em
      TABELAS_SO_LEITURA, e as duas ausências são decisão.
