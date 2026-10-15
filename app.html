@@ -1902,7 +1902,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.c25f81';
+const VERSAO_APP = 'v9.8695fe';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -13883,6 +13883,38 @@ function desenharPagamento(c){
       </div>
     </div>`;
   if(window.aplicarIcones) aplicarIcones();
+  if(NA_NUVEM && c.id) vigiarPagamento(c.id);
+}
+
+/* A JANELA CONFERE SOZINHA.
+   O webhook ativa a assinatura no banco em segundos — mas a janela do Pix
+   ficava parada mostrando o código até o dono tocar em "Já paguei", com a
+   frase embaixo prometendo que conferia sozinha. Agora pergunta ao banco a
+   cada 5 segundos se ESTA cobrança virou paga.
+
+   A cobrança, e não a assinatura: quem renova adiantado já está 'ativa'
+   antes de pagar, e olhar a assinatura daria "confirmado" no primeiro tique.
+   Para quando a janela fecha, quando confirma, ou em 15 minutos. Não ativa
+   nada: quem ativa é o webhook; isto só lê, como o botão. */
+let _vigiaPix = null;
+function vigiarPagamento(id){
+  clearInterval(_vigiaPix);
+  const ate = Date.now() + 15 * 60e3;
+  let ocupado = false;
+  _vigiaPix = setInterval(async () => {
+    if(!document.getElementById('pgtoCorpo') || Date.now() > ate){
+      clearInterval(_vigiaPix); _vigiaPix = null; return;
+    }
+    if(ocupado) return;
+    ocupado = true;
+    try{
+      if(await cobrancaFoiPaga(id)){
+        clearInterval(_vigiaPix); _vigiaPix = null;
+        await conferirPagamento();
+      }
+    }catch(e){ /* sem rede agora: tenta no próximo tique */ }
+    finally{ ocupado = false; }
+  }, 5000);
 }
 
 function copiarPix(){
@@ -13904,18 +13936,36 @@ function copiarPix(){
 
 /* "Já paguei" não confirma nada — só relê o que o banco sabe.
    Quem diz que pagou é o Mercado Pago, pelo webhook. Um botão que ativasse a
-   assinatura por ter sido clicado seria o produto de graça para quem clica. */
+   assinatura por ter sido clicado seria o produto de graça para quem clica.
+
+   ⚠ E A PERGUNTA É SE ESTA COBRANÇA FOI PAGA — não se a assinatura está
+   ativa. Olhando a assinatura, o salão que JÁ estava ativo (renovando antes
+   de vencer, ou com o plano posto à mão pela plataforma) lia "Pagamento
+   confirmado" sem pagamento nenhum ter caído. Foi o que aconteceu no
+   primeiro Pix de verdade: confirmou na tela, e a cobrança seguia em aberto.
+   A assinatura só decide quando não há cobrança conhecida (sem id). */
+async function cobrancaFoiPaga(id){
+  const r = await Dados.chamar('minha_cobranca', { p_salao: salaoAtual });
+  const m = (Array.isArray(r) ? r[0] : r) || {};
+  return (m.historico || []).some(h => h.id === id && h.status === 'paga');
+}
+
 async function conferirPagamento(){
   const r = document.getElementById('pgtoRecado');
   if(r) r.textContent = 'Conferindo…';
   try{
+    const id = cobrancaAberta && cobrancaAberta.id;
+    const paga = id ? await cobrancaFoiPaga(id) : null;
     bd = await carregarTudo();
     const a = assinaturaAtual();
-    if(a && a.status === 'ativa' && a.venceEm && a.venceEm >= hoje()){
+    const ativa = !!(a && a.status === 'ativa' && a.venceEm && a.venceEm >= hoje());
+    if(paga === true || (paga === null && ativa)){
+      if(paga) cobrancaAberta = null;
       fecharModal();
       pintar();
-      alert('Pagamento confirmado. Sua assinatura está ativa até '
-          + porExtenso(a.venceEm) + '.');
+      alert(ativa ? 'Pagamento confirmado. Sua assinatura está ativa até '
+                    + porExtenso(a.venceEm) + '.'
+                  : 'Pagamento confirmado.');
       return;
     }
     if(r) r.textContent = 'Ainda não caiu. No Pix costuma levar segundos; '

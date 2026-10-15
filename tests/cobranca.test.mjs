@@ -232,11 +232,15 @@ a = await assinatura();
 igual('o banco ativou', a.status, 'ativa');
 igual('no plano pago', a.plano, 'salao');
 
+/* ⚠ SEM TOCAR EM "JÁ PAGUEI". A janela pergunta ao banco a cada 5 s se esta
+   cobrança virou paga — o dono pagou no app do banco e volta para a tela,
+   que tem de dizer sozinha que deu certo. (Pedido do dono depois do primeiro
+   Pix de verdade: "tive que apertar que já paguei — ele confere sozinho?") */
 recados.length = 0;
-await pg.evaluate(() => conferirPagamento());
-await pg.waitForTimeout(2500);
+for(let i = 0; i < 20 && !recados.some(t => /confirmado/i.test(t)); i++)
+  await pg.waitForTimeout(500);
 
-verdade('e a tela confirma para o dono',
+verdade('e a tela confirma para o dono SOZINHA, sem o botão',
   recados.some(t => /confirmado/i.test(t)), JSON.stringify(recados));
 verdade('a janela fecha sozinha',
   await pg.evaluate(() =>
@@ -267,6 +271,20 @@ await pg.evaluate(() => reabrirCobranca());
 await pg.waitForTimeout(600);
 verdade('e o código volta sem chamar a borda de novo',
   await pg.evaluate(() => !!document.getElementById('pixCodigo')));
+
+/* ⚠ O FALSO "CONFIRMADO". Este salão JÁ está ativo (pagou o Salão acima) e
+   agora tem um Pix do Equipe em aberto, sem pagar. "Já paguei" olhava a
+   assinatura — ativa — e dizia "Pagamento confirmado". Foi o que aconteceu
+   no primeiro Pix de verdade, num salão com o plano posto à mão. A pergunta
+   certa é se ESTA cobrança foi paga. */
+recados.length = 0;
+await pg.evaluate(() => conferirPagamento());
+await pg.waitForTimeout(2500);
+falso('salão já ativo com Pix em aberto: "Já paguei" NÃO diz confirmado',
+  recados.some(t => /confirmado/i.test(t)), JSON.stringify(recados));
+verdade('diz que ainda não caiu',
+  await pg.evaluate(() => /ainda não caiu/i.test(
+    (document.getElementById('pgtoRecado') || {}).textContent || '')));
 
 /* ══════════════════════════════════════════════════════════════════════════
    6. O CARTÃO — RENOVAÇÃO AUTOMÁTICA
