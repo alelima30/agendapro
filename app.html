@@ -1909,7 +1909,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.d3efc2';
+const VERSAO_APP = 'v9.f3cebc';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -13231,10 +13231,11 @@ function assinaturaAtual(){
   return (bd.assinaturas || []).find(a => a.salaoId === salaoAtual) || null;
 }
 /* ═══════════════════════════════════════════════════════════════════════════
-   ⚠ A VENDA DE PLANO ESTÁ DESLIGADA NA TELA, E SÓ NA TELA
+   A VENDA DE PLANO NA TELA — LIGADA PARA TODOS (`VENDA_LIGADA`)
 
-   Enquanto a comercialização é tratada direto com o comprador do sistema, o
-   painel não mostra preço, não recomenda plano e não oferece Assinar. Uma
+   Desligada, o painel não mostra preço, não recomenda plano e não oferece
+   Assinar (foi assim enquanto a venda era tratada direto com o comprador do
+   sistema; religada depois do primeiro Pix de verdade). Uma
    chave só, aqui, porque a oferta aparecia em quatro lugares diferentes —
    cabeçalho do plano, régua, cartão recomendado e a janela da cota — e quatro
    remoções à mão é onde sobra uma.
@@ -13257,23 +13258,25 @@ function assinaturaAtual(){
    tomada para o botão do Pix. No dia em que for definitivo, a recusa vai no
    BANCO, como foi feito com o boleto — tela não é lugar de trava.
 
-   Para religar a venda: `true` nesta linha. Nada mais.
+   Para desligar a venda de novo: `false` na linha do `VENDA_LIGADA`. Nada mais.
 
-   ── O LINK DE TESTE ───────────────────────────────────────────────────────
-   `app.html?oferta=1` mostra a oferta SÓ para quem abriu por ele, e lembra
-   até fechar a aba (`?oferta=0` esquece). Existe para o dono da plataforma
-   fazer o primeiro Pix de verdade sem mostrar preço a salão nenhum. Não abre
-   nada que o console já não abrisse — ver o parágrafo de cima: a trava, se
-   um dia houver, mora no banco. */
-const OFERTA_DE_PLANO = false || ofertaPorLinkDeTeste();
+   ── O LINK QUE FORÇA NUMA ABA ─────────────────────────────────────────────
+   `app.html?oferta=1` mostra a oferta e `?oferta=0` esconde, SÓ na aba que
+   abriu pelo link, até ela fechar. Com a venda desligada, foi por onde o dono
+   da plataforma fez o primeiro Pix sem mostrar preço a salão nenhum; com ela
+   ligada, é por onde se vê (e se testa) a tela sem oferta. Não abre nada que
+   o console já não abrisse — ver o parágrafo de cima: a trava, se um dia
+   houver, mora no banco. */
+const VENDA_LIGADA = true;
+const OFERTA_DE_PLANO = ofertaNestaAba(VENDA_LIGADA);
 
-function ofertaPorLinkDeTeste(){
+function ofertaNestaAba(padrao){
   try{
     const q = new URLSearchParams(location.search).get('oferta');
-    if(q === '1') sessionStorage.setItem('agendapro.oferta', '1');
-    if(q === '0') sessionStorage.removeItem('agendapro.oferta');
-    return sessionStorage.getItem('agendapro.oferta') === '1';
-  }catch(e){ return false; }
+    if(q === '1' || q === '0') sessionStorage.setItem('agendapro.oferta', q);
+    const g = sessionStorage.getItem('agendapro.oferta');
+    return g === '1' ? true : g === '0' ? false : padrao;
+  }catch(e){ return padrao; }
 }
 
 /* A saída para quem bateu no limite. Com a venda ligada, é assinar; com ela
@@ -13707,13 +13710,20 @@ function pintarPlano(){
                    .sort((a,b) => a.maxProfissionais - b.maxProfissionais);
   if(planoEscolhido === null) planoEscolhido = Math.max(usados, 1);
 
-  const max = planos.length ? planos[planos.length-1].maxProfissionais : 1;
-  const passos = [1,2,3,4,5,6];
+  /* Um botão por TAMANHO de plano, lido dos planos: 1, 2, 3, "4 a 6",
+     "7 a 12". Era 1…6 fixo, com o "6+" valendo 6 — o 5 e o 6+ caíam os dois
+     no Equipe (até 6), e o Salão (até 12) nunca aparecia. Aceso fica o
+     menor tamanho que comporta quem o dono escolheu (ou já tem na equipe). */
+  const passos = [...new Set(planos.map(x => x.maxProfissionais))];
+  const aceso = passos.find(n => n >= planoEscolhido) || passos[passos.length-1];
   document.getElementById('reguaPlanos').innerHTML = `
     <div class="regua">
-      ${passos.map(n => `<button class="${n===planoEscolhido?'on':''}"
+      ${passos.map((n, i) => {
+        const de = i ? passos[i-1] + 1 : 1;
+        return `<button class="${n===aceso?'on':''}"
           onclick="planoEscolhido=${n};pintarPlano()">
-          ${n === 6 ? '6+' : n}</button>`).join('')}
+          ${de === n ? n : de + ' a ' + n}</button>`;
+      }).join('')}
     </div>`;
 
   /* O recomendado é o plano COM mensagens do tamanho escolhido; o Básico

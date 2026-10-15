@@ -1,5 +1,6 @@
 /* ===========================================================================
-   AgendaPro — a venda de plano está desligada na tela, e SÓ na tela
+   AgendaPro — a venda de plano na tela: ligada para todos, e o modo
+   desligado (`?oferta=0`) sem levar embora o que não é oferta
 
      bash tests/bancada/subir.sh
      PLAYWRIGHT=… node tests/oferta-plano.test.mjs
@@ -85,7 +86,11 @@ await p.addInitScript(([base, ses]) => {
   window.AGENDAPRO = { url: base, chave:'k', ambiente:'bancada' };
   localStorage.setItem('agendapro.sessao', JSON.stringify(ses));
 }, [BASE, d.sessao()]);
-await p.goto(BASE + '/app.html');
+/* A venda está ligada para todos (`VENDA_LIGADA`). A primeira metade deste
+   arquivo mede a tela com ela DESLIGADA — que continua existindo e é para
+   onde se volta com uma linha —, então a aba abre por `?oferta=0`, que
+   desliga só nela e segue valendo nos reloads. */
+await p.goto(BASE + '/app.html?oferta=0');
 await p.waitForTimeout(3500);
 
 /* Este salão acabou de nascer e não tem serviço nem horário, então o passo a
@@ -208,7 +213,8 @@ e('nem "troque de plano"', !beco.troque);
    `?oferta=1` mostra a oferta só para quem abriu por ele — é por onde o dono
    da plataforma faz o primeiro Pix de verdade. Tem de: aparecer com o link,
    CONTINUAR na mesma aba sem o link (o painel recarrega, o dono navega), e
-   sumir com `?oferta=0` e numa aba nova. Sem o cartão ligado, que é quando o
+   sumir com `?oferta=0`; numa aba nova vale a chave, que está ligada. Sem o
+   cartão ligado, que é quando o
    botão de assinar apareceria. */
 console.log('\n── O LINK DE TESTE (?oferta=1) ─────────────────────────────');
 sql(`update public.assinaturas set mp_preapproval = null, cartao_desde = null
@@ -257,7 +263,8 @@ await abrirPlano(p, '?oferta=1');
 const outra = await ctx.newPage();
 outra.on('pageerror', x => erros.push(x.message));
 lt = await abrirPlano(outra, '');
-e('numa aba nova, sem o link, continua escondida', !lt.oferta && !/Assinar/i.test(lt.texto));
+e('numa aba nova, sem link nenhum, a oferta aparece — a venda está ligada para todos',
+  lt.oferta && /Assinar com Pix/.test(lt.texto), lt.texto.slice(0, 250));
 await outra.close();
 
 /* ── EM DIA, E ATÉ QUANDO ─────────────────────────────────────────────────
@@ -327,6 +334,32 @@ pe = await p.evaluate(() => (document.getElementById('cartaoPlano') || {}).inner
 e('e outro plano, no mesmo salão, pelo preço normal',
   pe.includes(precoDupla.toFixed(2).replace('.', ',')) && !/R\$\s*1,00/.test(pe), pe.slice(0, 200));
 sql(`update public.assinaturas set precos_especiais = '{}' where salao_id='${SALAO}'`);
+
+/* ── A RÉGUA ALCANÇA TODOS OS PLANOS ──────────────────────────────────────
+   Era 1…6 fixo, e o "6+" valia 6: o 5 e o 6+ mostravam os dois o Equipe, e
+   o Salão (até 12) não aparecia nunca — o dono viu na tela. Cada botão tem
+   de levar a um plano, e cada plano pago com mensagens a um botão. */
+console.log('\n── A RÉGUA DE PROFISSIONAIS ────────────────────────────────');
+await abrirPlano(p, '?oferta=1');
+const comMensagem = sql(`select string_agg(nome, '|' order by max_profissionais)
+  from public.planos where codigo not in ('trial','gratuito')
+   and coalesce((recursos->>'mensagens_mes')::int, 0) > 0`).split('|');
+const rotulos = await p.evaluate(() =>
+  [...document.querySelectorAll('#reguaPlanos button')].map(b => b.textContent.trim()));
+const vistos = [];
+for(let i = 0; i < rotulos.length; i++){
+  await p.locator('#reguaPlanos button').nth(i).click();
+  await p.waitForTimeout(300);
+  vistos.push(await p.evaluate(() =>
+    ((document.querySelector('#cartaoPlano h3') || {}).textContent || '').trim()));
+}
+e('um botão por tamanho de plano — ' + rotulos.join(', '),
+  rotulos.length === comMensagem.length, JSON.stringify(rotulos));
+e('e cada botão leva a um plano diferente: ' + vistos.join(', '),
+  JSON.stringify(vistos) === JSON.stringify(comMensagem),
+  'esperava ' + JSON.stringify(comMensagem));
+e('o último é o Salão, para até 12', vistos[vistos.length - 1] === 'Salão'
+  && /12/.test(rotulos[rotulos.length - 1]), JSON.stringify([rotulos, vistos]));
 
 console.log('\n── ERROS ───────────────────────────────────────────────────');
 e('sem erro de JavaScript', erros.length === 0, erros.slice(0,3).join(' | '));

@@ -122,33 +122,18 @@ secao('O painel não escolhe o preço');
 await pg.evaluate(() => irPara('plano'));
 await pg.waitForTimeout(900);
 
-/* ⚠ O PIX SAIU DA OFERTA, MAS NÃO DO PRODUTO — E AS DUAS METADES PRECISAM DE
-   GUARDA.
+/* O PIX NA OFERTA. A venda está ligada para todos (`VENDA_LIGADA`), e o
+   botão "Assinar com Pix" voltou a pedido do dono. Como a tela sem oferta
+   continua existindo (`?oferta=0`, medida no oferta-plano.test.mjs), aqui
+   mede-se a metade ligada.
 
-   A venda por Pix passou a ser tratada direto com o comprador, fora da tela.
-   Só o BOTÃO foi escondido: o `abrir_cobranca()` continua aceitando 'pix', a
-   borda continua criando, o webhook continua registrando, e quem já tem um
-   Pix por pagar continua vendo o copia-e-cola (é o que a seção 5 exercita).
-
-   Sem esta primeira verificação, o botão volta na próxima vez que alguém
-   mexer na tela do Plano, e ninguém nota — tela é o lugar onde a regressão é
-   mais silenciosa. Sem a segunda metade, alguém "limpa" o Pix do código e
-   deixa sem forma de pagar quem tem cobrança em aberto. */
-/* ⚠ A ABA INTEIRA, e não só o `#cartaoPlano`.
-
-   Quando a oferta de plano foi desligada, o `#cartaoPlano` passou a nascer
-   VAZIO — e esta verificação virou uma que não consegue mais reprovar:
-   procurar "pix" dentro de um elemento vazio dá falso para sempre, inclusive
-   no dia em que o botão voltar noutro canto da tela.
-
-   Medir a aba toda é o que mantém o guarda com dentes, e continua valendo se
-   a oferta for religada. O botão "Ver o código" da cobrança em aberto não
-   entra: ele não diz "pix" no rótulo, e existe justamente para PAGAR o que já
-   foi cobrado — que é a metade que a segunda verificação protege. */
+   ⚠ A ABA INTEIRA, e não só o `#cartaoPlano`: o botão pode mudar de canto
+   da tela, e procurar dentro de um elemento só é o tipo de verificação que
+   deixa de conseguir reprovar sem ninguém notar. */
 const ofereceuPix = await pg.evaluate(() =>
   [...document.querySelectorAll('#tela-plano button, #tela-plano a')]
     .some(b => /pix/i.test(b.textContent || '')));
-falso('a tela do Plano não oferece Pix', ofereceuPix);
+verdade('com a venda ligada, a tela do Plano oferece Pix', ofereceuPix);
 
 /* E a chamada continua funcionando por baixo: esconder botão é arrumação de
    tela, não trava. O caminho não foi descontinuado — só não está à venda. */
