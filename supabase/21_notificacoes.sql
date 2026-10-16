@@ -166,9 +166,15 @@ create table if not exists public.notificacoes (
 /* O tipo novo (7c) também em banco instalado antes dele: o `check` do
    `create table` acima só vale para quem instala do zero. O nome é o que o
    Postgres dá a um `check` de coluna sem nome. */
+/* ⚠ COM OS TIPOS DO PEDIDO (37_pedidos) JÁ NA LISTA. Este trecho roda a cada
+   colagem do 00_tudo; sem eles aqui, colar de novo num banco que já tem
+   mensagem de pedido estouraria neste `add constraint`, que confere as linhas
+   existentes. A lista do 37 é a mesma, e as duas andam juntas. */
 alter table public.notificacoes drop constraint if exists notificacoes_tipo_check;
 alter table public.notificacoes add constraint notificacoes_tipo_check
-  check (tipo in ('confirmacao','lembrete','resumo','novo','lembrete_equipe'));
+  check (tipo in ('confirmacao','lembrete','resumo','novo','lembrete_equipe',
+                  'pedido_novo','pedido_confirmado','pedido_a_caminho',
+                  'pedido_pronto','pedido_cancelado'));
 
 create unique index if not exists ux_notif_chave
   on public.notificacoes(salao_id, chave);

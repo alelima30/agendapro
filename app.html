@@ -664,6 +664,19 @@ body.carregando-tudo .tela{ display:none }
   </section>
 
   <!-- ══════════ PRODUTOS ══════════ -->
+  <!-- ══════════ PEDIDOS (restaurante) ══════════ -->
+  <section class="tela" id="tela-pedidos">
+    <div class="barra">
+      <label class="check pedido-chave"><input type="checkbox" id="pdRecebendo"
+             onchange="alternarRecebendo(this.checked)">
+        <span id="pdRecebendoTxt">Recebendo pedidos</span></label>
+      <span class="espaco"></span>
+      <button class="btn" onclick="carregarPedidos()">Atualizar</button>
+      <button class="btn btn-p" onclick="abrirConfigPedidos()">Entrega e pagamento</button>
+    </div>
+    <div id="listaPedidos"></div>
+  </section>
+
   <section class="tela" id="tela-pacotes">
     <div class="barra">
       <span class="espaco"></span>
@@ -1655,6 +1668,10 @@ const TELAS = [
      da casa não são assunto da recepção nem de quem atende, e quem barra de
      verdade é o `e_gestor()` dentro do `painel_hoje()`. */
   ['hoje',     'Hoje',             'casa',       'Dia a dia', GESTAO],
+  /* Pedidos: só no restaurante (o modo Pedidos do link, 37_pedidos), e
+     primeiro da lista — é a tela que ele deixa aberta o dia inteiro. A
+     equipe toda vê, como a agenda: quem atende o balcão é quem aceita. */
+  ['pedidos',  'Pedidos',          'carrinho',   'Dia a dia', EQUIPE],
   ['agenda',   'Agenda',           'calendario', 'Dia a dia', EQUIPE],
   /* ⚠ CAIXA É BALCÃO, e estava EQUIPE — quem atende via a aba.
 
@@ -1758,8 +1775,17 @@ const vejoTudo  = () => BALCAO.includes(meuPapel());
 const minhasTelas = () => {
   const p = meuPapel();
   const comanda = usaComanda();
-  return TELAS.filter(t => t[4].includes(p) && (comanda || t[0] !== 'caixa'));
+  const restaurante = typeof restaurantePainel === 'function' && restaurantePainel();
+  return TELAS.filter(t => t[4].includes(p) && (comanda || t[0] !== 'caixa')
+                        && (restaurante || t[0] !== 'pedidos'));
 };
+
+/* O nome da aba. No restaurante os produtos SÃO o cardápio — mesma tela,
+   mesmo cadastro, outro nome. */
+function rotuloDaTela(k, rotulo){
+  if(k === 'produtos' && typeof restaurantePainel === 'function' && restaurantePainel()) return 'Cardápio';
+  return rotulo;
+}
 
 function montarAbas(){
   let html = '', grupoAtual = null;
@@ -1778,7 +1804,7 @@ function montarAbas(){
                      onclick="irPara('${k}')" ${k === telaAtual ? 'aria-current="page"' : ''}
                      ${travada ? 'title="Disponível a partir do plano Básico"' : ''}>
                <span class="aba-ic" data-ico="${icone}"></span>
-               <span class="aba-txt">${rotulo}</span>
+               <span class="aba-txt">${rotuloDaTela(k, rotulo)}</span>
                ${travada ? '<span class="aba-cadeado" aria-label="no plano Básico">🔒</span>' : ''}
              </button>`;
   }
@@ -1799,7 +1825,7 @@ function irPara(k){
   // O topo repete onde a pessoa está. Com a lateral fechada no celular, é a
   // única pista que sobra.
   const t = TELAS.find(x => x[0] === k);
-  document.getElementById('tituloTela').textContent = t ? t[1] : '';
+  document.getElementById('tituloTela').textContent = t ? rotuloDaTela(k, t[1]) : '';
   fecharLateral();
   window.scrollTo(0, 0);
   pintar();
@@ -1919,7 +1945,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.7bfa77';
+const VERSAO_APP = 'v9.1a23a1';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -1946,6 +1972,12 @@ function trocarSalao(sid){
   const sel = document.getElementById('selSalao');
   if(sel && sel.value !== sid) sel.value = sid;   // chamada de código também move o seletor
   salvar();
+  // Os pedidos eram do estabelecimento de antes.
+  pedidosLista = null; pedidosVistos = null; pedidosNovos.clear();
+  montarAbas();
+  if(restaurantePainel()){ ligarRelogioDosPedidos(); carregarPedidos(); }
+  else pintarSeloDePedidos();
+  if(!minhasTelas().some(t => t[0] === telaAtual)) return irPara('agenda');
   pintar();
 }
 
@@ -7890,10 +7922,11 @@ function abrirProduto(pid){
       <span class="i"><span class="n">Ativo</span>
         <span class="d">Aparece na comanda, na hora de fechar a conta</span></span></label>
     <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px;margin-top:8px">
-      <input type="checkbox" id="pOnline" ${p && p.vendaOnline ? 'checked' : ''}>
-      <span class="i"><span class="n">Vender na página do salão</span>
-        <span class="d">A cliente vê e põe no carrinho. Nasce desligado — quem
-          publica é você.</span></span></label>
+      <input type="checkbox" id="pOnline" ${p ? (p.vendaOnline ? 'checked' : '') : (restaurantePainel() ? 'checked' : '')}>
+      <span class="i"><span class="n">${restaurantePainel() ? 'Aparece no cardápio do link' : 'Vender na página do salão'}</span>
+        <span class="d">${restaurantePainel()
+          ? 'A cliente vê e pede. No restaurante o item novo já nasce no cardápio.'
+          : 'A cliente vê e põe no carrinho. Nasce desligado — quem publica é você.'}</span></span></label>
 
     <!-- ══════════ O PRECO PODE FICAR ESCONDIDO ══════════
          Outro eixo, e nao o mesmo interruptor de cima: o produto APARECE, com
@@ -8407,6 +8440,7 @@ function pintar(){
   pintarFaixaTeste();
   aplicarTravaDaTela(telaAtual);
   if(telaAtual === 'agenda')   pintarAgenda();
+  if(telaAtual === 'pedidos')  pintarPedidos();
   if(telaAtual === 'clientes') pintarClientes();
   if(telaAtual === 'servicos') pintarServicos();
   if(telaAtual === 'produtos') pintarProdutos();
@@ -8466,6 +8500,9 @@ const TIPOS_NEGOCIO = [
   ['clinica',   'Clínica'],
   ['tatuagem',  'Tatuagem'],
   ['pet',       'Pet shop'],
+  /* Faz PEDIDO, e não agendamento: o link vira cardápio com entrega e
+     retirada, e o painel ganha a tela de Pedidos (37_pedidos). */
+  ['restaurante', 'Restaurante, pizzaria ou lanchonete'],
   ['outro',     'Outro'],
 ];
 
@@ -9759,7 +9796,11 @@ function salvarNotificacoes(){
    tem. Vinte linhas bastam para responder "a cliente recebeu?". */
 const ROTULO_NOTIF = { confirmacao:'Confirmação', lembrete:'Lembrete para o cliente',
                        resumo:'Resumo do dia', novo:'Aviso de horário novo',
-                       lembrete_equipe:'Lembrete para o salão' };
+                       lembrete_equipe:'Lembrete para o salão',
+                       // As do modo Pedidos (37_pedidos).
+                       pedido_novo:'Aviso de pedido novo', pedido_confirmado:'Pedido confirmado',
+                       pedido_a_caminho:'Pedido saiu para entrega', pedido_pronto:'Pedido pronto para retirar',
+                       pedido_cancelado:'Pedido cancelado' };
 const ROTULO_ESTADO = { pendente:['pendente','t-pend'], enviando:['enviando','t-pend'],
   enviado:['enviado','t-conf'], entregue:['entregue','t-conf'],
   lido:['lido','t-conc'], falhou:['falhou','t-falt'],
@@ -11821,7 +11862,9 @@ function pintarPreviaFone(){
     .filter(x => x.salaoId === salaoAtual && x.ativo !== false && x.vendaOnline)
     .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'));
   const temPr = produtos.length > 0;
-  const convite = (comServicos && temPr) ? 'Escolha o serviço, agende seu horário ou confira nossos produtos.'
+  const restaurante = sl.tipo === 'restaurante';
+  const convite = (restaurante && temPr) ? 'Escolha no cardápio e faça seu pedido em poucos toques.'
+    : (comServicos && temPr) ? 'Escolha o serviço, agende seu horário ou confira nossos produtos.'
     : comServicos ? 'Escolha o serviço e agende seu horário em poucos toques.'
     : temPr       ? 'Monte o seu pedido e mande pelo WhatsApp em poucos toques.'
     : zapDaCasa(sl) ? 'Fale com a gente pelo WhatsApp — respondemos por lá.'
@@ -11832,8 +11875,10 @@ function pintarPreviaFone(){
   const corProd = corValida((aparencia.cores || {}).produtos) ? aparencia.cores.produtos : null;
   const metalProd = corProd || corDoBotaoNaPrevia();
   const botoes = [];
-  if(comServicos) botoes.push(['agendar', 'Agendar horário']);
-  if(temPr) botoes.push(['produtos', 'Ver produtos']);
+  // No restaurante, como no link: o pedido primeiro (metal), a reserva depois.
+  if(restaurante && temPr) botoes.push(['produtos', 'Faça seu pedido']);
+  if(comServicos) botoes.push(['agendar', restaurante ? 'Fazer reserva' : 'Agendar horário']);
+  if(temPr && !restaurante) botoes.push(['produtos', 'Ver produtos']);
   if(!botoes.length && zapDaCasa(sl)) botoes.push(['agendar', 'Falar no WhatsApp']);
   const htmlBotoes = botoes.map(([q, rot], i) => {
     const brilho = aparencia.brilho ? ' com-brilho' : '';
@@ -12856,7 +12901,11 @@ async function salvarSenhaNova(){
    de publicar uma página que promete o que ainda não existe.
    ═══════════════════════════════════════════════════════════════════════════ */
 function usaServicosNoLink(sl){
-  const v = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).usaServicos;
+  const s = sl || acharSalao(salaoAtual) || {};
+  const v = (s.cfg || {}).usaServicos;
+  // No restaurante a agenda só existe ligada à mão — a mesma regra do link
+  // (`pedidos_da_casa().servicosTambem`).
+  if(s.tipo === 'restaurante') return v === true || String(v).trim().toLowerCase() === 'true';
   if(v == null) return true;
   return !NAO.includes(String(v).trim().toLowerCase());
 }
@@ -12912,7 +12961,8 @@ function porqueALojaNaoAparece(sl, opc){
   if(!loja)
     return 'A loja está <b>desligada</b> na sua página. Para ligar: '
          + '<b>Meu negócio → Dados → Produtos à venda → Sim</b>.';
-  if(!zapDaCasa(s, o.zap))
+  // No restaurante o pedido é gravado no sistema, e não vai pelo WhatsApp.
+  if(s.tipo !== 'restaurante' && !zapDaCasa(s, o.zap))
     return 'Os produtos <b>não aparecem</b> na sua página porque o salão está '
          + 'sem WhatsApp — é por ele que o pedido do carrinho chega. Preencha '
          + 'em <b>Meu negócio → Dados → WhatsApp</b> e salve.';
@@ -13710,7 +13760,9 @@ function moduloLiberado(chave){
   return v === undefined || v === true;
 }
 const MODULO_DA_TELA = { relatorios:'relatorios', produtos:'loja',
-                         pacotes:'pacotes', cupons:'cupons' };
+                         pacotes:'pacotes', cupons:'cupons',
+                         // Sem a loja no plano não há cardápio no link, e o banco recusa o pedido.
+                         pedidos:'loja' };
 const NOME_DO_MODULO = {
   relatorios: ['Relatórios', 'o faturamento do período, por serviço, por profissional e por forma de pagamento'],
   loja:       ['Produtos', 'o catálogo de produtos, a loja no seu link e o estoque'],
@@ -16869,6 +16921,10 @@ function talvezOferecerPrimeiroDia(){
   const sl = acharSalao(salaoAtual);
   if(!sl) return;
   if(((sl.cfg || {}).primeiroDia || {}).feito) return;
+  /* O restaurante não passa por este assistente: ele pede serviços, quem
+     atende e o horário de cada um — nada disso é o começo de uma pizzaria.
+     O começo dela está no cartão "Primeiros passos" da tela de Pedidos. */
+  if(sl.tipo === 'restaurante') return;
   /* Salão com serviço E gente com horário não é salão novo, mesmo que nunca
      tenha visto este assistente — é o caso de quem já usava o sistema antes
      de ele existir, e abrir um passo a passo de cadastro para essa pessoa
@@ -16893,6 +16949,349 @@ function registrarServiceWorker(){
 }
 
 /* ── Partida ─────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   PEDIDOS — A TELA DO RESTAURANTE
+
+   O outro lado do modo Pedidos do link (37_pedidos.sql). A tela pede a lista
+   ao banco de 20 em 20 segundos — em qualquer aba, para o selo do menu e o
+   aviso sonoro de pedido novo chegarem com a pessoa olhando outra coisa — e
+   cada botão muda o andamento pelo `mudar_status_pedido()`, que confere a
+   ordem das etapas e põe a mensagem da cliente na fila do servidor.
+
+   ⚠ A TELA NÃO MANDA MENSAGEM NENHUMA. Quem manda é o worker, com a conta do
+   WhatsApp ligada — e enquanto não estiver, a mensagem fica pendente, que é a
+   verdade. Por isso o botão diz "Aceitar", e não "Aceitar e avisar a cliente".
+   ═══════════════════════════════════════════════════════════════════════════ */
+let pedidosLista = null;
+let pedidosErro = '';
+let pedidosRelogio = null;
+let pedidosVistos = null;        // ids de "recebido" já mostrados (para o aviso de novo)
+let pedidosNovos = new Set();    // os que chegaram desde a última olhada
+let pedidoMexendo = null;
+let pedidosAbriuUmaVez = false;
+
+const restaurantePainel = () => ((acharSalao(salaoAtual) || {}).tipo === 'restaurante');
+// "11965432100" → "(11) 96543-2100". Só para ler; o banco guarda os dígitos.
+function telefoneNaTela(d){
+  const t = String(d || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+  if(t.length === 11) return `(${t.slice(0, 2)}) ${t.slice(2, 7)}-${t.slice(7)}`;
+  if(t.length === 10) return `(${t.slice(0, 2)}) ${t.slice(2, 6)}-${t.slice(6)}`;
+  return t;
+}
+const PEDIDO_PAGAMENTO = { pix:'Pix', dinheiro:'Dinheiro', cartao:'Cartão na entrega' };
+const PEDIDO_ETAPA = { recebido:'Novo', em_preparo:'Em preparo', saiu:'Saiu para entrega',
+  pronto:'Pronto para retirar', entregue:'Entregue', cancelado:'Cancelado' };
+
+// A configuração dos pedidos, com os mesmos padrões do `cfg_pedidos()` do banco.
+function cfgPedidosDoSalao(){
+  const p = ((acharSalao(salaoAtual) || {}).cfg || {}).pedidos || {};
+  return {
+    aceitando: p.aceitando !== false, entrega: p.entrega !== false, retirada: p.retirada !== false,
+    taxaPadrao: Number(p.taxaPadrao) || 0,
+    taxas: Array.isArray(p.taxas) ? p.taxas.filter(t => t && String(t.bairro || '').trim()) : [],
+    minimo: Number(p.minimo) || 0, tempo: p.tempo || '',
+    pagamentos: Array.isArray(p.pagamentos) && p.pagamentos.length ? p.pagamentos : ['pix', 'dinheiro', 'cartao'],
+    avisarCliente: p.avisarCliente !== false, avisarCasa: p.avisarCasa !== false,
+  };
+}
+function gravarCfgPedidos(mudancas){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  sl.cfg = Object.assign({}, sl.cfg, { pedidos: Object.assign({}, cfgPedidosDoSalao(), mudancas) });
+  salvar();
+}
+
+async function carregarPedidos(){
+  if(!NA_NUVEM || !restaurantePainel() || !moduloLiberado('loja')) return;
+  try{
+    const r = await Dados.chamar('pedidos_da_loja', { p_salao: salaoAtual, p_horas: 24 });
+    pedidosLista = Array.isArray(r) ? r : [];
+    pedidosErro = '';
+  }catch(e){
+    pedidosErro = e.message || 'Não consegui ler os pedidos agora.';
+  }
+  const recebidos = (pedidosLista || []).filter(p => p.status === 'recebido').map(p => p.id);
+  if(pedidosVistos){
+    const chegaram = recebidos.filter(id => !pedidosVistos.has(id));
+    if(chegaram.length){
+      chegaram.forEach(id => pedidosNovos.add(id));
+      tocarSomDePedido();
+    }
+  }
+  pedidosVistos = new Set(recebidos);
+  pintarSeloDePedidos();
+  if(telaAtual === 'pedidos') desenharPedidos();
+}
+
+function ligarRelogioDosPedidos(){
+  if(pedidosRelogio || !NA_NUVEM) return;
+  pedidosRelogio = setInterval(() => { if(restaurantePainel()) carregarPedidos(); }, 20000);
+}
+
+/* Um "plim" curto, gerado na hora — sem arquivo de som para baixar. O
+   navegador só toca depois de a pessoa ter clicado na página, e é por isso
+   que o selo e o destaque do cartão existem também: o som é a cereja. */
+function tocarSomDePedido(){
+  try{
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return;
+    const ctx = tocarSomDePedido.ctx || (tocarSomDePedido.ctx = new Ctx());
+    [0, 0.18].forEach((t, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = i ? 1175 : 880;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.16);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.17);
+    });
+  }catch(e){}
+}
+
+// Quantos pedidos esperando "Aceitar": no menu e na aba do navegador.
+function pintarSeloDePedidos(){
+  const n = (pedidosLista || []).filter(p => p.status === 'recebido').length;
+  const aba = document.querySelector('#abas .aba[data-chave="pedidos"] .aba-txt');
+  if(aba) aba.innerHTML = 'Pedidos' + (n ? ` <span class="selo-pedidos">${n}</span>` : '');
+  const base = document.title.replace(/^\(\d+\)\s*/, '');
+  document.title = n && restaurantePainel() ? `(${n}) ${base}` : base;
+}
+
+const horaDoPedido = iso => {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit',
+    timeZone: (acharSalao(salaoAtual) || {}).fuso || 'America/Sao_Paulo' });
+};
+const haQuanto = iso => {
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  return min < 1 ? 'agora' : min < 60 ? `há ${min} min` : `há ${Math.floor(min / 60)} h ${min % 60} min`;
+};
+
+function enderecoDoPedido(p){
+  const e = p.endereco || {};
+  return [e.rua && (e.rua + (e.numero ? ', ' + e.numero : '')), e.complemento, e.bairro || p.bairro]
+    .filter(Boolean).join(' · ') + (e.referencia ? ` (ref.: ${e.referencia})` : '');
+}
+
+function cartaoDePedido(p){
+  const tel = String(p.telefone || '').replace(/\D/g, '');
+  const zap = tel ? 'https://wa.me/' + (tel.length > 11 ? tel : '55' + tel) : '';
+  const prox = p.status === 'recebido' ? [['em_preparo', 'Aceitar', 'btn-p']]
+    : p.status === 'em_preparo' ? [[p.entrega === 'entrega' ? 'saiu' : 'pronto',
+        p.entrega === 'entrega' ? 'Saiu para entrega' : 'Pronto para retirar', 'btn-p'], ['entregue', 'Entregue', '']]
+    : (p.status === 'saiu' || p.status === 'pronto') ? [['entregue', 'Entregue', 'btn-p']] : [];
+  const vivo = !['entregue', 'cancelado'].includes(p.status);
+  return `<div class="card pedido-cartao${pedidosNovos.has(p.id) ? ' pedido-novo' : ''}" data-pedido="${p.id}">
+    <div class="pedido-topo">
+      <b>#${escapar(String(p.numero))}</b>
+      <span class="tag ${p.status === 'cancelado' ? 't-canc' : p.status === 'entregue' ? 't-conc' : p.status === 'recebido' ? 't-pend' : 't-conf'}">${PEDIDO_ETAPA[p.status] || p.status}</span>
+      <span class="pedido-hora">${horaDoPedido(p.criado_em)}${vivo ? ' · ' + haQuanto(p.criado_em) : ''}</span>
+    </div>
+    <div class="pedido-quem"><b>${escapar(p.nome)}</b>${zap
+      ? ` · <a href="${zap}" target="_blank" rel="noopener">${escapar(telefoneNaTela(tel))}</a>` : ''}</div>
+    <ul class="pedido-itens">${(p.itens || []).map(i => `<li><b>${i.quantidade}×</b> ${escapar(i.nome)}${
+      i.observacao ? ` <small>(${escapar(i.observacao)})</small>` : ''}<span>${real(Number(i.preco) * i.quantidade)}</span></li>`).join('')}</ul>
+    ${p.observacao ? `<p class="pedido-obs"><b>Observação:</b> ${escapar(p.observacao)}</p>` : ''}
+    <p class="pedido-entrega">${p.entrega === 'entrega'
+      ? '🛵 <b>Entrega</b> — ' + escapar(enderecoDoPedido(p)) : '🏪 <b>Retirada</b> no balcão'}</p>
+    <p class="pedido-pag">${escapar(PEDIDO_PAGAMENTO[p.pagamento] || p.pagamento)}${
+      p.troco ? ' · troco para ' + real(Number(p.troco)) + ' (levar ' + real(Number(p.troco) - Number(p.total)) + ')' : ''}
+      · ${Number(p.taxa) ? 'taxa ' + real(Number(p.taxa)) + ' · ' : ''}<b>Total ${real(Number(p.total))}</b></p>
+    ${p.status === 'cancelado' ? `<p class="pedido-obs">${p.cancelado_por === 'cliente'
+      ? 'Cancelado por quem pediu.' : 'Motivo: ' + escapar(p.motivo || 'não informado')}</p>` : ''}
+    <div class="card-acoes">
+      ${prox.map(([st, rot, cls]) => `<button class="btn ${cls}" ${pedidoMexendo === p.id ? 'disabled' : ''}
+        onclick="mudarPedido('${p.id}', '${st}')">${rot}</button>`).join('')}
+      ${vivo ? `<button class="btn btn-perigo" ${pedidoMexendo === p.id ? 'disabled' : ''}
+        onclick="mudarPedido('${p.id}', 'cancelado')">Cancelar</button>` : ''}
+      <button class="btn" onclick="imprimirPedido('${p.id}')">Imprimir</button>
+    </div>
+  </div>`;
+}
+
+function desenharPedidos(){
+  const alvo = document.getElementById('listaPedidos');
+  if(!alvo) return;
+  const c = cfgPedidosDoSalao();
+  const chave = document.getElementById('pdRecebendo');
+  if(chave) chave.checked = c.aceitando;
+  const rot = document.getElementById('pdRecebendoTxt');
+  if(rot) rot.textContent = c.aceitando ? 'Recebendo pedidos' : 'Pedidos pausados';
+  if(!NA_NUVEM){
+    alvo.innerHTML = `<div class="aviso info">Os pedidos ficam gravados no servidor. Nesta
+      demonstração não há servidor: ligado no Supabase, os pedidos feitos no seu link aparecem aqui.</div>`;
+    return;
+  }
+  if(pedidosLista === null){ alvo.innerHTML = '<p class="secao-sub">Carregando os pedidos…</p>'; return; }
+  /* Em andamento, o mais ANTIGO primeiro — é a ordem da cozinha: quem pediu
+     antes sai antes. Os concluídos, o mais recente primeiro. */
+  const grupo = sts => pedidosLista.filter(p => sts.includes(p.status))
+    .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
+  const novos = grupo(['recebido']), preparo = grupo(['em_preparo']), caminho = grupo(['saiu', 'pronto']);
+  const fim = grupo(['entregue', 'cancelado']).reverse();
+  const entregues = fim.filter(p => p.status === 'entregue');
+  const bloco = (titulo, lista, vazio) => `<h3 class="secao" style="margin-top:18px">${titulo}
+      <span class="pedido-conta">${lista.length}</span></h3>
+    ${lista.length ? `<div class="pedido-grade">${lista.map(cartaoDePedido).join('')}</div>`
+      : `<p class="secao-sub">${vazio}</p>`}`;
+  /* PRIMEIROS PASSOS, enquanto o cardápio do link estiver vazio: sem item
+     publicado não chega pedido nenhum, e esta tela vazia não diria por quê. */
+  const noCardapio = doSalao(bd.produtos || []).filter(x => x.ativo !== false && x.vendaOnline).length;
+  const passos = noCardapio ? '' : `<div class="card pedido-passos">
+      <h3 class="secao" style="margin-top:0">Primeiros passos</h3>
+      <p class="secao-sub">Três coisas e o seu link já recebe pedido:</p>
+      <ol>
+        <li><b>Monte o cardápio.</b> Cada item com nome, preço e foto.
+          <button class="btn btn-peq btn-p" onclick="irPara('produtos')">Abrir o Cardápio</button></li>
+        <li><b>Diga como entrega.</b> Taxa por bairro, pedido mínimo, formas de pagamento.
+          <button class="btn btn-peq" onclick="abrirConfigPedidos()">Entrega e pagamento</button></li>
+        <li><b>Cadastre o horário de funcionamento.</b> Fora dele o link não aceita pedido.
+          <button class="btn btn-peq" onclick="irPara('salao'); trocarAbaSalao('dados')">Abrir Meu negócio</button></li>
+      </ol>
+      <p class="secao-sub" style="margin-bottom:0">Depois, mande o link para as clientes — ele está em
+        <a href="#" onclick="irPara('publico'); return false">Ver como cliente</a>.</p>
+    </div>`;
+  alvo.innerHTML = `
+    ${passos}
+    ${pedidosErro ? `<div class="aviso">${escapar(pedidosErro)}</div>` : ''}
+    ${!c.aceitando ? `<div class="aviso">Os pedidos pelo link estão <b>pausados</b>. A cliente vê o cardápio,
+      mas não consegue pedir. Ligue "Recebendo pedidos" quando quiser voltar.</div>` : ''}
+    ${bloco('Novos', novos, 'Nenhum pedido esperando. Os pedidos feitos no seu link aparecem aqui sozinhos.')}
+    ${bloco('Em preparo', preparo, 'Nada no fogo agora.')}
+    ${bloco('Saiu para entrega / pronto para retirar', caminho, 'Nenhum a caminho.')}
+    <details class="pedido-fim" style="margin-top:18px">
+      <summary><b>Concluídos nas últimas 24 horas</b> — ${entregues.length} entregue(s), ${real(entregues.reduce((s, p) => s + Number(p.total || 0), 0))}${
+        fim.length - entregues.length ? ` · ${fim.length - entregues.length} cancelado(s)` : ''}</summary>
+      ${fim.length ? `<div class="pedido-grade">${fim.map(cartaoDePedido).join('')}</div>` : '<p class="secao-sub">Nenhum ainda.</p>'}
+    </details>`;
+  // Viu a tela: o destaque de "novo" some na próxima volta.
+  setTimeout(() => pedidosNovos.clear(), 15000);
+}
+
+function pintarPedidos(){
+  desenharPedidos();
+  carregarPedidos();
+}
+
+async function mudarPedido(id, status){
+  let motivo = null;
+  if(status === 'cancelado'){
+    motivo = prompt('Cancelar este pedido?\n\nEscreva o motivo — ele vai para a cliente (ex.: acabou a massa).');
+    if(motivo === null) return;
+  }
+  pedidoMexendo = id;
+  desenharPedidos();
+  try{
+    await Dados.chamar('mudar_status_pedido', { p_pedido: id, p_status: status, p_motivo: motivo });
+  }catch(e){
+    alert('Não deu para mudar o pedido.\n\n' + (e.message || ''));
+  }
+  pedidoMexendo = null;
+  pedidosNovos.delete(id);
+  await carregarPedidos();
+}
+
+function alternarRecebendo(v){
+  gravarCfgPedidos({ aceitando: !!v });
+  desenharPedidos();
+}
+
+/* A via da cozinha: uma janela só com o pedido, em letra de impressora, e o
+   imprimir do navegador. Texto puro, montado com `textContent` — nada do
+   pedido vira HTML nessa janela. */
+function imprimirPedido(id){
+  const p = (pedidosLista || []).find(x => x.id === id);
+  if(!p) return;
+  const sl = acharSalao(salaoAtual) || {};
+  const linhas = [sl.nome || '', 'Pedido #' + p.numero + ' — ' + horaDoPedido(p.criado_em), '',
+    p.nome + ' · ' + telefoneNaTela(String(p.telefone || '').replace(/\D/g, '')), '',
+    ...(p.itens || []).map(i => i.quantidade + 'x ' + i.nome + (i.observacao ? ' (' + i.observacao + ')' : '')
+      + '  ' + real(Number(i.preco) * i.quantidade)),
+    '', p.observacao ? 'Obs.: ' + p.observacao : '',
+    p.entrega === 'entrega' ? 'ENTREGA: ' + enderecoDoPedido(p) : 'RETIRADA no balcão',
+    (PEDIDO_PAGAMENTO[p.pagamento] || p.pagamento) + (p.troco ? ' · troco para ' + real(Number(p.troco)) : ''),
+    Number(p.taxa) ? 'Taxa de entrega: ' + real(Number(p.taxa)) : '', 'TOTAL: ' + real(Number(p.total))]
+    .filter((l, i, a) => l !== '' || a[i - 1] !== '');
+  const w = window.open('', '_blank', 'width=380,height=600');
+  if(!w) return alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.');
+  w.document.title = 'Pedido #' + p.numero;
+  const pre = w.document.createElement('pre');
+  pre.style.cssText = 'font:14px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;margin:12px';
+  pre.textContent = linhas.join('\n');
+  w.document.body.appendChild(pre);
+  w.focus();
+  w.print();
+}
+
+/* "Entrega e pagamento": a configuração dos pedidos, numa janela. Os mesmos
+   padrões do banco — quem nunca abriu isto recebe pedido com entrega e
+   retirada, sem taxa, sem mínimo e as três formas de pagamento. */
+function abrirConfigPedidos(){
+  const c = cfgPedidosDoSalao();
+  const marcado = v => v ? 'checked' : '';
+  const linhaTaxa = (t, i) => `<div class="pd-taxa" data-i="${i}">
+      <input class="pdBairroNome" placeholder="Bairro" value="${escapar(t.bairro || '')}">
+      <input class="pdBairroTaxa" type="number" min="0" step="0.5" placeholder="Taxa" value="${t.taxa != null && t.taxa !== '' ? Number(t.taxa) : ''}">
+      <button type="button" class="btn btn-peq" onclick="this.parentElement.remove()" aria-label="Tirar este bairro">✕</button>
+    </div>`;
+  abrirModal('Entrega e pagamento', `
+    <p class="secao-sub">O que vale para os pedidos feitos no seu link. Quem confere tudo na hora do
+      pedido é o servidor — taxa, mínimo e pagamento não dependem do celular da cliente.</p>
+    <div class="campo"><label>Como entrega</label>
+      <label class="check"><input type="checkbox" id="pcEntrega" ${marcado(c.entrega)}> <span>Faz entrega</span></label>
+      <label class="check"><input type="checkbox" id="pcRetirada" ${marcado(c.retirada)}> <span>A cliente pode retirar no local</span></label>
+    </div>
+    <div class="campo"><label for="pcTaxa">Taxa de entrega (para qualquer bairro)</label>
+      <input id="pcTaxa" type="number" min="0" step="0.5" value="${c.taxaPadrao || ''}" placeholder="0 = grátis">
+      <p class="ajuda">Se preencher a lista de bairros abaixo, só esses bairros recebem entrega, cada um com a sua taxa.</p></div>
+    <div class="campo"><label>Bairros onde entrega</label>
+      <div id="pcTaxas">${c.taxas.map(linhaTaxa).join('')}</div>
+      <button type="button" class="btn btn-peq" onclick="document.getElementById('pcTaxas').insertAdjacentHTML('beforeend', linhaTaxaVazia())">+ Bairro</button></div>
+    <div class="dupla">
+      <div class="campo"><label for="pcMinimo">Pedido mínimo (R$)</label>
+        <input id="pcMinimo" type="number" min="0" step="1" value="${c.minimo || ''}" placeholder="sem mínimo"></div>
+      <div class="campo"><label for="pcTempo">Tempo estimado</label>
+        <input id="pcTempo" maxlength="40" value="${escapar(c.tempo)}" placeholder="40 a 60 min"></div>
+    </div>
+    <div class="campo"><label>Formas de pagamento (na entrega ou na retirada)</label>
+      <label class="check"><input type="checkbox" class="pcPag" value="pix" ${marcado(c.pagamentos.includes('pix'))}> <span>Pix</span></label>
+      <label class="check"><input type="checkbox" class="pcPag" value="dinheiro" ${marcado(c.pagamentos.includes('dinheiro'))}> <span>Dinheiro</span></label>
+      <label class="check"><input type="checkbox" class="pcPag" value="cartao" ${marcado(c.pagamentos.includes('cartao'))}> <span>Cartão na entrega</span></label>
+    </div>
+    <div class="campo"><label>Avisos no WhatsApp</label>
+      <label class="check"><input type="checkbox" id="pcAvisaCliente" ${marcado(c.avisarCliente)}>
+        <span>Avisar a cliente quando aceitar, sair para entrega, ficar pronto ou cancelar</span></label>
+      <label class="check"><input type="checkbox" id="pcAvisaCasa" ${marcado(c.avisarCasa)}>
+        <span>Avisar no WhatsApp do estabelecimento quando chegar pedido novo</span></label>
+      <p class="ajuda">Cada aviso gasta uma mensagem do plano, e só sai com o WhatsApp do AgendaPro ligado.</p>
+    </div>
+    <div id="pcRecado"></div>`,
+    [['Cancelar', 'fecharModal()', ''], ['Salvar', 'salvarConfigPedidos()', 'btn-p']]);
+}
+function linhaTaxaVazia(){
+  return `<div class="pd-taxa"><input class="pdBairroNome" placeholder="Bairro">
+    <input class="pdBairroTaxa" type="number" min="0" step="0.5" placeholder="Taxa">
+    <button type="button" class="btn btn-peq" onclick="this.parentElement.remove()" aria-label="Tirar este bairro">✕</button></div>`;
+}
+function salvarConfigPedidos(){
+  const v = id => (document.getElementById(id) || {});
+  const num = id => Math.max(0, Number(String(v(id).value || '').replace(',', '.')) || 0);
+  const entrega = !!v('pcEntrega').checked, retirada = !!v('pcRetirada').checked;
+  const pagamentos = [...document.querySelectorAll('.pcPag')].filter(x => x.checked).map(x => x.value);
+  const recado = t => { const r = document.getElementById('pcRecado'); if(r) r.innerHTML = `<div class="aviso">${t}</div>`; };
+  if(!entrega && !retirada) return recado('Escolha pelo menos uma: entrega ou retirada.');
+  if(!pagamentos.length) return recado('Escolha pelo menos uma forma de pagamento.');
+  const taxas = [...document.querySelectorAll('#pcTaxas .pd-taxa')].map(l => ({
+    bairro: l.querySelector('.pdBairroNome').value.trim(),
+    taxa: Math.max(0, Number(String(l.querySelector('.pdBairroTaxa').value || '').replace(',', '.')) || 0),
+  })).filter(t => t.bairro);
+  gravarCfgPedidos({ entrega, retirada, taxaPadrao: num('pcTaxa'), taxas, minimo: num('pcMinimo'),
+    tempo: String(v('pcTempo').value || '').trim().slice(0, 40), pagamentos,
+    avisarCliente: !!v('pcAvisaCliente').checked, avisarCasa: !!v('pcAvisaCasa').checked });
+  fecharModal();
+  desenharPedidos();
+}
+
 function iniciar(){
   const sel = document.getElementById('selSalao');
   sel.innerHTML = bd.saloes.map(s => `<option value="${s.id}">${escapar(s.nome)}</option>`).join('');
@@ -16902,7 +17301,7 @@ function iniciar(){
   document.getElementById('mVersao').textContent = VERSAO_APP;
   document.getElementById('tbSalao').textContent = s.nome;
   const t = TELAS.find(x => x[0] === telaAtual);
-  document.getElementById('tituloTela').textContent = t ? t[1] : '';
+  document.getElementById('tituloTela').textContent = t ? rotuloDaTela(telaAtual, t[1]) : '';
   /* O `diaAtual` nasceu lá em cima, na primeira linha do script, quando
      ainda não havia salão nenhum — então o `hoje()` de lá caiu no fuso
      padrão. Aqui o salão já chegou, e é o primeiro instante em que dá para
@@ -16915,6 +17314,15 @@ function iniciar(){
   montarAbas();
   mostrarQuemEstaLogado();
   pintar();
+  /* O restaurante abre na tela de Pedidos (uma vez só por carga da página:
+     o `iniciar()` roda de novo quando o nome ou o tipo muda, e não pode
+     arrancar a pessoa da tela em que ela está). O relógio dos pedidos liga
+     aqui e fica — ele mesmo pergunta, a cada volta, se ainda é restaurante. */
+  if(restaurantePainel()){
+    ligarRelogioDosPedidos();
+    if(!pedidosAbriuUmaVez && telaAtual === 'agenda'){ pedidosAbriuUmaVez = true; irPara('pedidos'); }
+    else carregarPedidos();
+  }
   /* Por último, e depois do `pintar()`: o assistente cobre a tela, e cobrir
      uma tela em branco faria a pessoa fechá-lo para descobrir o que tem
      atrás. Fechado, ele já revela o painel montado. */

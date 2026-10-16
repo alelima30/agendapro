@@ -64,7 +64,7 @@ troca estilo.css \
 echo "3. o total volta a dividir a linha com a contagem"
 troca agendar.html \
   "        <b>\${totalEscrito()}</b>
-        <span>\${n === 1 ? '1 produto' : n + ' produtos'} · Ver meu pedido</span>" \
+        <span>\${modoPedidos() ? (n === 1 ? '1 item' : n + ' itens') : (n === 1 ? '1 produto' : n + ' produtos')} · Ver meu pedido</span>" \
   "        <b>\${n === 1 ? '1 produto' : n + ' produtos'} · \${totalEscrito()}</b>
         <span>Ver meu pedido</span>" \
   && rodar "total cortado"

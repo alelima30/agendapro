@@ -82,8 +82,8 @@ troca estilo.css \
 
 echo "6. a fita do carrinho repete o pé no produto"
 troca agendar.html \
-  "&& tela !== 'loja' && tela !== 'produto';" \
-  "&& tela !== 'loja';" \
+  "&& tela !== 'loja' && tela !== 'produto'" \
+  "&& tela !== 'loja'" \
   && rodar "dois Enviar pedido um sobre o outro"
 
 echo "7. Ver meu pedido só adiciona"

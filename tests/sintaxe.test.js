@@ -428,6 +428,34 @@ console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
       `${modelo}: o texto não começa nem termina com variável`,
       'a Meta recusa o cadastro assim');
   }
+
+  /* Os cinco do modo Pedidos (37_pedidos): o mesmo contrato, com as variáveis
+     do `variaveis_pedido()` — um ramo por tipo, e o `else` para os dois de
+     três variáveis ("a caminho" e "pronto"). */
+  const sql37 = fs.readFileSync(path.join(RAIZ, 'supabase', '37_pedidos.sql'), 'utf8');
+  const doPedido = [...sql37.matchAll(/when '(pedido_\w+)'\s+then '(agendapro_\w+)'/g)]
+    .map(m => ({ tipo: m[1], modelo: m[2] }));
+  dizer(doPedido.length === 5, `achei os cinco modelos do pedido no modelo_de() (${doPedido.length})`);
+  const corpoVP = (sql37.match(
+    /function public\.variaveis_pedido\(([\s\S]*?)\n\$\$;/) || [])[1] || '';
+  const ramoVP = tipo => {
+    const m = corpoVP.match(new RegExp("when '" + tipo + "' then jsonb_build_array\\(([\\s\\S]*?)\\)\\s*\\n\\s*(when|else)"));
+    if(m) return conta(m[1]);
+    return conta((corpoVP.match(/else jsonb_build_array\(([\s\S]*?)\)\s*\n\s*end/) || [])[1] || '');
+  };
+  for(const { tipo, modelo } of doPedido){
+    const corpo = blocoDe(modelo);
+    if(!corpo){ dizer(false, `${modelo}: tem seção no MODELOS.md`); continue; }
+    const distintos = [...new Set([...corpo.matchAll(/\{\{(\d+)\}\}/g)].map(m => +m[1]))].sort((a, b) => a - b);
+    const noBanco = ramoVP(tipo);
+    dizer(distintos.length === noBanco,
+      `${modelo}: ${distintos.length} variáveis no texto e ${noBanco} no banco`);
+    dizer(distintos.every((n, i) => n === i + 1),
+      `${modelo}: variáveis numeradas de 1 a ${distintos.length}, sem pular`, JSON.stringify(distintos));
+    const limpo = corpo.trim();
+    dizer(!limpo.startsWith('{{') && !limpo.endsWith('}}'),
+      `${modelo}: o texto não começa nem termina com variável`, 'a Meta recusa o cadastro assim');
+  }
 }
 
 /* ── TODA FUNÇÃO DEFINIDA DUAS VEZES, E NÃO SÓ A VITRINE ──────────────────

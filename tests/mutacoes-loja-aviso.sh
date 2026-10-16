@@ -51,7 +51,7 @@ PY
 
 echo "1. o aviso para de olhar o WhatsApp"
 troca app.html \
-  "  if(!zapDaCasa(s, o.zap))" \
+  "  if(s.tipo !== 'restaurante' && !zapDaCasa(s, o.zap))" \
   "  if(false)" \
   && rodar "salão sem número, painel calado"
 
@@ -67,8 +67,8 @@ troca app.html \
 
 echo "3. \"tem alguma coisa escrita\" no lugar de \"dá para abrir a conversa\""
 troca app.html \
-  "  if(!zapDaCasa(s, o.zap))" \
-  "  if(!String(o.zap != null ? o.zap : (s.whatsapp || s.telefone || '')).trim())" \
+  "  if(s.tipo !== 'restaurante' && !zapDaCasa(s, o.zap))" \
+  "  if(s.tipo !== 'restaurante' && !String(o.zap != null ? o.zap : (s.whatsapp || s.telefone || '')).trim())" \
   && rodar "número sem DDD passando por bom"
 
 echo "4. Produtos deixa de mostrar o aviso"

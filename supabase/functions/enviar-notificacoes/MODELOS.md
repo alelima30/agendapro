@@ -206,6 +206,114 @@ Aviso automático do sistema de agendamento.
 
 ---
 
+# Os cinco do modo Pedidos (restaurante, pizzaria, lanchonete)
+
+Só são usados por estabelecimento do tipo **Restaurante** (`37_pedidos.sql`).
+Mesmas regras de cima: **Utilidade**, **Português (BR)**, sem cabeçalho e sem
+botão. Enquanto não forem aprovados, as mensagens do pedido ficam **pendentes**
+na fila — nada é dado como enviado sem ter saído.
+
+## 6. `agendapro_pedido_novo`
+
+Vai para o **WhatsApp do estabelecimento** quando chega um pedido pelo link.
+
+```
+Novo pedido no {{1}}: #{{2}}, de {{3}}.
+
+💰 Total: {{4}}
+🛵 {{5}}
+
+O pedido está na tela de Pedidos.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | nome do estabelecimento | Pizzaria do Zé |
+| `{{2}}` | número do pedido | 12 |
+| `{{3}}` | primeiro nome de quem pediu | Bruna |
+| `{{4}}` | total | R$ 58,00 |
+| `{{5}}` | entrega ou retirada | entrega no bairro Centro |
+
+## 7. `agendapro_pedido_confirmado`
+
+Vai para a **cliente** quando o estabelecimento toca em **Aceitar**.
+
+```
+Olá, {{1}}! O {{2}} confirmou o seu pedido #{{3}}.
+
+💰 Total: {{4}}
+⏱️ Previsão: {{5}}
+
+Obrigado pela preferência!
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Bruna |
+| `{{2}}` | nome do estabelecimento | Pizzaria do Zé |
+| `{{3}}` | número do pedido | 12 |
+| `{{4}}` | total | R$ 58,00 |
+| `{{5}}` | tempo estimado (Pedidos e entrega) | 40 a 60 min |
+
+## 8. `agendapro_pedido_a_caminho`
+
+Vai para a cliente quando o pedido de **entrega** sai.
+
+```
+Olá, {{1}}! O seu pedido #{{2}} saiu para entrega.
+
+🏪 {{3}}
+
+Até já!
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Bruna |
+| `{{2}}` | número do pedido | 12 |
+| `{{3}}` | nome do estabelecimento | Pizzaria do Zé |
+
+## 9. `agendapro_pedido_pronto`
+
+Vai para a cliente quando o pedido de **retirada** fica pronto.
+
+```
+Olá, {{1}}! O seu pedido #{{2}} está pronto para retirar.
+
+🏪 {{3}}
+
+Até já!
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Bruna |
+| `{{2}}` | número do pedido | 12 |
+| `{{3}}` | nome do estabelecimento | Pizzaria do Zé |
+
+## 10. `agendapro_pedido_cancelado`
+
+Vai para a cliente quando o **estabelecimento** cancela (quando é ela quem
+cancela, pelo link, não vai mensagem: ela já sabe).
+
+```
+Olá, {{1}}. O pedido #{{2}} foi cancelado.
+
+🏪 {{3}}
+Motivo: {{4}}
+
+Qualquer dúvida, fale com o estabelecimento.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Bruna |
+| `{{2}}` | número do pedido | 12 |
+| `{{3}}` | nome do estabelecimento | Pizzaria do Zé |
+| `{{4}}` | motivo escrito por quem cancelou | acabou a massa |
+
+---
+
 ## As regras que quebram o envio sem avisar direito
 
 | regra | o que acontece se quebrar |
@@ -238,3 +346,6 @@ select tipo, modelo, variaveis, corpo
 
 `variaveis` tem que ter 6 itens na confirmação, no lembrete e no aviso à
 profissional, 4 no resumo e 7 no lembrete para o salão — na ordem das tabelas acima.
+Nos do pedido: 5 no pedido novo e no confirmado, 3 no "a caminho" e no
+"pronto", e 4 no cancelado. Os nomes deles estão no `modelo_de()` do
+`37_pedidos.sql`.

@@ -2298,11 +2298,16 @@ $$;
 create or replace function public.modelo_de(p_tipo text)
 returns text language sql immutable set search_path = public as $$
   select case p_tipo
-    when 'confirmacao' then 'agendapro_confirmacao'
-    when 'lembrete'    then 'agendapro_lembrete'
-    when 'novo'        then 'agendapro_aviso_profissional'
-    when 'resumo'      then 'agendapro_agenda_hoje'
-    when 'lembrete_equipe' then 'agendapro_lembrete_equipe'
+    when 'confirmacao'       then 'agendapro_confirmacao'
+    when 'lembrete'          then 'agendapro_lembrete'
+    when 'novo'              then 'agendapro_aviso_profissional'
+    when 'resumo'            then 'agendapro_agenda_hoje'
+    when 'lembrete_equipe'   then 'agendapro_lembrete_equipe'
+    when 'pedido_novo'       then 'agendapro_pedido_novo'
+    when 'pedido_confirmado' then 'agendapro_pedido_confirmado'
+    when 'pedido_a_caminho'  then 'agendapro_pedido_a_caminho'
+    when 'pedido_pronto'     then 'agendapro_pedido_pronto'
+    when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
   end
 $$;
 

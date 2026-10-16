@@ -129,11 +129,9 @@ echo "5. o rodapé volta a olhar a lista, e não o módulo"
 # rodapé dos pacotes, e sem ela o trecho aparecia duas vezes e a mutação
 # simplesmente não rodava.
 troca agendar.html \
-  "                               trilhaAte(0);
-                               if(casaFazServicos()){
+  "                               } else if(casaFazServicos()){
                                  bp.textContent = voc('acao');" \
-  "                               trilhaAte(0);
-                               if(servicosDoSalao().length){
+  "                               } else if(servicosDoSalao().length){
                                  bp.textContent = voc('acao');" \
   && rodar "rodapé olhando a lista"
 
@@ -146,6 +144,7 @@ troca agendar.html \
 echo "7. o rodapé volta a apontar sempre para serviços"
 troca agendar.html \
   "  if(tela === 'capa'){
+    if(modoPedidos() && produtosDaLoja().length) return irPara('loja');
     if(casaFazServicos()) return irPara('servico');
     if(produtosDaLoja().length && zapDoSalao()) return irPara('loja');
     return;
@@ -205,8 +204,8 @@ troca app.html \
 
 echo "16. a prévia mantém o botão de agendar sem agendamento"
 troca app.html \
-  "  if(comServicos) botoes.push(['agendar', 'Agendar horário']);" \
-  "  botoes.push(['agendar', 'Agendar horário']);" \
+  "  if(comServicos) botoes.push(['agendar', restaurante ? 'Fazer reserva' : 'Agendar horário']);" \
+  "  botoes.push(['agendar', restaurante ? 'Fazer reserva' : 'Agendar horário']);" \
   && rodar "botão de agendar na prévia de uma loja"
 
 echo ""

@@ -200,8 +200,8 @@ troca agendar.html \
 
 echo "22. loja: o campo aparece em salão sem cupom"
 troca agendar.html \
-  "  return NA_NUVEM && salaoTemCupom.produtos && totalDoCarrinho() > 0;" \
-  "  return NA_NUVEM && totalDoCarrinho() > 0;" \
+  "  return NA_NUVEM && salaoTemCupom.produtos && totalDoCarrinho() > 0 && !modoPedidos();" \
+  "  return NA_NUVEM && totalDoCarrinho() > 0 && !modoPedidos();" \
   && rodar "a cliente procura um código que não existe"
 
 echo "23. cor escrita no botão do cupom"

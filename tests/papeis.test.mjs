@@ -161,7 +161,9 @@ const abasDona = await abasDe(pgDona);
    agravante de que aqui ele parece uma asserção.
 
    O que importa não é quantas são: é que a dona veja TODAS. */
-const totalDeTelas = await pgDona.evaluate(() => TELAS.length);
+/* "Todas" quer dizer as que valem para ESTE tipo de negócio: a aba Pedidos só
+   existe no restaurante (37_pedidos), e este salão é de beleza. */
+const totalDeTelas = await pgDona.evaluate(() => TELAS.filter(t => t[0] !== 'pedidos').length);
 igual('vê todas as abas do sistema', abasDona.length, totalDeTelas);
 verdade('inclusive Plano e Meu negócio',
   abasDona.includes('plano') && abasDona.includes('salao'));

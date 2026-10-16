@@ -58,7 +58,7 @@ troca app.html \
 
 echo "2. a prévia esquece o Ver produtos"
 troca app.html \
-  "  if(temPr) botoes.push(['produtos', 'Ver produtos']);
+  "  if(temPr && !restaurante) botoes.push(['produtos', 'Ver produtos']);
 " \
   "" \
   && rodar "um botão a menos na prévia"

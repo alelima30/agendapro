@@ -66,6 +66,11 @@ insert into porta_aberta values
   ('remarcar_agendamento',    'remarcar pelo link: solta o antigo e leva o cupom, pelos dois tokens'),
   ('minha_fila',              'idem'),
   ('ver_convite',             'o convite de equipe, antes de ter conta'),
+  -- O modo Pedidos (37): a cliente pede sem login, e acompanha pelo segredo.
+  ('meu_pedido',              'a cliente acompanhando o pedido dela, por token'),
+  ('cancelar_meu_pedido',     'cancelar pelo token, e só antes do aceite'),
+  ('fazer_pedido',            'o pedido do link: preço, taxa e limites conferidos lá dentro'),
+  ('pedidos_da_casa',         'taxas, mínimo e se está aberto — o que a página já mostra'),
 
   -- Cadastro: precisam responder a quem ainda não tem login.
   ('slug_disponivel',         'confere o apelido enquanto a pessoa digita'),

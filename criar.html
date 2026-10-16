@@ -356,6 +356,7 @@ input.bom{border-color:rgba(21,128,61,.5)!important}
             <option value="clinica">Clínica</option>
             <option value="tatuagem">Estúdio de tatuagem</option>
             <option value="pet">Pet shop</option>
+            <option value="restaurante">Restaurante, pizzaria ou lanchonete</option>
             <option value="outro">Outro</option>
           </select></div>
         <div class="ajuda" id="ajudaTipo">Define o vocabulário do sistema:
@@ -646,6 +647,13 @@ function mudouTipo(){
   const palavra = {barbearia:'barbeiro', salao:'profissional', manicure:'manicure',
     estetica:'esteticista', clinica:'profissional', tatuagem:'tatuador',
     pet:'tosador', outro:'profissional'}[t];
+  /* O restaurante muda mais que uma palavra: o link vira cardápio com pedido,
+     entrega e retirada. Melhor dizer isso aqui, na hora da escolha. */
+  if(t === 'restaurante'){
+    document.getElementById('ajudaTipo').innerHTML = 'O seu link vira um <b style="color:var(--ac-600)">cardápio</b>: '
+      + 'a cliente faz o pedido, escolhe entrega ou retirada, e você acompanha na tela de Pedidos.';
+    return;
+  }
   document.getElementById('ajudaTipo').innerHTML = palavra
     ? `O sistema vai dizer <b style="color:var(--ac-600)">${palavra}</b> em vez de
        "profissional". Dá para mudar depois em Configurações.`

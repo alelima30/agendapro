@@ -799,6 +799,39 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (36_excluir_conta)'
            else '' end
   union all
+  /* O modo Pedidos (37_pedidos): as tabelas, a porta da página (aberta a quem
+     não entrou, porque a cliente não faz login), a do andamento (fechada a
+     ela), o tipo Restaurante e as mensagens do pedido na fila. */
+  select 36, 'Pedidos do restaurante',
+         case
+           when to_regclass('public.pedidos') is null
+             or to_regclass('public.pedido_itens') is null
+             or to_regprocedure('public.fazer_pedido(text,jsonb)') is null
+             or not has_function_privilege('anon', 'public.fazer_pedido(text,jsonb)', 'execute')
+             or to_regprocedure('public.mudar_status_pedido(uuid,text,text)') is null
+             or has_function_privilege('anon', 'public.mudar_status_pedido(uuid,text,text)', 'execute')
+             or public.modelo_de('pedido_confirmado') is distinct from 'agendapro_pedido_confirmado'
+             or pg_get_constraintdef((select oid from pg_constraint where conname = 'saloes_tipo_check'
+                                       and conrelid = 'public.saloes'::regclass)) not like '%restaurante%'
+             or pg_get_constraintdef((select oid from pg_constraint where conname = 'notificacoes_tipo_check'
+                                       and conrelid = 'public.notificacoes'::regclass)) not like '%pedido_novo%'
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regclass('public.pedidos') is null
+             or to_regclass('public.pedido_itens') is null
+             or to_regprocedure('public.fazer_pedido(text,jsonb)') is null
+             or not has_function_privilege('anon', 'public.fazer_pedido(text,jsonb)', 'execute')
+             or to_regprocedure('public.mudar_status_pedido(uuid,text,text)') is null
+             or has_function_privilege('anon', 'public.mudar_status_pedido(uuid,text,text)', 'execute')
+             or public.modelo_de('pedido_confirmado') is distinct from 'agendapro_pedido_confirmado'
+             or pg_get_constraintdef((select oid from pg_constraint where conname = 'saloes_tipo_check'
+                                       and conrelid = 'public.saloes'::regclass)) not like '%restaurante%'
+             or pg_get_constraintdef((select oid from pg_constraint where conname = 'notificacoes_tipo_check'
+                                       and conrelid = 'public.notificacoes'::regclass)) not like '%pedido_novo%'
+             then 'cole o 00_tudo.sql de novo (37_pedidos)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um
