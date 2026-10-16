@@ -782,6 +782,12 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
       <p class="centro" style="margin-top:22px">
         <button class="link" onclick="sair()">Sair desta conta</button>
       </p>
+      <!-- So' com conta de verdade (login): sem login nao ha conta para
+           excluir, so' a lembranca deste aparelho, e o Sair ja' a apaga. -->
+      <p class="centro" id="linhaExcluirConta" style="margin-top:6px;display:none">
+        <button class="link" id="btExcluirMinhaConta" onclick="excluirContaCliente()"
+                style="font-size:13px">Excluir minha conta</button>
+      </p>
     </section>
 
   </main>
@@ -2450,7 +2456,7 @@ function desenharCapa(){
     <div class="cat">${voc('oferecemos')}</div>
     ${[{ rotulo:'', lista: svs }].map(({ rotulo, lista }) => `
       ${rotulo ? `<div class="cat-sub">${escapar(rotulo)}</div>` : ''}
-      <div class="sv-grade${temAlgumaFoto ? ' com-foto' : ''}">${lista.map(s => cartaoDeServico(s, { elegante, temAlgumaFoto,
+      <div class="sv-grade${temAlgumaFoto || elegante ? ' com-foto' : ''}">${lista.map(s => cartaoDeServico(s, { elegante, temAlgumaFoto,
           sel: escolha.servicos.includes(s.id), acao: `escolherDaCapa('${s.id}')`,
           preco: comPreco ? precoDaCapa(s) : '' })).join('')}</div>`).join('')}
     ${sobram > 0 ? `
@@ -2699,6 +2705,17 @@ function agruparPorCategoria(svs, padrao){
                  (vazio / com o visto), porque ali tocar escolhe, e não leva */
 function cartaoDeServico(s, o){
   const elegante = o.elegante;
+  /* ⚠ NA CURVADA, SERVIÇO SEM FOTO TAMBÉM GANHA A CAPA COM A INICIAL.
+
+     A curva mora na foto. Num salão sem foto nenhuma, a regra de "cada um
+     vira uma linha" valia também para a Curvada — e a linha não tem onde
+     desenhar a curva. O dono clicava em "Curvada", a prévia do painel
+     mostrava a grade com a curva, e o link continuava praticamente igual ao
+     Clássico: "cliquei curvada e não foi". É o caso de todo salão novo, que
+     ainda não subiu foto.
+
+     A Clássica sem foto continua sendo a lista de linhas de sempre. */
+  const comCapa = o.temAlgumaFoto || elegante;
   return `
         <button class="sv-cartao${s.foto ? '' : ' sem-foto'}${o.sel ? ' sel' : ''}${
                   o.escolher ? ' sv-escolha' : ''}"${
@@ -2706,7 +2723,7 @@ function cartaoDeServico(s, o){
                 onclick="${o.acao}">
           ${s.foto ? `<span class="sv-cartao-foto"
                         style="background-image:url('${escapar(s.foto)}')"></span>`
-           : o.temAlgumaFoto ? `<span class="sv-cartao-foto sv-cartao-inicial"
+           : comCapa ? `<span class="sv-cartao-foto sv-cartao-inicial"
                         >${escapar((s.nome || '?').trim().charAt(0).toUpperCase())}</span>`
            : ''}
           <span class="sv-cartao-txt">
@@ -2773,11 +2790,12 @@ function desenharServicos(){
   const elegante = (salao.moldura || (salao.cfg||{}).moldura) === 'elegante';
   // A mesma regra da capa: com foto em algum serviço, a grade é de fotos e
   // quem não tem ganha a inicial; sem foto nenhuma, cada um é uma linha.
+  // Na Curvada a grade vale sempre (ver o `cartaoDeServico`).
   const temAlgumaFoto = todos.some(s => s.foto);
   alvo.innerHTML =
     agruparPorCategoria(svs, 'Serviços').map(({ rotulo, lista }) => `
       <div class="cat">${escapar(rotulo)}</div>
-      <div class="sv-grade${temAlgumaFoto ? ' com-foto' : ''}">${lista.map(s => {
+      <div class="sv-grade${temAlgumaFoto || elegante ? ' com-foto' : ''}">${lista.map(s => {
         const sel = escolha.servicos.includes(s.id);
         /* AQUI é onde a foto e o preço aparecem — não na capa. A pessoa já
            clicou em "Agendar horário", já decidiu que quer ser atendida
@@ -4406,6 +4424,8 @@ function desenharMeus(){
   const ficha = minhaFicha();
   document.getElementById('subMeus').textContent =
     (sessao ? sessao.nome + ' · ' : '') + salao.nome;
+  const linhaExcluir = document.getElementById('linhaExcluirConta');
+  if(linhaExcluir) linhaExcluir.style.display = logada() ? '' : 'none';
 
   const lista = meusAgendamentos();
   const alvo = document.getElementById('listaMeus');
@@ -6543,7 +6563,7 @@ function aplicarCoresSoltas(s, p, escuro){
   }
   /* Cada frase do topo com a sua cor. Sem escolha a variável não existe, e a
      regra do estilo.css cai na cor que a frase sempre teve. */
-  const FRASES = { nomeSalao:'--cor-nome', rua:'--cor-rua', lugar:'--cor-lugar',
+  const FRASES = { nomeSalao:'--cor-nome', rua:'--cor-rua', lugar:'--cor-lugar', subtitulo:'--cor-subtitulo',
     horario:'--cor-horario', bemVindo:'--cor-bemvindo', convite:'--cor-convite',
     legenda:'--cor-legenda', tituloServicos:'--cor-tit-servicos', nomeServico:'--cor-nome-servico',
     descServico:'--cor-desc-servico', precoServico:'--cor-preco-servico', duracao:'--cor-duracao',
@@ -7003,6 +7023,46 @@ function voltarDaConta(){
 
 async function sair(){
   if(!confirm('Sair desta conta neste aparelho?')) return;
+  await deixarEsteAparelho();
+}
+
+/* ── EXCLUIR A CONTA DA CLIENTE ───────────────────────────────────────────
+   Sai o login (e-mail e senha). A ficha dela é do SALÃO — nome e telefone
+   que ele cadastrou — e fica, desligada da conta (`clientes.perfil_id` é
+   `set null`); os horários marcados continuam na agenda dele. Quem decide e
+   confere tudo é o `excluir_minha_conta()` (36_excluir_conta.sql).
+
+   ⚠ A MESMA CONTA PODE SER DE UMA DONA. Quem administra um salão e marcou
+   horário em outro entra aqui com o mesmo login — e excluir por esta tela
+   apagaria o salão dela sem mostrar qual. Então, se a conta tem vínculo com
+   algum estabelecimento, esta tela não exclui: manda para o painel, onde a
+   exclusão mostra o nome de cada salão antes de pedir a palavra. */
+async function excluirContaCliente(){
+  if(!logada()) return;
+  let vinculos;
+  try{ vinculos = await Dados.chamar('o_que_excluir_apaga'); }
+  catch(e){ alert('Não consegui conferir a sua conta agora. Nada foi apagado.\n\n' + (e.message || '')); return; }
+  if(Array.isArray(vinculos) && vinculos.length){
+    alert('Esta conta também é usada para administrar '
+      + (vinculos.length > 1 ? 'estabelecimentos' : 'um estabelecimento')
+      + ' no AgendaPro. Para excluí-la, entre no painel: Meu negócio → Dados → Sua conta.');
+    return;
+  }
+  const p = prompt('Excluir a conta apaga o seu login (e-mail e senha), e não dá para desfazer. '
+    + 'Os horários que você já marcou continuam na agenda do salão — para desmarcar, '
+    + 'faça isso antes.\n\nPara confirmar, digite EXCLUIR:');
+  if(p === null) return;
+  if(p.trim().toUpperCase() !== 'EXCLUIR'){
+    alert('A conta não foi excluída: a palavra não confere.');
+    return;
+  }
+  try{ await Dados.chamar('excluir_minha_conta', { p_confirmacao: 'EXCLUIR' }); }
+  catch(e){ alert('A conta NÃO foi excluída. ' + (e.message || 'Tente de novo em alguns minutos.')); return; }
+  await deixarEsteAparelho();
+  alert('Sua conta foi excluída.');
+}
+
+async function deixarEsteAparelho(){
   if(logada()){ try{ await Dados.sair(); }catch(e){} }
   sessao = null;
   try{ localStorage.removeItem(CHAVE_SESSAO); }catch(e){}

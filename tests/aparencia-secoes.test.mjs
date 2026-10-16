@@ -162,7 +162,7 @@ const medir = p => p.evaluate(([h, S]) => { const hex = eval(h);
    ══════════════════════════════════════════════════════════════════════════ */
 secao('1. A tela em seções, cada cor numa só');
 const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 'texto', 'discreto', 'destaque',
-    'nomeSalao', 'rua', 'lugar', 'horario', 'bemVindo', 'convite',
+    'nomeSalao', 'rua', 'lugar', 'subtitulo', 'horario', 'bemVindo', 'convite',
     'legenda', 'tituloServicos', 'nomeServico', 'descServico', 'precoServico', 'duracao', 'verTodosServicos',
     'tituloProdutos', 'nomeProduto', 'precoProduto', 'verTodosProdutos', 'tituloEquipe', 'nomeEquipe'],
   apIcones:['icone', 'iconeDestaque'], apBordas:['borda', 'moldura'], apBotoes:['botao', 'letraAgendar', 'produtos', 'letraProdutos'] };

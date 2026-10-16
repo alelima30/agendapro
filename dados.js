@@ -1438,6 +1438,46 @@ async function apagarImagem(salaoId, nomeArquivo){
   }
 }
 
+/* ── A PASTA INTEIRA DE UM SALÃO (o Excluir conta) ────────────────────
+   O banco não apaga arquivo do Storage — o Supabase só deixa pela API dele.
+   Então, antes de a conta sair, a tela apaga a pasta `<salao_id>/` arquivo
+   por arquivo, pelo mesmo `apagarImagem` de sempre, ENQUANTO ainda é gestora
+   (a policy `img_apagar` exige; depois do excluir_minha_conta não seria).
+
+   Os nomes vêm de dois lugares: a listagem da pasta, que acha até foto
+   trocada e esquecida, e os endereços que a tela conhece (logo, capa,
+   fotos). Se a listagem falhar, os conhecidos ainda saem. Um arquivo que
+   não sai é ERRO, e quem chamou não segue: foto de salão apagado no ar é
+   exatamente o que excluir a conta promete que não fica. */
+async function apagarPastaDoSalao(salaoId, conhecidos){
+  if(!salaoId) throw new Error('Sem salão: não sei que pasta apagar.');
+  const nomes = new Set();
+  try{
+    const resp = await comSessaoViva(() =>
+      fetch(cfg.url + '/storage/v1/object/list/salao', {
+        method: 'POST',
+        headers: {
+          'apikey': cfg.chave,
+          'Authorization': 'Bearer ' + ((sessao && sessao.token) || cfg.chave),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prefix: salaoId, limit: 1000, offset: 0 }),
+      }));
+    if(resp.ok){
+      const lista = await resp.json();
+      // `id` nulo é subpasta, não arquivo: o caminho aqui é sempre plano.
+      if(Array.isArray(lista)) for(const o of lista) if(o && o.name && o.id !== null) nomes.add(o.name);
+    }
+  }catch(e){ console.warn('[AgendaPro] listar a pasta do salão:', e.message); }
+  const marca = '/storage/v1/object/public/salao/' + salaoId + '/';
+  for(const u of conhecidos || []){
+    const t = String(u || ''), i = t.indexOf(marca);
+    if(i >= 0) nomes.add(decodeURIComponent(t.slice(i + marca.length).split('?')[0]));
+  }
+  for(const n of nomes) await apagarImagem(salaoId, n);
+  return nomes.size;
+}
+
 /* ── O que as telas enxergam ─────────────────────────────────────────── */
 const Dados = LIGADO ? Nuvem : Demo;
 Dados.baixar = baixar;
@@ -1446,6 +1486,7 @@ Dados.TABELAS_SINCRONIZADAS = TABELAS_SINCRONIZADAS;
 
 Dados.enviarImagem = enviarImagem;
 Dados.apagarImagem = apagarImagem;
+Dados.apagarPastaDoSalao = apagarPastaDoSalao;
 
 /* Quem está logado, se é que alguém está. Existe porque uma tela precisa
    saber a diferença entre "ninguém entrou" e "entrou, mas não pode".

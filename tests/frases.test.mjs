@@ -150,10 +150,14 @@ async function lerPagina(){
   return r;
 }
 const DO_TOPO = ['nomeSalao', 'rua', 'lugar', 'horario', 'bemVindo', 'convite'];
+/* Na tela entra mais uma: o "Agende seu horário", que só existe na página
+   quando o salão NÃO tem endereço — e este salão tem. A cor dele na página é
+   cobrada no `aparencia-link.test.mjs`, num salão sem endereço. */
+const NA_TELA = ['nomeSalao', 'rua', 'lugar', 'subtitulo', 'horario', 'bemVindo', 'convite'];
 const DE_BAIXO = ['legenda', 'tituloServicos', 'nomeServico', 'descServico', 'precoServico', 'duracao',
   'verTodosServicos', 'tituloProdutos', 'nomeProduto', 'precoProduto', 'verTodosProdutos', 'tituloEquipe', 'nomeEquipe'];
 const FRASES = [...DO_TOPO, ...DE_BAIXO];
-const PAI = { nomeSalao:'titulo', rua:'texto', lugar:'discreto', horario:'texto', bemVindo:'destaque', convite:'texto',
+const PAI = { nomeSalao:'titulo', rua:'texto', lugar:'discreto', subtitulo:'texto', horario:'texto', bemVindo:'destaque', convite:'texto',
   tituloServicos:'discreto', nomeServico:'titulo', descServico:'discreto', precoServico:'destaque', duracao:'discreto',
   verTodosServicos:'destaque', tituloProdutos:'discreto', nomeProduto:'titulo', precoProduto:'destaque',
   verTodosProdutos:'destaque', tituloEquipe:'discreto', nomeEquipe:'titulo' };
@@ -163,7 +167,7 @@ const DE_ANTES = Object.fromEntries(FRASES.map(k => [k, k === 'legenda' ? '#FFFF
 /* ══════════════════════════════════════════════════════════════════════════
    1 — A TELA
    ══════════════════════════════════════════════════════════════════════════ */
-secao('1. As seis frases em Textos');
+secao('1. As sete frases do topo em Textos');
 {
   const { p, fechar } = await painel();
   const t = await p.evaluate(() => ({
@@ -175,14 +179,15 @@ secao('1. As seis frases em Textos');
       herdar: getComputedStyle(l.querySelector('button')).display !== 'none' })),
     titulo: (document.querySelector('#coresFrases').previousElementSibling || {}).textContent,
   }));
-  igual('as seis, na ordem da página', t.linhas.map(l => l.chave), DO_TOPO);
+  igual('as sete, na ordem da página', t.linhas.map(l => l.chave), NA_TELA);
   igual('com os nomes que o dono usa', t.linhas.map(l => l.rot),
-    ['Nome do estabelecimento', 'Endereço (rua)', 'Bairro e cidade', 'Horário de hoje', 'Bem-vindo!', 'Frase do Bem-vindo']);
+    ['Nome do estabelecimento', 'Endereço (rua)', 'Bairro e cidade', 'Agende seu horário',
+     'Horário de hoje', 'Bem-vindo!', 'Frase do Bem-vindo']);
   verdade('debaixo de um título que diz o que é', /Cada frase do topo/i.test(t.titulo || ''), t.titulo);
   verdade('sem escolha, cada uma diz de quem herda, e sem botão "herdar"',
     t.linhas.every(l => /acompanha "/.test(l.ajuda) && !l.herdar), JSON.stringify(t.linhas.map(l => l.ajuda)));
   igual('e o quadrado mostra a cor que está na frase: a do pai',
-    t.linhas.map(l => l.valor), DO_TOPO.map(k => PAIS[PAI[k]]));
+    t.linhas.map(l => l.valor), NA_TELA.map(k => PAIS[PAI[k]]));
   verdade('cada uma com o campo HEX do mesmo valor', t.linhas.every(l => l.hex === l.valor), JSON.stringify(t.linhas));
   /* E as de baixo, em três grupos com título, na ordem da página. */
   const baixo = await p.evaluate(() => ['coresFrasesServicos', 'coresFrasesProdutos', 'coresFrasesEquipe'].map(id => {

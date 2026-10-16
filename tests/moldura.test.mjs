@@ -356,8 +356,10 @@ await f.close();
        nela, e os 2px são o certo — tirá-los abriria um vão branco no meio do
        cartão;
 
-     · salão SEM FOTO NENHUMA: não há capa com que encostar, e aí vale a
-       regra antiga inteira — nenhum `.sv-cartao-foto`, e o nome longe do topo.
+     · salão SEM FOTO NENHUMA: era a regra antiga inteira — nenhum
+       `.sv-cartao-foto`, e o nome longe do topo. Deixou de ser na Curvada:
+       sem capa, a curva não tinha onde aparecer, e o dono achava que o botão
+       não funcionava. Agora todo serviço ganha a capa com a inicial (5b).
 
    As duas cenas estão aqui porque consertar uma quebrando a outra é trocar de
    reclamação, não resolver — e foi exatamente isso que aconteceu da primeira
@@ -396,7 +398,12 @@ igual('sem erro de JavaScript', g.erros.length ? g.erros.join(' | ') : 0, 0);
 await g.close();
 
 // ── 5b · o salão que ainda não subiu foto nenhuma ─────────────────────────
-// É a regra antiga, e ela continua valendo inteira.
+/* ⚠ A REGRA MUDOU AQUI, A PEDIDO. Antes a Curvada sem foto nenhuma virava a
+   lista de linhas da Clássica — e a curva, que mora na foto, sumia. O dono
+   clicava em "Curvada", a prévia mostrava a curva, e o link ficava igual:
+   "cliquei curvada e não foi". Agora, na Curvada, todo serviço ganha a capa
+   com a inicial, com a onda, mesmo sem foto nenhuma no salão. A Clássica sem
+   foto continua a lista de sempre (aparencia-link.test.mjs, seção 2). */
 for(const s of await d.lista('servicos', { salaoId })){
   if(s.foto) await d.atualizar('servicos', s.id, { foto: null });
 }
@@ -404,11 +411,10 @@ const h = await abrir();
 const nenhuma = await medirSemFoto(h);
 verdade('sem foto nenhuma no salão, o cartão continua existindo',
   nenhuma !== null);
-igual('e aí não há foto nenhuma para recortar', nenhuma && nenhuma.fotos, 0);
-verdade('o nome não fica colado no topo — ' + (nenhuma && nenhuma.topo) + 'px',
-  nenhuma && nenhuma.topo >= 10,
-  'ficou ' + (nenhuma && nenhuma.topo) + 'px: o padding de 2px, que só serve '
-  + 'para encostar numa foto, sobrou num cartão que não tem foto');
+igual('e ganha a capa com a inicial, onde a curva aparece', nenhuma && nenhuma.iniciais, 1);
+verdade('o nome encosta na capa, sem vão branco — ' + (nenhuma && nenhuma.topo) + 'px',
+  nenhuma && nenhuma.topo <= 4,
+  'a capa da inicial é foto para todos os efeitos: o texto encosta nela');
 igual('e a seta continua lá', nenhuma && nenhuma.seta, 1);
 igual('sem erro de JavaScript', h.erros.length ? h.erros.join(' | ') : 0, 0);
 await h.close();

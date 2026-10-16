@@ -780,6 +780,25 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (13_cobranca e 09_cliente)'
            else '' end
   union all
+  /* O botão Excluir conta (36_excluir_conta): as duas funções que a tela
+     chama, nenhuma aberta a quem não entrou, e a que apaga o salão inteiro
+     fechada até para quem entrou — só a excluir_minha_conta() a chama. */
+  select 35, 'Excluir conta',
+         case
+           when to_regprocedure('public.excluir_minha_conta(text)') is null
+             or to_regprocedure('public.o_que_excluir_apaga()') is null
+             or has_function_privilege('anon', 'public.excluir_minha_conta(text)', 'execute')
+             or has_function_privilege('authenticated', 'public.apagar_salao_inteiro(uuid)', 'execute')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.excluir_minha_conta(text)') is null
+             or to_regprocedure('public.o_que_excluir_apaga()') is null
+             or has_function_privilege('anon', 'public.excluir_minha_conta(text)', 'execute')
+             or has_function_privilege('authenticated', 'public.apagar_salao_inteiro(uuid)', 'execute')
+             then 'cole o 00_tudo.sql de novo (36_excluir_conta)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

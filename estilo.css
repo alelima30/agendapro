@@ -738,10 +738,25 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
    o que o dono faz toda semana. Um cartão de equipe não é uma tela de
    confirmação de exclusão: o gesto raro não pode gritar mais alto que o
    comum. A cor diz "cuidado" sem disputar a atenção. */
-.btn.btn-perigo{ color:var(--erro) }
-.btn.btn-perigo:hover{
+/* ⚠ COM OS DOIS `:not`, DE PROPÓSITO. A regra do secundário logo acima
+   (`.btn:not(.btn-primary):not(.btn-p)`) pesa três classes, e esta pesava
+   duas: a cor de erro NUNCA aparecia — o "Tirar da equipe" e o "Excluir"
+   saíam pretos como qualquer botão. Visto no print do Excluir conta. */
+.btn.btn-perigo:not(.btn-primary):not(.btn-p){ color:var(--erro) }
+.btn.btn-perigo:not(.btn-primary):not(.btn-p):hover{
   background:var(--er-soft); border-color:var(--erro); color:var(--erro);
 }
+/* O "Excluir para sempre" fica apagado até a palavra EXCLUIR ser digitada:
+   sem fundo e sem a cor de erro, para não parecer um botão que só não
+   respondeu. */
+.btn.btn-perigo:not(.btn-primary):not(.btn-p):disabled{ color:var(--txt3); background:transparent;
+  border-color:var(--borda); box-shadow:none; cursor:not-allowed }
+
+/* Excluir conta, em Sua conta: uma linha separa do resto, e é só. Caixa
+   vermelha cheia assustaria quem veio trocar a senha. */
+.zona-excluir > b{ font-size:15px }
+.lista-excluir{ margin:2px 0 0 20px; padding:0 }
+.lista-excluir li{ margin:3px 0 }
 
 /* Desligado: chapado e sem peso. Baixar a opacidade de um botão colorido
    deixa um bloco lavado que continua chamando mais atenção que o conteúdo. */
@@ -893,6 +908,10 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
    (rua)" escolhido, o dono tem que ver a cor que escolheu, e não 60% dela. */
 .fone-topo [data-cfg="rua"]{ opacity:1;
   color:var(--fone-rua, var(--fone-texto, var(--fone-ico-texto, inherit))) }
+/* O "Agende seu horário" (salão sem endereço) também na cor cheia, pelo mesmo
+   motivo da rua: é a cor que a página pinta. */
+.fone-topo [data-cfg="subtitulo"]{ opacity:1;
+  color:var(--fone-subtitulo, var(--fone-texto, var(--fone-ico-texto, inherit))) }
 /* A prévia repete o metal e o brilho da página da cliente. Se ela mostrasse
    um botão chapado, mentiria justamente sobre a escolha que existe para
    mostrar — e o dono só descobriria abrindo o próprio link no celular. */
@@ -2195,7 +2214,7 @@ body.sem-brilho .marca-selo{ animation:none }
 /* O endereço, embaixo do nome. Duas linhas, na ordem em que se lê endereço —
    ver `Endereco.completo()`. A segunda vem menor e mais apagada: bairro e
    cidade são referência, o que a pessoa procura primeiro é a rua. */
-.marca-salao .sub{ margin:0 auto; max-width:32ch }
+.marca-salao .sub{ margin:0 auto; max-width:32ch; color:var(--cor-subtitulo, var(--txt2)) }
 .marca-end{ margin:0 auto; max-width:34ch; line-height:1.5 }
 /* Cada frase do topo com a sua cor (Aparência → Textos). Sem escolha a
    variável não existe e vale a cor de sempre, depois da vírgula. */

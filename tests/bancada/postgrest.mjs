@@ -424,6 +424,17 @@ const http_ = http.createServer(async (req, res) => {
        O caminho `<salao_id>/<arquivo>` é a convenção de que a policy do balde
        depende. Aqui não há policy — mas o teste que confere se um salão
        alcança a pasta do outro é de banco, em 04_imagens.sql, não daqui. */
+    /* A LISTAGEM DE UMA PASTA, como a do Storage de verdade: POST com
+       { prefix }, e a resposta é a lista dos arquivos com o nome RELATIVO à
+       pasta. Sem isto, o POST caía no envio logo abaixo e gravava um arquivo
+       chamado "list/salao". É o que o Excluir conta usa para achar as fotos. */
+    if(u.pathname.startsWith('/storage/v1/object/list/') && req.method === 'POST'){
+      const balde = decodeURIComponent(u.pathname.replace('/storage/v1/object/list/', ''));
+      const b = await corpoDe(req) || {};
+      const pasta = balde + '/' + String(b.prefix || '').replace(/\/+$/, '') + '/';
+      return json(res, 200, [...arquivos.keys()].filter(k => k.startsWith(pasta))
+        .map(k => ({ name: k.slice(pasta.length), id: k })));
+    }
     if(u.pathname.startsWith('/storage/v1/object/')){
       const chave = decodeURIComponent(
         u.pathname.replace('/storage/v1/object/', '')

@@ -627,6 +627,15 @@ function chegouPeloEmail(){
 
   abrirCortina();
 
+  /* A volta do "Excluir minha conta" (app.html). A conta já não existe, e a
+     tela diz isso — sem o recado, a pessoa tentaria entrar e leria "e-mail
+     ou senha errados", achando que a exclusão falhou. */
+  if(new URLSearchParams(location.search).get('conta') === 'excluida'){
+    mostrar('ok', '<b>Sua conta foi excluída.</b> O acesso e os dados dos '
+      + 'estabelecimentos em que você era a dona foram apagados.');
+    history.replaceState(null, '', location.pathname);
+  }
+
   document.getElementById('ambiente').textContent =
     NA_NUVEM ? (window.Dados.ambiente || 'produção') : 'demonstração';
 

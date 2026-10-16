@@ -126,7 +126,7 @@ troca agendar.html \
 
 echo "12. o painel deixa de gravar os atalhos"
 troca app.html \
-  "    atalhos: aparencia.atalhos,
+  "    atalhos: lerAtalhos(aparencia.atalhos),
 " \
   "" \
   && rodar "escolhe, salva, e nada"

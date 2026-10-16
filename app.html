@@ -1919,7 +1919,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.5c70f3';
+const VERSAO_APP = 'v9.7bfa77';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3901,6 +3901,9 @@ function pintarEquipe(){
                : escapar((p.nome || '?').trim().charAt(0).toUpperCase())}</span>${escapar(p.nome)}
         ${p.ativo ? '' : '<span class="tag t-canc">inativo</span>'}</h3>
       <p>Comissão de ${p.comissaoPct}% · ${dias}</p>
+      ${p.ativo !== false && String(p.telefone || '').replace(/\D/g, '').length < 10
+        ? `<p class="ajuda eq-sem-tel">Sem WhatsApp cadastrado: não recebe o aviso de
+             horário novo, o lembrete nem o resumo do dia. Toque em Editar para pôr o número.</p>` : ''}
       <div class="card-acoes">
         <button class="btn btn-peq" onclick="abrirProf('${p.id}')">Editar</button>
         <button class="btn btn-peq" onclick="abrirBloqueio('${p.id}')">Bloquear horário</button>
@@ -8191,7 +8194,10 @@ function abrirProf(pid){
          (Sem crase e sem acento: comentario dentro de template literal.) -->
     <div class="campo"><label>WhatsApp de quem atende (opcional)</label>
       <input id="qTel" value="${escapar(p && p.telefone ? p.telefone : '')}"
-             placeholder="(11) 99999-0000"></div>
+             placeholder="(11) 99999-0000">
+      <p class="ajuda" id="qTelAjuda" style="margin-top:5px">É para este número que vão
+        o aviso de horário novo, o lembrete e o resumo do dia. Sem número,
+        essas mensagens não são enviadas para esta pessoa.</p></div>
     <div class="campo">
       <label class="check"><input type="checkbox" id="qNotifNovo"
              ${!p || p.notifNovo !== false ? 'checked' : ''}>
@@ -9431,6 +9437,7 @@ function pintarSalao(){
 
       <div id="avisoWhats"></div>
       <div id="consumoMensagens"></div>
+      <div id="avisoTelEquipe"></div>
 
       <div class="campo" style="margin-top:16px">
         <label class="check"><input type="checkbox" id="nConfirma">
@@ -9439,7 +9446,8 @@ function pintarSalao(){
       </div>
 
       <div class="campo" style="margin-top:12px">
-        <label class="check"><input type="checkbox" id="nProfNovo">
+        <label class="check"><input type="checkbox" id="nProfNovo"
+                 onchange="pintarNotificacoes(true)">
           <span><b>Aviso para quem vai atender</b> — a profissional recebe o
           novo agendamento da agenda dela. Cada uma pode desligar o dela em
           Equipe.</span></label>
@@ -9648,6 +9656,41 @@ function pintarNotificacoes(soVisibilidade){
   ver('caixaPeriodo',  temResumo && periodo !== 'dia');
 
   pintarAvisoWhats();
+  pintarAvisoTelEquipe();
+}
+
+/* ── ⚠ AS MENSAGENS DA EQUIPE PRECISAM DO NÚMERO DE CADA UM ───────────────
+   "Precisa informar em algum lugar que, para funcionar as mensagens, tem que
+   cadastrar o telefone no profissional." O aviso de horário novo, o lembrete
+   e o resumo do dia vão para o WhatsApp de CADA profissional (a coluna
+   `profissionais.telefone`, do 21_notificacoes). Sem número o banco não tem
+   para onde mandar e pula a pessoa calado — de propósito, porque não ter
+   número é escolha legítima de quem não quer receber nada. Mas o dono que
+   ligou a caixa aqui achava que estava funcionando.
+
+   Por isso o aviso só aparece quando ALGUMA mensagem da equipe está ligada,
+   e diz o nome de quem está sem número. O lembrete com "O dono do salão" não
+   conta: esse vai para o dono, não para a equipe. */
+function profsSemWhatsapp(){
+  return doSalao(bd.profissionais || []).filter(p => p.ativo !== false
+    && String(p.telefone || '').replace(/\D/g, '').length < 10);
+}
+function pintarAvisoTelEquipe(){
+  const alvo = document.getElementById('avisoTelEquipe');
+  if(!alvo) return;
+  const ligado = id => !!(document.getElementById(id) || {}).checked;
+  const para = (document.getElementById('nLembEquipePara') || {}).value;
+  const usaEquipe = ligado('nProfNovo') || ligado('nResumo')
+    || (ligado('nLembEquipe') && para !== 'dono');
+  const sem = profsSemWhatsapp();
+  if(!usaEquipe || !sem.length){ alvo.innerHTML = ''; return; }
+  alvo.innerHTML = `<div class="aviso" style="margin-top:12px">
+    <b>Falta o WhatsApp de quem atende.</b> O aviso de horário novo, o lembrete
+    e o resumo do dia vão para o WhatsApp cadastrado em cada profissional, em
+    Equipe. Sem o número, a pessoa não recebe nenhuma dessas mensagens.<br>
+    Sem WhatsApp: <b>${sem.map(p => escapar(p.nome)).join(', ')}</b>.
+    <div style="margin-top:8px"><button type="button" class="btn btn-peq"
+      onclick="irPara('equipe')">Cadastrar em Equipe</button></div></div>`;
 }
 
 /* ⚠ A TELA NÃO PODE PROMETER O QUE O CANAL NÃO ENTREGA.
@@ -10260,6 +10303,11 @@ const CORES_SOLTAS = [
   ['nomeSalao',  'Nome do estabelecimento', 'O nome grande, embaixo da logo.'],
   ['rua',        'Endereço (rua)',  'A rua e o número, embaixo do nome.'],
   ['lugar',      'Bairro e cidade', 'A linha menor, embaixo da rua.'],
+  /* "Agende seu horário não tem cor para mudar" — e era a única frase do topo
+     assim. Ela só aparece no lugar do endereço, quando o dono não preencheu
+     um; por isso a ajuda diz quando ela existe, senão o dono escolhe a cor e
+     procura a frase na própria página sem achar. */
+  ['subtitulo',  'Agende seu horário', 'A frase embaixo do nome. Só aparece quando o endereço não está preenchido.'],
   ['horario',    'Horário de hoje', 'O "Até amanhã às 00:00" ao lado do ABERTO.'],
   ['bemVindo',   'Bem-vindo!',      'O título do quadro de boas-vindas.'],
   ['convite',    'Frase do Bem-vindo', 'A frase "Escolha o serviço..." embaixo do Bem-vindo.'],
@@ -10288,7 +10336,7 @@ const CORES_SOLTAS = [
 ];
 /* De quem cada frase herda enquanto não tiver cor própria: a mesma cor que a
    pintava antes de poder ser escolhida sozinha. */
-const FRASE_HERDA_DE = { nomeSalao:'titulo', rua:'texto', lugar:'discreto',
+const FRASE_HERDA_DE = { nomeSalao:'titulo', rua:'texto', lugar:'discreto', subtitulo:'texto',
   horario:'texto', bemVindo:'destaque', convite:'texto',
   tituloServicos:'discreto', nomeServico:'titulo', descServico:'discreto', precoServico:'destaque',
   duracao:'discreto', verTodosServicos:'destaque', tituloProdutos:'discreto', nomeProduto:'titulo',
@@ -10299,7 +10347,7 @@ const GRUPOS_DE_COR = [
   ['corDoPapel',  ['papel']],
   ['coresFundo',  ['card', 'secundaria']],
   ['coresTextos', ['titulo', 'texto', 'discreto', 'destaque']],
-  ['coresFrases', ['nomeSalao', 'rua', 'lugar', 'horario', 'bemVindo', 'convite']],
+  ['coresFrases', ['nomeSalao', 'rua', 'lugar', 'subtitulo', 'horario', 'bemVindo', 'convite']],
   ['coresFrasesServicos', ['legenda', 'tituloServicos', 'nomeServico', 'descServico', 'precoServico',
                            'duracao', 'verTodosServicos']],
   ['coresFrasesProdutos', ['tituloProdutos', 'nomeProduto', 'precoProduto', 'verTodosProdutos']],
@@ -10646,6 +10694,18 @@ function pintarAparencia(){
   if(fv) fv.value = 135 - aparencia.veu;
 
   regua('reguaCartoes', CARTOES, 'cartoes', 'explicaCartoes');
+  /* "Cliquei em Vidro e nada mudou": com bastante branco por cima da foto, o
+     Automático JÁ é vidro — a mesma conta do agendar.html, que só fecha com o
+     véu abaixo de 35. Dizer em qual dos dois ele cai agora explica o clique
+     que não mexe em nada, em vez de parecer botão quebrado. */
+  const expCartoes = document.getElementById('explicaCartoes');
+  if(expCartoes && aparencia.cartoes !== 'fechado'){
+    const autoFecha = aparencia.veu < 35;
+    if(aparencia.cartoes === 'auto') expCartoes.textContent += autoFecha
+      ? ' Com o fundo como está agora, ele fica igual ao Fechado.'
+      : ' Com o fundo como está agora, ele fica igual ao Vidro.';
+    else if(!autoFecha) expCartoes.textContent += ' Com o fundo como está agora, fica igual ao Automático.';
+  }
   regua('reguaCapaForma', [
     ['curva', 'Arredondada', 'A foto termina num arco suave, e a logo monta no '
       + 'meio dele. É como a página já era.'],
@@ -11022,6 +11082,7 @@ function conferirLegibilidade(){
   olhar('nomeSalao', 'o nome do estabelecimento', 3,   'topo');
   olhar('rua',       'a rua',                     4.5, 'topo');
   olhar('lugar',     'o bairro e a cidade',       2,   'topo');
+  olhar('subtitulo', 'o "Agende seu horário"',    4.5, 'topo');
   olhar('horario',   'o horário de hoje',         4.5, 'quadro');
   olhar('bemVindo',  'o Bem-vindo',               3,   'quadro');
   olhar('convite',   'a frase do Bem-vindo',      4.5, 'quadro');
@@ -11818,7 +11879,7 @@ function pintarPreviaFone(){
             return e.length
               ? `<span data-cfg="rua"><span class="fone-pino" data-ico="local" data-cfg="pino"></span>${
                   escapar(e[0])}</span>${e[1] ? `<i data-cfg="lugar">${escapar(e[1])}</i>` : ''}`
-              : '<span>Agende seu horário</span>';
+              : '<span data-cfg="subtitulo">Agende seu horário</span>';
           })()}
        </div>
        ${previaDaInfo(sl)}
@@ -11908,6 +11969,7 @@ const CONFIG_DA_PREVIA = {
   nome:     ['.cor-linha[data-chave="nomeSalao"]', '#reguaLetra'],
   rua:      ['.cor-linha[data-chave="rua"]'],
   lugar:    ['.cor-linha[data-chave="lugar"]'],
+  subtitulo:['.cor-linha[data-chave="subtitulo"]'],
   bemVindo: ['.cor-linha[data-chave="bemVindo"]'],
   convite:  ['.cor-linha[data-chave="convite"]'],
   pino:     ['.cor-linha[data-chave="icone"]'],
@@ -11976,7 +12038,14 @@ function cfgDaAparencia(){
     slideDe: aparencia.slideDe,
     capaFoco: aparencia.capaFoco,
     capaForma: aparencia.capaForma,
-    atalhos: aparencia.atalhos,
+    /* ⚠ UMA CÓPIA, E NÃO O OBJETO DA TELA. Os atalhos são a única chave
+       que é objeto mexido NO LUGAR (escolherAtalhos, escolherSombra…).
+       Entregue por referência, o Salvar punha dentro do `sl.cfg` o MESMO
+       objeto que a tela continuava mexendo: dali em diante, trocar o estilo,
+       a sombra ou a cor de um atalho mudava "o salvo" junto, a barra não via
+       diferença, o Salvar não aparecia — e a mudança nunca ia para o banco.
+       Achado pelo `aparencia-link.test.mjs`. */
+    atalhos: lerAtalhos(aparencia.atalhos),
     botaoProdutos: aparencia.botaoProdutos,
     veu: aparencia.veu,
     cartoes: aparencia.cartoes,
@@ -12515,7 +12584,126 @@ async function pintarConta(){
     ${email ? '' : `<div class="aviso" style="margin-top:14px">
       <b>Esta conta entrou sem e-mail</b> — pelo código do WhatsApp, ou criada
       direto no Supabase. Sem endereço não dá para conferir a senha atual, nem
-      para recuperar a senha por e-mail.</div>`}`;
+      para recuperar a senha por e-mail.</div>`}
+    <div class="linha-fina" style="margin:20px 0 16px"></div>
+    <div class="zona-excluir">
+      <b>Excluir conta</b>
+      <p class="secao-sub" style="margin:4px 0 10px">Apaga o seu acesso e, nos
+        estabelecimentos em que você é a dona, tudo o que há neles. Não dá para
+        desfazer.</p>
+      <button type="button" class="btn btn-perigo" id="btExcluirConta"
+              onclick="abrirExcluirConta()">Excluir minha conta</button>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EXCLUIR A CONTA — "APAGA TUDO NA HORA"
+
+   Quem decide o que sai é o banco (36_excluir_conta.sql): a tela pergunta a
+   ele o que vai acontecer (`o_que_excluir_apaga`), mostra com o nome de cada
+   estabelecimento, e só pede a palavra depois. Assim o aviso e a exclusão
+   nunca discordam — "sou a única dona?" tem uma resposta só, a do banco.
+
+   ⚠ A ORDEM DOS PASSOS NÃO É ENFEITE:
+     1. o cartão, primeiro. Assinatura ligada no Mercado Pago com o salão
+        apagado aqui seria cobrança todo mês sem tela para desligar. Se a
+        borda não confirmar, PARA — o banco também recusaria;
+     2. as fotos, enquanto ainda é gestora: a policy do Storage exige, e
+        depois do passo 3 já não deixaria. Arquivo que não sai também PARA;
+     3. a conta, no banco, que confere a palavra de novo — não só aqui.
+   Parar no 1 ou no 2 não apaga a conta: a pessoa lê o motivo e tenta de novo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let paraExcluir = [];
+async function abrirExcluirConta(){
+  try{
+    const r = await Dados.chamar('o_que_excluir_apaga');
+    paraExcluir = Array.isArray(r) ? r : [];
+  }catch(e){
+    alert('Não consegui conferir o que a exclusão apagaria. Nada foi apagado.\n\n'
+        + (e.message || ''));
+    return;
+  }
+  const apaga = paraExcluir.filter(x => x.apaga), fica = paraExcluir.filter(x => !x.apaga);
+  const lista = xs => '<ul class="lista-excluir">' + xs.map(x => `<li><b>${escapar(x.nome)}</b>${
+      x.apaga && x.cartao ? ' — a renovação automática no cartão é desligada antes' : ''}</li>`).join('')
+    + '</ul>';
+  abrirModal('Excluir minha conta', `
+    <div class="aviso"><b>Isto não tem volta.</b> Não guardamos cópia: o que for
+      apagado não pode ser recuperado depois, nem pelo suporte.</div>
+    ${apaga.length ? `<p style="margin:14px 0 4px">${apaga.length > 1 ? 'Estes estabelecimentos são apagados'
+        : 'Este estabelecimento é apagado'} por inteiro — agenda, clientes, serviços,
+        equipe, fotos, caixa, cobranças e histórico:</p>${lista(apaga)}` : ''}
+    ${fica.length ? `<p style="margin:14px 0 4px">${fica.length > 1 ? 'Nestes' : 'Neste'} você só perde o
+        acesso. ${fica.length > 1 ? 'Eles continuam' : 'Ele continua'} com quem é de lá:</p>${lista(fica)}` : ''}
+    <p style="margin:14px 0 4px">E o seu login (e-mail e senha) deixa de existir.</p>
+    <div class="campo" style="margin-top:14px">
+      <label for="palavraExcluir">Para confirmar, digite <b>EXCLUIR</b></label>
+      <input id="palavraExcluir" autocomplete="off" autocapitalize="characters"
+             oninput="conferirPalavraExcluir()">
+    </div>
+    <div id="recadoExcluir"></div>`,
+    [['Cancelar', 'fecharModal()', ''],
+     ['Excluir para sempre', 'confirmarExcluirConta()', 'btn-perigo']]);
+  conferirPalavraExcluir();
+  const c = document.getElementById('palavraExcluir');
+  if(c) c.focus();
+}
+function botaoDeExcluir(){
+  return [...document.querySelectorAll('#modalPe button')]
+    .find(b => /Excluir para sempre|Excluindo/.test(b.textContent));
+}
+/* O botão só acende com a palavra certa. Maiúscula ou minúscula tanto faz —
+   quem digita "excluir" sabe o que está fazendo; o que a palavra evita é o
+   clique sem ler. */
+function conferirPalavraExcluir(){
+  const v = ((document.getElementById('palavraExcluir') || {}).value || '').trim().toUpperCase();
+  const b = botaoDeExcluir();
+  if(b) b.disabled = v !== 'EXCLUIR';
+}
+/* Endereços de foto que a tela conhece de um salão: logo, capa, fundo,
+   galeria e as fotos de serviço, produto e equipe. A listagem da pasta acha
+   o resto (ver `apagarPastaDoSalao` no dados.js). */
+function imagensDoSalao(id){
+  const s = (bd.saloes || []).find(x => x.id === id) || {};
+  const c = s.cfg || {};
+  const deles = t => (bd[t] || []).filter(x => x.salaoId === id).map(x => x.foto);
+  return [s.logo, s.capa, c.fundo, ...((Array.isArray(c.galeria) ? c.galeria : []).map(g => g && g.url)),
+          ...deles('servicos'), ...deles('produtos'), ...deles('profissionais')].filter(Boolean);
+}
+async function confirmarExcluirConta(){
+  const v = ((document.getElementById('palavraExcluir') || {}).value || '').trim().toUpperCase();
+  if(v !== 'EXCLUIR') return conferirPalavraExcluir();
+  const recado = (t, erro) => {
+    const r = document.getElementById('recadoExcluir');
+    if(r) r.innerHTML = `<div class="aviso${erro ? '' : ' info'}" style="margin-top:12px">${t}</div>`;
+  };
+  const b = botaoDeExcluir();
+  if(b){ b.disabled = true; b.textContent = 'Excluindo…'; }
+  try{
+    for(const s of paraExcluir.filter(x => x.apaga)){
+      if(s.cartao){
+        recado('Desligando a renovação automática de ' + escapar(s.nome) + '…');
+        await Dados.borda('cancelar-cartao', { salaoId: s.salao_id });
+      }
+      recado('Apagando as fotos de ' + escapar(s.nome) + '…');
+      await Dados.apagarPastaDoSalao(s.salao_id, imagensDoSalao(s.salao_id));
+    }
+    recado('Apagando a conta…');
+    await Dados.chamar('excluir_minha_conta', { p_confirmacao: 'EXCLUIR' });
+  }catch(e){
+    recado('<b>A conta NÃO foi excluída.</b> ' + escapar(e.message || 'Tente de novo em alguns minutos.'), true);
+    if(b){ b.textContent = 'Excluir para sempre'; conferirPalavraExcluir(); }
+    return;
+  }
+  /* A conta já não existe: sair é só limpar este navegador. O que estava
+     guardado aqui era dessa conta, e não fica para a próxima pessoa. */
+  try{ await Dados.sair(); }catch(e){}
+  try{
+    // O tema claro/escuro fica: é do aparelho, não da conta.
+    Object.keys(localStorage).filter(k => k.startsWith('agendapro.') && !k.endsWith('.tema'))
+      .forEach(k => localStorage.removeItem(k));
+  }catch(e){}
+  location.href = 'entrar.html?conta=excluida';
 }
 
 /* ── TROCAR A SENHA ───────────────────────────────────────────────────────

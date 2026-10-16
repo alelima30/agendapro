@@ -200,7 +200,7 @@ await porCfg({ cor:'#1D4ED8' });
     return { aberta: d.open, resumo: d.querySelector('summary').textContent.trim(),
       dentro: d.querySelectorAll('.cor-linha').length, noTextos: d.closest('.ap-sec').id }; });
   igual('sem frase escolhida, fechadas, com um título que diz o que tem dentro', t,
-    { aberta:false, resumo:'Mudar a cor de cada frase, uma por uma', dentro:19, noTextos:'apTextos' });
+    { aberta:false, resumo:'Mudar a cor de cada frase, uma por uma', dentro:20, noTextos:'apTextos' });
   await fechar();
 }
 await porCfg({ cor:'#1D4ED8', cores:{ duracao:'#4E342E' } });
