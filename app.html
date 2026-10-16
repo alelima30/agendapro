@@ -373,6 +373,21 @@ body.carregando-tudo .tela{ display:none }
 .aviso.ok{background:rgba(16,185,129,.1);color:#059669;border-color:rgba(16,185,129,.25)}
 .aviso.info{background:rgba(37,99,235,.09);color:var(--marca);border-color:rgba(37,99,235,.22)}
 
+/* ── A CAIXINHA SOLTA: "Ativo", "Vender na página", "Mostrar o preço" ──
+   ⚠ Ficou sem estilo nenhum quando a regra de `.serv-op` passou a valer só
+   dentro de `.lista-serv` (os cartões com foto, logo abaixo). Sem regra, o
+   <label> é inline — e a borda escrita no style= dele saía em volta de CADA
+   LINHA do texto, com a caixinha no meio da frase: o "Ativo Aparece na
+   comanda" embaralhado do print do Editar produto, no celular. Aqui: a
+   caixinha à esquerda, o nome em negrito e a explicação embaixo, numa caixa
+   só. Os cartões com foto desfazem o que não é deles (`.lista-serv`). */
+.serv-op{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;cursor:pointer;
+  font-size:14px;color:var(--txt);line-height:1.35}
+.serv-op > input{flex:none;width:18px;height:18px;margin:2px 0 0;accent-color:var(--marca)}
+.serv-op .i{display:flex;flex-direction:column;gap:2px;min-width:0}
+.serv-op .n{font-weight:600;overflow-wrap:anywhere}
+.serv-op .d{font-size:12.5px;color:var(--txt2);overflow-wrap:anywhere}
+
 /* ── Escolha de serviços: cartões com a foto, como no link da cliente ──
    Eram caixinhas numa lista, e no celular a caixinha ficava numa linha e o
    nome noutra. A caixinha continua dentro de cada cartão — escondida, mas
@@ -387,6 +402,7 @@ body.carregando-tudo .tela{ display:none }
 }
 .lista-serv .serv-op{
   position:relative;display:flex;flex-direction:column;cursor:pointer;margin:0;
+  padding:0;gap:0;align-items:stretch;line-height:inherit;
   font-size:inherit;font-weight:400;color:var(--txt);
   border:1.5px solid var(--borda);border-radius:12px;background:var(--painel);
   overflow:hidden;transition:border-color .15s, box-shadow .15s;
@@ -1945,7 +1961,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.1a23a1';
+const VERSAO_APP = 'v9.d9779d';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
