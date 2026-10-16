@@ -1999,7 +1999,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.d6a821';
+const VERSAO_APP = 'v9.19c3b0';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -14599,13 +14599,29 @@ async function abrirPagamento(codigo, metodo){
   try{
     // Só o salão e o plano. Nem o preço, nem o CPF: os dois já estão no
     // banco, e a borda lê de lá.
-    const r = await Dados.borda('criar-cobranca', {
+    const pedir = () => Dados.borda('criar-cobranca', {
       salaoId: salaoAtual, plano: codigo, metodo });
+    let r;
+    try{
+      r = await pedir();
+    }catch(e){
+      /* Tropeço do servidor ou da rede (5xx, sem resposta): uma segunda
+         tentativa sozinha, antes de mostrar erro. O dono não precisa ser
+         quem clica de novo — e repetir é seguro: a cobrança aberta é
+         reaproveitada, e o Mercado Pago recebe a mesma chave de
+         idempotência. Recusa de verdade (sessão, permissão, 4xx) não
+         repete: a resposta seria a mesma. */
+      if(e.status && e.status < 500) throw e;
+      const alvo = document.getElementById('pgtoCorpo');
+      if(alvo) alvo.textContent = 'Ainda falando com o Mercado Pago…';
+      await new Promise(ok => setTimeout(ok, 1500));
+      r = await pedir();
+    }
     cobrancaAberta = r.cobranca;
     desenharPagamento(r.cobranca);
   }catch(e){
     const alvo = document.getElementById('pgtoCorpo');
-    if(alvo) alvo.innerHTML = '<b>Não consegui abrir a cobrança</b>'
+    if(alvo) alvo.innerHTML = '<b>Não consegui abrir a cobrança</b><br>'
       + escapar(e.message || 'Tente de novo em alguns minutos.');
   }
 }

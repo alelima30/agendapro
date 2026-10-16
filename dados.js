@@ -864,24 +864,44 @@ const Nuvem = {
     if(!LIGADO) throw new Error('Sem servidor configurado.');
     if(!sessao || !sessao.token) throw new Error('Faça login de novo.');
     const base = (window.AGENDAPRO.url || '').replace(/\/+$/, '');
+    /* ⚠ PELO `comSessaoViva()`, COMO O BANCO E O STORAGE.
+
+       "Assinar com Pix" dava erro no primeiro clique e funcionava no
+       segundo. Era a sessão: o token vale uma hora, e esta era a única porta
+       que mandava o token do jeito que estava, sem renovar. Painel aberto há
+       mais de uma hora → a borda recusava ("Faça login de novo.", 401) → a
+       janela mostrava "Não consegui abrir a cobrança". Enquanto isso,
+       qualquer leitura do painel renovava a sessão pelo caminho certo — e o
+       segundo clique já saía com o token novo.
+
+       Agora renova antes se está no fim, e renova e tenta UMA vez de novo se
+       a borda recusar por sessão. O token é lido a cada tentativa: reusar o
+       cabeçalho montado antes mandaria o vencido outra vez. Repetir o pedido
+       é seguro: a cobrança aberta é reaproveitada no banco, e o Mercado
+       Pago recebe a mesma chave de idempotência (o id da cobrança). */
+    const tentar = () => fetch(base + '/functions/v1/' + nome, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: window.AGENDAPRO.chave,
+        Authorization: 'Bearer ' + ((sessao && sessao.token) || ''),
+      },
+      body: JSON.stringify(corpo || {}),
+    });
     let r;
     try{
-      r = await fetch(base + '/functions/v1/' + nome, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: window.AGENDAPRO.chave,
-          Authorization: 'Bearer ' + sessao.token,
-        },
-        body: JSON.stringify(corpo || {}),
-      });
+      r = await comSessaoViva(tentar);
     }catch(e){
       // Rede caiu, ou a função nem existe ainda. As duas coisas são "tente de
       // novo", e nenhuma delas é culpa de quem clicou.
       throw new Error('Não consegui falar com o servidor. Tente de novo.');
     }
     const dados = await r.json().catch(() => ({}));
-    if(!r.ok) throw new Error(dados.erro || ('Falhou (' + r.status + ')'));
+    if(!r.ok){
+      const erro = new Error(dados.erro || dados.message || dados.msg || ('Falhou (' + r.status + ')'));
+      erro.status = r.status;
+      throw erro;
+    }
     return dados;
   },
 
