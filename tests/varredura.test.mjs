@@ -76,6 +76,9 @@ const semErro = (onde) => {
   erros.length = 0;
 };
 
+// A comanda e o caixa estão DESLIGADOS na plataforma (COMANDA_LIGADA no
+// app.html); este teste mede as telas deles, então liga só nesta aba.
+await pg.addInitScript(() => { try{ sessionStorage.setItem('agendapro.comanda', '1'); }catch(e){} });
 await pg.addInitScript(([b, s]) => {
   window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
   localStorage.setItem('agendapro.sessao', JSON.stringify(s));
@@ -98,7 +101,7 @@ secao('Salão vazio: todas as telas abrem');
 
 for(const [chave, rotulo] of [['agenda','Agenda'], ['caixa','Caixa'],
     ['clientes','Clientes'], ['servicos','Serviços'], ['equipe','Equipe'],
-    ['salao','Meu salão'], ['publico','Ver como cliente'], ['plano','Plano']]){
+    ['salao','Meu negócio'], ['publico','Ver como cliente'], ['plano','Plano']]){
   await ir(chave);
   const viva = await pg.evaluate(k => {
     const s = document.getElementById('t-' + k) || document.querySelector('.tela.on');
@@ -296,7 +299,7 @@ semErro('caixa');
 /* ══════════════════════════════════════════════════════════════════════════
    MEU SALÃO — os campos que a cliente vê
    ══════════════════════════════════════════════════════════════════════════ */
-secao('Meu salão: endereço e identidade');
+secao('Meu negócio: endereço e identidade');
 
 await ir('salao');
 await pg.fill('#cNome', 'Salão Varredura Editado');

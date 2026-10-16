@@ -61,11 +61,12 @@ const medir = () => p.evaluate(() => ({
    segundos para dizer "algo está por cima". Esta pergunta responde na hora, e
    diz o nome de quem está ali. */
 console.log('\nO app do salão, em 375px');
-await p.goto(BASE + 'app.html?demo=1');
+// A comanda e o caixa estão desligados na plataforma; aqui a aba Caixa é medida.
+await p.goto(BASE + 'app.html?demo=1&comanda=1');
 await p.waitForTimeout(900);
 
 const abas = ['Agenda','Caixa','Relatórios','Clientes','Serviços','Equipe',
-              'Meu salão','Plano'];
+              'Meu negócio','Plano'];
 for(const aba of abas){
   if(aba !== 'Agenda'){
     await p.locator('.menu-botao').click();

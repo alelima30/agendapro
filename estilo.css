@@ -532,6 +532,33 @@
   background:var(--painel2);
 }
 .tb-data::first-letter{ text-transform:uppercase }
+/* Ajuda pelo WhatsApp: no topo de toda tela, para nunca cobrir a agenda nem
+   o botão de salvar das janelas. Só cores do tema. */
+/* O asterisco dos campos obrigatórios do cadastro da cliente — na cor de
+   destaque do tema do salão, e a legenda no cinza do texto discreto. */
+.obrig{ color:var(--ac-600); font-weight:700; margin-left:1px }
+.obrig-legenda{ font-size:12.5px; color:var(--txt3, var(--txt2)); margin:-4px 0 12px }
+/* A faixa do teste grátis no alto do painel — só tokens do tema. */
+.faixa-teste{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  background:var(--ac-soft); border:1px solid var(--ac-line); color:var(--txt);
+  border-radius:var(--r-md, 12px); padding:9px 12px; margin:0 0 12px; font-size:13.5px; line-height:1.4;
+}
+/* O que o plano inclui (tela do Plano): ✓ no que tem, cadeado no que falta. */
+.plano-inclui ul{ list-style:none; margin:0; padding:0; display:grid; gap:5px }
+.plano-inclui li{ display:flex; gap:8px; align-items:baseline; font-size:13.5px }
+.plano-inclui li.tem span{ color:var(--su-600, var(--ac-600)); font-weight:800 }
+.plano-inclui li.falta{ color:var(--txt2) }
+.plano-inclui small{ color:var(--txt3, var(--txt2)) }
+.tb-ajuda{
+  display:inline-flex; align-items:center; gap:6px; flex:none;
+  font-size:13px; font-weight:600; color:var(--txt); text-decoration:none;
+  border:1px solid var(--borda); border-radius:var(--r-pill);
+  padding:6px 12px; background:var(--painel);
+}
+.tb-ajuda:hover{ background:var(--painel2) }
+.tb-ajuda .ic-svg{ width:16px; height:16px; color:var(--marca) }
+a.lat-acao{ text-decoration:none }
 .menu-botao{
   display:none; width:38px; height:38px; flex:none;
   border:1px solid var(--borda); border-radius:var(--r-sm);
@@ -3368,7 +3395,7 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 
   /* A lista precisa cobrir TODO botão do sistema, não os que eu lembrei: o
      teste de celular pegou `.ciclo button` e `.entrar` do cadastro faltando. */
-  .btn, .b, .bp, .b2, .lat-acao, .regua button, .ciclo button, .btn-plano,
+  .btn, .b, .bp, .b2, .lat-acao, .tb-ajuda, .regua button, .ciclo button, .btn-plano,
   .plano .btn-plano, .grande, .olho, select, input, textarea,
   .entrada input, .campo input, .campo select{ min-height:44px }
   .btn-peq{ min-height:40px; min-width:40px }
@@ -3881,7 +3908,7 @@ body.tem-gradiente .boas, body.tem-papel .boas{
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   gap:7px; min-height:78px; padding:12px 6px;
   background:var(--painel); color:var(--at-tinta, var(--txt2));
-  border:1px solid var(--borda); border-radius:16px;
+  border:1px solid var(--at-moldura, var(--borda)); border-radius:16px;
   font:inherit; font-size:13px; font-weight:600; line-height:1.2; cursor:pointer;
   box-shadow:0 1px 2px rgba(16,24,40,.04);
   transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
@@ -3896,23 +3923,17 @@ body.tem-gradiente .boas, body.tem-papel .boas{
   .recurso-rot{ white-space:normal; overflow:visible; text-overflow:clip;
                 font-size:12px; line-height:1.15; overflow-wrap:anywhere }
 }
-/* O Horários é o destaque da fileira, como no pedido: fundo suave na cor da
-   marca, letra na cor da marca. É o que a cliente mais procura aqui. */
-.recurso.destaque{
-  /* ⚠ OPACO. Era --ac-soft, um tom TRANSPARENTE: sobre o fundo de fábrica
-     ficava bonito, e sobre um fundo roxo o botão roxo-transparente com letra
-     roxa desaparecia — no print dele havia um vão entre Pagamentos e
-     Informações. Agora é o cartão tingido com a marca: um cartão como os
-     outros dois, que se lê sobre qualquer fundo que o dono escolher. */
-  background:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 13%, var(--painel));
-  border-color:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 38%, var(--painel));
-  color:var(--at-tinta, var(--ac-marca, var(--ac-600)));
-}
+/* OS TRÊS IGUAIS. O Horários era o destaque da fileira (fundo tingido e
+   borda na cor da marca), e o dono pediu o contrário: "a moldura do horário
+   sempre fica diferente — tem que ser igual às molduras". Agora os três têm
+   o mesmo cartão, a mesma borda (--at-moldura, escolhida em Aparência, ou a
+   das bordas) e a mesma letra. Quem quiser um diferente escolhe a cor dele
+   em "Cores dos atalhos". */
 /* ── A COR DE CADA ATALHO, ESCOLHIDA EM APARÊNCIA ─────────────────────────
    `--at-tinta` pinta o ícone e o nome. Sem escolha, `--at-pagamentos` não
    existe, a `--at-tinta` fica inválida, e cada `var(--at-tinta, …)` acima cai
    na reserva — que é exatamente o desenho de antes. No Horários com borda,
-   o tingido do fundo acompanha a cor escolhida. */
+   o nome e o ícone acompanham a cor escolhida. */
 .recurso[data-recurso="pagamentos"]  { --at-tinta:var(--at-pagamentos) }
 .recurso[data-recurso="horarios"]    { --at-tinta:var(--at-horarios) }
 .recurso[data-recurso="informacoes"] { --at-tinta:var(--at-informacoes) }
@@ -3932,10 +3953,9 @@ body.tem-gradiente .boas, body.tem-papel .boas{
    guarda só a letra na sua cor.
 
    ⚠ A ORDEM É A REGRA. `[data-atalhos] .recurso` pesa o mesmo que
-   `.recurso.destaque` e `.recurso:hover`, lá em cima, e ganha dos dois por
-   vir DEPOIS — é isso que tira o tingido do Horários e mantém a sombra
-   escolhida com o mouse em cima. Subir este bloco desfaz as duas coisas (o
-   atalhos.test.mjs mede as duas). */
+   `.recurso:hover`, lá em cima, e ganha por vir DEPOIS — é isso que tira a
+   borda (inclusive a da moldura escolhida) e mantém a sombra escolhida com
+   o mouse em cima. Subir este bloco desfaz isso (o atalhos.test.mjs mede). */
 [data-atalhos] .recurso{ border-color:transparent }
 /* "Sem moldura": ícone e texto direto sobre o fundo da página. Sem caixa,
    sem sombra, sem o "levanta" de botão ao passar o mouse. */
@@ -4149,7 +4169,8 @@ body.com-folha{ overflow:hidden }
 .fone-recurso{
   display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 2px;
   border-radius:9px; font-size:8.5px; font-weight:600;
-  background:var(--fone-card, var(--painel)); border:1px solid var(--fone-borda, var(--borda));
+  background:var(--fone-card, var(--painel));
+  border:1px solid var(--fone-at-moldura, var(--fone-borda, var(--borda)));
   color:var(--fone-at-tinta, var(--fone-texto, var(--txt2)));
 }
 /* A cor escolhida de cada atalho, como o `--at-tinta` da página. */
@@ -4168,15 +4189,9 @@ body.com-folha{ overflow:hidden }
 /* Com "Letras claras" os cartões da página são escuros — a prévia mostrava
    os três botões brancos, e o dono aprovava uma fileira que não ia ao ar.
    Borda e letra são as do tema escuro da página (--borda e --txt2). */
-.fone-escuro .fone-recurso{ border-color:var(--fone-borda, #25324A);
+.fone-escuro .fone-recurso{ border-color:var(--fone-at-moldura, var(--fone-borda, #25324A));
   color:var(--fone-at-tinta, var(--fone-texto, #A3B2C7)) }
-/* ⚠ O DESTAQUE DEPOIS DO ESCURO, e com a mesma força: o contrário deixava a
-   letra do Horários no cinza dos outros dois, e não na cor da marca. */
-.fone .fone-recurso.destaque{
-  background:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca)))) 13%, var(--fone-card, var(--painel)));
-  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca)))) 38%, var(--fone-card, var(--painel)));
-  color:var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca))));
-}
+/* Na prévia também os três são iguais: sem o Horários tingido (ver .recurso). */
 /* O estilo dos atalhos na prévia — as mesmas regras do [data-atalhos] da
    página, com a sombra na escala da prévia (sombraDaPrevia). `borda` é o
    de cima e não entra aqui. */

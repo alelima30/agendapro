@@ -1578,6 +1578,7 @@ language sql stable security definer set search_path = public as $$
       'inicio',    a.inicio,
       'fim',       a.fim,
       'status',    a.status,
+      'remarcado', a.status = 'cancelado' and coalesce(a.cancelado_motivo, '') like 'remarcado%',
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
       'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),

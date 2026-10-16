@@ -150,7 +150,12 @@ begin
 
   insert into public.assinaturas
     (salao_id, plano, status, trial_ate, origem, indicado_por)
-  values (v_salao, 'trial', 'trial', current_date + v_dias,
+  /* O "hoje" do teste é o do SALÃO, e não o do servidor (UTC). Depois das
+     21h em Brasília o servidor já está no dia seguinte, e o teste de 7 dias
+     nascia com 8 — a tela dizia "faltam 8 dias" logo depois de prometer 7. */
+  values (v_salao, 'trial', 'trial',
+          (now() at time zone coalesce((select s.fuso from public.saloes s where s.id = v_salao),
+                                       'America/Sao_Paulo'))::date + v_dias,
           p_origem, p_indicado_por);
 
   insert into public.vinculos (perfil_id, salao_id, papel, status)

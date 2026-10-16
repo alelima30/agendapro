@@ -75,6 +75,34 @@ begin
   end if;
 end $$;
 
+/* OS DIAS DE TESTE, NO DIA DO SALÃO. O prazo do teste grátis passou a ser
+   contado no fuso do salão (criar_salao, 03): depois das 21h em Brasília o
+   servidor já está no dia seguinte, e a conta pelo `current_date` dele dava
+   um dia a menos. A vista é refeita AQUI, num módulo, e não só no 03: é este
+   arquivo que entra também no caminho de quem atualiza (98_modulos). */
+create or replace view public.minha_assinatura
+with (security_invoker = true) as
+  select a.salao_id,
+         s.nome        as salao_nome,
+         s.slug,
+         s.tipo,
+         a.plano,
+         pl.nome       as plano_nome,
+         pl.preco_mes,
+         pl.max_profissionais,
+         a.status,
+         a.trial_ate,
+         a.vence_em,
+         (select count(*) from public.profissionais p
+           where p.salao_id = a.salao_id and p.ativo) as profissionais_ativos,
+         case when a.status = 'trial' and a.trial_ate is not null
+              then greatest(a.trial_ate - (now() at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date, 0)
+         end as dias_de_teste
+    from public.assinaturas a
+    join public.saloes s  on s.id = a.salao_id
+    join public.planos pl on pl.codigo = a.plano;
+grant select on public.minha_assinatura to authenticated;
+
 /* O PLANO, PARA A EQUIPE. A assinatura só o gestor lê (preço e vencimento são
    conta do dono). Sem ela, a tela da recepção e da profissional achava que o
    salão estava no Grátis e trancava o caixa de quem paga o Básico. Isto

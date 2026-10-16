@@ -132,14 +132,14 @@ const HEX = `c => {
 const SONDAS = {
   pino:          ['.marca-end .rua svg', 'color'],
   relogio:       ['.sv-cartao-relogio svg', 'color'],
-  iconeAtalho:   ['#capaInfo .recurso:not(.destaque) svg', 'color'],
-  iconeHorarios: ['#capaInfo .recurso.destaque svg', 'color'],
+  iconeAtalho:   ['#capaInfo .recurso[data-recurso="pagamentos"] svg', 'color'],
+  iconeHorarios: ['#capaInfo .recurso[data-recurso="horarios"] svg', 'color'],
   iconeBotao:    ['.boas-cta svg', 'color'],
   setaStatus:    ['.status-seta svg', 'color'],
   letraRua:      ['.marca-end .rua', 'color'],
-  letraHorarios: ['#capaInfo .recurso.destaque .recurso-rot', 'color'],
-  fundoHorarios: ['#capaInfo .recurso.destaque', 'backgroundColor'],
-  bordaHorarios: ['#capaInfo .recurso.destaque', 'borderTopColor'],
+  letraHorarios: ['#capaInfo .recurso[data-recurso="horarios"] .recurso-rot', 'color'],
+  fundoHorarios: ['#capaInfo .recurso[data-recurso="horarios"]', 'backgroundColor'],
+  bordaHorarios: ['#capaInfo .recurso[data-recurso="horarios"]', 'borderTopColor'],
   titulo:        ['.marca-salao h2', 'color'],
   preco:         ['.sv-cartao-preco', 'color'],
   bemVindo:      ['.boas-oi', 'color'],
@@ -147,7 +147,7 @@ const SONDAS = {
   // A escolha de quem atende: com a moldura curvada o cartão de serviço
   // não tem borda, e medir ali seria medir nada.
   bordaCartao:   ['#capaEquipe .opcao', 'borderTopColor'],
-  bordaAtalho:   ['#capaInfo .recurso:not(.destaque)', 'borderTopColor'],
+  bordaAtalho:   ['#capaInfo .recurso[data-recurso="pagamentos"]', 'borderTopColor'],
   letraBotao:    ['.boas-cta', 'color'],
 };
 const medir = p => p.evaluate(([h, S]) => { const hex = eval(h);
@@ -204,7 +204,9 @@ const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 
   igual('nada sumiu: cada controle de antes, na seção dele', t.onde, {
     reguaModo:'apMarca', paletaCores:'apMarca', temasProntos:'apMarca', reguaFundoTipo:'apFundo', fxVeu:'apFundo',
     reguaTema:'apTextos', reguaLetra:'apTextos', reguaLogoBorda:'apBordas', reguaMoldura:'apBordas',
-    gradA:'apGradientes', gradB:'apGradientes', reguaBrilho:'apGradientes', reguaFitaMetal:'apGradientes',
+    // As cores do gradiente do fundo moram em Fundo, ao lado do tipo de fundo
+    // (pedido: "o fundo gradiente tem que estar perto do fundo normal").
+    gradA:'apFundo', gradB:'apFundo', reguaBrilho:'apGradientes', reguaFitaMetal:'apGradientes',
     fitaCor:'apGradientes', reguaAtalhos:'apBotoes', atCor:'apBotoes', fxFoco:'apCapa', reguaCapaForma:'apCapa',
     reguaLogoForma:'apCapa', reguaSlideForma:'apCapa', reguaSlide:'apCapa', reguaPreco:'apCapa' });
   await p.locator('.ap-indice button', { hasText: 'Bordas' }).click();
@@ -228,10 +230,10 @@ const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 
     const c = document.querySelector(s); return { quadrado: c.value.toUpperCase(), hex: c._hex.value.toUpperCase(), torto: c._hex.classList.contains('torto') };
   }, s);
   const prev = () => p.evaluate(h => { const hex = eval(h), q = s => document.querySelector('#previaFone ' + s);
-    return { borda: hex(getComputedStyle(q('.fone-recurso:not(.destaque)')).borderTopColor),
+    return { borda: hex(getComputedStyle(q('.fone-recurso[data-recurso="pagamentos"]')).borderTopColor),
              titulo: hex(getComputedStyle(q('.fone-topo b')).color),
              pino: hex(getComputedStyle(q('.fone-pino svg, .fone-pino')).color),
-             iconeAtalho: hex(getComputedStyle(q('.fone-recurso:not(.destaque) svg, .fone-recurso:not(.destaque) [data-ico]')).color),
+             iconeAtalho: hex(getComputedStyle(q('.fone-recurso[data-recurso="pagamentos"] svg, .fone-recurso[data-recurso="pagamentos"] [data-ico]')).color),
              bemVindo: hex(getComputedStyle(q('.fone-boas-t')).color) }; }, HEX);
   const L = k => `.cor-linha[data-chave="${k}"] input[type="color"]`;
   await digitar(L('borda'), '#e11d48');
@@ -285,10 +287,14 @@ let antes;
     return [r.getPropertyValue('--ac-marca').trim().toUpperCase(), r.getPropertyValue('--ac-600').trim().toUpperCase()]; });
   igual('sem destaque escolhido, a cor da marca dos ícones é a mesma do --ac-600', v[0], v[1]);
   /* O que era herança continua dando a mesma cor: o pino era a letra da rua,
-     o relógio a da duração, o ícone do atalho a do Horários. */
+     o relógio a da duração. Os três atalhos são iguais (pedido do dono): o
+     ícone do Pagamentos é o mesmo do Horários, e o nome do Horários é cinza
+     como os outros — não mais na cor da marca. */
   igual('o pino na cor da rua, como antes', antes.pino, antes.letraRua);
   igual('o relógio na cor da duração, como antes', antes.relogio, antes.duracao);
-  igual('o ícone do atalho na cor da marca, como o nome do Horários', antes.iconeAtalho, antes.letraHorarios);
+  igual('o ícone do atalho igual ao ícone do Horários', antes.iconeAtalho, antes.iconeHorarios);
+  verdade('e o nome do Horários não fica na cor do ícone (é cinza, como os outros)',
+    antes.letraHorarios !== antes.iconeHorarios, JSON.stringify([antes.letraHorarios, antes.iconeHorarios]));
   igual('o calendário do botão na letra do botão', antes.iconeBotao, antes.letraBotao);
   await fechar();
 }
@@ -321,13 +327,16 @@ const COR = '#FF00AA', COR_H = '#FF00AA';
    mantido: "se alguma configuração foi criada para controlar mais de um
    elemento, analise antes de separar". O relógio (ícone) não vai junto. */
 const CASOS = {
-  texto:         [['letraRua'], ['duracao']],
+  // O nome dos atalhos (o Horários inclusive, agora igual aos outros) é
+  // texto secundário: acompanha o principal quando ninguém escolheu o dele.
+  texto:         [['letraRua'], ['duracao', 'letraHorarios']],
   discreto:      [['duracao'], []],
   titulo:        [['titulo'], []],
   destaque:      [['preco', 'bemVindo'], []],
   icone:         [['pino', 'relogio'], []],
   iconeDestaque: [['iconeAtalho', 'iconeHorarios'], []],
-  borda:         [['bordaCartao', 'bordaAtalho'], []],
+  // Os três atalhos são iguais: a cor das bordas pinta o Horários também.
+  borda:         [['bordaCartao', 'bordaAtalho', 'bordaHorarios'], []],
 };
 for(const [chave, [deve, junto]] of Object.entries(CASOS)){
   await porCfg({ cores:{ [chave]: COR } });
@@ -352,7 +361,7 @@ await porCfg({ cores:{ icone:'#0EA5E9', iconeDestaque:'#16A34A' },
   igual('o calendário do "Agendar horário" continua na letra do botão', d.iconeBotao, antes.iconeBotao);
   igual('e a seta do ABERTO continua verde', d.setaStatus, antes.setaStatus);
   /* A janela do Horários: os ícones dela também são de destaque. */
-  await p.locator('#capaInfo .recurso.destaque').click();
+  await p.locator('#capaInfo .recurso[data-recurso="horarios"]').click();
   await p.waitForSelector('.folha-ic svg', { timeout: 5000 });
   await p.waitForTimeout(400);
   const f = await p.evaluate(h => eval(h)(getComputedStyle(document.querySelector('.folha-ic svg')).color), HEX);
@@ -362,7 +371,7 @@ await porCfg({ cores:{ icone:'#0EA5E9', iconeDestaque:'#16A34A' },
 await porCfg({ cores:{ destaque:'#B45309' } });
 {
   const { p, fechar } = await pagina();
-  await p.locator('#capaInfo .recurso.destaque').click();
+  await p.locator('#capaInfo .recurso[data-recurso="horarios"]').click();
   await p.waitForSelector('.folha-ic svg', { timeout: 5000 });
   await p.waitForTimeout(400);
   const f = await p.evaluate(h => eval(h)(getComputedStyle(document.querySelector('.folha-ic svg')).color), HEX);

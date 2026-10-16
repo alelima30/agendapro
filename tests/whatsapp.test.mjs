@@ -135,7 +135,7 @@ verdade('e quem NÃO tem telefone não ganha botão nenhum', semNum && !semNum.t
    Antes o botão abria a conversa direto, sempre com a mesma abertura
    genérica — e o dono apagava tudo para escrever "seu horário está
    confirmado" pela vigésima vez no dia. Agora ele abre uma escolha de
-   recados, que o próprio dono escreve em Meu salão.
+   recados, que o próprio dono escreve em Meu negócio.
 
    O que esta seção protege continua igual: o clique no atalho do cartão não
    pode abrir o DETALHE do agendamento por baixo — são duas ações

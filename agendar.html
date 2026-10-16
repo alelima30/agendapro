@@ -546,20 +546,25 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
     <section class="passo" id="p-dados">
       <h2 id="dadosTitulo">Seu cadastro</h2>
       <p class="sub" id="dadosSub">Só na primeira vez. Depois este aparelho lembra de você.</p>
+      <!-- O QUE E' OBRIGATORIO, DITO ANTES. A cliente descobria um campo de
+           cada vez, pela mensagem de erro. Agora os quatro que travam a
+           marcacao levam o asterisco; o CPF continua sem marca nenhuma (pedido
+           do dono) — e a legenda ja' diz que sem asterisco nao e' obrigatorio. -->
+      <p class="obrig-legenda" id="legendaObrig"><span class="obrig" aria-hidden="true">*</span> obrigatório</p>
       <div id="reconhecido"></div>
       <div id="dadosConta"></div>
       <div class="campo" id="campoNome">
-        <label>Nome completo</label>
+        <label for="dNome">Nome completo <span class="obrig" title="obrigatório">*</span></label>
         <input id="dNome" placeholder="Nome e sobrenome" autocomplete="name">
       </div>
       <div class="campo" id="campoTel">
-        <label>WhatsApp</label>
+        <label for="dTel">WhatsApp <span class="obrig" title="obrigatório">*</span></label>
         <input id="dTel" type="tel" inputmode="numeric" placeholder="(11) 99999-9999"
                autocomplete="tel" oninput="mascaraTelefone(this)">
         <p class="pista">É por aqui que chega a confirmação e o lembrete.</p>
       </div>
       <div class="campo" id="campoNasc">
-        <label>Aniversário</label>
+        <label>Aniversário <span class="obrig" title="obrigatório">*</span></label>
         <input id="dNasc" type="date" autocomplete="bday">
         <p class="pista">O salão costuma guardar um agrado para o seu mês.</p>
       </div>
@@ -585,7 +590,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
            para marcar. A linha de apoio diz para que serve — mas nao promete
            mais que da' para pular, porque nao da'. -->
       <div class="campo" id="campoEmail">
-        <label>E-mail</label>
+        <label for="dEmail">E-mail <span class="obrig" title="obrigatório">*</span></label>
         <input id="dEmail" type="email" inputmode="email"
                placeholder="voce@exemplo.com" autocomplete="email">
         <p class="pista">Para o recibo e os avisos do salão.</p>
@@ -1104,7 +1109,7 @@ function horariosLivres(profId, data, duracao){
 }
 
 /* ── DE QUANTO EM QUANTO TEMPO ESTA PÁGINA OFERECE ────────────────────────
-   O dono escolhe 15, 30 ou 60 em Meu salão. Ausente vale 15, que é o que a
+   O dono escolhe 15, 30 ou 60 em Meu negócio. Ausente vale 15, que é o que a
    agenda sempre fez.
 
    ⚠ ISTO É PENEIRA DE EXIBIÇÃO, NÃO DE DISPONIBILIDADE. O horário de 08:15
@@ -1168,7 +1173,7 @@ function bdDaVitrine(v){
       // decide é o banco (vitrine, 22_cotas), que também já manda o link sem
       // a aparência personalizada nesse plano.
       selo: s.selo === true,
-      // A aparência que o salão escolheu no painel, em Meu salão.
+      // A aparência que o salão escolheu no painel, em Meu negócio.
       cor: s.cor, tema: s.tema, precoNaCapa: s.precoNaCapa === true,
       // Ausente = ligado, a mesma regra da vitrine(): salão criado antes
       // disto existir já nasce com o brilho, sem migração nenhuma.
@@ -1602,6 +1607,24 @@ function salaoFechadoNoDia(data){
   const func = typeof funcionamentoDoSalao === 'function' ? funcionamentoDoSalao() : null;
   return !!func && !Funcionamento.periodosDoDia(func, diaDaSemana(data));
 }
+/* "ENCERRADO", E NÃO "CHEIO". Hoje, depois do último horário de atendimento,
+   o dia não tem vaga porque o expediente acabou — "cheio" mandaria a cliente
+   esperar uma desistência que não vai acontecer. O fim do dia é o do horário
+   do salão; sem ele, o da jornada de quem atende. */
+function encerradoHoje(data){
+  if(data !== hoje()) return false;
+  const agora = NA_NUVEM ? noFuso(new Date()).min
+                         : new Date().getHours() * 60 + new Date().getMinutes();
+  const dia = diaDaSemana(data);
+  const func = typeof funcionamentoDoSalao === 'function' ? funcionamentoDoSalao() : null;
+  let fim = 0;
+  if(func && func[dia] && func[dia].length) fim = Math.max(...func[dia].map(p => p.fim));
+  else for(const p of (bd.profissionais || []))
+    for(const f of ((p.jornada || {})[dia] || [])) fim = Math.max(fim, f[1]);
+  return fim > 0 && agora >= fim;
+}
+// O mesmo "Remarcado" da nuvem, no modo de demonstração (ver remarcar()).
+const remarcadoDemo = a => a.status === 'cancelado' && /^remarcado/.test(a.canceladoMotivo || '');
 function foraDoDia(data){
   const dia = diaDaSemana(data);
   return (escolha.servicos || []).some(id => {
@@ -1713,7 +1736,7 @@ function confirmarQuemOutra(){
 }
 /* ── DEPOIS DA ETAPA 2: "COM QUEM?" OU DIRETO PARA OS HORÁRIOS ──────────
    Com uma pessoa só fazendo o serviço, o "Com quem?" mostra só ela, já
-   marcada. O dono escolhe em Meu salão se a tela aparece assim (o padrão)
+   marcada. O dono escolhe em Meu negócio se a tela aparece assim (o padrão)
    ou se o link pula direto para os horários dela. Com duas ou mais, a tela
    aparece sempre: aí há escolha de verdade.
 
@@ -2349,7 +2372,7 @@ function desenharCapa(){
      trabalho. Antes eram fitas de texto: sem foto e sem peso, uma casa com
      quatro serviços parecia uma lista de compras.
 
-     O PREÇO é escolha do salão, em Meu salão → Aparência. Nem toda casa
+     O PREÇO é escolha do salão, em Meu negócio → Aparência. Nem toda casa
      quer o valor na primeira tela: quem tem preço competitivo ganha
      mostrando, e quem cobra por avaliação perde. Antes isto era uma decisão
      nossa, tomada uma vez para todo mundo.
@@ -2982,10 +3005,11 @@ function desenharQuando(){
        falso e nada aqui muda. */
     const fora = !d.qtd && foraDoDia(d.data);
     const fechado = !d.qtd && !fora && salaoFechadoNoDia(d.data);
+    const encerrado = !d.qtd && !fora && !fechado && encerradoHoje(d.data);
     return `<button class="dia ${d.data===escolha.data?'sel':''} ${d.qtd?'':'sem'}"
               onclick="escolherDia('${d.data}')">
       <small>${sem}</small><b>${String(dd).padStart(2,'0')}</b>
-      <i>${d.qtd ? d.qtd + ' vagas' : fora ? 'não atende' : fechado ? 'fechado' : 'cheio'}</i></button>`;
+      <i>${d.qtd ? d.qtd + ' vagas' : fora ? 'não atende' : fechado ? 'fechado' : encerrado ? 'encerrado' : 'cheio'}</i></button>`;
   }).join('');
 
   /* ── O DIA QUE O PACOTE DELA NÃO DEIXA ────────────────────────────────
@@ -3600,7 +3624,7 @@ function desenharNome(){
    tema, inclusive para o escuro.
 
    ⚠ O STATUS SEGUE A ESCOLHA DO DONO. "Aguardando confirmação" é verdade só
-   para o salão que confirma depois (Meu salão → Quem confirma). Para o que
+   para o salão que confirma depois (Meu negócio → Quem confirma). Para o que
    confirma sozinho, dizer isso seria mentir para a cliente — ali o status é
    "confirmado na hora". É a mesma regra da tela de pronto, que já não
    mostrava confirmação que ainda não existe.
@@ -4203,7 +4227,8 @@ async function desenharMeusDaNuvem(alvo){
           <div class="q">${quando(a.inicio)}</div>
           <div class="q">com ${escapar(a.profissional)} · ${real(Number(a.valor) || 0)}${
             nomeDaForma(a.forma_pagamento) ? ' · ' + escapar(nomeDaForma(a.forma_pagamento)) : ''}</div></div>
-        <span class="selo-st ${classe[a.status] || ''}">${rotulo[a.status] || a.status}</span>
+        <span class="selo-st ${a.remarcado ? 'st-conc' : (classe[a.status] || '')}">${
+          a.remarcado ? 'Remarcado' : (rotulo[a.status] || a.status)}</span>
       </div>
       ${a.podeMexer ? `<div class="acoes">
         <button class="bp" onclick="remarcarNaNuvem('${a.token}')">Remarcar</button>
@@ -4419,7 +4444,8 @@ function desenharMeus(){
             a.atendidoNome ? ` <span class="selo-combo">${escapar(a.atendidoNome)}</span>` : ''}</h3>
             <div class="q">${dataLonga(a.data)} · ${hm(a.inicio)}</div>
             <div class="q">${escapar(p ? 'com ' + p.nome : '')} · ${real(total)}</div></div>
-          <span class="selo-st ${classe[a.status]}">${rotulo[a.status]}</span>
+          <span class="selo-st ${remarcadoDemo(a) ? 'st-conc' : classe[a.status]}">${
+            remarcadoDemo(a) ? 'Remarcado' : rotulo[a.status]}</span>
         </div>
         ${!passado ? `<div class="acoes">
           <button class="bp" onclick="remarcar('${a.id}')">Remarcar</button>
@@ -4728,7 +4754,7 @@ function desenharInfoDaCasa(){
   alvo.innerHTML = !botoes.length ? '' : `
     <div class="recursos" style="--n:${botoes.length}">
       ${botoes.map(([qual, ico, rot]) => `
-        <button type="button" class="recurso${qual === 'horarios' ? ' destaque' : ''}"
+        <button type="button" class="recurso"
                 data-recurso="${qual}" onclick="abrirFolha('${qual}', this)">
           <span class="recurso-ic" data-ico="${ico}"></span>
           <span class="recurso-rot">${rot}</span>
@@ -5961,7 +5987,7 @@ function tocarIntro(s){
    A COR E O FUNDO QUE O SALÃO ESCOLHEU
 
    Uma barbearia de dourado e grafite e uma esmalteria de rosa e branco não
-   podem ser a mesma página com o nome trocado. O salão escolhe em Meu salão
+   podem ser a mesma página com o nome trocado. O salão escolhe em Meu negócio
    → Aparência, e é aqui que a escolha vira tela.
 
    ⚠ A LETRA DO BOTÃO NÃO PODE SER SEMPRE BRANCA.
@@ -6314,6 +6340,10 @@ function aplicarAtalhos(a){
     if(corValida(cores[k])) raiz.style.setProperty('--at-' + k, cores[k]);
     else raiz.style.removeProperty('--at-' + k);
   }
+  /* A moldura dos três, numa cor só — o pedido é os três iguais. Só aparece
+     no "Com borda": nos outros dois estilos a borda é transparente. */
+  if(a && typeof a === 'object' && corValida(a.moldura)) raiz.style.setProperty('--at-moldura', a.moldura);
+  else raiz.style.removeProperty('--at-moldura');
   const vars = ['--at-desfoque', '--at-opacidade', '--at-distancia', '--at-cor'];
   const estilo = (a && typeof a === 'object' && ['limpo', 'sombra'].includes(a.estilo))
     ? a.estilo : null;

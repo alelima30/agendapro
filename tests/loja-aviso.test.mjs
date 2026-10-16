@@ -130,7 +130,7 @@ await dona.atualizar('saloes', SALAO, { telefone: null, whatsapp: null });
 igual('a página esconde a loja — a premissa do aviso', await lojaNaPagina(), 0);
 const semZap = await avisoEmProdutos();
 verdade('e Produtos diz que falta o WhatsApp', /sem WhatsApp/.test(semZap), semZap);
-verdade('dizendo onde se preenche', /Meu salão → Dados → WhatsApp/.test(semZap), semZap);
+verdade('dizendo onde se preenche', /Meu negócio → Dados → WhatsApp/.test(semZap), semZap);
 
 /* ⚠ UM NÚMERO QUE NÃO ABRE CONVERSA É O MESMO QUE NENHUM. Nove dígitos, sem
    DDD: o campo não está vazio, e é exatamente o caso em que um aviso que

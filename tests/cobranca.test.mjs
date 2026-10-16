@@ -271,6 +271,43 @@ verdade('diz que ainda não caiu',
   await pg.evaluate(() => /ainda não caiu/i.test(
     (document.getElementById('pgtoRecado') || {}).textContent || '')));
 
+/* ── DESISTIR DO PIX GERADO ───────────────────────────────────────────────
+   "Cliquei para assinar, mas não paguei — só tenho que assinar quando pagar."
+   Gerar o Pix nunca trocou o plano; a caixa agora diz isso, e deixa cancelar.
+   E se o Pix cancelado for pago mesmo assim, o plano é creditado. */
+secao('Desistir do Pix gerado: o plano não muda, e pagar depois ainda vale');
+await pg.evaluate(() => fecharModal());
+await pg.evaluate(() => { telaAtual = 'plano'; pintarPlano(); });
+await pg.waitForTimeout(2000);
+const caixaPix = await pg.evaluate(() => (document.getElementById('cobrancaPendente') || {}).innerText || '');
+verdade('a caixa diz que ainda não foi pago e que o plano continua o mesmo',
+  /ainda não pago/i.test(caixaPix) && /continua o mesmo/.test(caixaPix), caixaPix);
+const planoAntes = await assinatura();
+const pend = (await banco.query(`select id, valor, mp_id from public.cobrancas
+  where salao_id = $1 and status = 'pendente' and metodo = 'pix'`, [SALAO])).rows[0];
+verdade('há um Pix pendente para cancelar', !!pend, JSON.stringify(pend));
+recados.length = 0;
+await pg.evaluate(() => cancelarCobranca());
+await pg.waitForTimeout(1800);
+verdade('pede confirmação, lembrando que o plano não muda', recados.some(t => /plano não muda/.test(t)), JSON.stringify(recados));
+igual('o Pix vira cancelado no banco',
+  (await banco.query(`select status from public.cobrancas where id = $1`, [pend.id])).rows[0].status, 'cancelada');
+igual('e a assinatura não mexe', JSON.stringify(await assinatura()), JSON.stringify(planoAntes));
+igual('a caixa some da tela',
+  await pg.evaluate(() => (document.getElementById('cobrancaPendente') || {}).innerText.trim()), '');
+// Outra conta não cancela o Pix deste salão.
+const intrusa = novaAba();
+await intrusa.criarConta({ email:`intrusa-${marca}@teste.com`, senha:'minhasenhaboa',
+  nome:'Intrusa', telefone:'+5511' + (100000000 + Math.floor(Math.random()*89999999)) });
+const recusaIntrusa = await intrusa.chamar('cancelar_minha_cobranca', { p_cobranca: pend.id })
+  .then(() => null).catch(e => e.message);
+verdade('outra conta não consegue cancelar o Pix deste salão', recusaIntrusa !== null, String(recusaIntrusa));
+// Pago mesmo assim: credita.
+const pago = (await banco.query(`select public.registrar_pagamento($1, $2, 'approved') as r`,
+  [pend.mp_id, pend.valor])).rows[0].r;
+verdade('o Pix cancelado, se for pago, ainda credita o plano', pago && pago.ok === true, JSON.stringify(pago));
+igual('a cobrança fica paga', (await banco.query(`select status from public.cobrancas where id = $1`, [pend.id])).rows[0].status, 'paga');
+
 /* ══════════════════════════════════════════════════════════════════════════
    6. O CARTÃO — RENOVAÇÃO AUTOMÁTICA
 

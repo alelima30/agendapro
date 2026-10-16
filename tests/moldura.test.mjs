@@ -443,9 +443,9 @@ await painel.addInitScript(([base, ses]) => {
 await painel.setViewportSize({ width: 1360, height: 900 });
 await painel.goto(BASE + '/app.html');
 await painel.waitForTimeout(3200);
-await painel.click('a:has-text("Meu salão"), button:has-text("Meu salão")');
+await painel.click('a:has-text("Meu negócio"), button:has-text("Meu negócio")');
 await painel.waitForTimeout(1500);
-/* "Meu salão" tem sub-abas, e a Aparência não é a que abre por padrão. Sem
+/* "Meu negócio" tem sub-abas, e a Aparência não é a que abre por padrão. Sem
    este clique a régua EXISTE no HTML e não é clicável — que foi como este
    teste reprovou da primeira vez, com "element is not visible". */
 await painel.click('[data-sub="aparencia"]');

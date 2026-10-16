@@ -514,9 +514,11 @@ begin;
     else perform t_falha('assinatura não nasceu em trial');
     end if;
 
+    -- Sete dias contados no relógio do SALÃO (o fuso dele), e não no do
+    -- servidor: depois das 21h em Brasília o servidor já está no dia seguinte.
     if (select trial_ate from public.assinaturas where salao_id = r.salao_id)
-       = current_date + 7
-    then perform t_ok('o teste tem prazo de 7 dias');
+       = (now() at time zone 'America/Sao_Paulo')::date + 7
+    then perform t_ok('o teste tem prazo de 7 dias, no dia do salão');
     else perform t_falha('prazo do teste saiu errado');
     end if;
 

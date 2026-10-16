@@ -544,7 +544,7 @@ verdade('há atendimento desenhado na agenda antes de salvar',
   antesDeSalvar.cartoes > 0, JSON.stringify(antesDeSalvar));
 
 // Salvar QUALQUER coisa — o estrago não dependia do que foi salvo.
-await q.click('a:has-text("Meu salão"), button:has-text("Meu salão")');
+await q.click('a:has-text("Meu negócio"), button:has-text("Meu negócio")');
 await q.waitForTimeout(900);
 await q.click('button:has-text("Salvar dados")');
 await q.waitForTimeout(2500);

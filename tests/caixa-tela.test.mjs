@@ -91,6 +91,9 @@ p.on('pageerror', e => erros.push(e.message));
 const avisos = [];
 p.on('dialog', async d => { avisos.push(d.message()); await d.accept(); });
 
+// A comanda e o caixa estão DESLIGADOS na plataforma (COMANDA_LIGADA no
+// app.html); este teste mede as telas deles, então liga só nesta aba.
+await p.addInitScript(() => { try{ sessionStorage.setItem('agendapro.comanda', '1'); }catch(e){} });
 await p.addInitScript(([b, s]) => {
   window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
   localStorage.setItem('agendapro.sessao', JSON.stringify(s));
@@ -479,7 +482,7 @@ verdade('o serviço tem campo de comissão fixa',
 await p.evaluate(() => { try{ fecharModal(); }catch(e){} });
 
 await irPara('salao');
-verdade('Meu salão deixa escolher bruto ou líquido',
+verdade('Meu negócio deixa escolher bruto ou líquido',
   await p.isVisible('#cComSobre'));
 verdade('e a data de corte',
   await p.isVisible('#cComDesde'));

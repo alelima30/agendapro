@@ -368,7 +368,7 @@ await p.addInitScript(([base, ses]) => {
 }, [BASE, d.sessao()]);
 await p.goto(BASE + '/app.html');
 await p.waitForTimeout(3500);
-await p.click('a:has-text("Meu salão"), button:has-text("Meu salão")');
+await p.click('a:has-text("Meu negócio"), button:has-text("Meu negócio")');
 await p.waitForTimeout(1200);
 await p.click('[data-sub="dados"]');
 await p.waitForTimeout(1000);

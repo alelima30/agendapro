@@ -520,6 +520,10 @@ language sql stable security definer set search_path = public as $$
       'inicio',    a.inicio,
       'fim',       a.fim,
       'status',    a.status,
+      /* O horário que a cliente TROCOU por outro sai como "Remarcado", e não
+         "Cancelado" — ela não desistiu, mudou de horário. O motivo vem do
+         `remarcar_agendamento()` (34_cupons). */
+      'remarcado', a.status = 'cancelado' and coalesce(a.cancelado_motivo, '') like 'remarcado%',
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
       /* O desconto do cupom (34_cupons.sql), para a remarcação mostrar que

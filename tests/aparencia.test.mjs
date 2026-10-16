@@ -449,7 +449,7 @@ await mc.close();
    verdade — prévia que embaralha a ordem engana justamente sobre o que a
    cliente vê primeiro.
    ══════════════════════════════════════════════════════════════════════════ */
-secao('A prévia em Meu salão');
+secao('A prévia em Meu negócio');
 {
   /* O salão desta bancada perdeu a capa lá atrás, na seção "sem foto". A
      prévia só vale se o salão tiver o que ela promete mostrar — então aqui
@@ -467,7 +467,7 @@ secao('A prévia em Meu salão');
   await painel.setViewportSize({ width: 1360, height: 900 });
   await painel.goto(BASE + '/app.html');
   await painel.waitForTimeout(3200);
-  await painel.click('a:has-text("Meu salão"), button:has-text("Meu salão")');
+  await painel.click('a:has-text("Meu negócio"), button:has-text("Meu negócio")');
   await painel.waitForTimeout(1500);
 
   const lado = await painel.evaluate(() => {

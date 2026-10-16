@@ -1908,7 +1908,12 @@ begin
 
   insert into public.assinaturas
     (salao_id, plano, status, trial_ate, origem, indicado_por)
-  values (v_salao, 'trial', 'trial', current_date + v_dias,
+  /* O "hoje" do teste é o do SALÃO, e não o do servidor (UTC). Depois das
+     21h em Brasília o servidor já está no dia seguinte, e o teste de 7 dias
+     nascia com 8 — a tela dizia "faltam 8 dias" logo depois de prometer 7. */
+  values (v_salao, 'trial', 'trial',
+          (now() at time zone coalesce((select s.fuso from public.saloes s where s.id = v_salao),
+                                       'America/Sao_Paulo'))::date + v_dias,
           p_origem, p_indicado_por);
 
   insert into public.vinculos (perfil_id, salao_id, papel, status)
@@ -4070,6 +4075,10 @@ language sql stable security definer set search_path = public as $$
       'inicio',    a.inicio,
       'fim',       a.fim,
       'status',    a.status,
+      /* O horário que a cliente TROCOU por outro sai como "Remarcado", e não
+         "Cancelado" — ela não desistiu, mudou de horário. O motivo vem do
+         `remarcar_agendamento()` (34_cupons). */
+      'remarcado', a.status = 'cancelado' and coalesce(a.cancelado_motivo, '') like 'remarcado%',
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
       /* O desconto do cupom (34_cupons.sql), para a remarcação mostrar que
@@ -6049,6 +6058,32 @@ end $$;
 
 revoke all on function public.minha_cobranca(uuid) from public;
 grant execute on function public.minha_cobranca(uuid) to authenticated;
+
+/* CANCELAR O PIX QUE O DONO GEROU E NÃO VAI PAGAR. "Cliquei para assinar,
+   mas não paguei — só tenho que assinar quando pagar." Gerar o Pix nunca
+   trocou o plano (só o pagamento troca); isto tira a cobrança do caminho,
+   para a tela não ficar dizendo que há um pagamento a fazer.
+
+   ⚠ SE O PIX FOR PAGO MESMO ASSIM, VALE: o `registrar_pagamento` aceita a
+   cobrança cancelada, confere o valor e credita o plano — dinheiro recebido
+   nunca fica sem plano. A tentativa do cartão não entra: ela é o rastro da
+   renovação automática, e não é o dono quem a cancela por aqui. */
+create or replace function public.cancelar_minha_cobranca(p_cobranca uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare v public.cobrancas;
+begin
+  select * into v from public.cobrancas where id = p_cobranca for update;
+  if not found or not public.e_gestor(v.salao_id) then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+  if v.status <> 'pendente' or v.metodo = 'cartao' then
+    return false;
+  end if;
+  update public.cobrancas set status = 'cancelada' where id = v.id;
+  return true;
+end $$;
+revoke all on function public.cancelar_minha_cobranca(uuid) from public, anon;
+grant execute on function public.cancelar_minha_cobranca(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 6) A RENOVAÇÃO, QUE É O QUE PIX AVULSO NÃO FAZ SOZINHO
@@ -10050,6 +10085,34 @@ begin
       using errcode = 'check_violation';
   end if;
 end $$;
+
+/* OS DIAS DE TESTE, NO DIA DO SALÃO. O prazo do teste grátis passou a ser
+   contado no fuso do salão (criar_salao, 03): depois das 21h em Brasília o
+   servidor já está no dia seguinte, e a conta pelo `current_date` dele dava
+   um dia a menos. A vista é refeita AQUI, num módulo, e não só no 03: é este
+   arquivo que entra também no caminho de quem atualiza (98_modulos). */
+create or replace view public.minha_assinatura
+with (security_invoker = true) as
+  select a.salao_id,
+         s.nome        as salao_nome,
+         s.slug,
+         s.tipo,
+         a.plano,
+         pl.nome       as plano_nome,
+         pl.preco_mes,
+         pl.max_profissionais,
+         a.status,
+         a.trial_ate,
+         a.vence_em,
+         (select count(*) from public.profissionais p
+           where p.salao_id = a.salao_id and p.ativo) as profissionais_ativos,
+         case when a.status = 'trial' and a.trial_ate is not null
+              then greatest(a.trial_ate - (now() at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date, 0)
+         end as dias_de_teste
+    from public.assinaturas a
+    join public.saloes s  on s.id = a.salao_id
+    join public.planos pl on pl.codigo = a.plano;
+grant select on public.minha_assinatura to authenticated;
 
 /* O PLANO, PARA A EQUIPE. A assinatura só o gestor lê (preço e vencimento são
    conta do dono). Sem ela, a tela da recepção e da profissional achava que o

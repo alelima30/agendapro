@@ -7,7 +7,7 @@
    ── O DEFEITO QUE ESTA SUÍTE EXISTE PARA IMPEDIR ───────────────────────────
    O convite passou a dar login para a recepção e para quem atende. Mas o
    painel era o MESMO para todo mundo: a recepcionista entrava e via Plano,
-   Meu salão e Equipe.
+   Meu negócio e Equipe.
 
    O banco recusava a escrita dela — o RLS sempre esteve certo, e continua
    sendo ele quem recusa. O problema era a tela OFERECER: uma recepcionista
@@ -132,6 +132,9 @@ const erros = [];
 async function abrirPainel(dados, rotulo){
   const p = await (await nav.newContext({ viewport:{width:1360,height:900} })).newPage();
   p.on('pageerror', e => erros.push(rotulo + ': ' + e.message));
+  // A comanda e o caixa estão DESLIGADOS na plataforma (COMANDA_LIGADA no
+  // app.html); este teste mede as telas deles, então liga só nesta aba.
+  await p.addInitScript(() => { try{ sessionStorage.setItem('agendapro.comanda', '1'); }catch(e){} });
   await p.addInitScript(([b, s]) => {
     window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
     localStorage.setItem('agendapro.sessao', JSON.stringify(s));
@@ -160,7 +163,7 @@ const abasDona = await abasDe(pgDona);
    O que importa não é quantas são: é que a dona veja TODAS. */
 const totalDeTelas = await pgDona.evaluate(() => TELAS.length);
 igual('vê todas as abas do sistema', abasDona.length, totalDeTelas);
-verdade('inclusive Plano e Meu salão',
+verdade('inclusive Plano e Meu negócio',
   abasDona.includes('plano') && abasDona.includes('salao'));
 verdade('e o painel do dia, que é dela',
   abasDona.includes('hoje'), JSON.stringify(abasDona));
@@ -182,7 +185,7 @@ verdade('trabalha: agenda, caixa e clientes',
   ['agenda','caixa','clientes'].every(k => abasRecep.includes(k)),
   JSON.stringify(abasRecep));
 verdade('NÃO vê o Plano', !abasRecep.includes('plano'), JSON.stringify(abasRecep));
-verdade('NÃO vê Meu salão', !abasRecep.includes('salao'), JSON.stringify(abasRecep));
+verdade('NÃO vê Meu negócio', !abasRecep.includes('salao'), JSON.stringify(abasRecep));
 verdade('NÃO vê Equipe — que traz a comissão das colegas',
   !abasRecep.includes('equipe'), JSON.stringify(abasRecep));
 verdade('NÃO vê Relatórios — faturamento do mês não é assunto do balcão',
@@ -242,7 +245,7 @@ const pgProf = await abrirPainel(dProf, 'profissional');
 const abasProf = await abasDe(pgProf);
 
 verdade('vê a agenda', abasProf.includes('agenda'), JSON.stringify(abasProf));
-verdade('NÃO vê Plano, Meu salão, Equipe nem Relatórios',
+verdade('NÃO vê Plano, Meu negócio, Equipe nem Relatórios',
   !['plano','salao','equipe','relatorios'].some(k => abasProf.includes(k)),
   JSON.stringify(abasProf));
 

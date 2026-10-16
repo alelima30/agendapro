@@ -764,6 +764,22 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (planos novos e travas de módulo)'
            else '' end
   union all
+  /* O Pix gerado e não pago dá para cancelar (13_cobranca), e o horário
+     trocado por outro volta como "remarcado" na lista da cliente (09). */
+  select 34, 'Cancelar o Pix em aberto e o horário remarcado',
+         case
+           when to_regprocedure('public.cancelar_minha_cobranca(uuid)') is null
+             or has_function_privilege('anon', 'public.cancelar_minha_cobranca(uuid)', 'execute')
+             or pg_get_functiondef(to_regprocedure('public.meus_agendamentos(uuid[])')) not like '%remarcado%'
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.cancelar_minha_cobranca(uuid)') is null
+             or has_function_privilege('anon', 'public.cancelar_minha_cobranca(uuid)', 'execute')
+             or pg_get_functiondef(to_regprocedure('public.meus_agendamentos(uuid[])')) not like '%remarcado%'
+             then 'cole o 00_tudo.sql de novo (13_cobranca e 09_cliente)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

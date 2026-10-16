@@ -105,7 +105,7 @@ secao('1) A aba de Notificações');
 
 await abrirNotif();
 
-verdade('a aba existe em Meu salão',
+verdade('a aba existe em Meu negócio',
   await p.evaluate(() =>
     !!document.querySelector('.sub-tela[data-sub="notificacoes"].on')),
   'sem a aba, os ajustes só existem no SQL Editor do Supabase');
@@ -286,7 +286,7 @@ verdade('a ficha tem a escolha do lembrete antes de cada atendimento, marcada',
   await p.isChecked('#qNotifLembrete'));
 await p.uncheck('#qNotifLembrete');
 // O rodapé do modal, e não "qualquer botão Salvar": há quatro na página, e
-// o primeiro que o seletor larga é o "Salvar dados" de Meu salão, escondido.
+// o primeiro que o seletor larga é o "Salvar dados" de Meu negócio, escondido.
 await p.click('#modalPe button:has-text("Salvar")');
 await p.waitForTimeout(2500);
 
@@ -310,7 +310,7 @@ const doPlano = await p.textContent('#medidoresDoPlano');
 verdade('as três barras novas aparecem',
   /Clientes na ficha/.test(doPlano || '')
     && /Serviços no cardápio/.test(doPlano || '')
-    && /Mensagens no mês/.test(doPlano || ''), (doPlano || '').slice(0, 200));
+    && /Mensagens usadas no mês/.test(doPlano || ''), (doPlano || '').slice(0, 200));
 
 /* O número vem do BANCO, não de uma contagem no navegador — e tem de ser o
    MESMO que o gatilho usa para recusar. Dois contadores para a mesma cota é

@@ -69,6 +69,9 @@ const erros = [];
 p.on('pageerror', x => erros.push('pageerror: ' + x.message));
 p.on('console', c => { if(c.type() === 'error') erros.push('console: ' + c.text()); });
 p.on('dialog', async d => { erros.push('ALERT: ' + d.message()); await d.dismiss(); });
+// A comanda e o caixa estão DESLIGADOS na plataforma (COMANDA_LIGADA no
+// app.html); este teste mede as telas deles, então liga só nesta aba.
+await p.addInitScript(() => { try{ sessionStorage.setItem('agendapro.comanda', '1'); }catch(e){} });
 await p.addInitScript(([base, ses]) => {
   window.AGENDAPRO = { url: base, chave:'k', ambiente:'bancada' };
   localStorage.setItem('agendapro.sessao', JSON.stringify(ses));
@@ -92,7 +95,7 @@ e('a aba Caixa aparece num salão novo', antes.includes('caixa'),
    2 — DESLIGANDO PELA TELA
    ══════════════════════════════════════════════════════════════════════════ */
 console.log('\n── DESLIGANDO ───────────────────────────────────────────────');
-await p.click('button:has-text("Meu salão"), a:has-text("Meu salão")');
+await p.click('button:has-text("Meu negócio"), a:has-text("Meu negócio")');
 await p.waitForTimeout(1200);
 e('a régua existe na tela do salão', await p.isVisible('#reguaComanda'));
 const escolhido = () => p.evaluate(() =>

@@ -133,7 +133,7 @@ h2{font-size:19px;font-weight:700;letter-spacing:-.02em}
    com sombra. Sem esse relevo os dois lados pesavam igual e não dava para
    ver, de relance, em qual vista a agenda está — que é a única pergunta que
    este controle responde. */
-/* As duas metades de "Meu salão". Mesma linguagem do Dia | Semana da agenda:
+/* As duas metades de "Meu negócio". Mesma linguagem do Dia | Semana da agenda:
    trilho afundado, pastilha erguida na escolhida. Duas peças com a mesma
    função devem ter a mesma cara, senão cada tela ensina um jeito diferente
    de fazer a mesma coisa. */
@@ -522,6 +522,9 @@ body.carregando-tudo .tela{ display:none }
         <small id="latQuemPapel"></small>
       </span>
     </div>
+    <a class="lat-acao" id="latAjuda" href="#" target="_blank" rel="noopener"
+       onclick="return abrirAjuda(this)">
+      <span data-ico="whatsapp"></span>Precisa de ajuda? Fale no WhatsApp</a>
     <button class="lat-acao" id="btInstalar" onclick="instalarApp()">
       <span data-ico="baixo"></span>Instalar aplicativo</button>
     <button class="lat-acao" onclick="trocarTema()" id="btTema">
@@ -553,11 +556,18 @@ body.carregando-tudo .tela{ display:none }
     </div>
     <span class="espaco"></span>
     <span class="tb-data" id="tbData"></span>
+    <a class="tb-ajuda" id="btAjuda" href="#" target="_blank" rel="noopener"
+       onclick="return abrirAjuda(this)" aria-label="Precisa de ajuda? Fale no WhatsApp">
+      <span data-ico="whatsapp"></span><span>Ajuda</span></a>
   </header>
 
   <div class="veu" id="veu" onclick="alternarLateral()"></div>
 
 <main class="corpo" id="conteudo">
+  <!-- O TESTE GRATIS, A VISTA. Quem acabou de criar a conta nao sabia em que
+       plano estava nem ate quando tinha tudo liberado. Uma faixa fina no alto
+       de toda tela, so para quem gere o salao, so durante o teste. -->
+  <div id="faixaTeste" class="faixa-teste" style="display:none"></div>
 
   <!-- ══════════ AGENDA ══════════ -->
   <section class="tela on" id="tela-agenda">
@@ -1356,7 +1366,7 @@ function falarNoWhatsapp(agId){
      Antes saía sempre a mesma abertura genérica, e o dono apagava tudo para
      escrever "seu horário está confirmado" pela vigésima vez no dia. Os três
      recados que ele repete — confirmar, avisar que não tem mais, e dar
-     parabéns — passaram a ser modelos que ELE escreve uma vez, em Meu salão,
+     parabéns — passaram a ser modelos que ELE escreve uma vez, em Meu negócio,
      e escolhe aqui. */
   escolherRecado(num, {
     cliente: (nomeCliente(a.clienteId) || '').split(' ')[0],
@@ -1368,7 +1378,7 @@ function falarNoWhatsapp(agId){
 /* ═══════════════════════════════════════════════════════════════════════════
    OS RECADOS QUE O DONO ESCREVE UMA VEZ
 
-   Quatro modelos, editáveis em Meu salão, com três parâmetros: ${cliente},
+   Quatro modelos, editáveis em Meu negócio, com três parâmetros: ${cliente},
    ${horario} e ${empresa}.
 
    ── POR QUE MODELO, E NÃO TEXTO PRONTO NOSSO ──────────────────────────────
@@ -1478,7 +1488,7 @@ function escolherRecado(num, dados){
       </button>`;
     }).join('')
     + '<p class="ajuda" style="margin-top:12px">Você escreve estes textos em '
-    + '<b>Meu salão</b>. O WhatsApp abre com o recado pronto — dá para mudar '
+    + '<b>Meu negócio</b>. O WhatsApp abre com o recado pronto — dá para mudar '
     + 'antes de enviar.</p>',
     [['Fechar', 'fecharModal()', '']]);
 }
@@ -1619,7 +1629,7 @@ function rotuloServicos(ag){
 /* ⚠ QUEM VÊ CADA ABA — E A LISTA SAI DO QUE O BANCO JÁ DECIDE.
 
    Até aqui o painel era o mesmo para todo mundo: a recepcionista entrava e
-   via Plano, Meu salão e Equipe. O banco recusava a escrita dela — o RLS
+   via Plano, Meu negócio e Equipe. O banco recusava a escrita dela — o RLS
    sempre esteve certo — mas a tela oferecia. O resultado prático é uma
    recepcionista lendo o valor do plano e a comissão das colegas, e levando
    erro em inglês quando tentava salvar algo que a tela deixou ela abrir.
@@ -1698,7 +1708,7 @@ const TELAS = [
      e só GESTÃO cria. O banco diz o mesmo (`cupons_escrever` no 34). */
   ['cupons',   'Cupons',           'cupom',      'Cadastros', GESTAO],
   ['equipe',   'Equipe',           'equipe',     'Cadastros', GESTAO],
-  ['salao',    'Meu salão',        'predio',     'Cadastros', GESTAO],
+  ['salao',    'Meu negócio',        'predio',     'Cadastros', GESTAO],
   ['publico',  'Ver como cliente', 'olho',       'A conta',   EQUIPE],
   ['plano',    'Plano',            'etiqueta',   'A conta',   GESTAO],
 ];
@@ -1909,7 +1919,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.2c75ac';
+const VERSAO_APP = 'v9.5c70f3';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -1947,6 +1957,34 @@ async function sair(){
   catch(e){ console.warn('[AgendaPro] sessão já estava encerrada:', e.message); }
   location.href = 'entrar.html';
 }
+
+/* ── PRECISA DE AJUDA? ────────────────────────────────────────────────────
+   O WhatsApp de quem atende os donos de salão. Fica no topo de toda tela (e
+   no menu), e não num botão flutuante no canto: no celular ele ficaria em
+   cima do "Agendar" e do "Salvar" das janelas.
+
+   A conversa já abre dizendo de que salão e de que tela a pessoa fala —
+   "não consigo marcar" sem saber de quem nem onde é a primeira coisa que o
+   suporte teria de perguntar. Montada na hora do toque, para levar a tela
+   de agora. Vazio = os dois somem. Só dígitos, com 55 e DDD. */
+const SUPORTE_WHATSAPP = '5511963659620';
+function linkDeAjuda(){
+  const s = ((typeof bd !== 'undefined' && bd && bd.saloes) || [])
+              .find(x => x.id === salaoAtual);
+  const tela = ((document.getElementById('tituloTela') || {}).textContent || '').trim();
+  const txt = 'Olá! Preciso de ajuda com o AgendaPro.'
+    + (s ? '\nSalão: ' + s.nome + (s.slug ? ' (' + s.slug + ')' : '') : '')
+    + (tela ? '\nTela: ' + tela : '') + '\n\n';
+  return 'https://wa.me/' + SUPORTE_WHATSAPP + '?text=' + encodeURIComponent(txt);
+}
+function abrirAjuda(a){
+  a.href = linkDeAjuda();
+  return true;
+}
+document.querySelectorAll('#btAjuda, #latAjuda').forEach(a => {
+  if(SUPORTE_WHATSAPP) a.href = 'https://wa.me/' + SUPORTE_WHATSAPP;
+  else a.style.display = 'none';
+});
 
 function trocarTema(){
   const atual = document.documentElement.getAttribute('data-tema');
@@ -4632,7 +4670,7 @@ function dashAniversarios(){
 }
 
 /* O recado de parabéns direto, sem a janela de escolher recado: quem tocou
-   em "Dar os parabéns" já escolheu. O texto é o de Meu salão (ou o padrão),
+   em "Dar os parabéns" já escolheu. O texto é o de Meu negócio (ou o padrão),
    e o `${horario}` sai limpo — ver `preencherRecado()`. */
 function darParabens(clienteId){
   const num = zapDoCliente(clienteId);
@@ -5495,6 +5533,15 @@ function variacao(agora, antes, r){
        + '% que ' + janela + '</div>';
 }
 
+/* A dona não recebe comissão dela mesma: o que ela atende já é dela. A ficha
+   de quem atende que é da própria dona (vínculo "dono" no salão) sai da
+   comissão A PAGAR — continua aparecendo no que vendeu. */
+function eDaDona(p){
+  if(!p || !p.perfilId) return false;
+  return (bd.vinculos || []).some(v => v.perfilId === p.perfilId
+    && v.salaoId === (p.salaoId || salaoAtual) && v.papel === 'dono');
+}
+
 function desenharRelatorio(r){
   const alvo = document.getElementById('relCorpo');
   if(!r){ alvo.innerHTML = '<div class="vazio">Sem dados no período.</div>'; return; }
@@ -5503,17 +5550,25 @@ function desenharRelatorio(r){
   const fat = n(r.faturamento), at = n(r.atendimentos);
   const comissoes = r.comissoes || [], formas = r.formas || [],
         servicos  = r.servicos  || [], ag = r.agenda || {}, cl = r.clientes || {};
-  const totalComissao = comissoes.reduce((s,c) => s + n(c.comissao), 0);
+  const daDona = c => eDaDona(c.profissionalId ? acharProf(c.profissionalId) : null);
+  const totalComissao = comissoes.filter(c => !daDona(c)).reduce((s,c) => s + n(c.comissao), 0);
+  const temAPagar     = comissoes.some(c => !daDona(c));
   const totalTaxas    = formas.reduce((s,f) => s + n(f.taxa), 0);
+  // Comanda desligada na plataforma: o dono não vê comanda, vê atendimento.
+  const comanda = usaComanda();
 
   /* O vazio precisa dizer POR QUE está vazio. "Sem dados" faria o dono achar
      que o sistema perdeu o mês dele — quando quase sempre é comanda que
      ficou aberta, que é justamente o que ele precisa saber para consertar. */
   if(!at && !n(ag.marcados)){
-    alvo.innerHTML = `<div class="vazio"><b>Nenhuma comanda fechada neste período</b>
+    alvo.innerHTML = comanda
+      ? `<div class="vazio"><b>Nenhuma comanda fechada neste período</b>
       Só comanda FECHADA vira faturamento — é a data do fechamento que diz de
       que mês é o dinheiro. Se você atendeu e recebeu mas não fechou a comanda,
-      ela ainda está aberta no Caixa, esperando.</div>`;
+      ela ainda está aberta no Caixa, esperando.</div>`
+      : `<div class="vazio"><b>Nenhum atendimento concluído neste período</b>
+      O atendimento entra no faturamento quando você o marca como Concluído na
+      agenda.</div>`;
     return;
   }
 
@@ -5521,9 +5576,9 @@ function desenharRelatorio(r){
     <div class="kpis">
       <div class="kpi"><div class="v">${real(fat)}</div><div class="r">faturamento</div>
         ${variacao(fat, n(r.faturamentoAntes), r)}</div>
-      <div class="kpi"><div class="v">${at}</div><div class="r">comandas fechadas</div></div>
+      <div class="kpi"><div class="v">${at}</div><div class="r">${comanda ? 'comandas fechadas' : 'atendimentos concluídos'}</div></div>
       <div class="kpi"><div class="v">${real(at ? fat/at : 0)}</div><div class="r">ticket médio</div></div>
-      <div class="kpi"><div class="v">${real(totalComissao)}</div><div class="r">comissões a pagar</div></div>
+      ${temAPagar ? `<div class="kpi"><div class="v">${real(totalComissao)}</div><div class="r">comissões a pagar</div></div>` : ''}
       <div class="kpi"><div class="v">${real(n(r.descontos))}</div><div class="r">descontos dados</div></div>
     </div>
 
@@ -5540,13 +5595,15 @@ function desenharRelatorio(r){
           <td><span class="pnt" style="background:${corDoProf(p)}"></span>${escapar(c.nome)}</td>
           <td style="text-align:right;color:var(--txt2)">${n(c.itens)}</td>
           <td style="text-align:right">${real(n(c.vendido))}</td>
-          <td style="text-align:right"><b>${real(n(c.comissao))}</b></td>
+          <td style="text-align:right">${eDaDona(p)
+            ? '<span style="color:var(--txt2)" title="O que a dona atende já é dela">— é a dona</span>'
+            : `<b>${real(n(c.comissao))}</b>`}</td>
         </tr>`;
       }).join('')}
-      </tbody><tfoot><tr>
+      </tbody>${temAPagar ? `<tfoot><tr>
         <td colspan="3"><b>Total a pagar</b></td>
         <td style="text-align:right"><b>${real(totalComissao)}</b></td>
-      </tr></tfoot></table></div>`
+      </tr></tfoot>` : ''}</table></div>`
       : '<div class="vazio">Nenhum item com profissional no período.</div>'}
 
     <h2 class="rel-secao">Como o dinheiro entrou
@@ -6228,6 +6285,8 @@ function abrirDetalhe(agId){
   abrirModal('Atendimento', `
     <div class="campo">
       <span class="tag ${CLASSE_STATUS[a.status]}">${ROTULO_STATUS[a.status]}</span>
+      ${a.status === 'cancelado' && /^remarcado/.test(a.canceladoMotivo || '')
+        ? '<span class="tag t-conc" style="margin-left:5px">remarcado pela cliente</span>' : ''}
       ${a.origem === 'online' ? '<span class="tag t-conc" style="margin-left:5px">veio pelo link</span>' : ''}
       <!-- Exceção que não aparece volta a ser buraco: o encaixe precisa ser
            visível para quem abre o atendimento depois. -->
@@ -8079,6 +8138,7 @@ async function salvarProduto(pid){
 }
 
 function abrirProf(pid){
+  if(!pid && !cabeMaisProfissional()){ avisarLimiteDeEquipe(); return; }
   const p = pid ? acharProf(pid) : null;
   const j = p ? p.jornada : {1:[[540,1140]],2:[[540,1140]],3:[[540,1140]],4:[[540,1140]],5:[[540,1140]],6:[[540,840]]};
 
@@ -8338,6 +8398,7 @@ function rotularTabelas(raiz){
 }
 
 function pintar(){
+  pintarFaixaTeste();
   aplicarTravaDaTela(telaAtual);
   if(telaAtual === 'agenda')   pintarAgenda();
   if(telaAtual === 'clientes') pintarClientes();
@@ -8379,7 +8440,7 @@ function pintar(){
   rotularTabelas();
 }
 
-/* ── Meu salão: identidade visual ────────────────────────────────────────
+/* ── Meu negócio: identidade visual ────────────────────────────────────────
    A logo e a foto do salão não são enfeite. O cliente abre o link vindo do
    WhatsApp, e o que decide se ele confia naquela página é reconhecer a casa.
    Uma vitrine sem imagem parece link suspeito.
@@ -8389,7 +8450,7 @@ function pintar(){
    Storage. A tela não sabe a diferença — quem resolve isso é o imagens.js.
    ──────────────────────────────────────────────────────────────────────── */
 /* Os tipos de negócio, num lugar só: esta lista é lida aqui, no seletor de
-   "Meu salão", e no primeiro passo do assistente. Duas listas divergindo
+   "Meu negócio", e no primeiro passo do assistente. Duas listas divergindo
    fariam o assistente oferecer um tipo que o cadastro não aceita. */
 const TIPOS_NEGOCIO = [
   ['salao',     'Salão de beleza'],
@@ -8448,7 +8509,7 @@ function pintarSalao(){
 
   document.getElementById('painelSalao').innerHTML = `
     <!-- ⚠ DUAS ABAS, E O MOTIVO É A PRÉVIA.
-         "Meu salão" era uma página só, com três cartões empilhados: dados,
+         "Meu negócio" era uma página só, com três cartões empilhados: dados,
          aparência e identidade visual. A prévia do celular gruda ao lado da
          aparência — mas a identidade visual (logo, capa, fotos, fundo) ficava
          DEPOIS dela, num cartão de largura inteira. Ou seja: trocar a capa,
@@ -8651,6 +8712,7 @@ function pintarSalao(){
       <!-- COMO O SALAO TRABALHA. Vem antes das regras da agenda de proposito:
            e a pergunta mais larga das tres, e a resposta muda o menu inteiro.
            (Sem crase e sem acento: comentario dentro de template literal.) -->
+      <div id="blocoComanda">
       <div class="linha-fina" style="margin:18px 0"></div>
       <h3 class="secao">Como você trabalha</h3>
       <p class="secao-sub">Salão grande costuma abrir comanda e conferir o
@@ -8663,6 +8725,7 @@ function pintarSalao(){
            (Sem crase e sem acento: comentario em template literal.) -->
       <div class="regua" id="reguaComanda" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaComanda" style="margin-top:9px"></p>
+      </div>
 
       <!-- QUEM CONFIRMA O QUE VEM PELO LINK. Fica nesta secao e nao junto das
            regras da agenda porque nao e uma regra de QUANDO: e uma decisao
@@ -8926,6 +8989,45 @@ function pintarSalao(){
         <div class="fitas" id="papeisProntos" style="margin-top:10px"></div>
       </div>
 
+      <!-- AS CORES DO GRADIENTE, AQUI MESMO. Moravam na secao Gradientes, longe
+           da regua do tipo de fundo: o dono escolhia "Gradiente" aqui e tinha
+           de rolar a tela atras das cores. Pedido dele: "o fundo gradiente tem
+           que estar perto do fundo normal". Os mesmos ids e as mesmas funcoes;
+           so mudou de lugar. (Sem crase: template literal.) -->
+      <div id="gradienteCampos" style="display:none;margin-top:10px">
+        <div class="cor-linha">
+          <input type="color" id="gradA" class="cor-livre"
+                 oninput="escolherGradiente()" aria-label="Cor de cima">
+          <span class="cor-linha-txt"><b>Cor de cima</b>
+            <span>onde o fundo começa</span></span>
+        </div>
+        <!-- A COR DO MEIO. Pedido dele, olhando o proprio fundo: "o roxo ta
+             muito claro no comeco". Com duas cores, a de cima e o comeco da
+             pagina; com tres, o comeco pode ser escuro, o meio vivo e o fim
+             escuro de novo. Opcional: o gradiente de duas continua sendo o
+             padrao, e tirar a do meio volta a ele.
+             (Sem crase: este HTML e lido como template literal.) -->
+        <div class="cor-linha" id="linhaGradM" style="display:none">
+          <input type="color" id="gradM" class="cor-livre"
+                 oninput="escolherGradiente()" aria-label="Cor do meio">
+          <span class="cor-linha-txt"><b>Cor do meio</b>
+            <span>no meio da página</span></span>
+          <button type="button" class="btn btn-peq" onclick="tirarCorDoMeio()">tirar</button>
+        </div>
+        <button type="button" class="func-mais" id="botaoGradM"
+                onclick="adicionarCorDoMeio()">+ Adicionar cor do meio</button>
+        <div class="cor-linha">
+          <input type="color" id="gradB" class="cor-livre"
+                 oninput="escolherGradiente()" aria-label="Cor de baixo">
+          <span class="cor-linha-txt"><b>Cor de baixo</b>
+            <span>onde o fundo termina</span></span>
+        </div>
+        <div class="fitas" id="gradientesProntos" style="margin-top:10px"></div>
+        <p class="secao-sub" style="margin-top:6px">Cores próximas dão um
+          fundo calmo; cores distantes viram enfeite e disputam com o conteúdo.
+          Com a cor do meio, o começo e o fim podem ser escuros e o meio vivo.</p>
+      </div>
+
       <div id="imagemCampos" style="display:none;margin-top:10px">
         ${cartao('fundo', 'Imagem do fundo',
           'Foto de ambiente funciona melhor que foto com gente ou letreiro — '
@@ -9031,40 +9133,10 @@ function pintarSalao(){
       <div class="ap-sub" style="margin-top:4px">Fundo da página</div>
       <p class="secao-sub" id="gradAplicado" style="margin:0 0 6px"></p>
       <button type="button" class="func-mais" id="gradUsar"
-              onclick="escolherFundoTipo('gradiente')">Usar gradiente no fundo da página</button>
-      <div id="gradienteCampos" style="display:none;margin-top:10px">
-        <div class="cor-linha">
-          <input type="color" id="gradA" class="cor-livre"
-                 oninput="escolherGradiente()" aria-label="Cor de cima">
-          <span class="cor-linha-txt"><b>Cor de cima</b>
-            <span>onde o fundo começa</span></span>
-        </div>
-        <!-- A COR DO MEIO. Pedido dele, olhando o proprio fundo: "o roxo ta
-             muito claro no comeco". Com duas cores, a de cima e o comeco da
-             pagina; com tres, o comeco pode ser escuro, o meio vivo e o fim
-             escuro de novo. Opcional: o gradiente de duas continua sendo o
-             padrao, e tirar a do meio volta a ele.
-             (Sem crase: este HTML e lido como template literal.) -->
-        <div class="cor-linha" id="linhaGradM" style="display:none">
-          <input type="color" id="gradM" class="cor-livre"
-                 oninput="escolherGradiente()" aria-label="Cor do meio">
-          <span class="cor-linha-txt"><b>Cor do meio</b>
-            <span>no meio da página</span></span>
-          <button type="button" class="btn btn-peq" onclick="tirarCorDoMeio()">tirar</button>
-        </div>
-        <button type="button" class="func-mais" id="botaoGradM"
-                onclick="adicionarCorDoMeio()">+ Adicionar cor do meio</button>
-        <div class="cor-linha">
-          <input type="color" id="gradB" class="cor-livre"
-                 oninput="escolherGradiente()" aria-label="Cor de baixo">
-          <span class="cor-linha-txt"><b>Cor de baixo</b>
-            <span>onde o fundo termina</span></span>
-        </div>
-        <div class="fitas" id="gradientesProntos" style="margin-top:10px"></div>
-        <p class="secao-sub" style="margin-top:6px">Cores próximas dão um
-          fundo calmo; cores distantes viram enfeite e disputam com o conteúdo.
-          Com a cor do meio, o começo e o fim podem ser escuros e o meio vivo.</p>
-      </div>
+              onclick="escolherFundoTipo('gradiente'); irParaSecaoAp('apFundo')">Usar gradiente no fundo da página</button>
+      <button type="button" class="func-mais" id="gradIrFundo"
+              onclick="irParaSecaoAp('apFundo')">Ajustar as cores do gradiente em Fundo</button>
+
 
       <div class="ap-sub">Botão de agendar</div>
       <div class="rot" style="margin:12px 0 8px">Brilho no botão</div>
@@ -9151,9 +9223,22 @@ function pintarSalao(){
       <div class="regua" id="reguaAtalhos" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaAtalhos" style="margin-top:9px"></p>
 
+      <!-- A MOLDURA DOS TRES: uma cor so, e os tres ficam iguais. Sem escolha,
+           a borda dos cartoes (Bordas). So existe no "Com borda": nos outros
+           dois estilos nao ha borda. -->
+      <div class="cor-linha" style="margin-top:10px">
+        <input type="color" id="atMoldura" class="cor-bolha"
+               oninput="escolherMolduraAtalhos(this.value)" aria-label="Cor da moldura dos atalhos">
+        <span class="cor-linha-txt">
+          <b>Cor da moldura</b>
+          <span id="atMolduraAjuda"></span>
+        </span>
+        <button type="button" class="btn btn-peq" id="atMolduraHerdar"
+                onclick="escolherMolduraAtalhos('')">herdar</button>
+      </div>
+
       <!-- A COR DE CADA ATALHO: icone e nome juntos. Vale nos tres estilos.
-           Sem escolha, o de sempre: icone na cor da marca, nome em cinza, e
-           o Horarios inteiro na cor da marca. -->
+           Sem escolha, os tres iguais: icone na cor da marca, nome em cinza. -->
       <div class="secao" style="margin:14px 0 2px">Cores dos atalhos</div>
       <p class="secao-sub" style="margin:0">Ícone e nome de cada um.</p>
       <div class="cor-linha" style="margin-top:8px">
@@ -9687,7 +9772,7 @@ function quandoSai(iso){
   }catch(e){ return String(iso).slice(0, 16).replace('T', ' '); }
 }
 
-/* Qual das duas metades de "Meu salão" está aberta.
+/* Qual das duas metades de "Meu negócio" está aberta.
    Guardada FORA da função porque `pintarSalao()` refaz o innerHTML inteiro a
    cada foto trocada: sem lembrar aqui, escolher uma capa jogaria o dono de
    volta para a aba de dados, no meio do trabalho dele. */
@@ -9708,7 +9793,7 @@ function trocarAbaSalao(qual){
     t.classList.toggle('on', t.dataset.sub === qual);
   }
   /* O histórico só é buscado quando alguém abre a aba. Buscar sempre seria
-     uma ida ao servidor por abertura de "Meu salão", para uma tabela que a
+     uma ida ao servidor por abertura de "Meu negócio", para uma tabela que a
      maioria das visitas nem olha. */
   if(qual === 'notificacoes'){ pintarHistoricoNotif(); carregarUsoDoPlano(); }
   travarBloco(document.querySelector('#painelSalao .sub-tela[data-sub="aparencia"]'), 'aparencia');
@@ -10004,6 +10089,7 @@ function lerAtalhos(cru){
   const pad = SOMBRAS.suave;
   return {
     estilo: ['limpo', 'sombra'].includes(a.estilo) ? a.estilo : 'borda',
+    moldura: corValida(a.moldura) ? a.moldura : '',
     cores: Object.fromEntries(CORES_ATALHO
       .map(([k]) => [k, a.cores && typeof a.cores === 'object' ? a.cores[k] : null])
       .filter(([, v]) => corValida(v))),
@@ -10390,8 +10476,8 @@ function pintarAparencia(){
      'Uma cor só, a que você quiser. Toque no quadrado para abrir todas as '
      + 'cores, ou escolha uma pronta.'],
     ['gradiente', 'Gradiente',
-     'Duas ou três cores em degradê, de cima para baixo. As cores ficam na '
-     + 'seção Gradientes, logo abaixo.'],
+     'Duas ou três cores em degradê, de cima para baixo. Escolha as cores '
+     + 'logo abaixo.'],
     ['imagem', 'Imagem',
      'Uma foto sua atrás de tudo, com um véu por cima para o texto continuar '
      + 'legível.'],
@@ -10414,10 +10500,11 @@ function pintarAparencia(){
      um atalho para ela, e não uma segunda configuração. */
   const comGrad = aparencia.fundoTipo === 'gradiente';
   document.getElementById('gradAplicado').innerHTML = comGrad
-    ? 'Aplicado em: <b>fundo da página</b>. Para tirar, escolha outro tipo em Fundo.'
+    ? 'Aplicado em: <b>fundo da página</b>. As cores dele ficam em Fundo, logo abaixo do tipo de fundo; para tirar, escolha outro tipo lá.'
     : 'Não está em uso: o fundo da página hoje é '
       + (aparencia.fundoTipo === 'imagem' ? 'uma imagem.' : 'uma cor sólida.');
   mostrar('gradUsar', !comGrad);
+  mostrar('gradIrFundo', comGrad);
 
   const partes = coresDoGradiente(aparencia.gradiente || padraoGradiente());
   const comMeio = partes.length === 3;
@@ -11298,6 +11385,11 @@ function escolherCorAtalho(chave, hex){
   if(corValida(hex)) c[chave] = hex; else delete c[chave];
   pintarAparencia();
 }
+/* A moldura dos três atalhos. Vazio é "herdar": a borda dos cartões. */
+function escolherMolduraAtalhos(hex){
+  aparencia.atalhos.moldura = corValida(hex) ? hex : '';
+  pintarAparencia();
+}
 function escolherIntensidade(nome){
   Object.assign(aparencia.atalhos.sombra, SOMBRAS[nome], { intensidade: nome });
   pintarAparencia();
@@ -11369,11 +11461,24 @@ function pintarAtalhos(){
     if(el.value.toLowerCase() !== v) el.value = v;
     const pouco = tem && Math.min(...atras.map(f => contrasteEntre(at.cores[k], f))) < 3;
     document.getElementById(id + 'Ajuda').textContent = !tem
-      ? (k === 'horarios' ? 'acompanha a cor da marca' : 'ícone na cor da marca, nome em cinza')
+      ? 'ícone na cor da marca, nome em cinza'
       : pouco ? 'escolhida por você · pouco contraste com o fundo, pode ficar difícil de ler'
               : 'escolhida por você';
     document.getElementById(id + 'Herdar').style.display = tem ? '' : 'none';
   }
+  /* A moldura: sem escolha, o quadrado mostra a borda que os três já têm. */
+  const mol = document.getElementById('atMoldura');
+  const temMol = corValida(at.moldura);
+  const comBorda = at.estilo === 'borda';
+  const vMol = (temMol ? at.moldura : (corValida(c.borda) ? c.borda : corHerdada('borda'))).toLowerCase();
+  if(mol.value.toLowerCase() !== vMol) mol.value = vMol;
+  mol.disabled = !comBorda;
+  document.getElementById('atMolduraAjuda').textContent = !comBorda
+    ? 'só no estilo “Com borda”'
+    : temMol ? 'escolhida por você · a mesma nos três' : 'a mesma borda dos cartões, nos três';
+  const herdarMol = document.getElementById('atMolduraHerdar');
+  herdarMol.style.display = temMol ? '' : 'none';
+  herdarMol.disabled = !comBorda;
 
   document.getElementById('explicaSombra').textContent = !ligado
     ? 'Escolha “Com assombreamento” para ajustar a sombra.'
@@ -11595,7 +11700,8 @@ function anelDaPrevia(){
 function sombraDaPrevia(){
   const sb = aparencia.atalhos.sombra, k = 234 / 412;
   const cores = Object.entries(aparencia.atalhos.cores)
-    .filter(([, v]) => corValida(v)).map(([n, v]) => `;--fone-at-${n}:${v}`).join('');
+    .filter(([, v]) => corValida(v)).map(([n, v]) => `;--fone-at-${n}:${v}`).join('')
+    + (corValida(aparencia.atalhos.moldura) ? `;--fone-at-moldura:${aparencia.atalhos.moldura}` : '');
   return cores + `;--fone-at-desfoque:${(sb.desfoque * k).toFixed(1)}px`
        + `;--fone-at-distancia:${(sb.distancia * k).toFixed(1)}px`
        + `;--fone-at-opacidade:${Number(sb.opacidade)}%;--fone-at-cor:${sb.cor}`;
@@ -11615,14 +11721,14 @@ function previaDaInfo(sl){
   const func = Funcionamento.normalizar(c.funcionamento);
   const pag = Funcionamento.pagamentos(c.pagamentos);
   const botoes = [];
-  if(pag)  botoes.push(['cartao', 'Pagamentos', false, 'pagamentos']);
-  if(func) botoes.push(['relogio', 'Horários', true, 'horarios']);
+  if(pag)  botoes.push(['cartao', 'Pagamentos', 'pagamentos']);
+  if(func) botoes.push(['relogio', 'Horários', 'horarios']);
   if(String(c.sobre || '').trim() || String(c.instagram || '').trim() || botoes.length)
-    botoes.push(['info', 'Informações', false, 'informacoes']);
+    botoes.push(['info', 'Informações', 'informacoes']);
   if(!botoes.length) return '';
   const est = func ? Funcionamento.estado(func, Funcionamento.agora(sl.fuso)) : null;
-  return `<div class="fone-recursos" data-cfg="atalhos" style="--n:${botoes.length}">${botoes.map(([ico, rot, d, qual]) =>
-      `<span class="fone-recurso${d ? ' destaque' : ''}" data-recurso="${qual}"><span data-ico="${ico}"></span>${rot}</span>`
+  return `<div class="fone-recursos" data-cfg="atalhos" style="--n:${botoes.length}">${botoes.map(([ico, rot, qual]) =>
+      `<span class="fone-recurso" data-recurso="${qual}"><span data-ico="${ico}"></span>${rot}</span>`
     ).join('')}</div>`
     + (est ? `<div class="fone-status ${est.aberto ? 'aberto' : 'fechado'}" data-cfg="status">
         <i></i><b>${est.aberto ? 'ABERTO' : 'FECHADO'}</b><span class="fone-status-sep"></span><span class="fone-status-txt" data-cfg="horario">${
@@ -11805,7 +11911,7 @@ const CONFIG_DA_PREVIA = {
   bemVindo: ['.cor-linha[data-chave="bemVindo"]'],
   convite:  ['.cor-linha[data-chave="convite"]'],
   pino:     ['.cor-linha[data-chave="icone"]'],
-  atalhos:  ['#reguaAtalhos', '#atCorPagamentos', '#atCorHorarios', '#atCorInformacoes'],
+  atalhos:  ['#reguaAtalhos', '#atMoldura', '#atCorPagamentos', '#atCorHorarios', '#atCorInformacoes'],
   // O verde e o vermelho são do horário; o que se escolhe nele é o cartão
   // que o tinge.
   status:   ['.cor-linha[data-chave="card"]'],
@@ -12260,7 +12366,45 @@ function prefereComanda(sl){
    gravaria "sem comanda" para sempre, e ao assinar o Básico o caixa não
    voltaria. */
 function usaComanda(sl){
-  return prefereComanda(sl) && moduloLiberado('caixa');
+  return COMANDA_NA_PLATAFORMA && prefereComanda(sl) && moduloLiberado('caixa');
+}
+
+/* ── COMANDA E CAIXA DESLIGADOS NA PLATAFORMA ──────────────────────────────
+   Pedido do dono: "não vou trabalhar com comanda no momento — esconder por
+   enquanto, só com agenda". Uma chave só (`COMANDA_LIGADA`): desligada, a
+   tela esconde a aba Caixa, o "Abrir comanda" e a escolha "Com comanda e
+   caixa", e o salão passa a ser gravado como "Só a agenda" (cfg.usaComanda
+   = false). É isso que faz o BANCO transformar o atendimento concluído em
+   faturamento sozinho (28_sem_comanda) — esconder só a tela deixaria o mês
+   zerado. Nada é apagado: religar é `true` na linha abaixo.
+
+   `?comanda=1` mostra e `?comanda=0` esconde, só na aba que abriu pelo link —
+   é por onde os testes da comanda e do caixa entram. */
+const COMANDA_LIGADA = false;
+const COMANDA_NA_PLATAFORMA = comandaNestaAba(COMANDA_LIGADA);
+function comandaNestaAba(padrao){
+  try{
+    const q = new URLSearchParams(location.search).get('comanda');
+    if(q === '1' || q === '0') sessionStorage.setItem('agendapro.comanda', q);
+    const g = sessionStorage.getItem('agendapro.comanda');
+    return g === '1' ? true : g === '0' ? false : padrao;
+  }catch(e){ return padrao; }
+}
+/* O que vai para o `cfg` no Salvar: com a comanda desligada na plataforma é
+   sempre "Só a agenda" — senão salvar o Meu negócio gravaria `true` de volta e
+   o banco pararia de lançar o faturamento do atendimento concluído. */
+function comandaParaGravar(escolha){
+  return COMANDA_NA_PLATAFORMA ? (escolha ?? true) : false;
+}
+/* O salão que ainda está gravado "com comanda" passa a "Só a agenda" na
+   primeira vez que o dono abre o painel. Só quem gere o salão grava `cfg`. */
+function gravarSoAgendaSeDesligada(){
+  if(COMANDA_NA_PLATAFORMA || !NA_NUVEM) return;
+  if(typeof souGestor === 'function' && !souGestor()) return;
+  const sl = acharSalao(salaoAtual);
+  if(!sl || !prefereComanda(sl)) return;
+  sl.cfg = Object.assign({}, sl.cfg, { usaComanda: false });
+  salvar();
 }
 
 /* A escolha fica numa variável enquanto a tela está aberta, e só vira `cfg` no
@@ -12272,6 +12416,9 @@ let comandaEscolhida = null, comandaDoSalao = null;
 function pintarComanda(){
   const alvo = document.getElementById('reguaComanda');
   if(!alvo) return;
+  const bloco = document.getElementById('blocoComanda');
+  if(bloco) bloco.style.display = COMANDA_NA_PLATAFORMA ? '' : 'none';
+  if(!COMANDA_NA_PLATAFORMA){ comandaEscolhida = false; comandaDoSalao = salaoAtual; return; }
   if(comandaEscolhida === null || comandaDoSalao !== salaoAtual){
     comandaEscolhida = prefereComanda();
     comandaDoSalao = salaoAtual;
@@ -12576,11 +12723,11 @@ function porqueALojaNaoAparece(sl, opc){
   const loja = o.loja != null ? o.loja : usaLojaNoLink(s);
   if(!loja)
     return 'A loja está <b>desligada</b> na sua página. Para ligar: '
-         + '<b>Meu salão → Dados → Produtos à venda → Sim</b>.';
+         + '<b>Meu negócio → Dados → Produtos à venda → Sim</b>.';
   if(!zapDaCasa(s, o.zap))
     return 'Os produtos <b>não aparecem</b> na sua página porque o salão está '
          + 'sem WhatsApp — é por ele que o pedido do carrinho chega. Preencha '
-         + 'em <b>Meu salão → Dados → WhatsApp</b> e salve.';
+         + 'em <b>Meu negócio → Dados → WhatsApp</b> e salve.';
   const aVenda = (bd.produtos || []).filter(p => p.salaoId === s.id
     && p.ativo !== false && p.vendaOnline);
   if(!aVenda.length)
@@ -12682,7 +12829,7 @@ function escolherConfirma(v){ confirmaEscolhida = !!v; pintarConfirma(); }
 
 /* ⚠ O TEXTO DOS DOIS INTERRUPTORES MORA AQUI, E NUM LUGAR SÓ.
 
-   Ele é escrito em duas telas: aqui, em Meu salão, e no passo a passo do
+   Ele é escrito em duas telas: aqui, em Meu negócio, e no passo a passo do
    primeiro dia. Duas cópias da mesma explicação envelhecem em velocidades
    diferentes — e a que envelhece é sempre a que o dono lê primeiro, no dia em
    que está decidindo. Uma constante compartilhada não permite essa divergência. */
@@ -12990,7 +13137,7 @@ function salvarCadastroSalao(){
        `||` o "Só a agenda" gravaria `true` e o dono veria a aba Caixa voltar
        sozinha depois de salvar. É a mesma armadilha da antecedência zero, oito
        linhas acima. */
-    usaComanda: comandaEscolhida ?? true,
+    usaComanda: comandaParaGravar(comandaEscolhida),
     confirmaAuto: confirmaEscolhida ?? true,
     /* ⚠ `?? true` PELO MESMO MOTIVO das duas linhas acima: `false` é escolha
        legítima nos dois, e com `||` desligar a loja gravaria `true` — o dono
@@ -13320,6 +13467,35 @@ function limiteDoSalao(){
   const p = planoEfetivo();
   return p ? p.maxProfissionais : 1;
 }
+/* MAIS GENTE NA EQUIPE. O teste grátis e os planos de 1 profissional não
+   cabem uma segunda pessoa — e o banco recusa (tg_limite_profissionais). A
+   tela avisa ANTES, dizendo em que plano cabe, em vez de deixar o dono
+   preencher a ficha inteira para levar a recusa no Salvar. */
+function cabeMaisProfissional(){
+  return doSalao(bd.profissionais || []).filter(p => p.ativo !== false).length < limiteDoSalao();
+}
+function planosComMaisGente(){
+  const lista = (bd.planos || [])
+    .filter(x => x.maxProfissionais > Math.max(1, limiteDoSalao()) && x.codigo !== 'trial' && x.codigo !== 'gratuito')
+    .sort((a, b) => a.maxProfissionais - b.maxProfissionais)
+    .map(x => `<b>${escapar(x.nome)}</b> (${x.maxProfissionais === 2 ? '2' : 'até ' + x.maxProfissionais})`);
+  return lista.length > 1
+    ? lista.slice(0, -1).join(', ') + ' ou ' + lista[lista.length - 1]
+    : lista.join('');
+}
+function textoDoLimiteDeEquipe(){
+  const n = limiteDoSalao();
+  const p = planoEfetivo();
+  return `No ${escapar(p ? p.nome : 'seu plano')}, a agenda tem ${n} profissional${n === 1 ? '' : 'is'}.
+    Para cadastrar mais gente, escolha um plano maior${planosComMaisGente()
+      ? ': ' + planosComMaisGente() : ''}.`;
+}
+function avisarLimiteDeEquipe(){
+  abrirModal('Mais gente na equipe', `<p style="line-height:1.55">${textoDoLimiteDeEquipe()}</p>`,
+    OFERTA_DE_PLANO && souGestor()
+      ? [['Agora não', 'fecharModal()', ''], ['Ver os planos', "fecharModal();irPara('plano')", 'btn-p']]
+      : [['Entendi', 'fecharModal()', 'btn-p']]);
+}
 function recursoDoPlano(chave){
   const p = planoEfetivo();
   return p && p.recursos ? p.recursos[chave] : undefined;
@@ -13409,6 +13585,21 @@ function foraDaCota(){
   const dentro = new Set(profsNaCota().map(p => p.id));
   return profsAtivos().filter(p => !dentro.has(p.id));
 }
+/* A faixa do teste grátis (ver o #faixaTeste). Some na tela do Plano, que já
+   diz tudo isso com detalhe, e quando o teste acabou. */
+function pintarFaixaTeste(){
+  const el = document.getElementById('faixaTeste');
+  if(!el) return;
+  const a = assinaturaAtual();
+  const ativo = a && a.status === 'trial' && a.trialAte && a.trialAte >= hoje();
+  if(!ativo || !souGestor() || telaAtual === 'plano'){ el.style.display = 'none'; return; }
+  const n = diasDeTeste();
+  const ate = porExtenso(String(a.trialAte).slice(0, 10));
+  el.innerHTML = `<span><b>Teste grátis:</b> ${n === 0 ? 'termina hoje' : n === 1 ? 'falta 1 dia'
+      : 'faltam ' + n + ' dias'} — tudo liberado até ${ate}.</span>`
+    + (OFERTA_DE_PLANO ? `<button type="button" class="btn btn-peq" onclick="irPara('plano')">Ver os planos</button>` : '');
+  el.style.display = '';
+}
 function diasDeTeste(){
   const a = assinaturaAtual();
   if(!a || a.status !== 'trial' || !a.trialAte) return null;
@@ -13453,6 +13644,33 @@ function avisoDeVencimento(a, p, faltam){
 
 // Um medidor: rótulo, "x de y" e a barra. Dois deles na tela do plano, e a
 // barra fica âmbar quando encosta no teto.
+/* O QUE O PLANO INCLUI. "O plano tem que ter escrito o que eu tenho direito
+   embaixo, e o limite de cada coisa." Os limites são os medidores acima; aqui
+   é o que o plano tem (✓) e o que não tem (🔒), lido das chaves de `recursos`
+   — as mesmas que o banco usa para recusar (exigir_recurso). Caixa e comanda
+   não entram enquanto estiverem desligados na plataforma. */
+function oQueOPlanoInclui(){
+  const p = planoEfetivo();
+  if(!p || !p.recursos) return '';
+  const msgs = Number(p.recursos.mensagens_mes || 0);
+  const itens = [
+    ['Agenda e link de agendamento', true],
+    ['Clientes', true],
+    [msgs > 0 ? `Confirmação e lembrete pelo WhatsApp (${msgs} mensagens no mês)`
+              : 'Confirmação e lembrete automáticos pelo WhatsApp', msgs > 0],
+    ['Relatórios', moduloLiberado('relatorios')],
+    ['Produtos no link', moduloLiberado('loja')],
+    ['Pacotes', moduloLiberado('pacotes')],
+    ['Cupons de desconto', moduloLiberado('cupons')],
+    ['Aparência do link (cores, fotos e modelos)', moduloLiberado('aparencia')],
+  ];
+  if(COMANDA_NA_PLATAFORMA) itens.splice(3, 0, ['Comanda e caixa', moduloLiberado('caixa')]);
+  return `<div class="plano-inclui" id="planoInclui">
+    <div style="font-size:13px;font-weight:700;margin:16px 0 6px">O que o seu plano inclui</div>
+    <ul>${itens.map(([t, tem]) => `<li class="${tem ? 'tem' : 'falta'}"><span aria-hidden="true">${tem ? '✓' : '🔒'}</span>
+      ${t}${tem ? '' : ' <small>— não incluso</small>'}</li>`).join('')}</ul></div>`;
+}
+
 function medidor(rotulo, usados, teto){
   const cheio = usados >= teto;
   return `
@@ -13500,15 +13718,21 @@ function pintarMedidoresDoPlano(){
   if(!u){ alvo.innerHTML = ''; return; }
   // Teto nulo é "sem limite": barra que nunca enche não informa nada, então
   // a linha simplesmente não aparece.
-  const linha = (rot, x) => (x && x.teto != null)
+  // Teto ZERO também não vira barra ("0 de 0"): é o que o plano não tem, e
+  // isso aparece com o cadeado em "O que o seu plano inclui".
+  const linha = (rot, x) => (x && x.teto != null && Number(x.teto) > 0)
     ? medidor(rot, Number(x.usado || 0), Number(x.teto)) : '';
+  const m = u.mensagens;
+  const restam = (m && m.teto != null && Number(m.teto) > 0)
+    ? `<div style="font-size:12.5px;color:var(--txt2);margin-top:5px" id="restamMensagens">Restam
+        <b>${Math.max(Number(m.teto) - Number(m.usado || 0), 0)}</b> mensagens neste mês.</div>` : '';
   alvo.innerHTML = linha('Clientes na ficha', u.clientes)
                  + linha('Serviços no cardápio', u.servicos)
                  // O banco já cobra o teto de produtos (`tg_limite_produtos`);
                  // a tela não dizia, e o dono descobria no recuso.
                  + linha('Produtos no catálogo', u.produtos)
-                 + linha('Mensagens no mês', u.mensagens)
-                 + avisoDeMensagens(u.mensagens);
+                 + linha('Mensagens usadas no mês', m) + restam
+                 + avisoDeMensagens(m);
 }
 
 /* Os três degraus do item 28. O aviso muda de tom com o quanto falta, porque
@@ -13518,6 +13742,19 @@ function pintarMedidoresDoPlano(){
    o banco ainda para tudo junto no teto, e o aviso tem de dizer ISSO — a
    tela sai no ar antes de o SQL ser colado, e não pode prometer uma reserva
    que o servidor ainda não faz. */
+/* A 90% DO LIMITE, A SAÍDA: "se atingir 90% ele vai mostrar para comprar mais
+   mensagens". Enquanto a compra avulsa não está no painel, o pedido vai pelo
+   WhatsApp do suporte, já dizendo o salão; e quem pode assinar vê os planos. */
+function botoesMaisMensagens(){
+  const s = acharSalao(salaoAtual) || {};
+  const txt = 'Olá! Quero comprar mensagens extras para o AgendaPro.\nSalão: '
+    + (s.nome || '') + (s.slug ? ' (' + s.slug + ')' : '');
+  return `<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap" id="maisMensagens">
+    ${SUPORTE_WHATSAPP ? `<a class="btn btn-peq btn-p" target="_blank" rel="noopener"
+       href="https://wa.me/${SUPORTE_WHATSAPP}?text=${encodeURIComponent(txt)}">Comprar mais mensagens</a>` : ''}
+    ${OFERTA_DE_PLANO && souGestor() ? `<button class="btn btn-peq" onclick="irPara('plano')">Ver os planos</button>` : ''}
+  </div>`;
+}
 function avisoDeMensagens(m){
   if(!m || m.teto == null || Number(m.teto) === 0) return '';
   const usado = Number(m.usado || 0), teto = Number(m.teto);
@@ -13526,15 +13763,15 @@ function avisoDeMensagens(m){
   if(pct >= 1) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
     <b>As mensagens deste mês acabaram.</b><br>
     Nenhuma mensagem automática sai até virar o mês, nem para o cliente. A
-    agenda continua funcionando normalmente.</div>`;
+    agenda continua funcionando normalmente.${botoesMaisMensagens()}</div>`;
   if(reserva != null && usado >= reserva) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
     <b>As mensagens para o salão pararam.</b><br>
     Aviso de horário novo, lembrete para o salão e resumo do dia voltam quando
     virar o mês. As ${teto - usado} que faltam ficam para a confirmação e o
-    lembrete do cliente.</div>`;
-  if(reserva == null && pct >= 0.9) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
-    <b>Atenção: você está usando quase todo o limite de mensagens.</b><br>
-    Faltam ${teto - usado} de ${teto} neste mês.</div>`;
+    lembrete do cliente.${botoesMaisMensagens()}</div>`;
+  if(pct >= 0.9) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
+    <b>Atenção: você já usou ${Math.round(pct * 100)}% das mensagens do mês.</b><br>
+    Faltam ${teto - usado} de ${teto}. Para não ficar sem lembretes:${botoesMaisMensagens()}</div>`;
   if(pct >= 0.8) return `<div class="aviso info" style="margin-top:13px;margin-bottom:0">
     Você está próximo do limite de mensagens do seu plano —
     ${usado} de ${teto} neste mês.${reserva != null ? ` Ao chegar a ${reserva},
@@ -13652,6 +13889,7 @@ function pintarPlano(){
            do que o gatilho usa para recusar, que e a pior forma de errar.
            (Sem crase e sem acento: comentario dentro de template literal.) -->
       <div id="medidoresDoPlano"></div>
+      ${oQueOPlanoInclui()}
       ${mesCheio ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>Você usou os ${tetoMes} horários deste mês.</b><br>
         A agenda continua aberta para consultar e atender; para marcar mais,
@@ -13665,10 +13903,14 @@ function pintarPlano(){
         ${fora.length > 1 ? 'não recebem' : 'não recebe'} agendamento novo
         enquanto o plano cobrir ${limite}. Desative outra pessoa para abrir a
         vaga, ou ${COMO_CRESCER}.</div>` : ''}
-      ${cheio && !fora.length && !mesCheio ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
+      ${cheio && !fora.length && !mesCheio ? (limite <= 1
+        // Plano de 1 profissional com a dona na agenda não é "limite
+        // estourado": é o tamanho do plano. Diz onde cabe mais gente.
+        ? `<div class="aviso info" style="margin-top:13px;margin-bottom:0">${textoDoLimiteDeEquipe()}</div>`
+        : `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>Você chegou ao limite do plano.</b><br>
         Para cadastrar mais alguém, desative um profissional ou ${COMO_CRESCER}.
-        Desativar não apaga o histórico dele.</div>` : ''}
+        Desativar não apaga o histórico dele.</div>`) : ''}
       ${dias !== null && dias <= 2 && !caiu ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>O teste acaba ${dias === 0 ? 'hoje' : 'em ' + dias + ' dia(s)'}.</b><br>
         A agenda não fecha: você passa para o plano Grátis, com 1 profissional,
@@ -13812,11 +14054,17 @@ async function mostrarCobrancaPendente(){
     const c = (Array.isArray(r) ? r[0] : r) || {};
     if(!c.aberta) return;
     const p = planoDe(c.aberta.plano);
-    alvo.innerHTML = `<div class="aviso atencao" style="margin-top:14px">
-      <b>Você tem um pagamento em aberto</b> — ${escapar(p ? p.nome : c.aberta.plano)},
-      ${real(Number(c.aberta.valor))}, por ${c.aberta.metodo === 'boleto' ? 'boleto' : 'Pix'}.
-      <div style="margin-top:9px">
+    /* Gerar o Pix NÃO é assinar: o plano só muda quando o pagamento cai.
+       O texto diz isso com todas as letras — "cliquei para assinar, mas não
+       paguei" parecia ter mudado de plano — e deixa desistir. */
+    const forma = c.aberta.metodo === 'boleto' ? 'Boleto' : 'Pix';
+    alvo.innerHTML = `<div class="aviso atencao" style="margin-top:14px" id="avisoCobranca">
+      <b>${forma} em aberto, ainda não pago</b> — ${escapar(p ? p.nome : c.aberta.plano)},
+      ${real(Number(c.aberta.valor))}.<br>
+      Seu plano continua o mesmo até o pagamento cair.
+      <div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-peq" onclick="reabrirCobranca()">Ver o código</button>
+        <button class="btn btn-peq" onclick="cancelarCobranca()">Cancelar este ${forma === 'Pix' ? 'Pix' : 'boleto'}</button>
       </div></div>`;
     cobrancaAberta = {
       id: c.aberta.id, plano: c.aberta.plano, valor: c.aberta.valor,
@@ -13828,6 +14076,19 @@ async function mostrarCobrancaPendente(){
     // Sem cobrança, sem servidor, sem permissão: nada disso é erro de tela.
     console.info('minha_cobranca:', e.message);
   }
+}
+
+async function cancelarCobranca(){
+  if(!cobrancaAberta) return;
+  if(!confirm('Cancelar este pagamento em aberto?\n\nSeu plano não muda. '
+      + 'Se você já pagou, não cancele: o banco confirma sozinho em instantes.')) return;
+  try{
+    await Dados.chamar('cancelar_minha_cobranca', { p_cobranca: cobrancaAberta.id });
+    cobrancaAberta = null;
+    const alvo = document.getElementById('cobrancaPendente');
+    if(alvo) alvo.innerHTML = '';
+    pintar();
+  }catch(e){ alert('Não consegui cancelar agora: ' + e.message); }
 }
 
 function reabrirCobranca(){
@@ -14956,7 +15217,7 @@ function recomecar(){
   salvar();
   /* Recarregar, e não só redesenhar: a tela guarda escolhas por salão (os
      dias liberados, "só a agenda", a cor da aparência) em variáveis, e a
-     semente usa os mesmos ids — Meu salão continuava mostrando o que foi
+     semente usa os mesmos ids — Meu negócio continuava mostrando o que foi
      mexido, e um Salvar sem querer gravava tudo de volta. Achado pelo
      caça-bug. */
   location.reload();
@@ -15126,7 +15387,7 @@ function explicarInstalacaoManual(){
    Aba é lugar de coisa que se volta. Isto se faz uma vez, e uma aba
    "Primeiro dia" morando no menu para sempre seria um lembrete permanente de
    uma tarefa que acabou. Ele abre sozinho no salão vazio, e depois só por
-   quem procurar em Meu salão.
+   quem procurar em Meu negócio.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* As categorias são a peneira das sugestões, e não um cadastro: o que sobra
@@ -15293,8 +15554,11 @@ const PD_PASSOS = [
       + 'serviço. Se não vende, é só dizer que não.',
     desenhar: pdDesenhar6 },
   { titulo:'Como você trabalha',
-    sub:'Duas decisões que mudam o painel inteiro. Nenhuma delas é para '
-      + 'sempre: as duas ficam em Meu salão.',
+    sub: COMANDA_NA_PLATAFORMA
+      ? 'Duas decisões que mudam o painel inteiro. Nenhuma delas é para '
+        + 'sempre: as duas ficam em Meu negócio.'
+      : 'Uma decisão sobre os horários que chegam pelo link. Não é para '
+        + 'sempre: ela fica em Meu negócio.',
     desenhar: pdDesenhar7, depois: pdPintar7, guardar: pdGuardar7 },
   { titulo:'Como a cliente paga',
     sub:'Marque o que o salão aceita. Na hora de marcar pelo link, a cliente '
@@ -15302,7 +15566,7 @@ const PD_PASSOS = [
     desenhar: pdDesenharPagamento, guardar: pdGuardarPagamento },
   { titulo:'A cara do seu link',
     sub:'O logo, a cor e a foto de capa da página que a cliente abre. Dá '
-      + 'para pular e fazer depois em Meu salão → Aparência.',
+      + 'para pular e fazer depois em Meu negócio → Aparência.',
     desenhar: pdDesenharCara },
   { titulo:'Pronto — este é o seu link',
     sub:'É este endereço que você manda para a cliente. Ele já está no ar.',
@@ -15456,7 +15720,7 @@ function pdDesenhar1(){
     </div>
 
     <!-- Onde fica: a capa do link mostra o endereço logo abaixo do nome, e
-         sem ele a cliente não sabe aonde ir. Os mesmos campos de Meu salão. -->
+         sem ele a cliente não sabe aonde ir. Os mesmos campos de Meu negócio. -->
     <div class="pd-cat" style="margin-top:20px">Onde fica</div>
     <div class="tripla">
       <div class="campo" style="grid-column:span 2"><label for="pdRua">Rua</label>
@@ -15498,7 +15762,7 @@ function pdGuardar1(){
   sl.nome     = nome;
   sl.tipo     = document.getElementById('pdTipo').value;
   sl.whatsapp = (document.getElementById('pdZap').value || '').trim();
-  /* O endereço e o Instagram, gravados como Meu salão grava. Por cima do que
+  /* O endereço e o Instagram, gravados como Meu negócio grava. Por cima do que
      já havia — um campo que não está nesta tela não é apagado por ela. */
   const v = idCampo => (document.getElementById(idCampo).value || '').trim();
   sl.endereco = Object.assign({}, Endereco.normalizar(sl.endereco), {
@@ -15527,7 +15791,7 @@ function pdHorarioAtual(){
     if(Object.keys(pdHorario).length) return pdHorario;
   }
   /* Sem horário guardado, a melhor resposta é a de quem já atende: um salão
-     que chegou aqui pelo botão de Meu salão pode ter uma semana inteira
+     que chegou aqui pelo botão de Meu negócio pode ter uma semana inteira
      montada na ficha da equipe, e oferecer o padrão de fábrica por cima
      disso seria pedir para digitar de novo o que já está certo. */
   const quem = doSalao(bd.profissionais).find(temJornadaAlguma);
@@ -15686,7 +15950,7 @@ function pdAplicarHorario(){
   sl.cfg = Object.assign({}, sl.cfg, { horario: _copia(h) });
   /* E o HORÁRIO DE FUNCIONAMENTO, quando ainda não há um. O passo a passo só
      gravava a jornada (`cfg.horario`), e a página da cliente lê
-     `cfg.funcionamento`: quem terminava o assistente via em Meu salão
+     `cfg.funcionamento`: quem terminava o assistente via em Meu negócio
      "Nenhum dia aberto", e o link ficava sem horário e sem Aberto/Fechado.
      Achado pelo caça-bug. Quem já preencheu o funcionamento não é tocado. */
   const F = window.Funcionamento;
@@ -16002,6 +16266,13 @@ function pdDesenhar5(){
       </div>`;
   }).join('');
 
+  /* Sem lugar para mais alguém no plano (o teste grátis tem 1), o "Quem mais
+     atende?" não aparece: o banco recusaria. Fica o aviso de em que plano
+     cabe mais gente. */
+  if(!cabeMaisProfissional()) return (linhas || `<p class="pd-vazio">Ninguém na equipe ainda.</p>`) + `
+    <div class="aviso info" id="pdEquipeLimite" style="margin-top:14px">${textoDoLimiteDeEquipe()}</div>
+    <p class="ajuda" style="margin-top:12px">Foto, comissão e horário próprio de
+      quem atende ficam na aba Equipe.</p>`;
   return (linhas || `<p class="pd-vazio">Ninguém na equipe ainda.</p>`) + `
     <div class="pd-cat">Quem mais atende?</div>
     <div class="pd-faixa">
@@ -16136,17 +16407,17 @@ function pdDesenhar7(){
   if(confirmaEscolhida === null || confirmaDoSalao !== salaoAtual){
     confirmaEscolhida = confirmaAuto(); confirmaDoSalao = salaoAtual;
   }
-  return `
+  return (COMANDA_NA_PLATAFORMA ? `
     <div class="pd-cat">O dinheiro do dia</div>
     <div class="regua" id="pdReguaComanda" style="justify-content:flex-start"></div>
     <p class="ajuda" id="pdExplicaComanda" style="margin-top:9px"></p>
-
-    <div class="pd-cat" style="margin-top:22px">Quem confirma o que vem pelo link</div>
+` : '') + `
+    <div class="pd-cat" style="margin-top:${COMANDA_NA_PLATAFORMA ? 22 : 0}px">Quem confirma o que vem pelo link</div>
     <div class="regua" id="pdReguaConfirma" style="justify-content:flex-start"></div>
     <p class="ajuda" id="pdExplicaConfirma" style="margin-top:9px"></p>`;
 }
 
-/* As mesmas duas réguas de Meu salão, com os MESMOS textos — eles saem das
+/* As mesmas duas réguas de Meu negócio, com os MESMOS textos — eles saem das
    constantes `TXT_COMANDA` e `TXT_CONFIRMA`, e não de uma segunda redação
    que envelheceria sozinha. */
 function pdPintar7(){
@@ -16178,7 +16449,7 @@ function pdGuardar7(){
      "Só a agenda" gravaria `true` — a mesma armadilha escrita por extenso no
      `salvarCadastroSalao()`. */
   sl.cfg = Object.assign({}, sl.cfg, {
-    usaComanda:   comandaEscolhida  ?? true,
+    usaComanda:   comandaParaGravar(comandaEscolhida),
     confirmaAuto: confirmaEscolhida ?? true,
   });
   salvar();
@@ -16186,7 +16457,7 @@ function pdGuardar7(){
 }
 
 /* ── Passo 8 · como a cliente paga ───────────────────────────────────────────
-   As mesmas formas de Meu salão (`Funcionamento.PAGAMENTOS`), gravadas no
+   As mesmas formas de Meu negócio (`Funcionamento.PAGAMENTOS`), gravadas no
    mesmo `cfg.pagamentos`. São elas que fazem o link perguntar "Como você vai
    pagar?" na hora de marcar — com elas marcadas, a cliente escolhe uma, e a
    forma aparece no cartão da agenda. */
@@ -16232,7 +16503,7 @@ function pdGuardarPagamento(){
   sl.cfg = Object.assign({}, sl.cfg, {
     pagamentos: Funcionamento.pagamentos({ formas: pdFormasAtuais(), obs }),
   });
-  // Meu salão relê do salão na próxima vez, em vez de mostrar o rascunho dele.
+  // Meu negócio relê do salão na próxima vez, em vez de mostrar o rascunho dele.
   pagEscolhidas = null;
   salvar();
   return true;
@@ -16240,7 +16511,7 @@ function pdGuardarPagamento(){
 
 /* ── Passo 9 · a cara do link ────────────────────────────────────────────────
    O mínimo que muda a página: logo, cor e foto de capa. Usa as MESMAS
-   funções de Meu salão (`subirImagemSalao`, `tirarImagemSalao`) e grava a
+   funções de Meu negócio (`subirImagemSalao`, `tirarImagemSalao`) e grava a
    cor no mesmo `cfg.cor` da Aparência — o resto (modelos, fundo, botões)
    continua lá, sem um segundo editor para envelhecer aqui. */
 function pdCorAtual(){
@@ -16287,7 +16558,7 @@ function pdDesenharCara(){
       </label>
     </div>
     <p class="ajuda">Os botões, os ícones e os detalhes da página saem desta cor.
-      Modelos prontos, fundo e o resto ficam em <b>Meu salão → Aparência</b>.</p>`;
+      Modelos prontos, fundo e o resto ficam em <b>Meu negócio → Aparência</b>.</p>`;
 }
 async function pdSubirImagem(chave, campo){
   await subirImagemSalao(chave, campo);
@@ -16394,7 +16665,7 @@ function pdDesenhar8(){
       </div>`}
     ${depois.length ? `
       <p class="ajuda" id="pdDepois" style="margin-top:10px">Ficou para depois, em
-        <b>Meu salão</b>: ${escapar(depois.join(', '))}. O link funciona sem
+        <b>Meu negócio</b>: ${escapar(depois.join(', '))}. O link funciona sem
         isso, mas fica mais completo com.</p>` : ''}`;
 }
 
@@ -16595,6 +16866,8 @@ function mostrarQuemEstaLogado(){
       if(!salaoAtual || !acharSalao(salaoAtual)) salaoAtual = bd.saloes[0].id;
     }
     iniciar();
+    // Comanda desligada na plataforma: o salão passa a "Só a agenda" no banco.
+    gravarSoAgendaSeDesligada();
     ligarSincronizacao();
     registrarServiceWorker();
     ajustarBotaoInstalar();

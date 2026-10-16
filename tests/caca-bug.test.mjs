@@ -384,6 +384,9 @@ secao('10 a 12. O painel na nuvem');
   const p = await ctx.newPage();
   p.on('pageerror', e => erros.push('painel: ' + e.message));
   p.on('dialog', d => d.dismiss());
+  // A comanda e o caixa estão DESLIGADOS na plataforma (COMANDA_LIGADA no
+  // app.html); este teste mede as telas deles, então liga só nesta aba.
+  await p.addInitScript(() => { try{ sessionStorage.setItem('agendapro.comanda', '1'); }catch(e){} });
   await p.addInitScript(([b, s]) => { window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
     localStorage.setItem('agendapro.sessao', JSON.stringify(s)); }, [BASE, dona.sessao()]);
   await p.goto(BASE + '/app.html');

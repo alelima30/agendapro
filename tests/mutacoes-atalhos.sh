@@ -99,11 +99,11 @@ troca estilo.css \
   background:var(--painel);" \
   && rodar "sombra do hover por cima da escolhida"
 
-echo "8. o Horários guarda o tingido no Sem moldura"
+echo "8. o Horários volta a ser diferente dos outros dois"
 troca estilo.css \
-  "[data-atalhos=\"limpo\"] .recurso{ background:transparent; box-shadow:none }" \
-  "[data-atalhos=\"limpo\"] .recurso:not(.destaque){ background:transparent; box-shadow:none }" \
-  && rodar "caixa lilás só no Horários"
+  ".recurso[data-recurso=\"horarios\"]    { --at-tinta:var(--at-horarios) }" \
+  ".recurso[data-recurso=\"horarios\"]    { --at-tinta:var(--at-horarios); background:color-mix(in srgb, var(--ac-600) 13%, var(--painel)) }" \
+  && rodar "caixa tingida só no Horários"
 
 echo "9. a página aceita desfoque sem teto"
 troca agendar.html \
@@ -191,11 +191,11 @@ troca estilo.css \
   ".recurso-ic{ display:inline-flex; color:var(--ico-destaque, var(--ac-marca, var(--ac-600))) }" \
   && rodar "nome vermelho, ícone azul"
 
-echo "23. o tingido do Horários fica na cor da marca"
+echo "23. a cor de cada atalho tinge o cartão dele"
 troca estilo.css \
-  "  background:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 13%, var(--painel));" \
-  "  background:color-mix(in srgb, var(--ac-marca, var(--ac-600)) 13%, var(--painel));" \
-  && rodar "letra vermelha sobre lilás"
+  "  background:var(--painel); color:var(--at-tinta, var(--txt2));" \
+  "  background:color-mix(in srgb, var(--at-tinta, var(--painel)) 13%, var(--painel)); color:var(--at-tinta, var(--txt2));" \
+  && rodar "três cartões de cores diferentes"
 
 echo "24. herdar não tira a cor"
 troca app.html \
@@ -222,6 +222,36 @@ troca app.html \
   "    const pouco = tem && Math.min(...atras.map(f => contrasteEntre(at.cores[k], f))) < 3;" \
   "    const pouco = false;" \
   && rodar "preto sobre preto sem aviso"
+
+echo "28. a página ignora a moldura escolhida"
+troca estilo.css \
+  "  border:1px solid var(--at-moldura, var(--borda)); border-radius:16px;" \
+  "  border:1px solid var(--borda); border-radius:16px;" \
+  && rodar "moldura dourada salva e borda cinza no link"
+
+echo "29. a prévia ignora a moldura escolhida"
+troca app.html \
+  "    + (corValida(aparencia.atalhos.moldura) ? \`;--fone-at-moldura:\${aparencia.atalhos.moldura}\` : '');" \
+  "    + '';" \
+  && rodar "prévia cinza, link dourado"
+
+echo "30. a página aceita moldura torta do banco"
+troca agendar.html \
+  "  if(a && typeof a === 'object' && corValida(a.moldura)) raiz.style.setProperty('--at-moldura', a.moldura);" \
+  "  if(a && typeof a === 'object' && a.moldura) raiz.style.setProperty('--at-moldura', a.moldura);" \
+  && rodar "url(x) vira borda"
+
+echo "31. o modelo pronto mantém as cores antigas dos atalhos"
+troca app.html \
+  "    atalhos: lerAtalhos(Object.assign({ cores:{} }, m.atalhos))," \
+  "    atalhos: lerAtalhos(Object.assign({}, aparencia.atalhos, m.atalhos))," \
+  && rodar "Noite Dourada com o Horários vermelho"
+
+echo "32. a moldura não é lida ao reabrir o painel"
+troca app.html \
+  "    moldura: corValida(a.moldura) ? a.moldura : ''," \
+  "    moldura: ''," \
+  && rodar "moldura salva some do painel"
 
 echo ""
 echo "$morta mortas, $viva vivas"

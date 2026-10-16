@@ -961,6 +961,22 @@ begin
 end $$;
 revoke all on function public.minha_cobranca(uuid) from public;
 grant execute on function public.minha_cobranca(uuid) to authenticated;
+create or replace function public.cancelar_minha_cobranca(p_cobranca uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare v public.cobrancas;
+begin
+  select * into v from public.cobrancas where id = p_cobranca for update;
+  if not found or not public.e_gestor(v.salao_id) then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+  if v.status <> 'pendente' or v.metodo = 'cartao' then
+    return false;
+  end if;
+  update public.cobrancas set status = 'cancelada' where id = v.id;
+  return true;
+end $$;
+revoke all on function public.cancelar_minha_cobranca(uuid) from public, anon;
+grant execute on function public.cancelar_minha_cobranca(uuid) to authenticated;
 create or replace function public.assinaturas_a_vencer(p_dias int default 5)
 returns table (salao_id uuid, salao text, whatsapp text, plano text,
                valor numeric, vence_em date)
@@ -3032,6 +3048,28 @@ begin
       using errcode = 'check_violation';
   end if;
 end $$;
+create or replace view public.minha_assinatura
+with (security_invoker = true) as
+  select a.salao_id,
+         s.nome        as salao_nome,
+         s.slug,
+         s.tipo,
+         a.plano,
+         pl.nome       as plano_nome,
+         pl.preco_mes,
+         pl.max_profissionais,
+         a.status,
+         a.trial_ate,
+         a.vence_em,
+         (select count(*) from public.profissionais p
+           where p.salao_id = a.salao_id and p.ativo) as profissionais_ativos,
+         case when a.status = 'trial' and a.trial_ate is not null
+              then greatest(a.trial_ate - (now() at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date, 0)
+         end as dias_de_teste
+    from public.assinaturas a
+    join public.saloes s  on s.id = a.salao_id
+    join public.planos pl on pl.codigo = a.plano;
+grant select on public.minha_assinatura to authenticated;
 create or replace function public.plano_do_salao(p_salao uuid)
 returns text language sql stable security definer set search_path = public as $$
   select case when public.e_equipe(p_salao) then public.plano_efetivo(p_salao) end
@@ -5410,6 +5448,7 @@ language sql stable security definer set search_path = public as $$
       'inicio',    a.inicio,
       'fim',       a.fim,
       'status',    a.status,
+      'remarcado', a.status = 'cancelado' and coalesce(a.cancelado_motivo, '') like 'remarcado%',
       'atendido',  a.atendido_nome,
       'valor',     a.valor_previsto,
       'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),

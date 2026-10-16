@@ -1,10 +1,10 @@
 /* ===========================================================================
-   AgendaPro — "Meu salão" em duas abas, com a prévia sempre à vista
+   AgendaPro — "Meu negócio" em duas abas, com a prévia sempre à vista
 
      PLAYWRIGHT=/caminho/node_modules/playwright node tests/abas-salao.test.mjs
 
    ── O QUE MUDOU, E POR QUÊ ─────────────────────────────────────────────────
-   "Meu salão" era uma página só, com três cartões empilhados: dados,
+   "Meu negócio" era uma página só, com três cartões empilhados: dados,
    aparência e identidade visual.
 
    A prévia do celular gruda ao lado da APARÊNCIA. Mas a identidade visual —
@@ -62,7 +62,7 @@ const secaoChamada = titulo => pg.evaluate(t =>
 /* ══════════════════════════════════════════════════════════════════════════
    1. AS DUAS ABAS
    ══════════════════════════════════════════════════════════════════════════ */
-secao('Meu salão abre em Dados');
+secao('Meu negócio abre em Dados');
 
 igual('a aba inicial é a de dados',
   await pg.evaluate(() => subAbaSalao), 'dados');

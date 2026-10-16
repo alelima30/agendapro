@@ -274,7 +274,7 @@ await outra.close();
 console.log('\n── EM DIA, E ATÉ QUANDO ────────────────────────────────────');
 sql(`update public.cobrancas set status='cancelada' where salao_id='${SALAO}' and status='pendente'`);
 sql(`update public.assinaturas set plano='individual', status='ativa',
-       vence_em = current_date + 20, mp_preapproval = null, cartao_desde = null
+       vence_em = (now() at time zone 'America/Sao_Paulo')::date + 20, mp_preapproval = null, cartao_desde = null
      where salao_id='${SALAO}'`);
 const telaPlano = async (sufixo) => {
   await abrirPlano(p, sufixo);
@@ -294,7 +294,7 @@ e('o cartão do plano diz "SEU PLANO ATUAL"', /SEU PLANO ATUAL/.test(ed.cartao),
 e('e não oferece "Assinar com Pix" de novo o mesmo plano', !ed.assinarPix);
 e('nem "Renovar" com 20 dias pela frente', !ed.renovar);
 
-sql(`update public.assinaturas set vence_em = current_date + 3 where salao_id='${SALAO}'`);
+sql(`update public.assinaturas set vence_em = (now() at time zone 'America/Sao_Paulo')::date + 3 where salao_id='${SALAO}'`);
 ed = await telaPlano('');
 e('a 3 dias: avisa que vence em 3 dias', /vence em 3 dias/.test(ed.topo), ed.topo.slice(0, 300));
 e('e aparece "Renovar com Pix"', ed.renovar);
@@ -322,7 +322,7 @@ e('no cartão: some o aviso de renovar pelo Pix', !comCartao.aviso && !/Renovar 
    o mesmo para os outros — e outro plano, no mesmo salão, também. */
 console.log('\n── PREÇO ESPECIAL DO SALÃO ─────────────────────────────────');
 sql(`update public.assinaturas set mp_preapproval = null, cartao_desde = null,
-       vence_em = current_date + 20, precos_especiais = '{"individual": 1.00}'
+       vence_em = (now() at time zone 'America/Sao_Paulo')::date + 20, precos_especiais = '{"individual": 1.00}'
      where salao_id='${SALAO}'`);
 await abrirPlano(p, '?oferta=1');
 let pe = await p.evaluate(() => (document.getElementById('tela-plano') || {}).innerText || '');

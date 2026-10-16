@@ -230,6 +230,9 @@ input.bom{border-color:rgba(21,128,61,.5)!important}
           background:var(--painel)}
 .proximos ol{margin:10px 0 0 20px;color:var(--txt2);font-size:14px}
 .proximos li{padding:4px 0}
+.teste-gratis{display:block;margin:12px auto 0;max-width:460px;text-align:left;
+  background:var(--ac-soft);border:1px solid var(--ac-line);color:var(--txt);
+  border-radius:12px;padding:11px 14px;font-size:14px;line-height:1.5}
 .rodape{max-width:620px;margin:0 auto;padding:0 18px 40px;
         font-size:12px;color:var(--txt3);text-align:center}
 @media(max-width:420px){ h1{font-size:1.55rem} .plano{width:250px} }
@@ -327,7 +330,7 @@ input.bom{border-color:rgba(21,128,61,.5)!important}
     <button class="voltar" onclick="irPasso(1)">&larr; Voltar</button>
     <h1>Sobre o seu <span>negócio</span></h1>
     <p class="sub">É o que o cliente vê ao abrir o link. Dá para mudar
-      depois, em Meu salão.</p>
+      depois, em Meu negócio.</p>
 
     <div id="avisoNegocio"></div>
 
@@ -816,10 +819,7 @@ async function criarConta(){
       const apelido = (criado && criado.slug) || slug;
       const url = location.href.replace(/\/[^\/]*$/, '/')
                 + 'agendar.html?salao=' + apelido;
-      document.getElementById('textoPronto').innerHTML =
-        `<b>${nomeSalao}</b> está no ar, com tudo liberado por 7 dias. `
-      + `Depois ele continua no plano Grátis, com a agenda e o link simples — `
-      + `caixa, relatórios, produtos e lembretes ficam no Básico e nos maiores.`;
+      document.getElementById('textoPronto').innerHTML = textoDoTeste(nomeSalao);
       document.getElementById('linkFinal').textContent = url;
       irPasso(3);
     }catch(e){
@@ -887,10 +887,7 @@ async function criarConta(){
   salvar(salaoId);
 
   const url = location.href.replace(/\/[^\/]*$/, '/') + 'agendar.html?salao=' + slug;
-  document.getElementById('textoPronto').innerHTML =
-    `<b>${nomeSalao}</b> está no ar, com tudo liberado por 7 dias. `
-      + `Depois ele continua no plano Grátis, com a agenda e o link simples — `
-      + `caixa, relatórios, produtos e lembretes ficam no Básico e nos maiores.`;
+  document.getElementById('textoPronto').innerHTML = textoDoTeste(nomeSalao);
   document.getElementById('linkFinal').textContent = url;
   // Na demonstração, a agenda também: sem o `?demo=1` o painel pedia login
   // e o salão recém-criado sumia (achado pelo caça-bug).
@@ -954,6 +951,21 @@ function carregar(){
             planos: PLANOS.map(p => ({codigo:p.codigo, nome:p.nome,
                      maxProfissionais:p.max, precoMes:p.preco}))};
   }
+}
+
+/* O TESTE GRÁTIS, DITO COM TODAS AS LETRAS. O texto antigo dizia "tudo
+   liberado por 7 dias" no meio de uma frase longa, e o dono terminava o
+   cadastro sem saber em que plano estava nem até quando. Agora é um quadro:
+   o plano (Teste grátis), o prazo com data, que não tem cobrança, e o que
+   acontece depois. O nome do salão vai escapado — é texto digitado. */
+function textoDoTeste(nomeSalao){
+  const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const ate = new Date(Date.now() + 7 * 864e5).toLocaleDateString('pt-BR');
+  return `<b>${esc(nomeSalao)}</b> está no ar.`
+    + `<span class="teste-gratis" id="quadroTeste"><b>Você está no Teste grátis: 7 dias com tudo liberado</b>, `
+    + `até ${ate}. Sem cartão e sem cobrança.<br>`
+    + `Depois dos 7 dias, você escolhe um plano — ou continua no plano <b>Grátis</b>, com a agenda, `
+    + `as clientes e o link simples.</span>`;
 }
 
 // O cadastro é a primeira porta do dono — quem chega por um anúncio cai aqui,

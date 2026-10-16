@@ -25,7 +25,7 @@
 
    E o pedido seguinte: "Deixa configurável, quando for uma pessoa só, se quer
    que apareça 'Com quem?' ou ir direto para a próxima tela."
-     7. a escolha no painel (Meu salão), nascendo em "Mostrar", e gravada;
+     7. a escolha no painel (Meu negócio), nascendo em "Mostrar", e gravada;
      8. ligada, o link pula direto para os horários da única pessoa — pelos
         dois caminhos da Etapa 2 — e o voltar leva à Etapa 2;
      9. com duas pessoas no serviço a tela aparece do mesmo jeito;
@@ -201,7 +201,7 @@ secao('7. No painel: mostrar ou ir direto');
   }, [BASE, dona.sessao()]);
   await p.goto(BASE + '/app.html');
   await p.waitForTimeout(3500);
-  await p.click('button:has-text("Meu salão"), a:has-text("Meu salão")');
+  await p.click('button:has-text("Meu negócio"), a:has-text("Meu negócio")');
   await p.waitForTimeout(1200);
   const regua = () => p.evaluate(() => ({
     titulo: document.getElementById('reguaComQuem').previousElementSibling.previousElementSibling.textContent.trim(),

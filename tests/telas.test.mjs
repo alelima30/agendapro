@@ -76,8 +76,8 @@ for(const [chave, rotulo] of telas){
     + (erros.length ? '\n        ' + erros.slice(0,2).join('\n        ') : ''));
 }
 
-// e as sub-abas de Meu salão
-console.log('\nas sub-abas de Meu salão');
+// e as sub-abas de Meu negócio
+console.log('\nas sub-abas de Meu negócio');
 await p.evaluate(() => irPara('salao'));
 await p.waitForTimeout(700);
 for(const sub of ['dados','aparencia','notificacoes']){

@@ -462,6 +462,32 @@ end $$;
 revoke all on function public.minha_cobranca(uuid) from public;
 grant execute on function public.minha_cobranca(uuid) to authenticated;
 
+/* CANCELAR O PIX QUE O DONO GEROU E NÃO VAI PAGAR. "Cliquei para assinar,
+   mas não paguei — só tenho que assinar quando pagar." Gerar o Pix nunca
+   trocou o plano (só o pagamento troca); isto tira a cobrança do caminho,
+   para a tela não ficar dizendo que há um pagamento a fazer.
+
+   ⚠ SE O PIX FOR PAGO MESMO ASSIM, VALE: o `registrar_pagamento` aceita a
+   cobrança cancelada, confere o valor e credita o plano — dinheiro recebido
+   nunca fica sem plano. A tentativa do cartão não entra: ela é o rastro da
+   renovação automática, e não é o dono quem a cancela por aqui. */
+create or replace function public.cancelar_minha_cobranca(p_cobranca uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare v public.cobrancas;
+begin
+  select * into v from public.cobrancas where id = p_cobranca for update;
+  if not found or not public.e_gestor(v.salao_id) then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+  if v.status <> 'pendente' or v.metodo = 'cartao' then
+    return false;
+  end if;
+  update public.cobrancas set status = 'cancelada' where id = v.id;
+  return true;
+end $$;
+revoke all on function public.cancelar_minha_cobranca(uuid) from public, anon;
+grant execute on function public.cancelar_minha_cobranca(uuid) to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- 6) A RENOVAÇÃO, QUE É O QUE PIX AVULSO NÃO FAZ SOZINHO
 --

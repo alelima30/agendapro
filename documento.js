@@ -132,7 +132,14 @@ function dataDigitavel(campo){
   if(rot) rot.setAttribute('for', txt.id);
   else {
     const lab = campo.closest('.campo') && campo.closest('.campo').querySelector('label');
-    if(lab) txt.setAttribute('aria-label', lab.textContent.trim());
+    /* O nome do campo é o rótulo SEM o asterisco de obrigatório — "Aniversário",
+       e não "Aniversário *". O obrigatório vai como aria-required. */
+    if(lab){
+      const copia = lab.cloneNode(true);
+      copia.querySelectorAll('.obrig').forEach(e => e.remove());
+      txt.setAttribute('aria-label', copia.textContent.trim());
+      if(lab.querySelector('.obrig')) txt.setAttribute('aria-required', 'true');
+    }
   }
   const ic = document.createElement('span');
   ic.className = 'data-ic';

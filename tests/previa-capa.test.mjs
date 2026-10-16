@@ -285,14 +285,20 @@ const CORES = [
      aparece: com fundo escolhido ele é o cartão opaco e o suave não entra. */
   ['letras escuras, sem fundo, Secundária escolhida',
     { tema:'claro', fundoTipo:'cor', gradiente:null, cores:{ botao:'#5B21B6', secundaria:'#10B981' } }],
+  // A moldura dos três atalhos, escolhida em Aparência: a prévia tem de
+  // mostrar a mesma borda que a página.
+  ['moldura dos atalhos escolhida, letras escuras',
+    { tema:'claro', fundoTipo:'cor', gradiente:null, atalhos:{ estilo:'borda', moldura:'#C8A33C' } }],
+  ['moldura dos atalhos escolhida, letras claras', { atalhos:{ estilo:'borda', moldura:'#C8A33C' } }],
 ];
 const PARES = [
-  ['o cartão Pagamentos',         '.recurso:not(.destaque)', '.fone-recurso:not(.destaque)', 'backgroundColor'],
-  ['a borda dele',                '.recurso:not(.destaque)', '.fone-recurso:not(.destaque)', 'borderTopColor'],
-  ['o ícone',                     '.recurso:not(.destaque) .recurso-ic',
-                                  '.fone-recurso:not(.destaque) :is(svg, [data-ico])', 'color'],
-  ['o botão Horários',            '.recurso.destaque',       '.fone-recurso.destaque',       'backgroundColor'],
-  ['a letra do Horários',         '.recurso.destaque',       '.fone-recurso.destaque',       'color'],
+  ['o cartão Pagamentos',         '.recurso[data-recurso="pagamentos"]', '.fone-recurso[data-recurso="pagamentos"]', 'backgroundColor'],
+  ['a borda dele',                '.recurso[data-recurso="pagamentos"]', '.fone-recurso[data-recurso="pagamentos"]', 'borderTopColor'],
+  ['o ícone',                     '.recurso[data-recurso="pagamentos"] .recurso-ic',
+                                  '.fone-recurso[data-recurso="pagamentos"] :is(svg, [data-ico])', 'color'],
+  ['o botão Horários',            '.recurso[data-recurso="horarios"]', '.fone-recurso[data-recurso="horarios"]', 'backgroundColor'],
+  ['a borda do Horários',         '.recurso[data-recurso="horarios"]', '.fone-recurso[data-recurso="horarios"]', 'borderTopColor'],
+  ['a letra do Horários',         '.recurso[data-recurso="horarios"]', '.fone-recurso[data-recurso="horarios"]', 'color'],
   ['o cartão ABERTO',             '.status-casa',            '.fone-status',                 'backgroundColor'],
   ['a palavra ABERTO',            '.status-rot',             '.fone-status b',               'color'],
   ['o cartão Bem-vindo',          '.boas',                   '.fone-boas',                   'backgroundColor'],

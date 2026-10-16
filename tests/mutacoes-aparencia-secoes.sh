@@ -83,10 +83,8 @@ troca estilo.css \
 
 echo "6. o Horários volta a seguir o texto de destaque"
 troca estilo.css \
-  "  color:var(--at-tinta, var(--ac-marca, var(--ac-600)));
-}" \
-  "  color:var(--at-tinta, var(--ac-600));
-}" \
+  ".recurso[data-recurso=\"horarios\"]    { --at-tinta:var(--at-horarios) }" \
+  ".recurso[data-recurso=\"horarios\"]    { --at-tinta:var(--at-horarios, var(--ac-600)) }" \
   && rodar "Destaque → Horários"
 
 echo "7. a página não guarda a cor da marca à parte"

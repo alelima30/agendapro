@@ -124,6 +124,9 @@ const pg = await ctx.newPage();
 const erros = [], recados = [];
 pg.on('pageerror', e => erros.push(e.message));
 pg.on('dialog', async dlg => { recados.push(dlg.message()); await dlg.accept(); });
+// A comanda e o caixa estão DESLIGADOS na plataforma (COMANDA_LIGADA no
+// app.html); este teste mede as telas deles, então liga só nesta aba.
+await pg.addInitScript(() => { try{ sessionStorage.setItem('agendapro.comanda', '1'); }catch(e){} });
 await pg.addInitScript(([b, s]) => {
   window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
   localStorage.setItem('agendapro.sessao', JSON.stringify(s));
@@ -269,8 +272,13 @@ verdade('o ticket médio também', /R\$\s*150,00/.test(texto), texto.slice(0,300
 verdade('a Ana está na lista de comissão', /Ana/.test(texto));
 verdade('a Bia também', /Bia/.test(texto));
 verdade('com os 100,00 dela', /R\$\s*100,00/.test(texto));
-verdade('o total a pagar de comissão fecha em 140,00',
-  /R\$\s*140,00/.test(texto), texto.slice(0,600));
+/* A Ana é a DONA (a primeira ficha, a do criar_salao): ela não recebe
+   comissão dela mesma. A linha dela diz "é a dona", e o total a pagar é só
+   o da Bia — pedido do dono do sistema. */
+verdade('a linha da Ana diz que ela é a dona, sem valor a pagar',
+  /Ana \d+ R\$\s*[\d.,]+ — é a dona/.test(texto), texto.slice(0,600));
+verdade('o total a pagar de comissão fecha em 100,00 (só a Bia)',
+  /Total a pagar\s*R\$\s*100,00/.test(texto) && !/R\$\s*140,00/.test(texto), texto.slice(0,600));
 verdade('as formas de pagamento aparecem',
   /Crédito/.test(texto) && /Pix/.test(texto), texto.slice(0,600));
 verdade('e o que ficou na mesa com a falta', /R\$\s*80,00/.test(texto));

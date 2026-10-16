@@ -138,11 +138,11 @@ troca agendar.html \
   "" \
   && rodar "folha flutuando sobre a loja"
 
-echo "15. o botão Horários com cor cravada"
+echo "15. o ícone do Horários com cor cravada"
 troca estilo.css \
-  "  background:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 13%, var(--painel));" \
-  "  background:#EDE9FE;" \
-  && rodar "salão verde com botão roxo"
+  ".recurso-ic{ display:inline-flex; color:var(--at-tinta, var(--ico-destaque, var(--ac-marca, var(--ac-600)))) }" \
+  ".recurso-ic{ display:inline-flex; color:#6D28D9 }" \
+  && rodar "salão verde com ícone roxo"
 
 echo "16. o dia de hoje com cor cravada"
 troca estilo.css \
@@ -158,8 +158,8 @@ troca agendar.html \
 
 echo "18. o botão Horários volta ao tom transparente"
 troca estilo.css \
-  "  background:color-mix(in srgb, var(--at-tinta, var(--ac-marca, var(--ac-600))) 13%, var(--painel));" \
-  "  background:var(--ac-soft);" \
+  "  background:var(--painel); color:var(--at-tinta, var(--txt2));" \
+  "  background:var(--ac-soft); color:var(--at-tinta, var(--txt2));" \
   && rodar "Horários sumindo sobre fundo roxo"
 
 echo "19. o cartão ABERTO volta ao tom transparente"

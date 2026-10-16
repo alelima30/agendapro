@@ -168,14 +168,17 @@ troca estilo.css \
   ".fone.com-papel-nao .fone-boas, .fone.com-grad-nao .fone-boas{" \
   && rodar "Bem-vindo roxo sobre roxo na prévia"
 
-echo "20. o Horários da prévia perde a letra da marca"
+echo "20. a prévia no escuro ignora a moldura dos atalhos"
 troca estilo.css \
-  "  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca)))) 38%, var(--fone-card, var(--painel)));
-  color:var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca))));
-}" \
-  "  border-color:color-mix(in srgb, var(--fone-at-tinta, var(--fone-ac-marca, var(--fone-ac, var(--fone-marca)))) 38%, var(--fone-card, var(--painel)));
-}" \
-  && rodar "letra do Horários cinza"
+  ".fone-escuro .fone-recurso{ border-color:var(--fone-at-moldura, var(--fone-borda, #25324A));" \
+  ".fone-escuro .fone-recurso{ border-color:var(--fone-borda, #25324A);" \
+  && rodar "moldura dourada no link, cinza na prévia escura"
+
+echo "20b. o Horários da prévia volta a ser diferente"
+troca estilo.css \
+  ".fone-recurso[data-recurso=\"horarios\"]    { --fone-at-tinta:var(--fone-at-horarios) }" \
+  ".fone-recurso[data-recurso=\"horarios\"]    { --fone-at-tinta:var(--fone-at-horarios); background:color-mix(in srgb, var(--fone-ac, var(--fone-marca)) 13%, var(--fone-card, var(--painel))) }" \
+  && rodar "Horários tingido só na prévia"
 
 echo "21. o verde da prévia no escuro volta ao do painel"
 troca estilo.css \

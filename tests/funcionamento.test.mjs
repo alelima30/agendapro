@@ -478,12 +478,14 @@ for(const [nome, cor] of [['roxo', '#6D28D9'], ['verde', '#15803D'], ['vermelho'
   const r = await p.evaluate(px => {
     const pixel = eval(px);
     return {
-      botao: pixel(getComputedStyle(document.querySelector('.recurso.destaque')).backgroundColor),
+      // Os três atalhos são iguais (pedido do dono): o que leva a cor do
+      // salão é o ÍCONE do Horários, não mais o cartão inteiro.
+      botao: pixel(getComputedStyle(document.querySelector('.recurso[data-recurso="horarios"] .recurso-ic')).color),
       hoje: pixel(getComputedStyle(document.querySelector('.semana-dia.hoje')).backgroundColor),
     };
   }, PIXEL);
   const h = matiz(hexRgb(cor));
-  verdade(nome + ': o botão Horários tem o matiz da cor do salão', pertoDe(matiz(r.botao), h),
+  verdade(nome + ': o ícone do Horários tem o matiz da cor do salão', pertoDe(matiz(r.botao), h),
     JSON.stringify(r));
   verdade(nome + ': e o dia de hoje na folha também', pertoDe(matiz(r.hoje), h), JSON.stringify(r));
   await fechar();
@@ -502,8 +504,8 @@ for(const [nome, cor] of [['roxo', '#6D28D9'], ['verde', '#15803D'], ['vermelho'
     const pixel = eval(px);
     const cor = (sel, prop) => pixel(getComputedStyle(document.querySelector(sel))[prop]);
     return {
-      botaoFundo: cor('.recurso.destaque', 'backgroundColor'),
-      botaoLetra: cor('.recurso.destaque .recurso-rot', 'color'),
+      botaoFundo: cor('.recurso[data-recurso="horarios"]', 'backgroundColor'),
+      botaoLetra: cor('.recurso[data-recurso="horarios"] .recurso-rot', 'color'),
       statusFundo: cor('.status-casa', 'backgroundColor'),
       statusLetra: cor('.status-casa .status-rot', 'color'),
       boasFundo: cor('.boas', 'backgroundColor'),

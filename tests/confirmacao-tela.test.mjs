@@ -78,7 +78,7 @@ await p.addInitScript(([base, ses]) => {
 await p.goto(BASE + '/app.html');
 await p.waitForTimeout(3500);
 
-await p.click('button:has-text("Meu salão"), a:has-text("Meu salão")');
+await p.click('button:has-text("Meu negócio"), a:has-text("Meu negócio")');
 await p.waitForTimeout(1200);
 e('a régua da confirmação existe', await p.isVisible('#reguaConfirma'));
 

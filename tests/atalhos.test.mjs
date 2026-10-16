@@ -180,11 +180,14 @@ let antes, restoAntes;
   restoAntes = await resto(p);
   igual('a página não ganha atributo', await p.evaluate(() =>
     document.documentElement.getAttribute('data-atalhos')), null);
-  verdade('os três com borda visível; Pagamentos e Informações com fundo de cartão',
-    antes.every(x => x.borda !== 'transparente')
-      && antes[0].fundo === '#FFFFFF' && antes[2].fundo === '#FFFFFF', JSON.stringify(antes));
-  verdade('e o Horários tingido na cor da marca, como antes',
-    antes[1].fundo !== '#FFFFFF', JSON.stringify(antes[1]));
+  verdade('os três com borda visível e fundo de cartão',
+    antes.every(x => x.borda !== 'transparente' && x.fundo === '#FFFFFF'), JSON.stringify(antes));
+  /* O pedido: "a moldura do horário sempre fica diferente dos outros — tem
+     que ser igual". O Horários era tingido na cor da marca; agora os três
+     têm o mesmo fundo, a mesma borda e a mesma letra. */
+  verdade('e os três IGUAIS — o Horários não é mais diferente (fundo, borda e letra)',
+    antes.every(x => x.fundo === antes[0].fundo && x.borda === antes[0].borda && x.letra === antes[0].letra),
+    JSON.stringify(antes.map(x => [x.fundo, x.borda, x.letra])));
   await fechar();
 }
 {
@@ -226,8 +229,8 @@ secao('2. Sem moldura: só ícone e texto');
     d.every(x => x.larg === d[0].larg && x.alt === d[0].alt), JSON.stringify(d.map(x => [x.larg, x.alt])));
   igual('e do mesmo tamanho de antes (a borda ficou transparente, não sumiu)',
     d.map(x => [x.larg, x.alt]), antes.map(x => [x.larg, x.alt]));
-  verdade('a letra do Horários continua na cor da marca',
-    d[1].letra === antes[1].letra && d[1].letra !== d[0].letra, JSON.stringify(d.map(x => x.letra)));
+  verdade('e a letra é a mesma nos três, a de antes',
+    d.every(x => x.letra === antes[0].letra), JSON.stringify(d.map(x => x.letra)));
   await p.locator('#capaInfo .recurso').nth(0).hover();
   await p.waitForTimeout(300);
   const h = (await naPagina(p))[0];
@@ -406,7 +409,7 @@ await porCfg({});
     herdar: document.getElementById('atCor' + k + 'Herdar').style.display })));
   igual('sem escolha, cada quadrado diz de onde vem a cor, e não oferece "herdar"',
     aj, [{ ajuda:'ícone na cor da marca, nome em cinza', herdar:'none' },
-         { ajuda:'acompanha a cor da marca', herdar:'none' },
+         { ajuda:'ícone na cor da marca, nome em cinza', herdar:'none' },
          { ajuda:'ícone na cor da marca, nome em cinza', herdar:'none' }]);
   const mesmos = await p.evaluate(cs => Object.entries(cs).every(([k, v]) => {
     const el = document.getElementById('atCor' + k[0].toUpperCase() + k.slice(1));
@@ -433,8 +436,8 @@ let comCor;
     comCor.map(x => [x.qual, x.nome, x.icone]),
     [['pagamentos', CORES.pagamentos, CORES.pagamentos], ['horarios', CORES.horarios, CORES.horarios],
      ['informacoes', CORES.informacoes, CORES.informacoes]]);
-  verdade('e o tingido do Horários, no cartão com borda, acompanha a cor dele',
-    comCor[1].fundo !== antes[1].fundo && comCor[1].fundo !== '#FFFFFF', JSON.stringify([comCor[1], antes[1]]));
+  verdade('e o fundo dos três continua o do cartão: a cor pinta só ícone e nome',
+    comCor.every(x => x.fundo === antes[0].fundo), JSON.stringify(comCor.map(x => x.fundo)));
   igual('o resto da capa não mexe', await resto(p), restoAntes);
   await fechar();
 }
@@ -455,7 +458,7 @@ await porCfg({ atalhos:{ estilo:'borda', cores: CORES } });
   await p.locator('#atCorHorariosHerdar').click();
   await p.waitForTimeout(250);
   const aj = await p.evaluate(() => document.getElementById('atCorHorariosAjuda').textContent);
-  igual('"herdar" devolve o Horários à marca', aj, 'acompanha a cor da marca');
+  igual('"herdar" devolve o Horários ao de todos', aj, 'ícone na cor da marca, nome em cinza');
   await salvar(p);
   igual('e a chave sai do que é gravado', Object.keys((await cfgDe()).atalhos.cores).sort(),
     ['informacoes', 'pagamentos']);
@@ -463,7 +466,7 @@ await porCfg({ atalhos:{ estilo:'borda', cores: CORES } });
   const pg = await pagina();
   const d = await tintas(pg.p, false);
   igual('no link o Horários volta a ser exatamente o de antes',
-    [d[1].nome, d[1].icone, d[1].fundo], [antes[1].letra, antes[1].letra, antes[1].fundo]);
+    [d[1].nome, d[1].fundo], [antes[1].letra, antes[1].fundo]);
   await pg.fechar();
 }
 await porCfg({ tema:'escuro', atalhos:{ estilo:'limpo', cores:{ horarios:'#1A1A1A' } } });
@@ -480,6 +483,101 @@ await porCfg({ atalhos:{ estilo:'borda', cores:{ horarios:'red', pagamentos:'#12
   igual('a página ignora cor torta: fica o de antes',
     d.map(x => [x.letra, x.fundo]), antes.map(x => [x.letra, x.fundo]));
   await fechar();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   7 — A MOLDURA DOS TRÊS, E OS MODELOS PRONTOS
+   ══════════════════════════════════════════════════════════════════════════
+   "Quero que carregue todas as molduras no mesmo padrão de cor — e seja
+   configurável depois para mudar na cor que quiser; quando carregar os
+   modelos prontos, as três molduras nas cores iguais." */
+secao('7. A moldura dos três, numa cor só, e os modelos prontos');
+const MOLDURA = '#C8A33C';
+await porCfg({});
+{
+  const { p, fechar } = await painel();
+  const m0 = await p.evaluate(() => ({
+    existe: !!document.getElementById('atMoldura'),
+    ajuda: document.getElementById('atMolduraAjuda').textContent,
+    herdar: document.getElementById('atMolduraHerdar').style.display }));
+  igual('o painel tem "Cor da moldura", herdando a borda dos cartões',
+    m0, { existe: true, ajuda: 'a mesma borda dos cartões, nos três', herdar: 'none' });
+  await p.evaluate(v => { const el = document.getElementById('atMoldura');
+    el.value = v.toLowerCase(); el.dispatchEvent(new Event('input', { bubbles: true })); }, MOLDURA);
+  await p.waitForTimeout(250);
+  const prev = await naPrevia(p);
+  verdade('a prévia mostra a moldura escolhida nos três, na hora',
+    prev.every(x => x.borda === MOLDURA), JSON.stringify(prev.map(x => x.borda)));
+  await salvar(p);
+  igual('salvar grava a moldura', (await cfgDe()).atalhos?.moldura, MOLDURA.toLowerCase());
+  await fechar();
+}
+{
+  const { p, fechar } = await pagina();
+  const d = await naPagina(p);
+  verdade('no link, a moldura escolhida nos três — e os três iguais',
+    d.every(x => x.borda === MOLDURA && x.fundo === d[0].fundo && x.letra === d[0].letra),
+    JSON.stringify(d.map(x => [x.borda, x.fundo, x.letra])));
+  igual('o resto da capa não mexe', await resto(p), restoAntes);
+  await fechar();
+}
+await porCfg({ atalhos:{ estilo:'limpo', moldura: MOLDURA } });
+{
+  const { p, fechar } = await pagina();
+  const d = await naPagina(p);
+  verdade('no "Sem moldura" não há borda, nem a escolhida',
+    d.every(x => x.borda === 'transparente'), JSON.stringify(d.map(x => x.borda)));
+  await fechar();
+  const pn = await painel();
+  const c = await pn.p.evaluate(() => ({ desligado: document.getElementById('atMoldura').disabled,
+    ajuda: document.getElementById('atMolduraAjuda').textContent }));
+  igual('e o painel desliga a cor da moldura, dizendo por quê',
+    c, { desligado: true, ajuda: 'só no estilo “Com borda”' });
+  await pn.fechar();
+}
+await porCfg({ atalhos:{ estilo:'borda', moldura:'url(x)' } });
+{
+  const { p, fechar } = await pagina();
+  const d = await naPagina(p);
+  igual('moldura torta vinda do banco é ignorada: fica a borda de sempre',
+    d.map(x => x.borda), antes.map(x => x.borda));
+  await fechar();
+}
+// Reaberto, o painel tem de mostrar a moldura salva — senão salvar qualquer
+// outra coisa na Aparência gravaria a moldura vazia por cima.
+await porCfg({ atalhos:{ estilo:'borda', moldura: MOLDURA } });
+{
+  const { p, fechar } = await painel();
+  const c = await p.evaluate(() => ({ v: document.getElementById('atMoldura').value.toUpperCase(),
+    ajuda: document.getElementById('atMolduraAjuda').textContent,
+    herdar: document.getElementById('atMolduraHerdar').style.display }));
+  igual('reaberto, o painel mostra a moldura salva', c,
+    { v: MOLDURA, ajuda: 'escolhida por você · a mesma nos três', herdar: '' });
+  await salvar(p);
+  igual('e salvar de novo não apaga a moldura',
+    String((await cfgDe()).atalhos?.moldura || '').toUpperCase(), MOLDURA);
+  await fechar();
+}
+// Um modelo pronto, com cores próprias nos atalhos de antes: ao carregar, os
+// três saem iguais (o modelo zera as cores de cada atalho).
+await porCfg({ atalhos:{ estilo:'borda', moldura: MOLDURA, cores:{ horarios:'#DC2626' } } });
+{
+  const { p, fechar } = await painel();
+  await p.evaluate(() => experimentarModelo('dourada'));
+  await p.waitForTimeout(500);
+  const prev = await naPrevia(p);
+  verdade('no modelo Noite Dourada, as três molduras iguais na prévia (fundo, borda e letra)',
+    prev.every(x => x.fundo === prev[0].fundo && x.borda === prev[0].borda && x.letra === prev[0].letra),
+    JSON.stringify(prev.map(x => [x.fundo, x.borda, x.letra])));
+  await p.evaluate(() => usarModelo());
+  await p.waitForTimeout(1800);
+  await fechar();
+  const pg = await pagina();
+  const d = await naPagina(pg.p);
+  verdade('e no link, depois de usar o modelo, os três iguais',
+    d.every(x => x.fundo === d[0].fundo && x.borda === d[0].borda && x.letra === d[0].letra),
+    JSON.stringify(d.map(x => [x.fundo, x.borda, x.letra])));
+  await pg.fechar();
 }
 
 secao('Erros de JavaScript');

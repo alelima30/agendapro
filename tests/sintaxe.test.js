@@ -106,7 +106,7 @@ for(const tela of TELAS){
 }
 
 /* ── UM AJUSTE DE APARÊNCIA ATRAVESSA TRÊS ARQUIVOS ───────────────────────
-   O caminho de um ajuste que o dono escolhe em "Meu salão" até virar pixel
+   O caminho de um ajuste que o dono escolhe em "Meu negócio" até virar pixel
    na tela da cliente passa por três lugares, em arquivos diferentes:
 
        app.html          salvarAparencia() grava a chave no `cfg`

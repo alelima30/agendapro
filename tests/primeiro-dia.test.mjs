@@ -453,8 +453,10 @@ const reguas = await p.evaluate(() => ({
   confirma: document.querySelectorAll('#pdReguaConfirma button').length,
   ligados:  document.querySelectorAll('#primeiroDia .regua button.on').length,
 }));
-e('as duas réguas aparecem, com uma opção acesa em cada',
-  reguas.comanda === 2 && reguas.confirma === 2 && reguas.ligados === 2,
+/* A comanda e o caixa estão DESLIGADOS na plataforma (COMANDA_LIGADA): o
+   passo 7 fica só com a pergunta da confirmação. */
+e('só a régua da confirmação aparece (comanda escondida), com uma opção acesa',
+  reguas.comanda === 0 && reguas.confirma === 2 && reguas.ligados === 1,
   JSON.stringify(reguas));
 
 const gravou = await p.evaluate(() => {
@@ -473,22 +475,22 @@ e('e a aba Caixa some do menu na mesma hora', !gravou.aba,
   'a aba continuou no menu');
 
 /* ⚠ UM TEXTO SÓ PARA AS DUAS TELAS.
-   Esta explicação é lida aqui e em Meu salão. Duas redações envelhecem em
+   Esta explicação é lida aqui e em Meu negócio. Duas redações envelhecem em
    velocidades diferentes, e a que envelhece é sempre a que o dono lê
    primeiro — no dia em que está decidindo. */
+/* Com a comanda desligada na plataforma, só a explicação da confirmação
+   existe nas duas telas — e ela tem de ser a mesma. */
 const mesmoTexto = await p.evaluate(() => {
-  const noAssistente = document.getElementById('pdExplicaComanda').innerHTML;
+  const semComandaNoAssistente = !document.getElementById('pdExplicaComanda');
   const noAssistente2 = document.getElementById('pdExplicaConfirma').innerHTML;
   document.getElementById('primeiroDia').hidden = true;
   irPara('salao');
-  const emMeuSalao  = document.getElementById('explicaComanda').innerHTML;
   const emMeuSalao2 = document.getElementById('explicaConfirma').innerHTML;
-  return { a: noAssistente === emMeuSalao, b: noAssistente2 === emMeuSalao2,
-           amostra: noAssistente.slice(0, 60) };
+  return { a: semComandaNoAssistente, b: noAssistente2 === emMeuSalao2,
+           amostra: noAssistente2.slice(0, 60) };
 });
-e('a explicação da comanda é a MESMA em Meu salão', mesmoTexto.a,
-  mesmoTexto.amostra);
-e('e a da confirmação também', mesmoTexto.b);
+e('a explicação da comanda não aparece no assistente (comanda escondida)', mesmoTexto.a);
+e('e a da confirmação é a MESMA em Meu negócio', mesmoTexto.b, mesmoTexto.amostra);
 
 const botaoDeVolta = await p.evaluate(() => {
   const bt = document.getElementById('btPrimeiroDia');
@@ -496,7 +498,7 @@ const botaoDeVolta = await p.evaluate(() => {
   bt.click();
   return { tem:true, abriu: !document.getElementById('primeiroDia').hidden };
 });
-e('e Meu salão tem o botão que reabre o assistente',
+e('e Meu negócio tem o botão que reabre o assistente',
   botaoDeVolta.tem && botaoDeVolta.abriu, JSON.stringify(botaoDeVolta));
 
 await p.evaluate(() => {
@@ -528,7 +530,7 @@ const endereco = await p.evaluate(() => {
 });
 e('o passo 1 pergunta onde fica: rua, número, complemento, bairro, CEP, cidade, UF e Instagram',
   endereco.campos.length === 8, JSON.stringify(endereco.campos));
-e('e grava o endereço como Meu salão grava — ' + endereco.linha,
+e('e grava o endereço como Meu negócio grava — ' + endereco.linha,
   endereco.ok && endereco.end.logradouro === 'Avenida Brasil' && endereco.end.numero === '1500'
   && endereco.end.cep === '13309123' && endereco.end.uf === 'MG' && endereco.end.cidade === 'Salto'
   && endereco.end.complemento === 'Loja 3' && endereco.end.bairro === 'Jardim Novo',
@@ -541,7 +543,7 @@ const noMeuSalao = await p.evaluate(() => {
   return { rua: (document.getElementById('cRua') || {}).value,
            insta: (document.getElementById('cInsta') || {}).value };
 });
-e('Meu salão mostra o mesmo endereço e o mesmo Instagram',
+e('Meu negócio mostra o mesmo endereço e o mesmo Instagram',
   noMeuSalao.rua === 'Avenida Brasil' && noMeuSalao.insta === '@studio.bella',
   JSON.stringify(noMeuSalao));
 
@@ -567,17 +569,17 @@ const pag = await p.evaluate(() => {
   return { titulo, opcoes, obsAinda, marcados, gravado: (acharSalao(salaoAtual).cfg || {}).pagamentos,
            passo: pdPasso };
 });
-e('o passo 8 é "Como a cliente paga", com as quatro formas de Meu salão',
+e('o passo 8 é "Como a cliente paga", com as quatro formas de Meu negócio',
   pag.titulo === 'Como a cliente paga'
   && JSON.stringify(pag.opcoes) === JSON.stringify(['Pix', 'Dinheiro', 'Cartão de débito', 'Cartão de crédito']),
   JSON.stringify(pag));
 e('marcar uma forma não apaga a observação que está sendo digitada',
   pag.obsAinda === 'Parcelamos em até 3x' && JSON.stringify(pag.marcados) === '["pix","credito"]',
   JSON.stringify(pag));
-e('e "Próximo" grava em cfg.pagamentos, o mesmo de Meu salão',
+e('e "Próximo" grava em cfg.pagamentos, o mesmo de Meu negócio',
   pag.passo === 9 && JSON.stringify(pag.gravado) === JSON.stringify({ formas: ['pix', 'credito'], obs: 'Parcelamos em até 3x' }),
   JSON.stringify(pag.gravado));
-e('Meu salão passa a mostrar as mesmas formas',
+e('Meu negócio passa a mostrar as mesmas formas',
   await p.evaluate(() => { pagEscolhidas = null; return JSON.stringify(pagDoBanco()) === '["pix","credito"]'; }));
 
 /* ── 8d · A cara do link ─────────────────────────────────────────────────── */
@@ -752,7 +754,7 @@ const terminou = await p.evaluate(() => {
 });
 e('terminado, ele marca que acabou', terminou.feito, JSON.stringify(terminou));
 /* Assistente que reaparece depois de terminado vira lembrete de uma tarefa
-   que acabou — e o botão em Meu salão é o caminho de volta para quem quiser. */
+   que acabou — e o botão em Meu negócio é o caminho de volta para quem quiser. */
 e('e nunca mais aparece sozinho, nem com o salão ainda vazio',
   !terminou.voltou, 'apareceu de novo depois de terminado');
 
