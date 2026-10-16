@@ -358,6 +358,12 @@ body.carregando-tudo .tela{ display:none }
 }
 .campo{margin-bottom:13px}
 .campo label{display:block;font-size:12px;font-weight:700;color:var(--txt2);margin-bottom:5px}
+/* A explicação miúda embaixo de um campo ou de um bloco. A classe aparecia
+   em quase trinta lugares do painel e não tinha regra nenhuma: saía no tamanho
+   e na cor do texto normal, maior que o próprio rótulo do campo ("É para este
+   número que vão o aviso…" no Editar profissional). O criar.html tem a dele. */
+.ajuda{font-size:13px;color:var(--txt2);line-height:1.45}
+span.ajuda{display:block;margin-top:5px}
 .campo input,.campo select,.campo textarea{
   width:100%;padding:9px 11px;border:1px solid var(--borda);border-radius:9px;
   background:var(--bg);
@@ -365,6 +371,14 @@ body.carregando-tudo .tela{ display:none }
 .campo input:focus,.campo select:focus,.campo textarea:focus{
   outline:none;border-color:var(--marca);box-shadow:0 0 0 3px rgba(37,99,235,.14)
 }
+/* ⚠ CAIXINHA DE MARCAR NÃO É CAMPO DE TEXTO. O `width:100%` de cima (e o
+   `min-height:44px` do celular, no estilo.css) valiam para ela também: dentro
+   de um .campo, a caixinha virava um quadrado azul gigante numa linha e a
+   frase ia para a linha de baixo — "Avisar quando marcarem…" no Editar
+   profissional, os dias e os serviços do pacote e do cupom, a Entrega e
+   pagamento. O alvo de toque de 44px fica no <label> inteiro (label.check,
+   no estilo.css), que é onde o dedo encosta. */
+.campo input[type=checkbox],.campo input[type=radio]{width:auto;padding:0;min-height:0}
 .dupla{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .aviso{
   padding:10px 12px;border-radius:9px;font-size:13px;margin-bottom:13px;
@@ -383,7 +397,7 @@ body.carregando-tudo .tela{ display:none }
    só. Os cartões com foto desfazem o que não é deles (`.lista-serv`). */
 .serv-op{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;cursor:pointer;
   font-size:14px;color:var(--txt);line-height:1.35}
-.serv-op > input{flex:none;width:18px;height:18px;margin:2px 0 0;accent-color:var(--marca)}
+.serv-op > input[type=checkbox]{flex:none;width:18px;height:18px;margin:2px 0 0;accent-color:var(--marca)}
 .serv-op .i{display:flex;flex-direction:column;gap:2px;min-width:0}
 .serv-op .n{font-weight:600;overflow-wrap:anywhere}
 .serv-op .d{font-size:12.5px;color:var(--txt2);overflow-wrap:anywhere}
@@ -1574,6 +1588,30 @@ function nomeCliente(i){ const c = acharCliente(i); return c ? c.nome : '—'; }
    escolhida PELA cor de fundo em vez de branco fixo. Só a primeira deixaria
    um cartão amarelo com letra branca ilegível. */
 const CORES_EQUIPE = ['#2563EB','#7C3AED','#0E7A6C','#B45309','#BE185D','#0369A1'];
+/* ⚠ A LISTA "COR NA AGENDA" GRAVAVA "#C8A33C,Dourado"
+
+   O `CORES` virou pares [hex, nome] quando a Aparência ganhou a paleta, e
+   esta lista continuou tratando cada item como texto: a opção saía com
+   value="#C8A33C,Dourado". Não é cor — o `corDoProf` descartava e a coluna
+   ficava com a cor tirada do id. Escolher qualquer cor não mudava nada.
+
+   Agora o valor é o hex e o nome é o rótulo. A cor que a coluna mostra HOJE
+   vem marcada (mesmo a tirada do id, como "Cor atual"): salvar sem mexer na
+   lista não troca a cor de ninguém. Profissional novo começa na primeira
+   cor que ninguém da equipe usa. */
+function opcoesDeCorDoProf(p){
+  const atual = p ? corDoProf(p).toLowerCase() : null;
+  const usadas = doSalao(bd.profissionais).map(x => corDoProf(x).toLowerCase());
+  const livre = CORES.find(([hex]) => !usadas.includes(hex.toLowerCase()));
+  const marcada = atual || (livre || CORES[0])[0].toLowerCase();
+  const naLista = CORES.some(([hex]) => hex.toLowerCase() === marcada);
+  return (naLista ? '' : `<option value="${marcada}" selected>Cor atual</option>`)
+    + CORES.map(([hex, tom]) => `<option value="${hex}"${hex.toLowerCase() === marcada ? ' selected' : ''}>${tom}</option>`).join('');
+}
+function pintarAmostraDeCor(){
+  const s = document.getElementById('qCor'), a = document.getElementById('qCorAmostra');
+  if(s && a) a.style.background = s.value;
+}
 function corDoProf(p){
   const c = String((p && p.cor) || '').trim();
   if(/^#[0-9a-fA-F]{6}$/.test(c)) return c;
@@ -1961,7 +1999,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.8940df';
+const VERSAO_APP = 'v9.d6a821';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3250,7 +3288,7 @@ function pintarPacotes(){
               Fora desses dias o link recusa — você marca por aqui, cobrando.
             </p>` : ''}
         </div>
-        <div style="text-align:right">
+        <div class="ao-lado">
           <div style="font-size:19px;font-weight:800">${real(p.preco)}</div>
           <button class="btn btn-peq" style="margin-top:6px"
                   onclick="abrirPacote('${p.id}')">Editar</button>
@@ -3337,7 +3375,7 @@ function abrirPacote(pid){
     <div class="campo"><label>Quais serviços entram</label>
       <div id="pkServicos" style="max-height:210px;overflow:auto;
            border:1px solid var(--borda);border-radius:10px;padding:9px">${
-        servicosParaMarcar(svs).map(s => `<label class="check" style="display:block;margin:5px 0">
+        servicosParaMarcar(svs).map(s => `<label class="check" style="margin:5px 0">
           <input type="checkbox" value="${s.id}"${svs.includes(s.id) ? ' checked' : ''}>
           <span>${escapar(s.nome)} · ${real(s.preco)}${s.ativo ? ''
             : ' <span class="tag t-canc">desativado</span>'}</span></label>`).join('')
@@ -3566,11 +3604,11 @@ function abrirCupom(cid){
                value="${c ? Number(c.valor) : ''}"></div>
     </div>
     <div class="campo"><label>Onde vale</label>
-      <label class="check" style="display:block;margin:5px 0">
+      <label class="check" style="margin:5px 0">
         <input type="checkbox" id="cpAgend"${!c || c.valeAgendamento ? ' checked' : ''}
                onchange="ajustarFormCupom()">
         <span>Agendamento no link</span></label>
-      <label class="check" style="display:block;margin:5px 0">
+      <label class="check" style="margin:5px 0">
         <input type="checkbox" id="cpProd"${c && c.valeProdutos ? ' checked' : ''}>
         <span>Produtos da loja do link</span></label></div>
     <div class="campo" id="cpServCampo"><label>Só alguns serviços?</label>
@@ -3578,7 +3616,7 @@ function abrirCupom(cid){
         Nenhum marcado: vale para todos. Marcados: o desconto sai só deles.</p>
       <div id="cpServicos" style="max-height:210px;overflow:auto;
            border:1px solid var(--borda);border-radius:10px;padding:9px">${
-        servicosParaMarcar(svs).map(s => `<label class="check" style="display:block;margin:5px 0">
+        servicosParaMarcar(svs).map(s => `<label class="check" style="margin:5px 0">
           <input type="checkbox" value="${s.id}"${svs.includes(s.id) ? ' checked' : ''}>
           <span>${escapar(s.nome)} · ${real(s.preco)}${s.ativo ? ''
             : ' <span class="tag t-canc">desativado</span>'}</span></label>`).join('')
@@ -3593,14 +3631,14 @@ function abrirCupom(cid){
     <div class="campo"><label for="cpLimite">Limite de usos (em branco = sem limite)</label>
       <input type="number" id="cpLimite" min="1" step="1" placeholder="Ex.: 50"
              value="${c && c.limiteTotal ? c.limiteTotal : ''}"></div>
-    <label class="check" style="display:block;margin-top:6px">
+    <label class="check" style="margin-top:6px">
       <input type="checkbox" id="cpUmPor"${!c || c.umPorCliente ? ' checked' : ''}>
       <span>Cada cliente usa só 1 vez</span></label>
     <p style="font-size:12.5px;color:var(--txt3);margin-top:5px">
       No agendamento o link reconhece a cliente pelo WhatsApp. Na loja, só
       quando ela entrou na conta; sem conta, o pedido chega no seu WhatsApp e
       você vê quem é.</p>
-    ${c ? `<label class="check" style="display:block;margin-top:12px">
+    ${c ? `<label class="check" style="margin-top:12px">
       <input type="checkbox" id="cpAtivo"${c.ativo ? ' checked' : ''}>
       <span>Cupom ativo</span></label>` : ''}`,
     [...(c ? [['Excluir', `excluirCupom('${c.id}')`, 'btn-perigo']] : []),
@@ -4135,6 +4173,9 @@ function desenharAcessos(){
              onclick="tirarAcesso('${a.perfilId}','${a.papel}',this)"
            >Tirar acesso</button>`}</td>
     </tr>`).join('') + '</tbody></table></div>';
+  // Chega depois da pintura da tela (vem do banco): o rótulo de cada coluna
+  // no celular tem de ser posto aqui, senão "Proprietário" fica sem o "Pode".
+  rotularTabelas(alvo);
 }
 
 function abrirConvite(){
@@ -4495,12 +4536,10 @@ function abrirGaveta(){
   abrirModal('Abrir o caixa', `
     <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">
       Quanto de troco está na gaveta agora?</p>
-    <label>Valor de abertura</label>
-    <input type="number" id="gAbertura" step="0.01" min="0" value="0">
-    <div class="acoes">
-      <button class="btn" onclick="fecharModal()">Cancelar</button>
-      <button class="btn btn-primario" onclick="confirmarAbrirGaveta()">Abrir</button>
-    </div>`);
+    <div class="campo"><label for="gAbertura">Valor de abertura</label>
+      <input type="number" id="gAbertura" step="0.01" min="0" value="0"></div>`,
+    [['Cancelar', 'fecharModal()', ''],
+     ['Abrir', 'confirmarAbrirGaveta()', 'btn-p']]);
 }
 
 async function confirmarAbrirGaveta(){
@@ -4523,15 +4562,13 @@ function lancarMovimento(tipo){
     <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">${
       eh ? 'Dinheiro que SAI da gaveta e não é troco de cliente.'
          : 'Dinheiro que ENTRA na gaveta e não é venda.'}</p>
-    <label>Valor</label>
-    <input type="number" id="mValor" step="0.01" min="0.01">
-    <label style="margin-top:10px">Motivo</label>
-    <input type="text" id="mMotivo" maxlength="120"
-           placeholder="${eh ? 'levei ao banco' : 'troco para o dia'}">
-    <div class="acoes">
-      <button class="btn" onclick="fecharModal()">Cancelar</button>
-      <button class="btn btn-primario" onclick="confirmarMovimento('${tipo}')">Lançar</button>
-    </div>`);
+    <div class="campo"><label for="mValor">Valor</label>
+      <input type="number" id="mValor" step="0.01" min="0.01"></div>
+    <div class="campo"><label for="mMotivo">Motivo</label>
+      <input type="text" id="mMotivo" maxlength="120"
+             placeholder="${eh ? 'levei ao banco' : 'troco para o dia'}"></div>`,
+    [['Cancelar', 'fecharModal()', ''],
+     ['Lançar', `confirmarMovimento('${tipo}')`, 'btn-p']]);
 }
 
 async function confirmarMovimento(tipo){
@@ -4560,14 +4597,12 @@ function fecharGaveta(){
     <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">
       Conte o dinheiro da gaveta e digite quanto tem. A diferença aparece
       depois — conte antes de olhar o esperado.</p>
-    <label>Quanto tem na gaveta</label>
-    <input type="number" id="gContado" step="0.01" min="0">
-    <label style="margin-top:10px">Observação (opcional)</label>
-    <input type="text" id="gObs" maxlength="200">
-    <div class="acoes">
-      <button class="btn" onclick="fecharModal()">Cancelar</button>
-      <button class="btn btn-primario" onclick="confirmarFecharGaveta()">Fechar caixa</button>
-    </div>`);
+    <div class="campo"><label for="gContado">Quanto tem na gaveta</label>
+      <input type="number" id="gContado" step="0.01" min="0"></div>
+    <div class="campo"><label for="gObs">Observação (opcional)</label>
+      <input type="text" id="gObs" maxlength="200"></div>`,
+    [['Cancelar', 'fecharModal()', ''],
+     ['Fechar caixa', 'confirmarFecharGaveta()', 'btn-p']]);
 }
 
 async function confirmarFecharGaveta(){
@@ -5738,7 +5773,7 @@ function prepararPublico(){
   const s = acharSalao(salaoAtual);
   document.getElementById('pubNome').textContent = s.nome;
   document.getElementById('pubEnd').textContent =
-    Endereco.linha(s.endereco) || 'Agende seu horário';
+    Endereco.linha(s.endereco) || (restaurantePainel() ? 'Faça seu pedido' : 'Agende seu horário');
 
   // O endereço do salão sai do `slug`. É a mesma coluna `saloes.slug` do banco,
   // e é o que separa um salão do outro na porta de entrada do cliente.
@@ -6785,17 +6820,14 @@ function pedirEstorno(comId, pagamentoId){
     <p style="color:var(--txt2);font-size:13px;margin-bottom:12px">
       ${escapar(p.forma)} de ${real(p.valor)} · disponível para estorno:
       <b>${real(resta)}</b></p>
-    <label>Valor a devolver</label>
-    <input type="number" id="eValor" step="0.01" min="0.01" max="${resta}"
-           value="${resta}">
-    <label style="margin-top:10px">Motivo</label>
-    <input type="text" id="eMotivo" maxlength="120"
-           placeholder="valor digitado errado">
-    <div class="acoes">
-      <button class="btn" onclick="fecharModal()">Cancelar</button>
-      <button class="btn btn-primario"
-              onclick="confirmarEstorno('${comId}','${pagamentoId}')">Estornar</button>
-    </div>`);
+    <div class="campo"><label for="eValor">Valor a devolver</label>
+      <input type="number" id="eValor" step="0.01" min="0.01" max="${resta}"
+             value="${resta}"></div>
+    <div class="campo"><label for="eMotivo">Motivo</label>
+      <input type="text" id="eMotivo" maxlength="120"
+             placeholder="valor digitado errado"></div>`,
+    [['Cancelar', 'fecharModal()', ''],
+     ['Estornar', `confirmarEstorno('${comId}','${pagamentoId}')`, 'btn-p']]);
 }
 
 async function confirmarEstorno(comId, pagamentoId){
@@ -8275,10 +8307,9 @@ function abrirProf(pid){
         <input type="number" id="qComFixa" step="0.01" min="0"
                value="${p && p.comissaoFixa != null ? p.comissaoFixa : ''}"
                placeholder="opcional"></div>
-      <div class="campo"><label>Cor na agenda</label>
-        <select id="qCor">${CORES.map(c =>
-          `<option value="${c}"${p && p.cor===c?' selected':''}
-                   style="background:${c}">${c}</option>`).join('')}</select></div>
+      <div class="campo"><label for="qCor">Cor na agenda <span id="qCorAmostra"
+          class="cor-amostra" aria-hidden="true"></span></label>
+        <select id="qCor" onchange="pintarAmostraDeCor()">${opcoesDeCorDoProf(p)}</select></div>
     </div>
     <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px;margin-bottom:13px">
       <input type="checkbox" id="qAtivo" ${!p || p.ativo ? 'checked' : ''}>
@@ -8294,6 +8325,7 @@ function abrirProf(pid){
     ['Cancelar','fecharModal()',''],
     ['Salvar', `salvarProf(${p ? `'${p.id}'` : 'null'})`, 'btn-p'],
   ]);
+  pintarAmostraDeCor();
 }
 
 async function escolherFotoProf(campo){
@@ -8451,7 +8483,12 @@ function rotularTabelas(raiz, soComCabecalho){
     /* Nas janelas, só a tabela que TEM títulos de coluna: a de "rótulo |
        valor" sem cabeçalho (o detalhe do agendamento, o do bloqueio) já se
        lê sozinha, e marcá-la mudaria o desenho dela no celular. */
-    if(soComCabecalho && !cab.length) return;
+    if(soComCabecalho && !cab.length){
+      // …mas ganha o desenho de "rótulo | valor" num cartão só, no celular,
+      // em vez de virar um cartão alto por linha (estilo.css, data-pares).
+      t.setAttribute('data-pares', '');
+      return;
+    }
     t.querySelectorAll('tbody tr').forEach(tr => {
       [...tr.children].forEach((td, i) => {
         if(cab[i]) td.setAttribute('data-r', cab[i]);
@@ -8829,9 +8866,9 @@ function pintarSalao(){
            (Sem crase: este bloco mora dentro de um template literal.) -->
       <div class="linha-fina" style="margin:18px 0"></div>
       <h3 class="secao">De quanto em quanto tempo o link oferece</h3>
-      <p class="secao-sub">So' muda o que a cliente ve na lista de horarios.
-        A agenda por dentro continua fina, entao um encaixe de 08:15 lancado
-        no balcao continua valendo — o que muda e' o link parar de oferecer
+      <p class="secao-sub">Só muda o que a cliente vê na lista de horários.
+        A agenda por dentro continua fina, então um encaixe de 08:15 lançado
+        no balcão continua valendo — o que muda é o link parar de oferecer
         08:15 sozinho.</p>
       <div class="regua" id="reguaPasso" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaPasso" style="margin-top:9px"></p>
@@ -8855,10 +8892,10 @@ function pintarSalao(){
            modelos aprovados da Meta, que sao disparo automatico e custam por
            envio. (Sem crase: este bloco mora num template literal.) -->
       <div class="linha-fina" style="margin:18px 0"></div>
-      <h3 class="secao">Os recados que voce manda a mao</h3>
-      <p class="secao-sub">Quando voce clica no WhatsApp de um horario ou de
-        uma ficha, o app abre a conversa com um destes textos ja' escrito.
-        Voce ainda le e ajusta antes de enviar.</p>
+      <h3 class="secao">Os recados que você manda à mão</h3>
+      <p class="secao-sub">Quando você clica no WhatsApp de um horário ou de
+        uma ficha, o app abre a conversa com um destes textos já escrito.
+        Você ainda lê e ajusta antes de enviar.</p>
       <div id="listaRecados"></div>
 
       <!-- O OUTRO EXTREMO DO MESMO EIXO. A janela acima diz ate onde a agenda
@@ -9609,9 +9646,9 @@ function pintarSalao(){
 
     <div class="card" style="margin-top:14px">
       <h3 class="secao" style="margin-top:0">O que já foi preparado</h3>
-      <p class="secao-sub">As ultimas mensagens desta agenda, com o estado de
-        cada uma. Enquanto o WhatsApp nao estiver conectado elas ficam em
-        "pendente" — e pendente quer dizer pendente, nao enviada.</p>
+      <p class="secao-sub">As últimas mensagens desta agenda, com o estado de
+        cada uma. Enquanto o WhatsApp não estiver conectado elas ficam em
+        "pendente" — e pendente quer dizer pendente, não enviada.</p>
       <div id="historicoNotif"></div>
     </div>
     </div><!-- /sub-tela notificacoes -->
@@ -9868,6 +9905,7 @@ async function pintarHistoricoNotif(){
             escapar(n.motivo)}</div>` : ''}</td>
       </tr>`;
     }).join('')}</tbody></table>`;
+  rotularTabelas(alvo);   // chega do banco depois da pintura da tela
 }
 
 // No fuso do SALÃO, como todo o resto — e é o mesmo cuidado que decide a hora
@@ -11949,7 +11987,7 @@ function pintarPreviaFone(){
             return e.length
               ? `<span data-cfg="rua"><span class="fone-pino" data-ico="local" data-cfg="pino"></span>${
                   escapar(e[0])}</span>${e[1] ? `<i data-cfg="lugar">${escapar(e[1])}</i>` : ''}`
-              : '<span data-cfg="subtitulo">Agende seu horário</span>';
+              : `<span data-cfg="subtitulo">${restaurantePainel() ? 'Faça seu pedido' : 'Agende seu horário'}</span>`;
           })()}
        </div>
        ${previaDaInfo(sl)}
@@ -14139,7 +14177,7 @@ function pintarPlano(){
              lugar onde assinar, seria informar um valor que a tela nao explica
              e nao cobra. (Sem crase e sem acento: comentario em template.) -->
         ${OFERTA_DE_PLANO ? `
-        <div style="text-align:right">
+        <div class="ao-lado">
           <div style="font-size:22px;font-weight:800">${
             p && precoDoPlano(p.codigo) ? real(precoDoPlano(p.codigo)) : 'Grátis'}</div>
           <div style="font-size:12px;color:var(--txt2)">${p && precoDoPlano(p.codigo) ? 'por mês' : ''}</div>

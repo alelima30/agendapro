@@ -704,16 +704,19 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 /* Primário — dourado, com a sombra na cor dele. Sombra neutra sob botão
    colorido deixa o botão parecendo colado por cima; na cor, ele parece
    apoiado na página. */
-.btn-primary, .btn-p, .b, .grande{
+/* `.btn-primario` é o mesmo botão principal com o nome em português — usado
+   em "Abrir caixa", "Fechar caixa" e no "Confirmar" dos pendentes, e sem
+   regra nenhuma: saía com cara de botão secundário, igual ao lado. */
+.btn-primary, .btn-p, .btn-primario, .b, .grande{
   background:var(--acao) !important; color:var(--acao-txt) !important;
   border:1px solid var(--acao) !important;
   box-shadow:var(--sombra-marca) !important;
   font-weight:580 !important;
 }
-.btn-primary:hover, .btn-p:hover, .b:hover, .grande:hover{
+.btn-primary:hover, .btn-p:hover, .btn-primario:hover, .b:hover, .grande:hover{
   background:var(--acao-hover) !important; border-color:var(--acao-hover) !important;
 }
-.btn-primary:active, .btn-p:active, .b:active, .grande:active{
+.btn-primary:active, .btn-p:active, .btn-primario:active, .b:active, .grande:active{
   box-shadow:var(--sombra-xs) !important;
 }
 
@@ -760,7 +763,7 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 
 /* Desligado: chapado e sem peso. Baixar a opacidade de um botão colorido
    deixa um bloco lavado que continua chamando mais atenção que o conteúdo. */
-.grande:disabled, .b:disabled, .btn-p:disabled, .btn-primary:disabled{
+.grande:disabled, .b:disabled, .btn-p:disabled, .btn-primario:disabled, .btn-primary:disabled{
   background:var(--n-100) !important; color:var(--n-400) !important;
   border-color:var(--n-200) !important; opacity:1 !important;
   box-shadow:none !important;
@@ -1407,6 +1410,54 @@ input:focus, select:focus, textarea:focus{
 input, select, textarea, .busca, .entrada input, .entrada select, .campo input{
   border-radius:var(--r-sm) !important; background:var(--painel2) !important;
   border:1px solid var(--borda) !important;
+}
+/* ── A CAIXINHA COM A FRASE AO LADO: <label class="check"> ──────────────
+   Era usada em vinte lugares e nunca teve desenho: dentro de um .campo, o
+   `.campo label` (bloco, letra miúda em negrito) e o `.campo input`
+   (largura toda) punham uma caixinha gigante numa linha e a frase solta
+   embaixo. Aqui: a caixinha à esquerda, do tamanho de caixinha, e a frase ao
+   lado, quebrando linha embaixo dela mesma. `label.check` (e não `.check`)
+   para pesar o mesmo que o `.campo label` — este arquivo vem depois, ganha. */
+label.check{
+  display:flex; align-items:flex-start; gap:10px; cursor:pointer;
+  font-size:14px; font-weight:400; color:var(--txt); line-height:1.4;
+  letter-spacing:normal; text-transform:none; margin-bottom:0;
+}
+.campo label.check{ margin:8px 0 0 }
+.campo label.check:first-child{ margin-top:0 }
+label.check > input[type=checkbox], label.check > input[type=radio]{
+  flex:none; width:18px; height:18px; margin:1px 0 0; padding:0; min-height:0;
+  accent-color:var(--ac-600);
+}
+label.check > span{ min-width:0; overflow-wrap:anywhere }
+
+/* O <label> que faz papel de botão (o "Escolher" da foto, que abre o
+   seletor de arquivo). O <button> centraliza o texto sozinho; o <label> não
+   — com a altura de 44px do celular, o "Escolher" ficava no alto da caixa,
+   desalinhado do "Remover" ao lado. */
+label.btn{ display:inline-flex; align-items:center; justify-content:center; cursor:pointer }
+
+/* A explicação embaixo do campo. Era um <span> solto, na linha do campo, e
+   herdava a altura de linha do .campo (letra 16px): cada linha da letra
+   miúda ocupava 23px, espaçada como lista. */
+.campo > :is(input, select, textarea, .data-caixa) + span{
+  display:block; margin-top:5px; line-height:1.45;
+}
+
+/* O bloco que mora à direita do título (o preço do pacote, o do plano).
+   No celular ele quebra para a linha de baixo: alinhado à direita, o botão
+   embaixo do preço ficava recuado no meio do nada. */
+.ao-lado{ text-align:right }
+@media (max-width:640px){ .ao-lado{ text-align:left } }
+/* ⚠ A LUPA DA BUSCA. O `background:… !important` logo acima é atalho: zera
+   também a imagem de fundo, e a lupa do `.busca` (desenhada como imagem, no
+   agendar.html) sumia — sobrava o recuo de 40px à esquerda do "Buscar
+   produto…", com nada dentro. Aqui a lupa volta, no mesmo lugar e no mesmo
+   cinza de antes. */
+input.busca{
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><path d='m20 20-3.5-3.5'/></svg>") !important;
+  background-repeat:no-repeat !important; background-position:14px center !important;
+  background-size:17px !important;
 }
 input.bom{border-color:var(--su-500) !important}
 input.ruim, select.ruim{border-color:var(--er-500) !important}
@@ -3154,6 +3205,14 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .tripla{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px }
 @media (max-width:640px){
   .dupla, .tripla{ grid-template-columns:1fr }
+  /* Uma coluna só: o `grid-column:span 2` escrito no campo (Logradouro,
+     Cidade) criava uma segunda coluna fantasma, e os campos sem ele ficavam
+     mais estreitos que os outros — Número e UF terminando antes. */
+  .dupla > *, .tripla > *{ grid-column:auto !important }
+  /* E o espaço entre os campos empilhados é o mesmo de fora da dupla: o
+     `gap` somado à margem do .campo dava quase o dobro (Nome e WhatsApp
+     juntos, WhatsApp e Nascimento longe). */
+  .dupla > .campo:not(:last-child), .tripla > .campo:not(:last-child){ margin-bottom:0 }
 }
 .campo input:disabled, .campo select:disabled{
   background:var(--painel2) !important; color:var(--txt2) !important;
@@ -3193,7 +3252,10 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .foto-previa.servico{ width:104px; aspect-ratio:4 / 3 }
 .foto-previa .ic-svg{ width:22px; height:22px }
 .foto-txt{ flex:1; min-width:200px }
-.foto-txt b{ display:block; margin-bottom:2px }
+/* Só o TÍTULO (o <b> filho direto) vira linha própria. Era `.foto-txt b`, e
+   pegava o negrito do meio da explicação também: "quando você escolhe" /
+   "Minhas fotos e vídeos" / "em Aparência", em três linhas. */
+.foto-txt > b{ display:block; margin-bottom:2px }
 .foto-txt p{ font-size:13px; color:var(--txt2); margin:0 0 2px }
 .foto-txt .fmt{ font-size:12px; color:var(--txt3) }
 .foto-acoes{ display:flex; gap:8px; margin-top:9px; flex-wrap:wrap }
@@ -3397,7 +3459,51 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
      vazia some, em vez de deixar um vão no fim do cartão. */
   #modalCorpo .tabela tbody td[data-acoes]{ justify-content:flex-end }
   #modalCorpo .tabela tbody td[data-acoes] .btn{ flex:0 0 auto }
-  #modalCorpo .tabela tbody td[data-acoes]:empty{ display:none }
+  /* Sem botão nenhum (a linha do próprio dono em "Quem entra no sistema",
+     a comanda fechada): a célula vazia some, em vez de deixar um vão no fim
+     do cartão. */
+  .tabela tbody td[data-acoes]:empty{ display:none }
+  /* A ÚLTIMA COLUNA QUE TEM TÍTULO também é rótulo ← → valor. A regra de
+     cima trata a última célula como a dos botões (bloco, sem rótulo ao
+     lado): o "Estado" do histórico de mensagens saía colado no "pendente". */
+  .tabela tbody td:last-child[data-r]:not(:first-child){
+    display:flex; justify-content:space-between; text-align:right;
+    border-bottom:none; padding-top:8px;
+  }
+  /* O ÚLTIMO CARTÃO DA LISTA perdia as linhas entre os campos: a regra do
+     computador `.tabela tr:last-child td{border-bottom:none}` (a última
+     linha da tabela não tem risco embaixo) valia para todos os campos dele. */
+  .tabela tbody tr:last-child td:not(:last-child){ border-bottom:1px solid var(--borda) }
+  /* A miniatura ao lado do nome (serviços, produtos): o nome comprido
+     quebrava para baixo da miniatura. Agora o texto todo fica ao lado dela. */
+  .tabela tbody td:first-child:has(> .sv-mini){ position:relative; padding-left:41px; min-height:50px }
+  .tabela tbody td:first-child > .sv-mini{ position:absolute; left:0; top:9px; margin:0 }
+  /* A TABELA DE "RÓTULO | VALOR" DENTRO DA JANELA (o detalhe do
+     atendimento, o do bloqueio, as contas da comanda). Não tem cabeçalho,
+     então não vira cartão-por-linha: cada linha era um cartão alto com
+     "Cliente" de título e o valor embaixo. Fica uma tabela de duas colunas,
+     dentro de um cartão só — cabe folgada em 375px. */
+  #modalCorpo .tabela[data-pares]{
+    display:table; width:100%; border-collapse:separate; border-spacing:0;
+    background:var(--painel); border:1px solid var(--borda); border-radius:var(--r);
+    overflow:hidden; margin-bottom:13px;
+  }
+  #modalCorpo .tabela[data-pares] tbody{ display:table-row-group }
+  #modalCorpo .tabela[data-pares] tbody tr{
+    display:table-row; background:none; border:0; border-radius:0; box-shadow:none;
+    padding:0; margin:0;
+  }
+  #modalCorpo .tabela[data-pares] tbody td,
+  #modalCorpo .tabela[data-pares] tbody td:first-child,
+  #modalCorpo .tabela[data-pares] tbody td:last-child{
+    display:table-cell; padding:10px 12px; border-bottom:1px solid var(--borda);
+    font-size:14px; vertical-align:top;
+  }
+  #modalCorpo .tabela[data-pares] tbody td:first-child{
+    width:96px; text-align:left; color:var(--txt2); font-size:13.5px; padding-right:4px;
+  }
+  #modalCorpo .tabela[data-pares] tbody td::before{ content:none }
+  #modalCorpo .tabela[data-pares] tbody tr:last-child td{ border-bottom:0 }
   .tabela tr:hover td{ background:none }
 
   /* O rodapé de total também é um cartão — sem isto ele fica solto embaixo
@@ -3426,6 +3532,19 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
   .kpi{ padding:11px 12px }
   .kpi .v{ font-size:1.32rem }
   .barra{ gap:8px }
+  /* A busca ocupa a linha. O `.espaco` (que no computador empurra os botões
+     para a direita) sobrava sozinho na frente dela e a jogava para o canto,
+     com meia tela vazia à esquerda — a busca de Clientes. */
+  .barra > .espaco{ display:none }
+  .barra > input{ flex:1 1 100%; min-width:0 !important }
+  /* O período do relatório: "De" e "até" um embaixo do outro, com as duas
+     caixas alinhadas (eram uma à direita e outra à esquerda). */
+  .barra > .rel-de{ flex:1 1 100%; display:grid; grid-template-columns:30px 1fr; gap:8px }
+  .barra > .rel-de input{ min-width:0; width:100% }
+  /* O rodapé das janelas: os botões dividem a linha. Com três ("Arquivar",
+     "Falar no WhatsApp", "Salvar") o último caía sozinho na linha de baixo,
+     encostado à direita. */
+  .modal-p .btn{ flex:1 1 auto }
   /* O botão de ação da barra ocupa a linha: no celular ele é O que se faz
      naquela tela, e meia largura sobrando ao lado não serve para nada. */
   .barra > .btn-p{ width:100%; order:9 }
@@ -3435,6 +3554,13 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
   .btn, .b, .bp, .b2, .lat-acao, .tb-ajuda, .regua button, .ciclo button, .btn-plano,
   .plano .btn-plano, .grande, .olho, select, input, textarea,
   .entrada input, .campo input, .campo select{ min-height:44px }
+  /* O alvo de toque da caixinha é a frase inteira: o <label> leva os 44px,
+     a caixinha continua do tamanho de caixinha (ver label.check). O `input`
+     da lista de cima pegava a caixinha também — 18px de largura e 44 de
+     altura, desenhada no meio da caixa alta, uns 13px abaixo da frase. */
+  input[type=checkbox], input[type=radio]{ min-height:0 }
+  label.check{ min-height:44px; align-items:center }
+  label.check > input[type=checkbox], label.check > input[type=radio]{ margin:0 }
   .btn-peq{ min-height:40px; min-width:40px }
   .aba{ min-height:46px }
   /* Botão de um caractere só (as setas ‹ › do dia) fica estreito porque o
@@ -4442,8 +4568,12 @@ body.com-folha{ overflow:hidden }
 /* O Adicionar: cheio, na cor do botão do salão. `#listaProdutos` na frente
    para ganhar do botão secundário (.btn:not(.btn-primary)...), que é papel
    com contorno. */
+/* O `padding` é deste botão: no link não existe o `.btn` do painel com a
+   margem interna, e o reset geral (`*{padding:0}`) deixava o "Adicionar"
+   encostado nas bordas, a última letra colada no contorno. */
 #listaProdutos .loja-add, #produtoAberto .loja-add{
   display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  padding:0 14px;
   background:var(--acao); color:var(--acao-txt); border:1px solid var(--acao);
   font-weight:700; box-shadow:var(--sombra-marca, var(--sombra-xs));
 }
@@ -4507,6 +4637,30 @@ body[data-passo="loja"] #btPrincipal:disabled{
   display:grid; place-items:center; background:var(--acao); color:var(--acao-txt);
   font-size:22px; font-weight:700 }
 .cf-salao-logo img{ width:100%; height:100%; object-fit:cover; display:block }
+
+/* ⚠ FOTO EM PÉ NUMA CAIXA QUADRADA MOSTRAVA SÓ O ALTO DA FOTO.
+
+   Relatado com print: no link, o logo (uma foto em pé, de selfie) aparecia
+   cortado — o teto do carro e o alto da cabeça; na prévia do painel, o rosto
+   inteiro. A prévia estava certa; o link, não.
+
+   A causa é de CSS, não da foto: estas caixas são `display:grid`, e numa
+   grade o `height:100%` da imagem não segura nada — a linha da grade cresce
+   até a altura natural da foto. Foto deitada não passa da caixa e ninguém
+   via; foto EM PÉ fica com o dobro da altura (104×208 num selo de 104), e o
+   `overflow:hidden` mostra só a metade de cima. O `object-fit:cover`, que
+   centralizaria, nem chegava a agir.
+
+   Medido com uma foto em pé de teste: o selo do link, a miniatura do logo
+   em Identidade visual, a foto do profissional (janela e Equipe) e as
+   miniaturas de serviço e produto. Aqui a foto sai do fluxo e cobre a caixa
+   inteira: o `cover` volta a centralizar, igual à prévia. */
+.marca-selo, .intro-logo, .cf-salao-logo, .avatar-salao.com-logo,
+.sv-mini, .eq-rosto, .foto-previa{ position:relative }
+.marca-selo > img, .intro-logo > img, .cf-salao-logo > img, .avatar-salao.com-logo > img,
+.sv-mini > img, .eq-rosto > img, .foto-previa > img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+}
 .cf-salao-txt b{ display:block; font-size:17px; font-weight:700; color:var(--txt); line-height:1.25 }
 .cf-salao-txt small{ font-size:13.5px; color:var(--txt2) }
 .cf-linha{ display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--borda) }
@@ -4777,7 +4931,7 @@ body.tem-cor-produtos .loja-cat.on{
 .pedido-conta{ display:inline-block; min-width:22px; padding:0 7px; margin-left:6px; border-radius:var(--r-pill);
   background:var(--ac-soft); color:var(--txt); font-size:12.5px; text-align:center }
 .pedido-fim summary{ cursor:pointer; padding:8px 0 }
-.pedido-chave{ font-weight:600 }
+label.pedido-chave{ font-weight:600 }
 .selo-pedidos{ display:inline-block; min-width:20px; padding:0 6px; margin-left:6px; border-radius:var(--r-pill);
   background:var(--erro); color:var(--painel); font-size:12px; font-weight:700; text-align:center; line-height:20px }
 .pd-taxa{ display:grid; grid-template-columns:1fr 110px auto; gap:8px; margin-bottom:8px }

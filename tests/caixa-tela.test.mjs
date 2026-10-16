@@ -163,7 +163,7 @@ verdade('a tela do caixa oferece abrir a gaveta',
 await p.click('#cartaoGaveta button');
 await p.waitForTimeout(400);
 await p.fill('#gAbertura', '200');
-await p.click('.acoes .btn-primario');
+await p.click('#modalPe .btn-p');
 await p.waitForTimeout(2000);
 
 const caixas = (await banco.query(
@@ -209,7 +209,7 @@ await p.click('#cartaoGaveta button:has-text("Sangria")');
 await p.waitForTimeout(400);
 await p.fill('#mValor', '50');
 await p.fill('#mMotivo', 'levei ao banco');
-await p.click('.acoes .btn-primario');
+await p.click('#modalPe .btn-p');
 await p.waitForTimeout(2000);
 
 const movs = (await banco.query(
@@ -251,7 +251,7 @@ await p.click('button:has-text("Estornar")');
 await p.waitForTimeout(400);
 await p.fill('#eValor', '40');
 await p.fill('#eMotivo', 'digitei a mais');
-await p.click('.acoes .btn-primario');
+await p.click('#modalPe .btn-p');
 await p.waitForTimeout(2500);
 
 const est = (await banco.query(
@@ -386,7 +386,7 @@ verdade('o esperado agora é 210',
 await p.click('#cartaoGaveta button:has-text("Fechar caixa")');
 await p.waitForTimeout(400);
 await p.fill('#gContado', '200');
-await p.click('.acoes .btn-primario');
+await p.click('#modalPe .btn-p');
 await p.waitForTimeout(2500);
 
 verdade('a tela diz quanto faltou na gaveta',

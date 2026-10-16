@@ -37,7 +37,10 @@ p.on('console', m => { if(m.type()==='error') erros.push(m.text()); });
 const medir = () => p.evaluate(() => ({
   vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth,
   alvos: [...document.querySelectorAll('button,select,a[href],input:not([type=hidden])')]
-    .filter(e => { const r = e.getBoundingClientRect();
+    // A caixinha dentro de um <label> é tocada pela frase inteira: o alvo
+    // é o label, não o quadradinho de 18px.
+    .filter(e => { const r = (e.matches('[type=checkbox],[type=radio]') && e.closest('label')
+                              || e).getBoundingClientRect();
       return r.width > 0 && r.height > 0 && (r.height < 40 || r.width < 40); })
     .map(e => e.tagName.toLowerCase() + '.' + (e.className||'').toString().split(' ')[0]),
   miudo: [...document.querySelectorAll('body *')]
@@ -153,6 +156,102 @@ for(const [nome, abrir] of [
   await p.waitForTimeout(200);
 }
 
+/* ── O QUE A VARREDURA DE LAYOUT ACHOU ────────────────────────────────────
+   Cada item foi visto num print de celular, um por um, e cada um já
+   aconteceu: estão aqui para não voltar. */
+console.log('\nA varredura de layout: caixinhas, cores, campos e cartões');
+await p.evaluate(() => abrirProf(doSalao(bd.profissionais).filter(x => x.ativo)[0].id));
+await p.waitForTimeout(400);
+const prof = await p.evaluate(() => {
+  const caixas = [...document.querySelectorAll('#modalCorpo label.check input[type=checkbox]')]
+    .map(e => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+  const cor = document.getElementById('qCor');
+  const p = doSalao(bd.profissionais).filter(x => x.ativo)[0];
+  const ajuda = document.getElementById('qTelAjuda');
+  const fotos = [...document.querySelectorAll('#modalCorpo .foto-acoes .btn')].map(b => {
+    const r = b.getBoundingClientRect(), rg = document.createRange(); rg.selectNodeContents(b);
+    const t = [...rg.getClientRects()].filter(x => x.width > 2)[0] || r;
+    return Math.round((t.top + t.height / 2) - (r.top + r.height / 2)); });
+  return {
+    caixas,
+    valores: [...cor.options].map(o => o.value),
+    marcada: cor.value.toLowerCase(), atual: corDoProf(p).toLowerCase(),
+    ajuda: ajuda ? parseFloat(getComputedStyle(ajuda).fontSize) : null,
+    fotos,
+  };
+});
+diz(prof.caixas.length >= 3 && prof.caixas.every(([w, h]) => w <= 24 && h <= 24),
+    'Editar profissional: as caixinhas "Avisar quando…" têm tamanho de caixinha',
+    'largura × altura: ' + prof.caixas.map(x => x.join('×')).join(', '));
+diz(prof.valores.length > 0 && prof.valores.every(v => /^#[0-9a-f]{6}$/i.test(v)),
+    'a lista "Cor na agenda" grava uma cor de verdade (era "#C8A33C,Dourado")',
+    prof.valores.join(' | '));
+diz(prof.marcada === prof.atual,
+    'e vem marcada na cor que a coluna mostra hoje: salvar sem mexer não troca a cor',
+    `marcada ${prof.marcada}, coluna ${prof.atual}`);
+diz(prof.ajuda !== null && prof.ajuda <= 13.5, 'o texto de ajuda é miúdo, não do tamanho do texto normal',
+    'font-size: ' + prof.ajuda);
+diz(prof.fotos.length === 2 && prof.fotos.every(d => Math.abs(d) <= 2),
+    '"Escolher" e "Remover" com o texto no meio do botão, os dois na mesma altura',
+    'desvio do centro: ' + prof.fotos.join(', '));
+await p.evaluate(() => fecharModal());
+
+await p.evaluate(() => abrirCliente(null));
+await p.waitForTimeout(300);
+const larguras = await p.evaluate(() => [...document.querySelectorAll('#modalCorpo .campo > input:not([type=checkbox]), #modalCorpo .campo > .data-caixa')]
+  .map(e => Math.round(e.getBoundingClientRect().width)));
+diz(larguras.length >= 4 && Math.max(...larguras) - Math.min(...larguras) <= 1,
+    'Novo cliente: os campos empilhados têm todos a mesma largura', larguras.join(', '));
+const vaos = await p.evaluate(() => {
+  const cs = [...document.querySelectorAll('#modalCorpo .campo')].filter(c => c.querySelector(':scope > input, :scope > .data-caixa'));
+  const v = [];
+  for(let i = 1; i < cs.length; i++) v.push(Math.round(cs[i].getBoundingClientRect().top - cs[i - 1].getBoundingClientRect().bottom));
+  return v;
+});
+diz(vaos.length >= 3 && Math.max(...vaos) - Math.min(...vaos) <= 2,
+    'e o espaço entre eles é sempre o mesmo (a dupla somava o gap e a margem)', vaos.join(', '));
+await p.evaluate(() => fecharModal());
+
+await p.evaluate(() => { const a = agendaDoSalao()[0]; if(a) abrirDetalhe(a.id); });
+await p.waitForTimeout(300);
+const pares = await p.evaluate(() => {
+  const t = document.querySelector('#modalCorpo table.tabela[data-pares]');
+  return t ? { disp: getComputedStyle(t).display, linhas: t.querySelectorAll('tbody tr').length,
+               td: getComputedStyle(t.querySelector('tbody td')).display } : null;
+});
+diz(pares && pares.disp === 'table' && pares.td === 'table-cell',
+    'o detalhe do atendimento é uma tabela "rótulo | valor" num cartão só — não um cartão por linha',
+    JSON.stringify(pares));
+await p.evaluate(() => fecharModal());
+
+await p.evaluate(() => abrirGaveta());
+await p.waitForTimeout(300);
+const gaveta = await p.evaluate(() => ({
+  pe: [...document.querySelectorAll('#modalPe .btn')].map(b => b.textContent.trim() + (b.classList.contains('btn-p') ? '*' : '')),
+  noCorpo: document.querySelectorAll('#modalCorpo button').length,
+  campo: !!document.querySelector('#modalCorpo .campo #gAbertura'),
+}));
+diz(gaveta.pe.join(',') === 'Cancelar,Abrir*' && gaveta.noCorpo === 0 && gaveta.campo,
+    'Abrir o caixa: o campo no padrão, e os botões no rodapé da janela (o "Abrir" é o principal)',
+    JSON.stringify(gaveta));
+await p.evaluate(() => fecharModal());
+
+await p.locator('.menu-botao').click(); await p.waitForTimeout(300);
+await p.locator('.aba', { hasText: 'Clientes' }).click(); await p.waitForTimeout(450);
+const lista = await p.evaluate(() => {
+  const barra = document.querySelector('#tela-clientes .barra'), busca = document.getElementById('buscaCliente');
+  const trs = [...document.querySelectorAll('#tela-clientes .tabela tbody tr')];
+  const ultimo = trs[trs.length - 1];
+  return {
+    recuo: Math.round(busca.getBoundingClientRect().left - barra.getBoundingClientRect().left),
+    riscos: ultimo ? [...ultimo.children].slice(1, -1).map(td => getComputedStyle(td).borderBottomWidth) : [],
+  };
+});
+diz(lista.recuo === 0, 'Clientes: a busca começa no canto, sem meia tela vazia à esquerda',
+    `recuo de ${lista.recuo}px`);
+diz(lista.riscos.length > 0 && lista.riscos.every(w => parseFloat(w) >= 1),
+    'o último cartão da lista tem as linhas entre os campos, como os outros', lista.riscos.join(', '));
+
 console.log('\nA agenda rola dentro dela mesma');
 await p.locator('.menu-botao').click(); await p.waitForTimeout(300);
 await p.locator('.aba', { hasText: 'Agenda' }).click(); await p.waitForTimeout(450);
@@ -179,6 +278,51 @@ for(const [url, nome] of [['agendar.html?salao=studio-bella&demo=1','vitrine do 
   diz(r.vaza === 0, `${nome}: não rola para o lado`, `sobram ${r.vaza}px`);
   diz(r.alvos.length === 0, `${nome}: nenhum alvo abaixo de 40px`, r.alvos.join(', '));
 }
+
+/* A loja do link: a lupa da busca (o `background:… !important` do estilo
+   geral a apagava, e sobrava o recuo vazio) e o "Adicionar" com margem
+   interna (encostava nas bordas). */
+await p.goto(BASE + 'agendar.html?salao=studio-bella&demo=1'); await p.waitForTimeout(900);
+await p.evaluate(() => irPara('loja')); await p.waitForTimeout(600);
+const loja = await p.evaluate(() => {
+  const b = document.getElementById('buscaProduto'), a = document.querySelector('#listaProdutos .loja-add');
+  return { lupa: b ? getComputedStyle(b).backgroundImage : '',
+           add: a ? { pad: parseFloat(getComputedStyle(a).paddingRight), sobra: a.scrollWidth - a.clientWidth } : null };
+});
+diz(/svg/.test(loja.lupa), 'loja do link: a busca tem a lupa dentro', loja.lupa.slice(0, 60));
+
+/* ⚠ FOTO EM PÉ NUMA CAIXA QUADRADA. Relatado com print: o logo (uma selfie)
+   aparecia no link só com o alto da foto — a caixa é uma grade, e numa grade
+   o `height:100%` da imagem não segura: ela ficava 104×208 num selo de 104.
+   Na prévia do painel aparecia certo, e era essa a diferença que a dona via.
+   A mesma coisa nas miniaturas do painel (logo, profissional, serviço). */
+const FOTO_EM_PE = `(() => { const c = document.createElement('canvas'); c.width = 120; c.height = 240;
+  const g = c.getContext('2d'); g.fillStyle = '#c33'; g.fillRect(0, 0, 120, 240); return c.toDataURL(); })()`;
+const caixaCheia = sel => p.evaluate(sel => [...document.querySelectorAll(sel)].map(b => {
+  const im = b.querySelector(':scope > img'); if(!im) return null;
+  const rb = b.getBoundingClientRect(), ri = im.getBoundingClientRect();
+  return Math.round(ri.height) <= Math.round(rb.height) + 1 ? 'ok' : `${Math.round(rb.width)}x${Math.round(rb.height)} com foto de ${Math.round(ri.width)}x${Math.round(ri.height)}`;
+}).filter(Boolean), sel);
+await p.evaluate(`(() => { salao.logo = ${FOTO_EM_PE}; irPara('capa'); })()`); await p.waitForTimeout(600);
+const selo = await caixaCheia('.marca-selo');
+diz(selo.length === 1 && selo[0] === 'ok', 'link: logo em foto em pé cabe no selo (o cover centraliza, não mostra só o alto)', selo.join(', '));
+diz(!loja.add || (loja.add.pad >= 10 && loja.add.sobra <= 0),
+    'e o "Adicionar" tem folga dos dois lados, sem a última letra colada na borda', JSON.stringify(loja.add));
+
+await p.goto(BASE + 'app.html?demo=1&comanda=1'); await p.waitForTimeout(900);
+await p.evaluate(`(() => { const f = ${FOTO_EM_PE}; acharSalao(salaoAtual).logo = f;
+  doSalao(bd.servicos).forEach(s => s.foto = f); doSalao(bd.profissionais).forEach(x => x.foto = f); })()`);
+const miniaturas = [];
+await p.evaluate(() => irPara('servicos')); await p.waitForTimeout(400);
+miniaturas.push(...await caixaCheia('.sv-mini'));
+await p.evaluate(() => irPara('equipe')); await p.waitForTimeout(400);
+miniaturas.push(...await caixaCheia('.eq-rosto'));
+await p.evaluate(() => abrirProf(doSalao(bd.profissionais)[0].id)); await p.waitForTimeout(400);
+miniaturas.push(...await caixaCheia('.foto-previa'));
+await p.evaluate(() => fecharModal());
+diz(miniaturas.length >= 3 && miniaturas.every(x => x === 'ok'),
+    'painel: as miniaturas com foto em pé (serviço, equipe, profissional) cabem na caixa',
+    miniaturas.filter(x => x !== 'ok').join(', '));
 
 diz(erros.length === 0, 'nenhum erro de JavaScript em nenhuma tela', erros.join(' | '));
 

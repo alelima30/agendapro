@@ -2289,7 +2289,7 @@ function desenharCapa(){
              <div class="rua"><span data-ico="local"></span>${escapar(end[0])}</div>
              ${end[1] ? `<div class="lugar">${escapar(end[1])}</div>` : ''}
            </div>`
-        : `<p class="sub">Agende seu horário</p>`}
+        : `<p class="sub">${ehRestaurante() ? 'Faça seu pedido' : 'Agende seu horário'}</p>`}
     </div>`;
 
   desenharInfoDaCasa();
