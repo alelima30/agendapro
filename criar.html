@@ -463,6 +463,32 @@ let quantos = 1;
 // sozinho — sem precisar de rotina de vencimento nem de UPDATE nenhum.
 let bd = null;
 
+/* ── DE ONDE A PESSOA VEIO ────────────────────────────────────────────────
+   A página dos anúncios (conheca.html) manda `utm_source` (ou `origem`) no
+   endereço. Aqui ele vira a resposta de "Como você nos conheceu?" — que já
+   é gravada no cadastro (`p_origem`) —, para o dono saber qual anúncio
+   trouxe gente. Só preenche: a pessoa pode trocar, e sem parâmetro nada
+   muda. */
+(function origemDoAnuncio(){
+  const sel = document.getElementById('fOrigem');
+  if(!sel) return;
+  const q = new URLSearchParams(location.search);
+  const fonte = String(q.get('utm_source') || '').toLowerCase().slice(0, 40);
+  const origem = String(q.get('origem') || '').toLowerCase().slice(0, 40);
+  if(!fonte && !origem) return;
+  const escolher = rotulo => {
+    let op = [...sel.options].find(o => o.text === rotulo);
+    if(!op){ op = new Option(rotulo, rotulo); sel.insertBefore(op, sel.options[sel.options.length - 1]); }
+    sel.value = op.value;
+  };
+  if(/insta|^ig$/.test(fonte)) escolher('Instagram');
+  else if(/face|^fb$|meta/.test(fonte)) escolher('Facebook');
+  else if(/google|gads/.test(fonte)) escolher('Google');
+  else if(/whats|^wa$/.test(fonte)) escolher('WhatsApp de um cliente');
+  else if(fonte) escolher('Anúncio: ' + fonte.replace(/[^a-z0-9 _-]/g, ''));
+  else if(origem === 'pagina') escolher('Página do AgendaPro');
+})();
+
 const PLANOS = [
   {codigo:'trial',      nome:'Teste grátis', quem:'Para conhecer',    max:1,  preco:0,
    ic:'<span data-ico="presente"></span>',
