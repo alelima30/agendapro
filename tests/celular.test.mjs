@@ -116,6 +116,43 @@ diz(cartao && cartao.semRotulo === 0,
     `toda célula tem o nome da coluna (${(cartao?.rotulos||[]).join(', ')})`,
     `${cartao?.semRotulo} sem rótulo`);
 
+/* ── A TABELINHA DENTRO DA JANELA TAMBÉM ──────────────────────────────────
+   O rótulo das colunas só era posto nas tabelas das telas. A de "quando é
+   diferente com alguém" (no serviço e no produto) e a jornada do
+   profissional moram numa janela — no celular viravam caixas soltas, "0" e
+   "—" sem dizer de quê, e a última coluna esticada na largura toda. */
+console.log('\nA tabelinha de preencher, dentro da janela');
+for(const [nome, abrir] of [
+  ['serviço (preço e comissão por pessoa)', () => abrirServico(doSalao(bd.servicos)[0].id)],
+  ['profissional (jornada)',                () => abrirProf(doSalao(bd.profissionais).filter(x => x.ativo)[0].id)],
+]){
+  await p.evaluate(`(${abrir})()`);
+  await p.waitForTimeout(400);
+  const j = await p.evaluate(() => {
+    const t = [...document.querySelectorAll('#modalCorpo table.tabela')]
+      .find(x => x.querySelector('thead th') && x.querySelector('tbody input'));
+    if(!t) return null;
+    const tr = t.querySelector('tbody tr');
+    const campos = [...tr.querySelectorAll('td')].filter(td => td.querySelector('input'));
+    const larg = campos.map(td => Math.round(td.querySelector('input').getBoundingClientRect().width));
+    return {
+      semRotulo: campos.filter(td => !td.getAttribute('data-r')
+        || getComputedStyle(td, '::before').content === 'none').length,
+      rotulos: campos.map(td => td.getAttribute('data-r')),
+      larg,
+      mesma: Math.max(...larg) - Math.min(...larg) <= 1,
+      vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  diz(j && j.semRotulo === 0, `${nome}: cada caixa diz de que é (${(j?.rotulos||[]).join(', ')})`,
+      `${j?.semRotulo} caixa(s) sem rótulo`);
+  diz(j && j.mesma, `${nome}: todas as caixas da mesma largura — a última não estica`,
+      'larguras: ' + (j?.larg||[]).join(', '));
+  diz(j && j.vaza === 0, `${nome}: a página não rola para o lado`);
+  await p.evaluate(() => fecharModal());
+  await p.waitForTimeout(200);
+}
+
 console.log('\nA agenda rola dentro dela mesma');
 await p.locator('.menu-botao').click(); await p.waitForTimeout(300);
 await p.locator('.aba', { hasText: 'Agenda' }).click(); await p.waitForTimeout(450);

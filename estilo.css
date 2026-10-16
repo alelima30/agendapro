@@ -3380,6 +3380,24 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
   }
   .tabela tbody td[data-acoes] .btn{ width:auto; flex:1 1 auto }
   .tabela tbody td[data-acoes] .btn-zap{ flex:0 0 auto; min-width:44px }
+  /* ⚠ AS TABELINHAS DE PREENCHER, DENTRO DA JANELA (comissão por pessoa,
+     jornada). Cada campo vira uma linha "rótulo ← → caixa", todas com a
+     mesma largura de caixa — inclusive a ÚLTIMA coluna, que a regra de cima
+     trata como coluna de botões (bloco, sem rótulo ao lado) e deixava a
+     caixa esticada na largura toda, embaixo das outras. */
+  #modalCorpo .tabela tbody td:last-child[data-r]:not(:first-child){
+    display:flex; align-items:center; justify-content:space-between;
+    text-align:right; border-bottom:none; padding-top:8px;
+  }
+  #modalCorpo .tabela tbody td[data-r]:not(:first-child){ align-items:center }
+  #modalCorpo .tabela tbody td input{ width:120px !important; flex:none; text-align:right }
+  /* Na janela, o botão da linha é só o ícone (o "×" de tirar o item da
+     comanda): fica do tamanho dele, no canto — esticado, virava uma barra
+     vazia com o × perdido na ponta. Comanda fechada não tem botão: a célula
+     vazia some, em vez de deixar um vão no fim do cartão. */
+  #modalCorpo .tabela tbody td[data-acoes]{ justify-content:flex-end }
+  #modalCorpo .tabela tbody td[data-acoes] .btn{ flex:0 0 auto }
+  #modalCorpo .tabela tbody td[data-acoes]:empty{ display:none }
   .tabela tr:hover td{ background:none }
 
   /* O rodapé de total também é um cartão — sem isto ele fica solto embaixo

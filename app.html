@@ -1961,7 +1961,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.d9779d';
+const VERSAO_APP = 'v9.8940df';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -5944,6 +5944,11 @@ function abrirModal(titulo, corpo, botoes){
   document.getElementById('fundo').classList.add('on');
   // Os `data-ico` recém-escritos ainda são <span>: viram SVG aqui.
   if(window.aplicarIcones) aplicarIcones(document.getElementById('fundo'));
+  /* As tabelinhas DENTRO da janela (comissão por pessoa, jornada) também
+     ganham o rótulo de cada coluna. O `rotularTabelas()` só rodava nas telas,
+     no fim do `pintar()`; aqui no celular a tabela virava cartão SEM título
+     nenhum — "0", "—", "50" soltos, sem dizer o que era cada caixa. */
+  rotularTabelas(document.getElementById('modalCorpo'), true);
 }
 function fecharModal(){ document.getElementById('fundo').classList.remove('on'); }
 document.addEventListener('keydown', e => { if(e.key === 'Escape') fecharModal(); });
@@ -8440,9 +8445,13 @@ function salvarBloqueio(pid){
    Fazer isso aqui, e não em cada `<td>` na hora de montar, evita que os
    quatro lugares que desenham tabela saiam do compasso — e funciona para
    qualquer tabela nova sem ninguém lembrar de nada. */
-function rotularTabelas(raiz){
+function rotularTabelas(raiz, soComCabecalho){
   (raiz || document).querySelectorAll('table.tabela').forEach(t => {
     const cab = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    /* Nas janelas, só a tabela que TEM títulos de coluna: a de "rótulo |
+       valor" sem cabeçalho (o detalhe do agendamento, o do bloqueio) já se
+       lê sozinha, e marcá-la mudaria o desenho dela no celular. */
+    if(soComCabecalho && !cab.length) return;
     t.querySelectorAll('tbody tr').forEach(tr => {
       [...tr.children].forEach((td, i) => {
         if(cab[i]) td.setAttribute('data-r', cab[i]);
