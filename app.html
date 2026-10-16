@@ -450,6 +450,25 @@ span.ajuda{display:block;margin-top:5px}
 .niver-quando{color:var(--txt2);font-size:13px}
 .niver-linha .btn{flex-shrink:0;min-height:40px}
 .niver-sub{margin:12px 0 2px;font-size:13px;font-weight:600;color:var(--txt2)}
+/* A tela própria (aba Aniversariantes): o botão da ficha ao lado, quem faz
+   hoje em destaque com a cor do tema, quem já fez no mês esmaecido. */
+.niver-acoes{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0}
+.niver-acoes .btn{min-height:40px}
+.niver-hoje .niver-quem b{color:var(--ac-600)}
+.niver-hoje .niver-quando{color:var(--ac-600);font-weight:600}
+.niver-passou{opacity:.62}
+#tela-aniversarios .barra select{padding:8px 11px;border:1px solid var(--borda);border-radius:9px;
+  background:var(--painel);color:var(--txt);font:inherit;font-size:14px}
+/* No celular os dois botões espremiam o nome numa coluna de duas palavras:
+   o nome e a data ficam em cima, a linha inteira, e os botões embaixo. */
+@media (max-width:640px){
+  #listaNiver .niver-linha{flex-wrap:wrap;align-items:flex-start}
+  #listaNiver .niver-quem{flex:1 1 100%}
+  #listaNiver .niver-acoes{width:100%;justify-content:flex-start}
+  #listaNiver .niver-acoes .btn{flex:1 1 auto}
+}
+.selo-niver{display:inline-block;min-width:20px;padding:0 6px;margin-left:6px;border-radius:var(--r-pill);
+  background:var(--ac-soft);color:var(--ac-600);font-size:12px;font-weight:700;text-align:center;line-height:20px}
 
 /* ── O horário do "+ Agendamento": os livres em botões ──────────────────
    No lugar do relógio nativo, que no Android escondia o botão de confirmar.
@@ -672,6 +691,16 @@ span.ajuda{display:block;margin-top:5px}
   </section>
 
   <!-- ══════════ CLIENTES ══════════ -->
+  <!-- ══════════ ANIVERSARIANTES ══════════ -->
+  <section class="tela" id="tela-aniversarios">
+    <div class="barra">
+      <span class="vistas" id="niverVistas"></span>
+      <select id="niverMes" aria-label="Escolher o mês" onchange="escolherMesNiver(this.value)"></select>
+    </div>
+    <div id="niverResumo"></div>
+    <div class="card" id="listaNiver"></div>
+  </section>
+
   <section class="tela" id="tela-clientes">
     <div class="barra">
       <span class="espaco"></span>
@@ -1762,6 +1791,11 @@ const TELAS = [
      dinheiro da casa inteira. */
   ['dashboard','Dashboard',       'painel',     'Dia a dia', GESTAO],
   ['relatorios','Relatórios',      'grafico',    'Dia a dia', GESTAO],
+  /* Aniversariantes: pedido do dono — "um tópico separado do dashboard, pra
+     eu clicar e ver". O cartão do Dashboard continua (é de quem o ligou);
+     esta é a lista inteira, por período. Quem vê Clientes vê esta: é a mesma
+     ficha, e quem não enxerga a ficha também não enxerga o aniversário. */
+  ['aniversarios','Aniversariantes','bolo',      'Dia a dia', EQUIPE],
   ['clientes', 'Clientes',         'usuario',    'Cadastros', EQUIPE],
   ['servicos', 'Serviços',         'tesoura',    'Cadastros', EQUIPE],
   /* ⚠ EQUIPE, e não GESTAO — igual a Serviços, e pelo mesmo motivo: quem
@@ -1859,6 +1893,7 @@ function montarAbas(){
                      ${travada ? 'title="Disponível a partir do plano Básico"' : ''}>
                <span class="aba-ic" data-ico="${icone}"></span>
                <span class="aba-txt">${rotuloDaTela(k, rotulo)}</span>
+               ${k === 'aniversarios' ? seloDeAniversario() : ''}
                ${travada ? '<span class="aba-cadeado" aria-label="no plano Básico">🔒</span>' : ''}
              </button>`;
   }
@@ -1999,7 +2034,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.19c3b0';
+const VERSAO_APP = 'v9.98618d';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -4770,6 +4805,115 @@ function darParabens(clienteId){
     horario: '',
     empresa: (acharSalao(salaoAtual) || {}).nome || 'salão',
   }));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   A TELA DOS ANIVERSARIANTES
+
+   A mesma conta do cartão do Dashboard (`aniversariantes()`), numa aba
+   própria do menu, com o período à escolha: hoje, os próximos 7 dias, o mês
+   corrente ou qualquer mês do ano. O botão "Dar os parabéns" segue a regra
+   do cartão — só no dia —, e toda linha abre a ficha, que é onde se corrige
+   ou se preenche a data.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let niverPeriodo = 'mes';      // 'hoje' | 'semana' | 'mes'
+let niverMes = null;           // 1..12; nulo = o mês de hoje
+
+/* Quem faz aniversário no mês `mes` (1..12), com o dia DESTE ano. `faltam`
+   fica negativo para quem já fez: a lista do mês mostra os dois, e quem já
+   passou aparece como "foi dia…". Mesma regra do 29 de fevereiro. */
+function aniversariantesNoMes(mes){
+  const hj = hoje();
+  const ano = Number(hj.slice(0, 4));
+  const bissexto = a => a % 4 === 0 && (a % 100 !== 0 || a % 400 === 0);
+  const lista = [];
+  for(const c of clientesDo()){
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(c.nascimento || ''));
+    if(!m || Number(m[2]) !== mes) continue;
+    const anoN = Number(m[1]);
+    let dia = Number(m[3]);
+    if(mes === 2 && dia === 29 && !bissexto(ano)) dia = 28;
+    const iso = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    const idade = ano - anoN;
+    lista.push({ id: c.id, chamada: c.nome, dia: iso,
+                 faltam: Math.round((new Date(iso + 'T12:00:00Z') - new Date(hj + 'T12:00:00Z')) / 86400000),
+                 idade: anoN >= 1900 && idade > 0 && idade < 120 ? idade : null });
+  }
+  return lista.sort((x, y) => x.dia.localeCompare(y.dia)
+    || String(x.chamada).localeCompare(String(y.chamada), 'pt-BR'));
+}
+
+/* O selo do menu: só quando alguém faz aniversário HOJE. */
+function seloDeAniversario(){
+  let n = 0;
+  try{ n = aniversariantes(0).length; }catch(e){ n = 0; }
+  return n ? `<span class="selo-niver" aria-label="${n} hoje">${n}</span>` : '';
+}
+
+function escolherPeriodoNiver(q){ niverPeriodo = q; if(q === 'mes') niverMes = null; pintarAniversarios(); }
+function escolherMesNiver(v){ niverPeriodo = 'mes'; niverMes = Number(v) || null; pintarAniversarios(); }
+
+/* "hoje", "amanhã", "em 5 dias · sex, 17/10" ou "foi dia 03/10". */
+function quandoNiverLongo(x){
+  const [, m, d] = x.dia.split('-');
+  const semana = DIAS[diaDaSemana(x.dia)].slice(0, 3).toLowerCase();
+  if(x.faltam === 0) return 'hoje';
+  if(x.faltam === 1) return 'amanhã · ' + semana + ', ' + d + '/' + m;
+  if(x.faltam < 0) return 'foi ' + semana + ', ' + d + '/' + m;
+  return 'em ' + x.faltam + ' dias · ' + semana + ', ' + d + '/' + m;
+}
+
+function linhaNiverTela(x){
+  const idade = x.idade ? ` · ${x.faltam < 0 ? 'fez' : 'faz'} ${x.idade} anos` : '';
+  // A dica do botão sai pronta daqui: dentro do HTML vai só a variável.
+  const dicaZap = zapDoCliente(x.id) ? '' : 'title="Esta ficha está sem WhatsApp"';
+  return `<div class="niver-linha${x.faltam === 0 ? ' niver-hoje' : ''}${x.faltam < 0 ? ' niver-passou' : ''}">
+    <span class="niver-quem"><b>${escapar(x.chamada)}</b>
+      <span class="niver-quando">${quandoNiverLongo(x)}${idade}</span></span>
+    <span class="niver-acoes">
+      ${x.faltam === 0
+        ? `<button type="button" class="btn btn-peq btn-p" onclick="darParabens('${x.id}')"
+             ${dicaZap}>
+             <span data-ico="whatsapp"></span> Dar os parabéns</button>`
+        : ''}
+      <button type="button" class="btn btn-peq" onclick="abrirCliente('${x.id}')">Ver ficha</button>
+    </span>
+  </div>`;
+}
+
+function pintarAniversarios(){
+  const vistas = document.getElementById('niverVistas');
+  const sel = document.getElementById('niverMes');
+  const alvo = document.getElementById('listaNiver');
+  const resumo = document.getElementById('niverResumo');
+  if(!vistas || !alvo) return;
+  const mesHoje = Number(hoje().slice(5, 7));
+  const mes = niverMes || mesHoje;
+
+  vistas.innerHTML = [['hoje', 'Hoje'], ['semana', '7 dias'], ['mes', 'Este mês']]
+    .map(([q, rot]) => `<button class="${niverPeriodo === q && (q !== 'mes' || mes === mesHoje) ? 'on' : ''}"
+       onclick="escolherPeriodoNiver('${q}')">${rot}</button>`).join('');
+  sel.innerHTML = MESES.map((m, i) => `<option value="${i + 1}"${niverPeriodo === 'mes' && i + 1 === mes ? ' selected' : ''}>${
+    m.charAt(0).toUpperCase() + m.slice(1)}</option>`).join('');
+
+  const lista = niverPeriodo === 'hoje' ? aniversariantes(0)
+              : niverPeriodo === 'semana' ? aniversariantes(7)
+              : aniversariantesNoMes(mes);
+  const fichas = clientesDo();
+  const semData = fichas.filter(c => !c.nascimento).length;
+  const titulo = niverPeriodo === 'hoje' ? 'hoje'
+               : niverPeriodo === 'semana' ? 'nos próximos 7 dias'
+               : (mes === mesHoje ? 'este mês' : 'em ' + MESES[mes - 1].toLowerCase());
+  resumo.innerHTML = `<p class="secao-sub" style="margin:0 0 12px">
+    <b>${lista.length} ${lista.length === 1 ? 'aniversariante' : 'aniversariantes'}</b> ${titulo}.
+    ${semData ? `${semData} ${semData === 1 ? 'ficha está' : 'fichas estão'} sem data de nascimento —
+      o link de agendamento pede, e dá para preencher na ficha, em Clientes.` : ''}</p>`;
+
+  alvo.innerHTML = lista.length
+    ? lista.map(linhaNiverTela).join('')
+    : `<div class="vazio">Ninguém faz aniversário ${titulo}.${fichas.some(c => c.nascimento) ? ''
+        : '<br>Nenhuma ficha tem a data ainda.'}</div>`;
+  if(window.aplicarIcones) aplicarIcones(document.getElementById('tela-aniversarios'));
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -8504,6 +8648,7 @@ function pintar(){
   if(telaAtual === 'agenda')   pintarAgenda();
   if(telaAtual === 'pedidos')  pintarPedidos();
   if(telaAtual === 'clientes') pintarClientes();
+  if(telaAtual === 'aniversarios') pintarAniversarios();
   if(telaAtual === 'servicos') pintarServicos();
   if(telaAtual === 'produtos') pintarProdutos();
   if(telaAtual === 'pacotes')  pintarPacotes();

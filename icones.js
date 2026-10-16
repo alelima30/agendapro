@@ -63,6 +63,9 @@ const D = {
 
      Traço de 1,75 e quadro de 24, como todos os outros. */
   carrinho:   '<circle cx="9.5" cy="20" r="1.4"/><circle cx="17.5" cy="20" r="1.4"/><path d="M2.5 3.5h2.2l2.3 11.2a1.6 1.6 0 0 0 1.6 1.3h8.7a1.6 1.6 0 0 0 1.6-1.25l1.5-6.75H6"/>',
+  /* O bolo dos aniversariantes: o "presente" já é o dos produtos, e o mesmo
+     desenho em duas abas do menu faria a pessoa procurar uma pela outra. */
+  bolo:       '<path d="M3.5 20.5h17"/><rect x="5" y="12" width="14" height="8.5" rx="2"/><path d="M5 15.5c1.4 1 2.9 1 4.3 0s2.9-1 4.3 0 2.9 1 4.4 0"/><path d="M12 12V8.5"/><path d="M12 4c.9 1 .9 2.2 0 3-.9-.8-.9-2 0-3Z"/>',
   presente:   '<rect x="3" y="9" width="18" height="11.5" rx="2"/><path d="M3 13.5h18M12 9v11.5"/><path d="M12 9S10.5 3.5 8 4.5 9.5 9 12 9Zm0 0s1.5-5.5 4-4.5S14.5 9 12 9Z"/>',
   info:       '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
   alerta:     '<path d="M12 4.5 3 19.5h18Z"/><path d="M12 10v4M12 17.2v.2"/>',
