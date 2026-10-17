@@ -979,6 +979,44 @@ e('o assistente ocupa a tela inteira no celular, sem caixinha rolando dentro '
   + 'de caixinha', noCelular.every(x => x.cabe === 375),
   JSON.stringify(noCelular.map(x => x.cabe)));
 
+/* ── "FAÇO DEPOIS" E "PRÓXIMO" SUMIAM NO CELULAR ─────────────────────────
+   Visto no Android: o rodapé não aparecia. A caixa media 100vh, e no
+   navegador do celular 100vh conta como se a barra de endereço não
+   existisse — a caixa ficava mais alta que a tela e o rodapé, embaixo dela.
+   O navegador de teste não tem barra, então ela é imitada: o fundo (fixo,
+   que é o que acompanha a área visível) encolhe 140px por baixo. */
+const rodape = [];
+for(const passo of [1, 3, 10]){
+  await cel.evaluate(n => {
+    abrirPrimeiroDia(n);
+    document.getElementById('primeiroDia').style.bottom = '140px';
+  }, passo);
+  await cel.waitForTimeout(150);
+  rodape.push(await cel.evaluate(() => {
+    const fundo = document.getElementById('primeiroDia').getBoundingClientRect();
+    const r = id => document.querySelector(id).getBoundingClientRect();
+    const prox = r('#pdProximo'), pe = r('.pd-caixa .pd-pe');
+    const depois = [...document.querySelectorAll('.pd-pe button')].find(b => /Faço depois/.test(b.textContent));
+    const d = depois.getBoundingClientRect();
+    return { fundo: Math.round(fundo.bottom), pe: Math.round(pe.bottom),
+             dentro: prox.bottom <= fundo.bottom + 1 && d.bottom <= fundo.bottom + 1 && prox.height > 0 };
+  }));
+  await cel.evaluate(() => { document.getElementById('primeiroDia').style.bottom = ''; });
+}
+e('com a barra do navegador ocupando a tela, "Faço depois" e "Próximo" continuam à vista',
+  rodape.every(x => x.dentro), JSON.stringify(rodape));
+
+/* "Passo 1 de 10" saía cinza-escuro em cima do degradê: o `.pd-linha` do
+   pedido (mesmo prefixo, outro dono) pintava por cima. */
+await cel.evaluate(() => abrirPrimeiroDia(1));
+await cel.waitForTimeout(120);
+const contador = await cel.evaluate(() => {
+  const el = document.getElementById('pdContador');
+  return { cor: getComputedStyle(el).color, topo: getComputedStyle(el.closest('.pd-topo')).color };
+});
+e('"Passo 1 de 10" tem a cor do topo do assistente, não o cinza do pedido',
+  contador.cor === contador.topo, JSON.stringify(contador));
+
 e('nada disso deu erro de JavaScript', erros.length === 0,
   erros.slice(0, 3).join(' | '));
 

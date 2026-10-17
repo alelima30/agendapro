@@ -3828,6 +3828,7 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .pd-fundo[hidden]{ display:none }
 .pd-caixa{
   width:min(720px, 100%); max-height:min(92vh, 900px);
+  max-height:min(92dvh, 900px);    /* a altura VISÍVEL, onde o navegador entende */
   display:flex; flex-direction:column;
   background:var(--painel); border-radius:var(--r-lg);
   box-shadow:var(--sombra-lg); overflow:hidden;
@@ -3870,6 +3871,17 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .pd-op:hover{ border-color:var(--borda-forte) }
 .pd-op.on{ border-color:var(--marca-media); background:var(--ac-soft); color:var(--marca) }
 .pd-op .pd-marca{ margin-left:auto; font-size:16px; line-height:1 }
+
+/* ⚠ O PREFIXO `pd-` TEM DOIS DONOS. O assistente (pd = primeiro dia) e o
+   pedido do link (pd = pedido, lá embaixo neste arquivo) usam `.pd-linha` e
+   `.pd-op` com outro desenho — e o do pedido vem depois, então ganhava. O
+   "Passo 1 de 10" saía cinza-escuro em cima do degradê (a cor da linha de
+   total do pedido), e o cartão marcado ganhava o contorno do pedido. Dentro
+   da caixa do assistente vale o do assistente. */
+.pd-caixa .pd-linha{ justify-content:normal; padding:0; color:inherit }
+.pd-caixa .pd-op{ flex:initial; min-height:48px; padding:10px 12px; border-radius:var(--r-sm) }
+.pd-caixa .pd-op.on{ border-color:var(--marca-media); background:var(--ac-soft);
+  color:var(--marca); box-shadow:none }
 
 /* ── Sugestões de serviço, com duração e preço ──────────────────────────── */
 .pd-cat{ font-size:13px; font-weight:800; color:var(--txt2); margin:14px 0 6px;
@@ -3942,8 +3954,15 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
   background:none }
 
 @media (max-width:520px){
-  .pd-fundo{ padding:0 }
-  .pd-caixa{ max-height:100vh; height:100vh; border-radius:0 }
+  /* Tela cheia pelo tamanho do FUNDO (fixo, inset:0), e não por 100vh. No
+     navegador do celular, 100vh conta como se a barra de endereço não
+     existisse: a caixa ficava mais alta que a tela, e o rodapé — "Faço
+     depois" e "Próximo" — ficava embaixo, fora de alcance. Visto no Android.
+     A grade de uma célula do tamanho do fundo prende a caixa nele, e quem
+     rola é o meio. */
+  .pd-fundo{ padding:0; grid-template:100% / 100%; place-items:stretch }
+  .pd-caixa{ width:100%; max-height:none; height:auto; min-height:0; border-radius:0 }
+  .pd-pe{ padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px)) }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
