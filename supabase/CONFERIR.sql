@@ -851,6 +851,40 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (10_campanhas e 22_cotas)'
            else '' end
   union all
+  /* O modo suporte: a plataforma abre o painel de um salão só olhando, e só
+     grava depois de "Liberar edição" — com o que mudou registrado. */
+  select 38, 'Modo suporte (só leitura, com "Liberar edição")',
+         case
+           when to_regprocedure('public.iniciar_suporte(uuid)') is null
+             or to_regclass('public.suporte_alteracoes') is null
+             or not exists (select 1 from pg_trigger where tgname = 'zz_suporte'
+                              and tgrelid = 'public.servicos'::regclass)
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.iniciar_suporte(uuid)') is null
+             or to_regclass('public.suporte_alteracoes') is null
+             or not exists (select 1 from pg_trigger where tgname = 'zz_suporte'
+                              and tgrelid = 'public.servicos'::regclass)
+             then 'cole o 00_tudo.sql de novo (38_suporte)'
+           else '' end
+  union all
+  /* O teste grátis é um por pessoa: excluir a conta e voltar com o mesmo
+     WhatsApp ou e-mail não ganha mais 7 dias. */
+  select 39, 'Teste grátis uma vez por WhatsApp e e-mail',
+         case
+           when to_regclass('public.testes_usados') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_teste_uma_vez'
+                              and tgrelid = 'public.assinaturas'::regclass)
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regclass('public.testes_usados') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_teste_uma_vez'
+                              and tgrelid = 'public.assinaturas'::regclass)
+             then 'cole o 00_tudo.sql de novo (39_teste_unico)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

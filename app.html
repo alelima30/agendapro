@@ -2034,7 +2034,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.79bbe2';
+const VERSAO_APP = 'v9.9ab2fa';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -12912,6 +12912,9 @@ async function abrirExcluirConta(){
     ${fica.length ? `<p style="margin:14px 0 4px">${fica.length > 1 ? 'Nestes' : 'Neste'} você só perde o
         acesso. ${fica.length > 1 ? 'Eles continuam' : 'Ele continua'} com quem é de lá:</p>${lista(fica)}` : ''}
     <p style="margin:14px 0 4px">E o seu login (e-mail e senha) deixa de existir.</p>
+    ${paraExcluir.some(x => x.papel === 'dono') ? `<p style="margin:8px 0 4px;color:var(--txt2)">Fica
+        só uma marca, sem o número nem o e-mail escritos, de que este WhatsApp e este e-mail já
+        usaram o teste grátis: uma conta nova com eles começa no plano Grátis.</p>` : ''}
     <div class="campo" style="margin-top:14px">
       <label for="palavraExcluir">Para confirmar, digite <b>EXCLUIR</b></label>
       <input id="palavraExcluir" autocomplete="off" autocapitalize="characters"

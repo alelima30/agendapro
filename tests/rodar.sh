@@ -104,6 +104,8 @@ preparar() {
   carregar "$RAIZ/supabase/35_acesso.sql"
   carregar "$RAIZ/supabase/36_excluir_conta.sql"
   carregar "$RAIZ/supabase/37_pedidos.sql"
+  carregar "$RAIZ/supabase/38_suporte.sql"
+  carregar "$RAIZ/supabase/39_teste_unico.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

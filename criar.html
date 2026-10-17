@@ -853,7 +853,16 @@ async function criarConta(){
       const apelido = (criado && criado.slug) || slug;
       const url = location.href.replace(/\/[^\/]*$/, '/')
                 + 'agendar.html?salao=' + apelido;
-      document.getElementById('textoPronto').innerHTML = textoDoTeste(nomeSalao);
+      /* Quem ganha o teste é o BANCO (39_teste_unico): o WhatsApp ou o e-mail
+         que já usaram os 7 dias nascem no Grátis. A tela pergunta em vez de
+         supor — prometer 7 dias a quem não os tem é mentir no primeiro minuto.
+         Se a leitura falhar, fica o texto do teste, que é o de quase todos. */
+      let assinatura = null;
+      try{
+        if(criado && criado.salao_id)
+          assinatura = (await Dados.lista('assinaturas', { salaoId: criado.salao_id }))[0] || null;
+      }catch(e){ console.info('[AgendaPro] plano do salão novo:', e.message); }
+      document.getElementById('textoPronto').innerHTML = textoDoTeste(nomeSalao, assinatura);
       document.getElementById('linkFinal').textContent = url;
       irPasso(3);
     }catch(e){
@@ -992,9 +1001,20 @@ function carregar(){
    cadastro sem saber em que plano estava nem até quando. Agora é um quadro:
    o plano (Teste grátis), o prazo com data, que não tem cobrança, e o que
    acontece depois. O nome do salão vai escapado — é texto digitado. */
-function textoDoTeste(nomeSalao){
+function textoDoTeste(nomeSalao, assinatura){
   const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const ate = new Date(Date.now() + 7 * 864e5).toLocaleDateString('pt-BR');
+  // O teste é um por pessoa: com este WhatsApp ou e-mail ele já foi usado, e
+  // o salão nasceu no Grátis. Diz isso, e por onde seguir.
+  if(assinatura && assinatura.status !== 'trial'){
+    return `<b>${esc(nomeSalao)}</b> está no ar.`
+      + `<span class="teste-gratis" id="quadroTeste"><b>Você está no plano Grátis.</b> `
+      + `O teste grátis de 7 dias é um por pessoa, e este WhatsApp ou e-mail já o usou.<br>`
+      + `A agenda, as clientes e o link funcionam normalmente. Para liberar tudo, escolha um plano em `
+      + `<b>Meu plano</b>, dentro do painel.</span>`;
+  }
+  const ate = assinatura && assinatura.trialAte
+    ? new Date(String(assinatura.trialAte).slice(0, 10) + 'T12:00:00').toLocaleDateString('pt-BR')
+    : new Date(Date.now() + 7 * 864e5).toLocaleDateString('pt-BR');
   return `<b>${esc(nomeSalao)}</b> está no ar.`
     + `<span class="teste-gratis" id="quadroTeste"><b>Você está no Teste grátis: 7 dias com tudo liberado</b>, `
     + `até ${ate}. Sem cartão e sem cobrança.<br>`

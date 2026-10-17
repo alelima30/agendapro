@@ -135,6 +135,8 @@ partes.append(limpar(open('supabase/34_cupons.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/35_acesso.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/36_excluir_conta.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/37_pedidos.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/38_suporte.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/39_teste_unico.sql', encoding='utf-8').read()))
 
 # ⚠ E O 09_cliente.sql POR ÚLTIMO, porque é dele o `agendar()` que vale.
 #

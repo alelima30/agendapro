@@ -133,6 +133,7 @@ rodar "cota"               node "$AQUI/cota.test.mjs"
 # foi na TRADUÇÃO da tela para colunas que o cadastro quebrou.
 rodar "produto grava"      node "$AQUI/produto-grava.test.mjs"
 rodar "funil na nuvem"     node "$AQUI/funil-nuvem.test.mjs"
+rodar "teste grátis uma vez por pessoa" node "$AQUI/teste-unico.test.mjs"
 rodar "link da cliente"    node "$AQUI/cliente-nuvem.test.mjs"
 rodar "senha"              node "$AQUI/senha.test.mjs"
 rodar "cadastro"           node "$AQUI/cadastro.test.mjs"
