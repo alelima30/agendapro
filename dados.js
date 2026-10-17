@@ -1342,7 +1342,43 @@ async function baixar(salaoId){
 
   const bd = { perfis, vinculos };
   resto.forEach((t, i) => { bd[t] = respostas[i]; });
+  if(alvo) soDoAlvo(bd);
   if(falhas.length) bd.falhas = falhas;
+  return bd;
+}
+
+/* ── A FILHA VEM PELA MÃE, OU APAGA A CASA DO LADO ──────────────────────────
+   As tabelas sem `salao_id` descem SEM filtro (não há coluna por onde
+   filtrar), e o RLS entrega todas as linhas que a pessoa alcança. Para quem
+   tem dois salões, isso é a jornada, o item de comanda e o pagamento dos
+   DOIS — com a profissional, a comanda e o agendamento de um só.
+
+   E a tela reconstrói essas filhas a partir das mães (`desmontarJornadas()`,
+   `desmontarAgenda()`). Na gravação seguinte, o `subir()` via as linhas do
+   outro salão no retrato e não as via na tela: "sumiram" — e mandava apagar.
+   Medido na bancada: dona de Casa A e Casa B, abriu o painel na A, salvou, e
+   as cinco faixas de jornada da profissional da B foram apagadas. Sem erro
+   nenhum: ela é gestora das duas, o banco obedeceu.
+
+   Filtrar pela mãe já carregada deixa os dois lados da comparação falando do
+   mesmo salão. Toda tabela sincronizada sem `salao_id` precisa estar aqui —
+   o sincronia-saloes.test.mjs confere, para tabela nova não entrar calada. */
+const FILHAS = {
+  jornadas:               ['profissionalId', 'profissionais'],
+  servicos_profissionais: ['servicoId',      'servicos'],
+  produtos_profissionais: ['produtoId',      'produtos'],
+  agendamento_servicos:   ['agendamentoId',  'agendamentos'],
+  pacote_servicos:        ['pacoteId',       'pacotes'],
+  pacote_clientes:        ['pacoteId',       'pacotes'],
+  comanda_itens:          ['comandaId',      'comandas'],
+  pagamentos:             ['comandaId',      'comandas'],
+};
+function soDoAlvo(bd){
+  for(const [t, [coluna, mae]] of Object.entries(FILHAS)){
+    if(!Array.isArray(bd[t])) continue;
+    const daCasa = new Set((bd[mae] || []).map(x => x.id));
+    bd[t] = bd[t].filter(x => daCasa.has(x[coluna]));
+  }
   return bd;
 }
 
@@ -1503,6 +1539,7 @@ const Dados = LIGADO ? Nuvem : Demo;
 Dados.baixar = baixar;
 Dados.subir = subir;
 Dados.TABELAS_SINCRONIZADAS = TABELAS_SINCRONIZADAS;
+Dados.FILHAS = FILHAS;        // conferido pelo sincronia-saloes.test.mjs
 
 Dados.enviarImagem = enviarImagem;
 Dados.apagarImagem = apagarImagem;
