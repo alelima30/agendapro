@@ -5573,6 +5573,13 @@ function faltaNoPedido(){
   const d = (f.tel || '').replace(/\D/g, '');
   if(d.length < 10 || d.length > 11) return 'Confira o WhatsApp: precisa do DDD.';
   if(!f.pagamento) return 'Escolha como vai pagar.';
+  /* O mínimo também, com a mesma conta do aviso da conta logo acima: sem
+     isto o botão ia ao banco só para voltar com a recusa — que o banco
+     continua dando, se alguém pular esta tela. */
+  const minimo = Number((pedidosCasa || {}).minimo) || 0, sub = totalDoCarrinho();
+  if(minimo && sub < minimo)
+    return `O pedido mínimo é de ${real(minimo)}. Faltam ${real(minimo - sub)} — `
+         + 'adicione mais itens.';
   return '';
 }
 

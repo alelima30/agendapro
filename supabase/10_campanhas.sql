@@ -420,6 +420,39 @@ returns table (
   tentativas smallint, intervalo_min int, intervalo_max int)
 language plpgsql security definer set search_path = public as $$
 begin
+  /* ⚠ O DESTINATÁRIO QUE FICOU "PROCESSANDO" E NINGUÉM RESPONDEU.
+
+     Se o worker cai entre tomar a linha e devolver o resultado, ela ficava
+     'processando' para sempre — e a campanha inteira junto: o fechamento lá
+     no `fila_resultado()` espera não sobrar nenhum 'pendente' nem
+     'processando', então a campanha nunca chegava a "concluída". Achado pelo
+     caça-bug, junto com o mesmo buraco na fila da agenda (22_cotas).
+
+     Dez minutos depois de tomada, a linha vira 'falhou', sem voltar para a
+     fila: a mensagem pode ter saído, e repetir é mandar duas vezes para quem
+     nem pediu campanha. E as campanhas que ficaram sem nada na fila fecham
+     aqui mesmo, com a mesma regra do `fila_resultado()`. */
+  update public.campanha_destinatarios
+     set status = 'falhou', erro_codigo = 'sem_resposta',
+         erro_msg = 'O envio começou e o servidor não respondeu. Não dá para '
+                 || 'saber se chegou — por isso não foi repetida.',
+         proxima_em = null
+   where status = 'processando'
+     and tentado_em < now() - interval '10 minutes';
+
+  update public.campanhas c
+     set status = case
+           when exists (select 1 from public.campanha_destinatarios x
+                         where x.campanha_id = c.id and x.status = 'falhou')
+             then 'concluida_com_falhas' else 'concluida' end,
+         concluida_em = now()
+   where c.status = 'processando'
+     and exists (select 1 from public.campanha_destinatarios x
+                  where x.campanha_id = c.id)
+     and not exists (select 1 from public.campanha_destinatarios x
+                      where x.campanha_id = c.id
+                        and x.status in ('pendente','processando'));
+
   return query
   with alvo as (
     select d.id

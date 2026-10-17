@@ -245,6 +245,7 @@ rodar "aniversário que se digita" node "$AQUI/data-digitavel.test.mjs"
 rodar "cliente que precisa de confirmação" node "$AQUI/confirma-cliente.test.mjs"
 rodar "cupom de desconto" node "$AQUI/cupons.test.mjs"
 rodar "o que o caça-bug achou, na tela" node "$AQUI/caca-bug.test.mjs"
+rodar "caça-bug, segunda varredura" node "$AQUI/caca-bug-2.test.mjs"
 rodar "como a cliente vai pagar" node "$AQUI/forma-pagamento.test.mjs"
 rodar "o horário do + Agendamento" node "$AQUI/horario-form.test.mjs"
 

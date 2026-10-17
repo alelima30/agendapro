@@ -339,6 +339,25 @@ returns table (
   tentativas smallint, intervalo_min int, intervalo_max int)
 language plpgsql security definer set search_path = public as $$
 begin
+  update public.campanha_destinatarios
+     set status = 'falhou', erro_codigo = 'sem_resposta',
+         erro_msg = 'O envio começou e o servidor não respondeu. Não dá para '
+                 || 'saber se chegou — por isso não foi repetida.',
+         proxima_em = null
+   where status = 'processando'
+     and tentado_em < now() - interval '10 minutes';
+  update public.campanhas c
+     set status = case
+           when exists (select 1 from public.campanha_destinatarios x
+                         where x.campanha_id = c.id and x.status = 'falhou')
+             then 'concluida_com_falhas' else 'concluida' end,
+         concluida_em = now()
+   where c.status = 'processando'
+     and exists (select 1 from public.campanha_destinatarios x
+                  where x.campanha_id = c.id)
+     and not exists (select 1 from public.campanha_destinatarios x
+                      where x.campanha_id = c.id
+                        and x.status in ('pendente','processando'));
   return query
   with alvo as (
     select d.id
@@ -3278,6 +3297,13 @@ begin
      and n.tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
      and n.agendamento_id = a.id
      and a.inicio <= now();
+  update public.notificacoes
+     set status = 'falhou', erro_codigo = 'sem_resposta',
+         erro_msg = 'O envio começou e o servidor não respondeu. Não dá para '
+                 || 'saber se chegou — por isso não foi repetida, para não '
+                 || 'mandar duas vezes.'
+   where status = 'enviando'
+     and coalesce(proxima_em, quando + interval '1 hour') < now();
   return query
   with alvo as (
     select n.id
@@ -3290,7 +3316,8 @@ begin
      limit greatest(1, p_lote)
      for update skip locked)
   update public.notificacoes n
-     set status = 'enviando', tentativas = n.tentativas + 1, proxima_em = null
+     set status = 'enviando', tentativas = n.tentativas + 1,
+         proxima_em = now() + interval '10 minutes'
     from alvo
    where n.id = alvo.id
   returning n.id, n.salao_id, n.destino, n.corpo, n.tipo,

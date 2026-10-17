@@ -832,6 +832,25 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (37_pedidos)'
            else '' end
   union all
+  /* As filas não prendem (caça-bug, segunda varredura): mensagem que o
+     worker tomou e não devolveu vira "falhou" com o motivo, em vez de ficar
+     "enviando" para sempre — e a campanha não fica "processando" eterna. */
+  select 37, 'Filas que não prendem (agenda e campanhas)',
+         case
+           when (select prosrc from pg_proc where oid = to_regprocedure('public.notificacao_proxima(integer)'))
+                  not like '%sem_resposta%'
+             or (select prosrc from pg_proc where oid = to_regprocedure('public.fila_proxima(integer)'))
+                  not like '%sem_resposta%'
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when (select prosrc from pg_proc where oid = to_regprocedure('public.notificacao_proxima(integer)'))
+                  not like '%sem_resposta%'
+             or (select prosrc from pg_proc where oid = to_regprocedure('public.fila_proxima(integer)'))
+                  not like '%sem_resposta%'
+             then 'cole o 00_tudo.sql de novo (10_campanhas e 22_cotas)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

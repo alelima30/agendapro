@@ -281,10 +281,11 @@ const LINHA_PODE_CRU = [
 
 /* String JS dentro de atributo (`onclick="f('${x}')"`): o parser de HTML
    desfaz a entidade ANTES de o JS ler, então &#39; volta a ser aspa e escapar
-   não fecha nada. Ali quem protege é a forma do dado — os dois casos que
-   existem passam `slug`, que o banco trava em
-   `^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$`: aspa não entra. Por isso o varredor
-   ignora esta posição em vez de exigir um escapar que seria teatro. */
+   não fecha nada. Ali quem protege é a forma do dado — `slug`, que o banco
+   trava em `^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$`: aspa não entra. Por isso este
+   varredor pula esta posição em vez de exigir um escapar que seria teatro —
+   e o varredor logo abaixo é quem cuida dela, reprovando qualquer outro
+   campo de gente ali dentro. */
 const dentroDeEvento = (linha, pos) => {
   for(const a of linha.matchAll(/\son[a-z]+="[^"]*"/gi))
     if(pos > a.index && pos < a.index + a[0].length) return true;
@@ -308,6 +309,37 @@ for(const arq of ['app.html', 'agendar.html']){
 }
 verdade('nenhuma interpolação de nome, observação ou endereço saiu crua',
   crus === 0, `${crus} sem escapar — a lista está acima`);
+
+/* ── E O CONTRÁRIO: DADO DE GENTE DENTRO DE on*="…" ──────────────────────
+   O varredor de cima pula essa posição, e o comentário dele dizia que ali só
+   passava `slug`. Não era verdade: o botão "Tirar" do pacote levava
+   `tirarDoPacote('id', '${escapar(nome)}')`. Com escapar e tudo — e o
+   escapar não protege ali, porque o parser de HTML desfaz o &#39; antes de o
+   JS ler. "Joana D'Arc" quebrava o botão; um nome montado no link de
+   agendamento, onde qualquer pessoa escreve o próprio nome, rodava código no
+   painel do dono. E na página da plataforma, o "Suspender" levava o nome do
+   salão por JSON.stringify — aspas duplas dentro de um atributo de aspas
+   duplas: o botão terminava no meio e não fazia nada.
+
+   A regra: dentro de evento, só id, código e slug (formato travado no banco).
+   Texto de gente vai num data-* (escapado como qualquer atributo) e o evento
+   lê `this.dataset`. Lê o arquivo inteiro, e não linha a linha: atributo que
+   quebra linha também conta. */
+let emEvento = 0;
+for(const arq of ['app.html', 'agendar.html', 'admin.html']){
+  const txt = fs.readFileSync(path.join(RAIZ, arq), 'utf8');
+  for(const a of txt.matchAll(/\son[a-z]+="[^"]*"/gi)){
+    for(const m of a[0].matchAll(/\$\{[^{}]*\}/g)){
+      const e = m[0];
+      if(!CAMPOS.test(e) || /^\$\{\s*[\w.]*\bslug\s*\}$/.test(e)) continue;
+      const linha = txt.slice(0, a.index).split('\n').length;
+      console.log(`      ${arq}:${linha}  ${e}  (dentro de ${a[0].trim().split('=')[0]})`);
+      emEvento++;
+    }
+  }
+}
+verdade('nenhum nome, observação ou endereço escrito dentro de onclick/oninput… (lá o escapar não protege)',
+  emEvento === 0, `${emEvento} caso(s) — passe por data-* e leia this.dataset`);
 
 // A rede de segurança só vale se estiver armada. Se alguém apagar o
 // `escapar()`, tudo acima passa a dar ReferenceError, não silêncio.

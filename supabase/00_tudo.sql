@@ -4899,6 +4899,39 @@ returns table (
   tentativas smallint, intervalo_min int, intervalo_max int)
 language plpgsql security definer set search_path = public as $$
 begin
+  /* ⚠ O DESTINATÁRIO QUE FICOU "PROCESSANDO" E NINGUÉM RESPONDEU.
+
+     Se o worker cai entre tomar a linha e devolver o resultado, ela ficava
+     'processando' para sempre — e a campanha inteira junto: o fechamento lá
+     no `fila_resultado()` espera não sobrar nenhum 'pendente' nem
+     'processando', então a campanha nunca chegava a "concluída". Achado pelo
+     caça-bug, junto com o mesmo buraco na fila da agenda (22_cotas).
+
+     Dez minutos depois de tomada, a linha vira 'falhou', sem voltar para a
+     fila: a mensagem pode ter saído, e repetir é mandar duas vezes para quem
+     nem pediu campanha. E as campanhas que ficaram sem nada na fila fecham
+     aqui mesmo, com a mesma regra do `fila_resultado()`. */
+  update public.campanha_destinatarios
+     set status = 'falhou', erro_codigo = 'sem_resposta',
+         erro_msg = 'O envio começou e o servidor não respondeu. Não dá para '
+                 || 'saber se chegou — por isso não foi repetida.',
+         proxima_em = null
+   where status = 'processando'
+     and tentado_em < now() - interval '10 minutes';
+
+  update public.campanhas c
+     set status = case
+           when exists (select 1 from public.campanha_destinatarios x
+                         where x.campanha_id = c.id and x.status = 'falhou')
+             then 'concluida_com_falhas' else 'concluida' end,
+         concluida_em = now()
+   where c.status = 'processando'
+     and exists (select 1 from public.campanha_destinatarios x
+                  where x.campanha_id = c.id)
+     and not exists (select 1 from public.campanha_destinatarios x
+                      where x.campanha_id = c.id
+                        and x.status in ('pendente','processando'));
+
   return query
   with alvo as (
     select d.id
@@ -10532,6 +10565,31 @@ begin
      and n.agendamento_id = a.id
      and a.inicio <= now();
 
+  /* ⚠ A MENSAGEM QUE FICOU "ENVIANDO" E NINGUÉM RESPONDEU.
+
+     O worker marca 'enviando' aqui e só depois manda e devolve o resultado.
+     Se ele cair no meio — o teto de tempo da plataforma, a rede na hora de
+     gravar o resultado —, a linha ficava 'enviando' PARA SEMPRE: não saía,
+     não era cancelada pelos filtros de cima (que só olham 'pendente') e o
+     histórico do painel dizia "enviando" eternamente. Achado pelo caça-bug.
+
+     Por isso a tomada abaixo deixa um PRAZO em `proxima_em` (dez minutos,
+     muito acima dos segundos de um envio), e aqui o que passou do prazo vira
+     'falhou' — e não volta para a fila. A mensagem pode ter chegado: o envio
+     começou, só a resposta se perdeu. Repetir arriscaria a cliente receber
+     duas vezes; marcar 'enviado' seria afirmar o que não se sabe. Então
+     'falhou', com o motivo escrito, e sem `enviado_em` — não gasta franquia.
+
+     A linha antiga, presa antes deste prazo existir, tem `proxima_em` nulo:
+     ela cai pela hora marcada, uma hora depois. */
+  update public.notificacoes
+     set status = 'falhou', erro_codigo = 'sem_resposta',
+         erro_msg = 'O envio começou e o servidor não respondeu. Não dá para '
+                 || 'saber se chegou — por isso não foi repetida, para não '
+                 || 'mandar duas vezes.'
+   where status = 'enviando'
+     and coalesce(proxima_em, quando + interval '1 hour') < now();
+
   return query
   with alvo as (
     select n.id
@@ -10544,7 +10602,8 @@ begin
      limit greatest(1, p_lote)
      for update skip locked)
   update public.notificacoes n
-     set status = 'enviando', tentativas = n.tentativas + 1, proxima_em = null
+     set status = 'enviando', tentativas = n.tentativas + 1,
+         proxima_em = now() + interval '10 minutes'   -- o prazo de cima
     from alvo
    where n.id = alvo.id
   returning n.id, n.salao_id, n.destino, n.corpo, n.tipo,

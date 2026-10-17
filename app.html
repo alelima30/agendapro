@@ -882,7 +882,7 @@ span.ajuda{display:block;margin-top:5px}
             <input id="linkPublico" readonly onclick="this.select()"
                    style="flex:1;min-width:200px;padding:8px 10px;border:1px solid var(--borda);
                           border-radius:8px;background:var(--painel);font-size:13px">
-            <button class="btn btn-peq" onclick="copiarLink()">Copiar</button>
+            <button class="btn btn-peq" onclick="copiarLink(this)">Copiar</button>
             <a class="btn btn-peq btn-p" id="abrirComoCliente" target="_blank"
                style="text-decoration:none">Abrir o app do cliente <span data-ico="externo"></span></a>
           </div>
@@ -2034,7 +2034,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.4464d1';
+const VERSAO_APP = 'v9.1db9ea';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3346,8 +3346,8 @@ function pintarPacotes(){
                 : '<span class="tag t-pend" title="Peça para ela entrar no link do salão e criar a conta com este WhatsApp">sem conta ainda</span>'}</td>
               <td style="color:var(--txt2)">vence ${porExtenso(v.venceEm)}</td>
               <td style="text-align:right">${souGestor()
-                ? `<button class="btn btn-peq"
-                     onclick="tirarDoPacote('${v.id}', '${escapar(c.nome || '')}')"
+                ? `<button class="btn btn-peq" data-quem="${escapar(c.nome || '')}"
+                     onclick="tirarDoPacote('${v.id}', this.dataset.quem)"
                    >Tirar</button>` : ''}</td></tr>`;
           }).join('')}</tbody></table>`
           : '<p style="font-size:13px;color:var(--txt3);margin-top:5px">'
@@ -3839,6 +3839,14 @@ async function venderPacote(pid){
   }
 }
 
+/* ⚠ O NOME CHEGA PELO `data-quem` DO BOTÃO, e não escrito dentro do onclick.
+   Estava `tirarDoPacote('id', '${escapar(nome)}')`: o escapar troca o
+   apóstrofo por &#39;, e o navegador DESFAZ isso ao ler o atributo, antes de
+   rodar o código. "Joana D'Arc" quebrava o botão; um nome montado de
+   propósito no link de agendamento — onde qualquer pessoa escreve o próprio
+   nome — virava código rodando no painel do dono no clique. Achado pelo
+   caça-bug; o `seguranca.test.mjs` agora reprova dado de gente dentro de
+   on*="…". */
 async function tirarDoPacote(vendaId, nome){
   if(!confirm('Tirar ' + (nome || 'esta cliente') + ' do pacote?\n\n'
     + 'Os atendimentos que ela já fez pelo pacote continuam no histórico. '
@@ -4294,7 +4302,7 @@ async function gerarConvite(){
                  style="flex:1;min-width:180px;padding:8px 10px;
                         border:1px solid var(--borda);border-radius:8px;
                         background:var(--painel);font-size:13px">
-          <button class="btn btn-peq" onclick="copiarConvite()">Copiar</button>
+          <button class="btn btn-peq" onclick="copiarConvite(this)">Copiar</button>
         </div>
       </div>`;
   }catch(e){
@@ -4302,10 +4310,18 @@ async function gerarConvite(){
   }
 }
 
-function copiarConvite(){
+function copiarConvite(bt){
   const c = document.getElementById('vLink');
   c.select();
-  try{ navigator.clipboard.writeText(c.value); }catch(e){ document.execCommand('copy'); }
+  /* O `writeText` devolve promessa: o try/catch de antes não pegava a recusa
+     (navegador sem permissão), que escapava como erro solto no console — e o
+     botão não dizia nada. Agora recusa cai no execCommand, e o botão avisa. */
+  const pronto = () => { if(!bt) return; const r = bt.textContent;
+    bt.textContent = 'Copiado'; setTimeout(() => { bt.textContent = r; }, 1600); };
+  const antigo = () => { try{ document.execCommand('copy'); pronto(); }catch(e){} };
+  if(navigator.clipboard && window.isSecureContext)
+    navigator.clipboard.writeText(c.value).then(pronto, antigo);
+  else antigo();
   c.blur();
 }
 
@@ -5993,12 +6009,19 @@ function baixarQr(qual){
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function copiarLink(){
+function copiarLink(bt){
   const el = document.getElementById('linkPublico');
   el.select();
+  /* ⚠ O BOTÃO VEM COMO PARÂMETRO, e não do `event` global.
+     O `event` só existe enquanto o clique está sendo tratado. No site de
+     verdade (https) a cópia passa pelo `navigator.clipboard`, que responde
+     DEPOIS — e lá o `event` já é undefined: o link era copiado, o botão nunca
+     dizia "Copiado" e o console registrava "Falha ao copiar". Pego pelo
+     robô do caça-bug clicando em "Copiar" em localhost, que também é seguro. */
+  const b = bt || (window.event && window.event.target) || null;
   // navigator.clipboard exige https ou localhost. Aberto como arquivo local
   // ele não existe, então cai no execCommand antigo em vez de falhar calado.
-  const pronto = () => { const b = event.target; const r = b.textContent;
+  const pronto = () => { if(!b) return; const r = b.textContent;
     b.textContent = 'Copiado'; setTimeout(() => b.textContent = r, 1600); };
   if(navigator.clipboard && window.isSecureContext){
     navigator.clipboard.writeText(el.value).then(pronto)

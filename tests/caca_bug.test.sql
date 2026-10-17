@@ -16,6 +16,10 @@
 --   8. Cupom na loja só com a cliente dentro da conta — e chamar em
 --      repetição não esgota o cupom.
 --   9. "Eu e mais alguém": o pacote cobre só o horário dela.
+--
+-- E da segunda varredura:
+--  10. Mensagem que o worker tomou e não devolveu não fica "enviando" para
+--      sempre — nem prende a campanha em "processando".
 -- ===========================================================================
 
 \set ON_ERROR_STOP on
@@ -394,3 +398,52 @@ select * from public.agendar('cb000000-2222-0000-0000-000000000001'::uuid,
 select set_config('request.jwt.claim.sub', '', false);
 select t_verdade('"para outra pessoa" continua usando o pacote, como antes',
   (select valor from da_filha) = 0);
+
+-- ── 10. A fila não prende ──────────────────────────────────────────────────
+-- O worker marca 'enviando' e, se cair antes de devolver o resultado, a linha
+-- ficava assim para sempre. Agora a tomada deixa um prazo, e o que passou dele
+-- vira 'falhou' (sem repetir: a mensagem pode ter saído) e sem `enviado_em`.
+insert into public.notificacoes (id, salao_id, tipo, destino, quando, corpo, chave, status, tentativas, proxima_em) values
+  ('cb000000-9999-0000-0000-000000000001', 'cb000000-1111-0000-0000-000000000001', 'resumo', '5511900003001',
+   now() - interval '30 minutes', 'resumo preso', 'cb-presa-1', 'enviando', 1, now() - interval '1 minute'),
+  ('cb000000-9999-0000-0000-000000000002', 'cb000000-1111-0000-0000-000000000001', 'resumo', '5511900003001',
+   now() - interval '2 minutes', 'resumo no ar', 'cb-presa-2', 'enviando', 1, now() + interval '8 minutes'),
+  ('cb000000-9999-0000-0000-000000000003', 'cb000000-1111-0000-0000-000000000001', 'resumo', '5511900003001',
+   now() - interval '2 hours', 'resumo preso de antes do prazo', 'cb-presa-3', 'enviando', 1, null);
+select count(*) as tomadas from public.notificacao_proxima(1) \gset
+select t_verdade('a mensagem "enviando" que passou do prazo vira falhou, com o motivo, sem enviado_em',
+  (select status = 'falhou' and erro_codigo = 'sem_resposta' and enviado_em is null
+     from public.notificacoes where id = 'cb000000-9999-0000-0000-000000000001'));
+select t_verdade('a que ainda está no prazo continua enviando (o worker pode estar nela agora)',
+  (select status = 'enviando' from public.notificacoes where id = 'cb000000-9999-0000-0000-000000000002'));
+select t_verdade('a presa de antes do prazo existir cai pela hora marcada',
+  (select status = 'falhou' from public.notificacoes where id = 'cb000000-9999-0000-0000-000000000003'));
+
+-- A tomada deixa o prazo: quem pega uma linha agora tem dez minutos.
+insert into public.notificacoes (id, salao_id, tipo, destino, quando, corpo, chave) values
+  ('cb000000-9999-0000-0000-000000000004', 'cb000000-1111-0000-0000-000000000001', 'resumo', '5511900003001',
+   now() - interval '1 second', 'resumo novo', 'cb-presa-4');
+update public.notificacoes set quando = now() + interval '1 day'
+ where status = 'pendente' and id <> 'cb000000-9999-0000-0000-000000000004';
+select count(*) as tomadas from public.notificacao_proxima(1) \gset
+select t_verdade('ao tomar, a linha fica enviando com prazo de uns dez minutos',
+  (select status = 'enviando' and proxima_em between now() + interval '9 minutes' and now() + interval '11 minutes'
+     from public.notificacoes where id = 'cb000000-9999-0000-0000-000000000004'));
+
+-- A campanha: um destinatário enviado e outro preso em 'processando'.
+insert into public.clientes (id, salao_id, nome, telefone) values
+  ('cb000000-9999-0000-0000-0000000000c1', 'cb000000-1111-0000-0000-000000000001', 'Rita Campanha', '11977770001'),
+  ('cb000000-9999-0000-0000-0000000000c2', 'cb000000-1111-0000-0000-000000000001', 'Lena Campanha', '11977770002');
+insert into public.campanhas (id, salao_id, nome, corpo, status) values
+  ('cb000000-9999-0000-0000-0000000000a1', 'cb000000-1111-0000-0000-000000000001', 'Promo presa', 'Oi {{nome}}', 'processando');
+insert into public.campanha_destinatarios (id, campanha_id, salao_id, cliente_id, telefone, status, tentativas, tentado_em) values
+  ('cb000000-9999-0000-0000-0000000000d1', 'cb000000-9999-0000-0000-0000000000a1', 'cb000000-1111-0000-0000-000000000001',
+   'cb000000-9999-0000-0000-0000000000c1', '11977770001', 'enviado', 1, now() - interval '40 minutes'),
+  ('cb000000-9999-0000-0000-0000000000d2', 'cb000000-9999-0000-0000-0000000000a1', 'cb000000-1111-0000-0000-000000000001',
+   'cb000000-9999-0000-0000-0000000000c2', '11977770002', 'processando', 1, now() - interval '20 minutes');
+select count(*) as tomadas from public.fila_proxima(1) \gset
+select t_verdade('o destinatário preso em processando vira falhou, sem repetir',
+  (select status = 'falhou' and erro_codigo = 'sem_resposta'
+     from public.campanha_destinatarios where id = 'cb000000-9999-0000-0000-0000000000d2'));
+select t_verdade('e a campanha fecha, em vez de ficar processando para sempre',
+  (select status = 'concluida_com_falhas' from public.campanhas where id = 'cb000000-9999-0000-0000-0000000000a1'));

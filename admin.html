@@ -343,8 +343,13 @@ function linhaSalao(s){
     <td class="num ${Number(s.agendamentosMes) ? '' : 'morto'}">${s.agendamentosMes}</td>
     <td class="${s.ultimoAgendamento ? '' : 'morto'}">${desde(s.ultimoAgendamento)}</td>
     <td class="${s.origem ? '' : 'morto'}">${escapar(s.origem || '—')}</td>
-    <td><button class="acao ${suspenso ? '' : 'perigo'}"
-          onclick="mudarStatus('${s.id}', '${suspenso ? 'ativo' : 'suspenso'}', ${JSON.stringify(escapar(s.nome))})">
+    <!-- O nome vai num data-*, e não escrito dentro do onclick: o
+         JSON.stringify punha o nome entre ASPAS DUPLAS dentro de um atributo
+         de aspas duplas, o atributo terminava ali e o botão virava
+         "mudarStatus('…', 'suspenso', " — clicar dava erro de sintaxe e não
+         suspendia nem religava salão nenhum. Achado pelo caça-bug. -->
+    <td><button class="acao ${suspenso ? '' : 'perigo'}" data-nome="${escapar(s.nome)}"
+          onclick="mudarStatus('${s.id}', '${suspenso ? 'ativo' : 'suspenso'}', this.dataset.nome)">
           ${suspenso ? 'Religar' : 'Suspender'}</button></td>
   </tr>`;
 }
