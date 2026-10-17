@@ -1,24 +1,20 @@
 /* ===========================================================================
-   A página dos anúncios (conheca.html)
+   A página dos anúncios (conheca.html) — o desenho do dono do AgendaPro
 
-   Separada da raiz de propósito: a raiz continua levando ao login. Aqui se
-   confere o que faz a página vender sem mentir e sem perder o rastro de quem
-   chegou:
-     · os preços vêm do banco (tabela `planos`) e, sem banco, ficam os de
-       reserva — nunca um cartão vazio;
-     · todo botão leva ao cadastro com os parâmetros do anúncio, e o cadastro
-       já marca "Como você nos conheceu?";
-     · a barra fixa do celular só aparece depois que o botão do topo sai da
-       tela;
-     · sem Pixel/GA configurados, nada de fora é carregado — nem as fontes,
-       que moram em lp/fontes/;
-     · o menu do celular abre, fecha e leva às seções; todo link interno
-       aponta para uma seção que existe;
-     · nenhum plano ganha selo de "recomendado" sem número que o sustente;
-     · quem pede "reduzir movimento" vê a página inteira, parada.
+   Veio da ferramenta de design como um pacote de 14 MB que se montava no
+   navegador; no site ela é estática (HTML montado, WebP, fontes em arquivo e
+   um script pequeno). Aqui se confere o que faz a página vender sem mentir,
+   abrir rápido e não perder o rastro de quem chegou:
 
-   O banco é simulado interceptando a chamada (page.route): o teste não
-   depende de rede nem do Supabase de verdade.
+     · título, descrição, canônico e imagem de compartilhamento;
+     · todo "Criar conta grátis" leva utm_*, fbclid e gclid ao cadastro, e o
+       cadastro já marca "Como você nos conheceu?";
+     · nada de fora é carregado (sem Google Fonts, sem unpkg, sem React), e a
+       página inteira pesa pouco;
+     · os carrosséis e as perguntas funcionam sem o código da ferramenta;
+     · o que o sistema não faz não está escrito (exportar dados);
+     · quem pede "reduzir movimento" vê tudo parado;
+     · a raiz do site continua levando ao login.
 
        python3 -m http.server 8099 --directory .
        PLAYWRIGHT=.../node_modules/playwright node tests/conheca.test.mjs
@@ -40,211 +36,125 @@ const diz = (bom, msg, extra) => {
 
 const nav = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' });
 
-/* O "banco": a mesma forma que o PostgREST devolve para a tabela `planos`. */
-const PLANOS = (essencial) => [
-  { codigo:'gratuito',   nome:'Grátis',    preco_mes:0,     max_profissionais:1,  ordem:0, recursos:{ agendamentos_mes:25, lembrete_whatsapp:false } },
-  { codigo:'trial',      nome:'Teste grátis', preco_mes:0,  max_profissionais:1,  ordem:1, recursos:{ lembrete_whatsapp:true, mensagens_mes:100, max_clientes:500 } },
-  { codigo:'basico',     nome:'Básico',    preco_mes:44.9,  max_profissionais:1,  ordem:2, recursos:{ lembrete_whatsapp:false, mensagens_mes:0, max_clientes:500 } },
-  { codigo:'individual', nome:'Essencial', preco_mes:essencial, max_profissionais:1, ordem:2, recursos:{ lembrete_whatsapp:true, mensagens_mes:500, max_clientes:500 } },
-  { codigo:'duo',        nome:'Dupla',     preco_mes:157,   max_profissionais:2,  ordem:3, recursos:{ lembrete_whatsapp:true, mensagens_mes:800, max_clientes:1000 } },
-  { codigo:'salao',      nome:'Salão',     preco_mes:497,   max_profissionais:12, ordem:6, recursos:{ lembrete_whatsapp:true, mensagens_mes:3600, max_clientes:5000 } },
-];
-
-async function abrir({ largura, banco, busca = '', movimento = 'no-preference' }){
-  const ctx = await nav.newContext({ viewport:{ width: largura, height: 800 },
+async function abrir({ largura, busca = '', movimento = 'no-preference' }){
+  const ctx = await nav.newContext({ viewport: { width: largura, height: 800 },
     isMobile: largura < 700, hasTouch: largura < 700, reducedMotion: movimento });
   const p = await ctx.newPage();
-  const erros = [], deFora = [];
+  const erros = [], deFora = [], bytes = { total: 0 };
   p.on('pageerror', e => erros.push(e.message));
-  p.on('request', r => { if(/facebook|googletagmanager|google-analytics|fonts\.g/.test(r.url())) deFora.push(r.url()); });
-  await p.route('**/rest/v1/planos**', rota => banco
-    ? rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(banco) })
-    : rota.abort());
+  p.on('console', m => { if(m.type() === 'error') erros.push(m.text()); });
+  p.on('request', r => { const u = r.url(); if(!u.startsWith(BASE.replace(/\/$/, '')) && !u.startsWith('data:')) deFora.push(u); });
+  p.on('response', async r => { try{ bytes.total += (await r.body()).length; }catch(e){} });
   await p.goto(BASE + 'conheca.html' + busca);
   await p.waitForTimeout(900);
-  return { ctx, p, erros, deFora };
+  return { ctx, p, erros, deFora, bytes };
 }
-const planosNaTela = p => p.evaluate(() => [...document.querySelectorAll('.lp-plano')].map(x =>
-  x.querySelector('h3').textContent.trim() + ' ' + x.querySelector('.lp-preco').firstChild.textContent.trim()));
 
-console.log('\nOs preços');
+console.log('\nAbrindo');
 {
-  const { ctx, p, erros } = await abrir({ largura: 1280, banco: PLANOS(99) });
-  const planos = await planosNaTela(p);
-  diz(planos.join() === 'Essencial R$ 99,Dupla R$ 157,Salão R$ 497',
-      'vêm do banco: mudar o preço no Supabase muda a página (e o Básico/Grátis não viram cartão)', planos.join(' | '));
-  const menores = await p.evaluate(() => document.getElementById('planosMenores').textContent.replace(/\s+/g, ' '));
-  diz(/R\$ 44,90/.test(menores) && /até 25 agendamentos/.test(menores),
-      'o Básico e o Grátis saem do banco também', menores.trim());
+  const { ctx, p, erros, deFora } = await abrir({ largura: 1366 });
+  const cab = await p.evaluate(() => ({
+    titulo: document.title,
+    desc: (document.querySelector('meta[name=description]') || {}).content || '',
+    canonico: (document.querySelector('link[rel=canonical]') || {}).href || '',
+    og: (document.querySelector('meta[property="og:image"]') || {}).content || '',
+    h1: [...document.querySelectorAll('h1')].map(h => h.textContent.replace(/\s+/g, ' ').trim()),
+    lang: document.documentElement.lang,
+  }));
+  diz(/AgendaPro/.test(cab.titulo) && cab.desc.length > 60, 'tem título e descrição para o Google', cab.titulo);
+  diz(/conheca\.html$/.test(cab.canonico) && /lp\/og\.jpg$/.test(cab.og), 'link canônico e imagem de compartilhamento (WhatsApp, Instagram)');
+  diz(fs.existsSync(path.join(RAIZ, 'lp/og.jpg')), 'e a imagem de compartilhamento existe no site');
+  diz(cab.h1.length === 1 && /agenda online/i.test(cab.h1[0]) && /pronta hoje/.test(cab.h1[0]), 'um título só (h1), com a promessa', cab.h1.join(' | '));
+  diz(cab.lang === 'pt-BR', 'a página se declara em português');
+  diz(deFora.length === 0, 'nada vem de fora: sem Google Fonts, sem unpkg, sem React', deFora.slice(0, 3).join(' | '));
   diz(erros.length === 0, 'sem erro de JavaScript', erros.join(' | '));
-  await ctx.close();
-}
-{
-  const { ctx, p } = await abrir({ largura: 1280, banco: null });
-  const planos = await planosNaTela(p);
-  diz(planos.length === 5 && planos[0] === 'Essencial R$ 97' && planos[4] === 'Salão R$ 497',
-      'sem banco, ficam os de reserva — a seção de preços nunca sai vazia', planos.join(' | '));
+  const fontes = await p.evaluate(async () => { await document.fonts.ready; return [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family.replace(/"/g, '')); });
+  diz(fontes.includes('Montserrat') && fontes.includes('Plus Jakarta Sans'), 'as fontes do desenho carregam do próprio site', [...new Set(fontes)].join(', '));
+  const orfaos = await p.evaluate(() => [...document.querySelectorAll('a[href^="#"]')].map(a => a.getAttribute('href'))
+    .filter(h => h.length > 1 && !document.getElementById(h.slice(1))));
+  diz(orfaos.length === 0, 'todo link do menu (#…) leva a uma seção que existe', orfaos.join(', '));
+  diz(!/\{\{|sc-placeholder|__bundler|dc-runtime|blob:/.test(await p.content()), 'não sobrou nada do código da ferramenta ({{ }}, blob:, carregador)');
   await ctx.close();
 }
 
 console.log('\nOs botões levam o anúncio até o cadastro');
 {
-  const { ctx, p, deFora } = await abrir({ largura: 375, banco: PLANOS(97),
-    busca: '?utm_source=instagram&utm_campaign=lancamento&fbclid=abc123&lixo=<x>' });
-  const links = await p.evaluate(() => [...document.querySelectorAll('[data-cta], .lp-plano a')].map(a => a.getAttribute('href')));
+  const { ctx, p } = await abrir({ largura: 375, busca: '?utm_source=instagram&utm_campaign=lancamento&fbclid=abc123&lixo=<x>' });
+  const links = await p.evaluate(() => [...document.querySelectorAll('a')].filter(a => /Criar conta/i.test(a.textContent)).map(a => a.getAttribute('href')));
   const alvo = new URL(links[0], BASE);
-  diz(links.length >= 6 && links.every(h => h === links[0]),
-      `todos os botões de teste (${links.length}) vão para o mesmo endereço`);
+  diz(links.length >= 3 && links.every(h => h === links[0]), `todos os "Criar conta grátis" (${links.length}) vão para o mesmo endereço`);
   diz(alvo.pathname.endsWith('/criar.html') && alvo.searchParams.get('utm_source') === 'instagram'
       && alvo.searchParams.get('utm_campaign') === 'lancamento' && alvo.searchParams.get('fbclid') === 'abc123'
       && alvo.searchParams.get('origem') === 'pagina' && !alvo.searchParams.has('lixo'),
       'o cadastro recebe utm_*, fbclid e a origem — e só eles', links[0]);
-  diz(deFora.length === 0, 'sem Pixel/GA configurados, nada de fora é carregado', deFora.join(' | '));
-
-  await p.goto(new URL(links[0], BASE).href); await p.waitForTimeout(800);
-  const origem = await p.evaluate(() => document.getElementById('fOrigem').value);
-  diz(origem === 'Instagram', 'e o cadastro já marca "Como você nos conheceu?" = Instagram', origem);
-  await ctx.close();
-}
-{
-  const ctx = await nav.newContext({ viewport:{ width: 375, height: 800 } });
-  const p = await ctx.newPage();
-  await p.goto(BASE + 'criar.html?utm_source=tiktok'); await p.waitForTimeout(600);
-  const o1 = await p.evaluate(() => document.getElementById('fOrigem').value);
-  await p.goto(BASE + 'criar.html'); await p.waitForTimeout(600);
-  const o2 = await p.evaluate(() => document.getElementById('fOrigem').value);
-  diz(o1 === 'Anúncio: tiktok' && o2 === '',
-      'origem desconhecida vira "Anúncio: …"; sem parâmetro, o cadastro fica como sempre foi', `${o1} / "${o2}"`);
+  const entrar = await p.evaluate(() => [...document.querySelectorAll('a')].filter(a => /Entrar/.test(a.textContent)).map(a => a.getAttribute('href')));
+  diz(entrar.length >= 2 && entrar.every(h => h === 'entrar.html'), '"Entrar" e "Entrar no painel" levam ao login do próprio site', entrar.join(' | '));
+  const zap = await p.evaluate(() => { const a = document.getElementById('zapDuvida'); return a ? a.href : ''; });
+  diz(/^https:\/\/wa\.me\/55\d{10,11}\?text=/.test(zap), '"Fale com a gente no WhatsApp" tem número e mensagem (antes era wa.me/ vazio)', zap);
+  await p.goto(alvo.href); await p.waitForTimeout(800);
+  diz(await p.evaluate(() => document.getElementById('fOrigem').value) === 'Instagram', 'e o cadastro já marca "Como você nos conheceu?" = Instagram');
   await ctx.close();
 }
 
 console.log('\nNo celular');
 {
-  const { ctx, p, erros } = await abrir({ largura: 375, banco: PLANOS(97) });
-  const topo = await p.evaluate(() => ({
-    vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    barra: document.getElementById('barra').classList.contains('on'),
-    h1: document.querySelector('h1').textContent.trim(),
-    h1s: document.querySelectorAll('h1').length,
-    sub: document.querySelector('.lp-heroi .lp-sub').textContent.replace(/\s+/g, ' '),
-  }));
-  diz(topo.vaza === 0, 'a página não rola para o lado', `sobram ${topo.vaza}px`);
-  diz(topo.h1s === 1 && /organizado/.test(topo.h1) && /rotina mais leve/.test(topo.h1),
-      'um título só (h1), com a promessa', topo.h1);
-  diz(/link/.test(topo.sub) && /WhatsApp/.test(topo.sub) && /caixa/.test(topo.sub),
-      'e o subtítulo diz como: link, WhatsApp, agenda e caixa', topo.sub);
-  diz(!topo.barra, 'no topo, a barra fixa fica escondida (o botão do herói está à vista)');
-
-  // O menu do celular: abre, leva à seção e fecha sozinho; Esc também fecha.
-  const menu0 = await p.evaluate(() => ({ nav: getComputedStyle(document.querySelector('.lp-nav')).display,
-    bt: getComputedStyle(document.getElementById('menuBt')).display, fechado: document.getElementById('menuCel').hidden }));
-  diz(menu0.nav === 'none' && menu0.bt !== 'none' && menu0.fechado,
-      'no celular, os links do topo viram um botão de menu, fechado', JSON.stringify(menu0));
-  await p.click('#menuBt'); await p.waitForTimeout(150);
-  const menu1 = await p.evaluate(() => ({ aberto: !document.getElementById('menuCel').hidden,
-    aria: document.getElementById('menuBt').getAttribute('aria-expanded'),
-    alvos: [...document.querySelectorAll('#menuCel a')].map(a => Math.round(a.getBoundingClientRect().height)) }));
-  diz(menu1.aberto && menu1.aria === 'true' && menu1.alvos.every(h => h >= 44),
-      'tocar abre o menu (aria-expanded) com alvos de toque de 44px ou mais', JSON.stringify(menu1));
-  await p.click('#menuCel a[href="#planos"]'); await p.waitForTimeout(900);
-  const menu2 = await p.evaluate(() => ({ fechado: document.getElementById('menuCel').hidden,
-    topo: Math.round(document.getElementById('planos').getBoundingClientRect().top) }));
-  diz(menu2.fechado && Math.abs(menu2.topo) < 120, 'escolher "Planos" leva até os planos e fecha o menu', JSON.stringify(menu2));
-  await p.click('#menuBt'); await p.keyboard.press('Escape'); await p.waitForTimeout(100);
-  diz(await p.evaluate(() => document.getElementById('menuCel').hidden && document.activeElement.id === 'menuBt'),
-      'Esc fecha o menu e devolve o foco ao botão');
-  await p.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' })); await p.waitForTimeout(300);
-
-  // Rola a página inteira devagar: as imagens com loading=lazy precisam carregar.
-  await p.evaluate(async () => { for(let y = 0; y < document.body.scrollHeight; y += 400){ window.scrollTo({ top: y, behavior: 'instant' }); await new Promise(r => setTimeout(r, 60)); } });
-  await p.waitForTimeout(900);
-  const fundo = await p.evaluate(() => ({
-    escondidos: [...document.querySelectorAll('[data-revelar]:not(.visto)')].length,
-    barra: document.getElementById('barra').classList.contains('on'),
-    imgs: [...document.images].filter(i => i.offsetParent !== null).map(i => [i.getAttribute('src'), i.naturalWidth > 0, !!i.alt]),
-  }));
-  diz(fundo.barra, 'depois de passar pelo topo, a barra "Testar 7 dias grátis" aparece');
-  diz(fundo.imgs.length >= 3 && fundo.imgs.every(([, carregou]) => carregou),
-      'todas as imagens visíveis carregam (também as que esperam a rolagem)', JSON.stringify(fundo.imgs.filter(x => !x[1])));
-  diz(fundo.imgs.every(([, , alt]) => alt), 'e toda imagem tem texto alternativo');
-  diz(fundo.escondidos === 0, 'depois de rolar, nada fica escondido pela animação de entrada (nem a galeria de lado)',
-      fundo.escondidos + ' escondido(s)');
-
-  const galeria = await p.evaluate(() => { const g = document.querySelector('.lp-galeria');
-    return { rola: g.scrollWidth > g.clientWidth, estilo: getComputedStyle(g).overflowX }; });
-  diz(galeria.rola && galeria.estilo === 'auto', 'as telas do Salão Megatop também ficam numa faixa de lado', JSON.stringify(galeria));
-  const faixa = await p.evaluate(() => { const l = document.getElementById('listaPlanos');
-    return { rola: l.scrollWidth > l.clientWidth, estilo: getComputedStyle(l).overflowX }; });
-  diz(faixa.rola && faixa.estilo === 'auto', 'os planos ficam numa faixa que se arrasta de lado', JSON.stringify(faixa));
-
-  await p.fill('#contaValor', '100'); await p.fill('#contaFaltas', '3'); await p.waitForTimeout(100);
-  const conta = await p.evaluate(() => document.getElementById('contaRes').textContent.replace(/\s+/g, ' '));
-  diz(/R\$ 300 por mês/.test(conta) && /Essencial custa R\$ 97/.test(conta),
-      'a conta das faltas faz a conta com os números da pessoa', conta.trim());
-
-  const demos = await p.evaluate(() => [...document.querySelectorAll('a[target="_blank"]')].map(a => a.getAttribute('href')));
-  diz(demos.includes('agendar.html?salao=studio-bella&demo=1') && demos.includes('app.html?demo=1'),
-      'as demonstrações abrem em outra aba (link da cliente e painel)', demos.join(' | '));
+  const { ctx, p, erros, bytes } = await abrir({ largura: 375 });
+  diz(await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) === 0, 'a página não rola para o lado');
+  await p.evaluate(async () => { for(let y = 0; y < document.body.scrollHeight; y += 400){ window.scrollTo(0, y); await new Promise(r => setTimeout(r, 60)); } });
+  await p.waitForTimeout(800);
+  const imgs = await p.evaluate(() => [...document.images].filter(i => i.offsetParent !== null || i.closest('[style*="preserve-3d"]'))
+    .map(i => ({ src: i.getAttribute('src'), ok: i.complete && i.naturalWidth > 0, alt: !!i.alt, medida: !!(i.getAttribute('width') && i.getAttribute('height')) })));
+  diz(imgs.length >= 8 && imgs.every(i => i.ok), 'todas as imagens carregam', JSON.stringify(imgs.filter(i => !i.ok)));
+  diz(imgs.every(i => i.alt) && imgs.every(i => i.medida), 'e toda imagem tem texto alternativo e medida (a página não pula)');
+  diz(imgs.every(i => /\.webp$/.test(i.src)), 'as imagens são WebP, no tamanho em que aparecem', imgs.map(i => i.src).filter(s => !/\.webp$/.test(s)).join(', '));
+  const kb = Math.round(bytes.total / 1024);
+  diz(kb < 1500, `a página inteira pesa ${kb} KB (era 14 MB)`, kb + ' KB');
   const texto = await p.evaluate(() => document.body.innerText);
-  diz(!/undefined|NaN|\$\{/.test(texto), 'nenhum "undefined", "NaN" ou ${…} escapou para o texto');
+  diz(!/undefined|NaN|\$\{|\{\{/.test(texto), 'nenhum "undefined", "NaN" ou {{…}} escapou para o texto');
+  diz(!/exportar/i.test(texto), 'não promete "exportar tudo" — o sistema não tem exportação');
   diz(erros.length === 0, 'sem erro de JavaScript', erros.join(' | '));
   await ctx.close();
 }
 
-console.log('\nNo computador');
+console.log('\nOs carrosséis e as perguntas, sem o código da ferramenta');
 {
-  const { ctx, p } = await abrir({ largura: 1366, banco: PLANOS(97) });
-  await p.evaluate(() => window.scrollTo(0, 3000)); await p.waitForTimeout(300);
-  const pc = await p.evaluate(() => ({
-    barra: getComputedStyle(document.getElementById('barra')).display,
-    botoes: [...document.querySelectorAll('.lp-plano .lp-bt')].map(b => Math.round(b.getBoundingClientRect().height)),
-  }));
-  diz(pc.barra === 'none', 'a barra fixa é só do celular');
-  diz(pc.botoes.every(h => h <= 56), 'o botão de cada plano cabe numa linha', pc.botoes.join(', '));
-
-  const pagina = await p.evaluate(() => ({
-    nav: getComputedStyle(document.querySelector('.lp-nav')).display,
-    menuBt: getComputedStyle(document.getElementById('menuBt')).display,
-    // todo link "#algo" aponta para um id que existe
-    orfaos: [...document.querySelectorAll('a[href^="#"]')].map(a => a.getAttribute('href'))
-      .filter(h => h.length > 1 && !document.getElementById(h.slice(1))),
-    destaque: document.querySelectorAll('.lp-destaque').length,
-    estilosPlano: [...new Set([...document.querySelectorAll('.lp-plano .lp-bt')].map(b => b.className))],
-    fontes: [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family.replace(/"/g, '')),
-    semMedida: [...document.images].filter(i => !i.getAttribute('width') || !i.getAttribute('height')).map(i => i.getAttribute('src')),
-    heroiPreguica: [...document.querySelectorAll('.lp-heroi img')].filter(i => i.loading === 'lazy').length,
-    restoSemPreguica: [...document.querySelectorAll('main img')].filter(i => !i.closest('.lp-heroi') && i.loading !== 'lazy').map(i => i.getAttribute('src')),
-    canonico: (document.querySelector('link[rel=canonical]') || {}).href || '',
-    og: (document.querySelector('meta[property="og:image"]') || {}).content || '',
-    secoesSemH2: [...document.querySelectorAll('main > section:not(.lp-heroi)')].filter(s => !s.querySelector('h2')).map(s => s.id || s.className),
-  }));
-  diz(pagina.nav !== 'none' && pagina.menuBt === 'none', 'no computador, os links do topo aparecem e o botão de menu não', JSON.stringify([pagina.nav, pagina.menuBt]));
-  diz(pagina.orfaos.length === 0, 'todo link interno (#…) leva a uma seção que existe', pagina.orfaos.join(', '));
-  diz(pagina.destaque === 0 && pagina.estilosPlano.length === 1,
-      'nenhum plano ganha selo de "recomendado", e todos os botões de plano têm o mesmo estilo', JSON.stringify(pagina.estilosPlano));
-  diz(pagina.fontes.includes('Manrope') && pagina.fontes.includes('DM Serif Display'),
-      'as fontes da página carregam do próprio site (lp/fontes)', pagina.fontes.join(', '));
-  diz(pagina.semMedida.length === 0, 'toda imagem declara largura e altura (a página não pula enquanto carrega)', pagina.semMedida.join(', '));
-  diz(pagina.heroiPreguica === 0 && pagina.restoSemPreguica.length === 0,
-      'as imagens do topo carregam já; as de baixo, só quando chegam perto', pagina.restoSemPreguica.join(', '));
-  diz(/conheca\.html$/.test(pagina.canonico) && /lp\/og\.jpg$/.test(pagina.og), 'link canônico e imagem de compartilhamento no lugar');
-  diz(pagina.secoesSemH2.length === 0, 'cada seção abaixo do topo tem o seu h2', pagina.secoesSemH2.join(', '));
-
-  await p.click('#duvidas summary'); await p.waitForTimeout(450);
-  diz(await p.evaluate(() => document.querySelector('#duvidas details').open
-        && document.querySelector('#duvidas details p').getBoundingClientRect().height > 20),
-      'a pergunta frequente abre ao clicar');
+  const { ctx, p, erros } = await abrir({ largura: 1366 });
+  const heroi = () => p.evaluate(() => ({ rotulo: document.querySelector('#heroiRotulo .sc-interp').textContent,
+    frente: document.getElementById('heroiFrente').getAttribute('src'), verso: document.getElementById('heroiVerso').getAttribute('src'),
+    giro: document.getElementById('heroiGiro').style.transform, cliente: document.querySelector('[data-dc-tpl="67"] .sc-interp').textContent }));
+  const h0 = await heroi();
+  await p.click('#heroiPontos button:nth-child(3)'); await p.waitForTimeout(200);
+  const h1 = await heroi();
+  diz(h0.rotulo === 'Salão de beleza' && h1.rotulo === 'Estética' && h1.cliente === 'Camila' && /rotateY\(-360deg\)/.test(h1.giro),
+      'tocar no 3º pontinho do celular vira para "Estética", com a mensagem da Camila', JSON.stringify([h0.rotulo, h1]));
+  diz(/nicho-estetica\.webp$/.test(h1.frente) || /nicho-estetica\.webp$/.test(h1.verso), 'e a tela da estética está no lado que aparece');
+  const anel = () => p.evaluate(() => ({ titulo: document.querySelector('#anelTitulo .sc-interp').textContent, giro: document.getElementById('anel').style.transform }));
+  await p.click('#anelPontos button:nth-child(4)'); await p.waitForTimeout(200);
+  const a1 = await anel();
+  diz(a1.titulo === 'Com a sua marca' && /rotateY\(-216deg\)/.test(a1.giro), 'tocar no 4º pontinho da roda gira para "Com a sua marca"', JSON.stringify(a1));
+  const faq = () => p.evaluate(() => [...document.querySelectorAll('[data-faq]')].map(b => ({ aberta: b.getAttribute('aria-expanded') === 'true',
+    resposta: !document.getElementById('faqR' + b.dataset.faq).hidden })));
+  const f0 = await faq();
+  diz(f0.length === 10 && f0[0].aberta && f0[0].resposta && f0.slice(1).every(x => !x.aberta && !x.resposta), 'dez perguntas, a primeira aberta, como no desenho');
+  diz(await p.evaluate(() => [...document.querySelectorAll('[id^="faqR"]')].every(r => r.textContent.trim().length > 20)),
+      'e todas as respostas estão no HTML (o Google lê, mesmo fechadas)');
+  await p.click('[data-faq="2"]'); await p.click('[data-faq="0"]'); await p.waitForTimeout(100);
+  const f1 = await faq();
+  diz(f1[2].aberta && f1[2].resposta && !f1[0].aberta && !f1[0].resposta, 'tocar abre e fecha cada pergunta (aria-expanded junto)');
+  await p.mouse.move(5, 5);
+  await p.waitForTimeout(3600);
+  diz((await anel()).titulo !== 'Com a sua marca', 'e a roda segue girando sozinha');
+  diz(erros.length === 0, 'sem erro de JavaScript', erros.join(' | '));
   await ctx.close();
 }
 
 console.log('\nQuem pede menos movimento');
 {
-  const { ctx, p } = await abrir({ largura: 375, banco: PLANOS(97), movimento: 'reduce' });
-  const parado = await p.evaluate(() => ({
-    anima: document.documentElement.classList.contains('lp-anima'),
-    opacos: [...document.querySelectorAll('[data-revelar]')].filter(e => getComputedStyle(e).opacity !== '1').length,
-  }));
-  diz(!parado.anima && parado.opacos === 0, 'com "reduzir movimento", tudo aparece de uma vez, sem animação', JSON.stringify(parado));
+  const { ctx, p } = await abrir({ largura: 375, movimento: 'reduce' });
+  const antes = await p.evaluate(() => document.getElementById('anel').style.transform + '|' + document.getElementById('heroiGiro').style.transform);
+  await p.waitForTimeout(4500);
+  const depois = await p.evaluate(() => document.getElementById('anel').style.transform + '|' + document.getElementById('heroiGiro').style.transform);
+  diz(antes === depois, 'com "reduzir movimento", nada gira sozinho', antes + ' → ' + depois);
   await ctx.close();
 }
 

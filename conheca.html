@@ -1,949 +1,667 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agenda online para salão e barbearia | AgendaPro</title>
-<meta name="description" content="A cliente marca sozinha pelo seu link e o WhatsApp confirma e lembra. Agenda da equipe, clientes e caixa num lugar só. 7 dias grátis, sem cartão." />
-<link rel="canonical" href="https://www.agendaprogestao.com.br/conheca.html" />
-<meta name="theme-color" content="#FAF9F6" />
-<link rel="icon" type="image/png" href="icones/icone-192.png" />
-<link rel="apple-touch-icon" href="icones/apple-touch-icon.png" />
-<meta property="og:type" content="website" />
-<meta property="og:locale" content="pt_BR" />
-<meta property="og:site_name" content="AgendaPro" />
-<meta property="og:url" content="https://www.agendaprogestao.com.br/conheca.html" />
-<meta property="og:title" content="Seu salão organizado. Sua rotina mais leve. — AgendaPro" />
-<meta property="og:description" content="Link de agendamento 24h, confirmação e lembrete no WhatsApp, agenda da equipe, clientes, caixa e relatórios. 7 dias grátis, sem cartão." />
-<meta property="og:image" content="https://www.agendaprogestao.com.br/lp/og.jpg" />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="630" />
-<meta name="twitter:card" content="summary_large_image" />
-<link rel="preload" href="lp/fontes/manrope.woff2" as="font" type="font/woff2" crossorigin />
-<link rel="preload" href="lp/fontes/dm-serif-display.woff2" as="font" type="font/woff2" crossorigin />
-<link rel="preload" href="lp/fontes/dm-serif-display-italico.woff2" as="font" type="font/woff2" crossorigin />
+<meta name="description" content="O cliente marca sozinho pelo seu link e você acompanha agenda, comanda, comissão e caixa num lugar só. Confirmação e lembrete no WhatsApp. Grátis para começar, sem cartão.">
+<link rel="canonical" href="https://www.agendaprogestao.com.br/conheca.html">
+<meta name="theme-color" content="#F8F5EE">
+<link rel="icon" type="image/png" href="icones/icone-192.png">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:site_name" content="AgendaPro">
+<meta property="og:url" content="https://www.agendaprogestao.com.br/conheca.html">
+<meta property="og:title" content="Sua agenda online, pronta hoje — AgendaPro">
+<meta property="og:description" content="O cliente marca sozinho pelo link. Você acompanha agenda, comanda, comissão e caixa num lugar só. Grátis para começar, sem cartão.">
+<meta property="og:image" content="https://www.agendaprogestao.com.br/lp/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preload" href="lp/nova/fontes/montserrat-latin-a5ec5492.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="lp/nova/fontes/plus-jakarta-sans-latin-a389d97d.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="lp/nova/nicho-salao.webp" as="image">
 <!--
   ═══════════════════════════════════════════════════════════════════════════
-  A PÁGINA DOS ANÚNCIOS
+  A PÁGINA DOS ANÚNCIOS — desenho do dono do AgendaPro
 
-  Separada de propósito: a raiz do site (index.html) continua levando direto
-  ao login, que é o que o cliente de hoje espera. Esta é a porta de quem nunca
-  ouviu falar do AgendaPro — vem de anúncio, de link na bio, de indicação.
+  Veio da ferramenta de design como um pacote de 14 MB que se montava no
+  navegador (React e o código da ferramenta, imagens PNG embutidas). Aqui ela
+  está ESTÁTICA: o mesmo HTML já montado, as imagens em WebP no tamanho em que
+  aparecem (lp/nova/), as fontes em arquivo (lp/nova/fontes/) e um script
+  pequeno, no fim, para os dois carrosséis, as perguntas e o anúncio nos
+  botões. Nenhuma requisição a terceiros.
 
-  ⚠ NADA AQUI É INVENTADO. Cada recurso citado existe no sistema. As telas
-  são de verdade:
-    · lp/salao-*.webp — a página do Salão Megatop (Itu/SP), dos prints do
-      celular mandados pelo dono do AgendaPro (só tiradas as barras do
-      aparelho e do navegador);
-    · lp/painel-*.webp e lp/horarios.webp — o painel e o link rodando na
-      demonstração (app.html?demo=1, agendar.html?salao=studio-bella&demo=1).
-  Os preços vêm do banco (tabela `planos`, que o visitante anônimo pode ler) e,
-  se o banco não responder, ficam os de reserva escritos abaixo. Não há
-  depoimento nem número de clientes porque ainda não temos os de verdade —
-  o lugar deles está marcado, comentado, mais abaixo.
+  O que mudou no conteúdo, e por quê:
+    · "Dá para exportar tudo" saiu: o sistema não tem exportação de dados;
+    · o "Fale com a gente no WhatsApp" estava com wa.me/ sem número;
+    · os botões "Criar conta grátis" levam utm_*, fbclid e gclid ao cadastro.
 
-  Os botões levam ao criar.html carregando os parâmetros do anúncio (utm_*,
-  fbclid, gclid): o cadastro sabe de onde a pessoa veio.
-
-  As fontes (Manrope e DM Serif Display, licença OFL) moram em lp/fontes/:
-  nenhuma requisição a terceiros para desenhar a página.
+  A raiz do site continua levando ao login; esta é a porta de quem vem de
+  anúncio. Os preços estão escritos no desenho: mudou no banco, mude aqui.
   ═══════════════════════════════════════════════════════════════════════════
 -->
 <style>
-@font-face{font-family:"Manrope";src:url("lp/fontes/manrope.woff2") format("woff2");font-weight:200 800;font-style:normal;font-display:swap;
-  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-@font-face{font-family:"DM Serif Display";src:url("lp/fontes/dm-serif-display.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap;
-  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-@font-face{font-family:"DM Serif Display";src:url("lp/fontes/dm-serif-display-italico.woff2") format("woff2");font-weight:400;font-style:italic;font-display:swap;
-  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
-
-/* A paleta da página de venda: papel (off-white e bege) e grafite, com o azul
-   da marca (#2563EB, o mesmo do logotipo e dos botões do sistema) como único
-   destaque. O cinza dos textos é um tom abaixo do #77766F da referência: o
-   original não passa no contraste AA em texto corrido sobre o bege. */
-:root{
-  --off:#FAF9F6; --bege:#F1EDE5; --bege-2:#E9E3D8; --bege-3:#DCD4C6; --branco:#FFFFFF;
-  --grafite:#242522; --grafite-2:#34352F; --cinza:#6B6A63; --cinza-claro:#77766F;
-  --linha:rgba(36,37,34,.10); --linha-forte:rgba(36,37,34,.18);
-  --acento:#2563EB; --acento-escuro:#1D4ED8; --acento-suave:#E8EDF8;
-  --ok:#2F6B4F;
-  --r-lg:28px; --r:20px; --r-sm:12px; --r-pill:999px;
-  --sombra-1:0 1px 2px rgba(36,37,34,.05), 0 8px 24px -14px rgba(36,37,34,.22);
-  --sombra-2:0 2px 6px rgba(36,37,34,.06), 0 34px 70px -34px rgba(36,37,34,.42);
-  --sans:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-  --serif:"DM Serif Display",Georgia,"Times New Roman",serif;
-  --topo:72px;
-  interpolate-size:allow-keywords;
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("lp/nova/fontes/montserrat-latin-ext-a63797c1.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{font-family:var(--sans);color:var(--grafite);background:var(--off);line-height:1.6;font-size:17px;
-  -webkit-font-smoothing:antialiased;font-feature-settings:"ss01" 0;overflow-x:hidden}
-img{max-width:100%;display:block}
-a{color:inherit}
-button{font:inherit;color:inherit}
-:focus-visible{outline:2.5px solid var(--acento);outline-offset:3px;border-radius:8px}
-.lp-pular{position:absolute;left:12px;top:-60px;z-index:60;background:var(--grafite);color:#fff;padding:10px 16px;border-radius:var(--r-sm);text-decoration:none;font-weight:600}
-.lp-pular:focus{top:12px}
-.lp-in{max-width:1180px;margin:0 auto;padding:0 24px}
-section{padding:88px 0;scroll-margin-top:var(--topo)}
-
-/* Tipografia: a serifa só nos títulos de seção; o resto é Manrope */
-h1,h2{font-family:var(--serif);font-weight:400;letter-spacing:-.012em;color:var(--grafite);text-wrap:balance}
-h1 em,h2 em{font-style:italic;color:var(--acento)}
-h2{font-size:clamp(2.05rem,1.35rem + 2.7vw,3.25rem);line-height:1.06;margin-bottom:18px}
-h3{font-size:1.14rem;line-height:1.3;font-weight:700;letter-spacing:-.01em}
-.lp-olho{display:inline-flex;align-items:center;gap:10px;font-size:.76rem;font-weight:700;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--grafite);margin-bottom:20px}
-.lp-olho::before{content:"";width:22px;height:1.5px;background:var(--acento)}
-.lp-sub{color:var(--cinza);font-size:1.1rem;line-height:1.65;max-width:56ch}
-.lp-centro{text-align:center}
-.lp-centro .lp-sub{margin-left:auto;margin-right:auto}
-.lp-centro .lp-olho{justify-content:center}
-.lp-cabeca{max-width:760px;margin-bottom:52px}
-.lp-cabeca.lp-centro{margin-left:auto;margin-right:auto}
-
-/* Ícones: o mesmo traço do sistema (icones.js) */
-.lp-i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-
-/* Botões: um estilo por tipo de ação */
-.lp-bt{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:54px;padding:0 28px;
-  border-radius:var(--r-pill);font-weight:700;font-size:1rem;letter-spacing:-.005em;text-decoration:none;cursor:pointer;border:0;
-  transition:transform .2s ease, background-color .2s ease, box-shadow .2s ease, border-color .2s ease}
-.lp-bt .lp-i{width:18px;height:18px;transition:transform .2s ease}
-.lp-bt:hover .lp-i{transform:translateX(3px)}
-.lp-bt-p{background:var(--grafite);color:#fff;box-shadow:0 12px 26px -14px rgba(36,37,34,.7)}
-.lp-bt-p:hover{background:#000;transform:translateY(-1px)}
-.lp-bt-s{background:transparent;color:var(--grafite);border:1.5px solid var(--linha-forte)}
-.lp-bt-s:hover{border-color:var(--grafite);background:var(--branco)}
-.lp-bt-claro{background:var(--off);color:var(--grafite)}
-.lp-bt-claro:hover{background:#fff;transform:translateY(-1px)}
-.lp-desarme{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:22px;list-style:none;font-size:.9rem;color:var(--cinza);font-weight:500}
-.lp-desarme li{display:inline-flex;align-items:center;gap:7px}
-.lp-desarme .lp-i{width:16px;height:16px;color:var(--ok);stroke-width:2.2}
-
-/* ── Topo ─────────────────────────────────────────────────────────────── */
-.lp-topo{position:sticky;top:0;z-index:40;background:rgba(250,249,246,.86);
-  backdrop-filter:saturate(1.3) blur(14px);-webkit-backdrop-filter:saturate(1.3) blur(14px);
-  border-bottom:1px solid transparent;transition:border-color .25s, background-color .25s}
-.lp-topo.rolou{border-bottom-color:var(--linha)}
-.lp-topo .lp-in{display:flex;align-items:center;gap:20px;height:var(--topo)}
-.lp-logo{display:inline-flex;align-items:center;min-height:44px;margin-right:auto}
-.lp-logo img{height:36px;width:auto}
-.lp-nav{display:flex;align-items:center;gap:4px}
-.lp-nav a{font-size:.94rem;font-weight:600;color:var(--grafite-2);text-decoration:none;padding:10px 14px;border-radius:var(--r-pill);
-  min-height:44px;display:inline-flex;align-items:center;transition:background-color .2s}
-.lp-nav a:hover{background:var(--bege)}
-.lp-entrar{font-size:.94rem;font-weight:600;text-decoration:none;padding:10px 14px;min-height:44px;display:inline-flex;align-items:center}
-.lp-entrar:hover{text-decoration:underline;text-underline-offset:4px}
-.lp-topo .lp-bt{min-height:44px;padding:0 20px;font-size:.92rem}
-.lp-menu-bt{display:none;width:44px;height:44px;border-radius:var(--r-pill);border:1.5px solid var(--linha-forte);background:transparent;
-  align-items:center;justify-content:center;cursor:pointer}
-.lp-menu-bt .lp-i{width:20px;height:20px}
-.lp-menu-bt .lp-fecha{display:none}
-.lp-menu-bt[aria-expanded="true"] .lp-abre{display:none}
-.lp-menu-bt[aria-expanded="true"] .lp-fecha{display:block}
-.lp-menu{position:absolute;left:0;right:0;top:100%;background:var(--off);border-bottom:1px solid var(--linha);
-  box-shadow:0 30px 40px -30px rgba(36,37,34,.35);padding:8px 20px 22px}
-.lp-menu[hidden]{display:none}
-.lp-menu a:not(.lp-bt){display:flex;align-items:center;justify-content:space-between;min-height:54px;font-size:1.08rem;font-weight:600;
-  text-decoration:none;border-bottom:1px solid var(--linha)}
-.lp-menu .lp-bt{width:100%;margin-top:18px}
-
-/* ── Herói ────────────────────────────────────────────────────────────── */
-.lp-heroi{padding:56px 0 88px;position:relative;overflow:hidden}
-.lp-heroi .lp-in{display:grid;gap:56px;align-items:center}
-.lp-heroi h1{font-size:clamp(2.75rem,1.6rem + 4.4vw,4.6rem);line-height:1.01;margin-bottom:24px}
-.lp-heroi h1 span{display:block}
-.lp-heroi .lp-sub{font-size:1.16rem;max-width:50ch}
-.lp-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:34px}
-
-/* A composição: o painel do salão atrás, o link da cliente na frente, e a
-   confirmação que chega no WhatsApp. Tudo tela de verdade. */
-.lp-palco{position:relative;width:100%;max-width:600px;justify-self:center;aspect-ratio:1/1.02}
-.lp-palco::before{content:"";position:absolute;inset:9% 0 3% 12%;border-radius:36px;background:var(--bege)}
-.lp-palco .lp-janela{position:absolute;right:0;top:4%;width:86%}
-.lp-palco .lp-cel{position:absolute;left:0;bottom:0;width:39%}
-.lp-palco .lp-aviso{position:absolute;right:4%;bottom:7%;width:min(290px,50%)}
-.lp-aviso-nota{position:absolute;right:4%;bottom:0;font-size:.72rem;color:var(--cinza-claro)}
-
-.lp-janela{background:var(--branco);border-radius:14px;overflow:hidden;border:1px solid var(--linha);box-shadow:var(--sombra-2)}
-.lp-janela-barra{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;background:#F6F4EF;border-bottom:1px solid var(--linha)}
-.lp-janela-barra i{width:9px;height:9px;border-radius:50%;background:var(--bege-3)}
-.lp-janela-barra span{margin-left:12px;font-size:.68rem;font-weight:600;color:var(--cinza-claro);background:var(--branco);
-  border-radius:6px;padding:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lp-janela img{width:100%;height:auto}
-
-.lp-cel{position:relative;background:var(--grafite);padding:8px;border-radius:40px;box-shadow:var(--sombra-2)}
-.lp-cel::before{content:"";position:absolute;z-index:1;top:15px;left:50%;width:28%;height:16px;border-radius:10px;background:var(--grafite);transform:translateX(-50%)}
-.lp-cel img{width:100%;height:auto;border-radius:32px;background:#fff}
-
-.lp-aviso{background:var(--branco);border-radius:18px;padding:14px 16px 12px;font-size:.8rem;line-height:1.5;color:#111B21;
-  box-shadow:0 22px 44px -22px rgba(36,37,34,.5), 0 0 0 1px var(--linha)}
-.lp-aviso-de{display:flex;align-items:center;gap:8px;font-size:.74rem;font-weight:700;color:var(--grafite);margin-bottom:6px}
-.lp-aviso-de b{width:22px;height:22px;border-radius:50%;background:#25D366;display:grid;place-items:center;flex:none}
-.lp-aviso-de b svg{width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2.2}
-.lp-aviso-de small{margin-left:auto;font-weight:500;color:var(--cinza-claro)}
-.lp-aviso p{white-space:pre-line}
-
-/* ── Faixa de confiança ───────────────────────────────────────────────── */
-.lp-faixa{border-top:1px solid var(--linha);border-bottom:1px solid var(--linha);background:var(--branco)}
-.lp-faixa ul{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
-.lp-faixa li{display:flex;align-items:center;gap:12px;padding:20px 8px;font-size:.9rem;font-weight:600;color:var(--grafite-2);line-height:1.35}
-.lp-faixa .lp-i{width:22px;height:22px;color:var(--acento)}
-
-/* ── O dia a dia (abertura e dor) ─────────────────────────────────────── */
-.lp-dia{background:var(--bege)}
-.lp-dia .lp-in{display:grid;gap:44px}
-.lp-dia p{color:var(--cinza);font-size:1.08rem;max-width:56ch;margin-bottom:14px}
-.lp-dia p strong{color:var(--grafite);font-weight:700}
-.lp-dores{list-style:none;counter-reset:dor;border-top:1px solid var(--linha-forte)}
-.lp-dores li{counter-increment:dor;display:grid;grid-template-columns:42px 1fr;gap:6px;padding:18px 0;border-bottom:1px solid var(--linha-forte);font-size:1.04rem;font-weight:500}
-.lp-dores li::before{content:counter(dor, decimal-leading-zero);font-family:var(--serif);font-size:1.15rem;color:var(--acento);line-height:1.5}
-.lp-dia .lp-fecho{margin-top:24px;font-family:var(--serif);font-size:1.5rem;line-height:1.3;color:var(--grafite);max-width:none}
-
-/* ── Recursos ─────────────────────────────────────────────────────────── */
-.lp-recurso{display:grid;gap:36px;align-items:center;padding:44px 0;border-top:1px solid var(--linha)}
-.lp-recurso:first-of-type{border-top:0;padding-top:0}
-.lp-num{display:block;font-size:.76rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--acento-escuro);margin-bottom:14px}
-.lp-recurso h3{font-size:clamp(1.45rem,1.15rem + 1vw,1.85rem);line-height:1.18;letter-spacing:-.02em;margin-bottom:14px}
-.lp-recurso p{color:var(--cinza);font-size:1.05rem;max-width:48ch}
-.lp-lista{list-style:none;margin-top:22px;display:grid;gap:12px}
-.lp-lista li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:.98rem;font-weight:500;color:var(--grafite-2)}
-.lp-lista .lp-i{width:18px;height:18px;margin-top:3px;color:var(--acento);stroke-width:2.2}
-.lp-quadro{position:relative;border-radius:var(--r-lg);background:var(--bege);padding:40px 32px;display:grid;place-items:center;overflow:hidden}
-.lp-quadro .lp-janela{width:100%}
-.lp-quadro-cel{padding:40px 0 0;aspect-ratio:1/1;place-items:start center}
-.lp-quadro-cel .lp-cel{width:min(300px,72%);border-radius:40px 40px 0 0;padding:8px 8px 0}
-.lp-quadro-cel .lp-cel img{border-radius:32px 32px 0 0}
-.lp-legenda{display:block;margin-top:12px;font-size:.8rem;color:var(--cinza-claro);text-align:center}
-.lp-tambem{margin-top:44px;padding:22px 26px;border-radius:var(--r);border:1px solid var(--linha);background:var(--branco);
-  display:flex;flex-wrap:wrap;align-items:center;gap:10px 26px;font-size:.95rem;color:var(--cinza)}
-.lp-tambem b{color:var(--grafite);font-weight:700;margin-right:4px}
-.lp-tambem span{display:inline-flex;align-items:center;gap:8px}
-.lp-tambem span::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--acento)}
-
-/* A conversa do WhatsApp (o texto é o dos modelos do sistema) */
-.lp-conversa{width:min(380px,100%);border-radius:22px;overflow:hidden;background:#EFEAE2;box-shadow:var(--sombra-2)}
-.lp-conversa-topo{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--branco);border-bottom:1px solid var(--linha);font-weight:700;font-size:.92rem}
-.lp-conversa-topo b{width:34px;height:34px;border-radius:50%;background:#25D366;display:grid;place-items:center}
-.lp-conversa-topo b svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2}
-.lp-conversa-topo small{display:block;font-weight:500;color:var(--cinza-claro);font-size:.74rem}
-.lp-conversa-corpo{padding:16px 14px 18px;display:grid;gap:10px}
-.lp-balao{background:var(--branco);border-radius:4px 14px 14px 14px;padding:10px 12px 6px;max-width:88%;font-size:.84rem;line-height:1.5;color:#111B21;
-  box-shadow:0 1px 1px rgba(0,0,0,.06)}
-.lp-balao p{white-space:pre-line}
-.lp-balao small{display:block;text-align:right;font-size:.68rem;color:#667781;margin-top:2px}
-.lp-dia-chip{justify-self:center;font-size:.7rem;font-weight:600;color:#54656F;background:rgba(255,255,255,.85);padding:3px 10px;border-radius:8px}
-
-/* ── Um salão de verdade ──────────────────────────────────────────────── */
-.lp-veja{background:var(--bege)}
-.lp-galeria{display:grid;gap:22px;list-style:none}
-.lp-galeria figure{display:flex;flex-direction:column}
-.lp-galeria .lp-quadro{background:var(--off)}
-.lp-galeria li:nth-child(2) .lp-quadro{background:var(--bege-2)}
-.lp-galeria li:nth-child(3) .lp-quadro{background:var(--acento-suave)}
-.lp-galeria figcaption{padding:20px 4px 0}
-.lp-galeria figcaption h3{margin-bottom:4px}
-.lp-galeria figcaption p{color:var(--cinza);font-size:.96rem}
-.lp-galeria figcaption::after{content:"";display:block;width:28px;height:1.5px;background:var(--acento);margin-top:14px}
-.lp-arraste{display:none}
-.lp-demos{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:44px}
-.lp-demos .lp-bt{flex:0 1 250px}
-.lp-demos-nota{text-align:center;margin-top:14px;font-size:.86rem;color:var(--cinza)}
-
-/* ── Como funciona ────────────────────────────────────────────────────── */
-.lp-como{background:var(--branco)}
-.lp-passos{list-style:none;display:grid;gap:0;counter-reset:passo}
-.lp-passo{counter-increment:passo;padding:28px 0;border-top:1px solid var(--linha-forte)}
-.lp-passo::before{content:counter(passo, decimal-leading-zero);display:block;font-family:var(--serif);font-size:3.6rem;line-height:1;color:var(--acento);margin-bottom:18px}
-.lp-passo h3{font-size:1.25rem;margin-bottom:8px}
-.lp-passo p{color:var(--cinza);max-width:38ch}
-.lp-mecanismo{margin-top:48px;padding:6px 0 6px 24px;border-left:2px solid var(--acento);max-width:760px;font-size:1.06rem;color:var(--cinza)}
-.lp-mecanismo b{color:var(--grafite)}
-
-/* ── Planos ───────────────────────────────────────────────────────────── */
-.lp-selo-teste{display:inline-flex;align-items:center;gap:8px;background:var(--acento-suave);color:var(--acento-escuro);font-weight:700;
-  padding:8px 16px;border-radius:var(--r-pill);font-size:.88rem;margin-bottom:22px}
-.lp-selo-teste .lp-i{width:16px;height:16px;stroke-width:2.4}
-.lp-lista-planos{display:grid;gap:16px}
-.lp-plano{border:1px solid var(--linha);border-radius:var(--r);padding:26px 24px 24px;background:var(--branco);display:flex;flex-direction:column;
-  transition:border-color .2s, box-shadow .2s, transform .2s}
-.lp-plano:hover{border-color:var(--linha-forte);box-shadow:var(--sombra-1);transform:translateY(-2px)}
-.lp-plano-quem{font-size:.74rem;font-weight:700;color:var(--cinza);text-transform:uppercase;letter-spacing:.12em}
-.lp-plano h3{font-size:1.3rem;margin:6px 0 14px}
-.lp-preco{font-family:var(--serif);font-size:2.6rem;line-height:1;letter-spacing:-.01em;color:var(--grafite)}
-.lp-preco small{font-family:var(--sans);font-size:.9rem;font-weight:600;color:var(--cinza);letter-spacing:0}
-.lp-plano ul{list-style:none;margin:20px 0 24px;padding-top:18px;border-top:1px solid var(--linha);display:grid;gap:10px;font-size:.93rem;color:var(--grafite-2)}
-.lp-plano li{display:grid;grid-template-columns:20px 1fr;gap:8px}
-.lp-plano li .lp-i{width:16px;height:16px;margin-top:3px;color:var(--acento);stroke-width:2.4}
-.lp-plano .lp-bt{margin-top:auto;width:100%;min-height:50px;padding:0 18px}
-.lp-cobranca{margin-top:22px;font-size:.92rem;color:var(--cinza);text-align:center}
-.lp-todos{margin-top:40px;padding:28px;border-radius:var(--r);background:var(--bege)}
-.lp-todos h3{margin-bottom:16px}
-.lp-todos ul{list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 22px;font-size:.95rem;color:var(--grafite-2)}
-.lp-todos li{display:grid;grid-template-columns:20px 1fr;gap:8px}
-.lp-todos .lp-i{width:16px;height:16px;margin-top:3px;color:var(--acento);stroke-width:2.4}
-.lp-menor{margin-top:18px;font-size:.95rem;color:var(--cinza);text-align:center}
-
-/* A conta das faltas */
-.lp-conta{margin-top:40px;border-radius:var(--r-lg);padding:32px 28px;background:var(--grafite);color:#D9D7CF;display:grid;gap:24px}
-.lp-conta h3{color:#fff;font-family:var(--serif);font-weight:400;font-size:1.8rem;letter-spacing:-.01em;margin-bottom:8px}
-.lp-conta p{color:#B9B7AE;font-size:.98rem}
-.lp-conta label{display:flex;flex-direction:column;gap:8px;font-size:.88rem;font-weight:600;color:#D9D7CF}
-.lp-conta input{font:inherit;font-size:1.1rem;font-weight:600;padding:12px 14px;border-radius:var(--r-sm);border:1px solid #4A4B45;background:#2E2F2B;color:#fff;min-height:50px;width:100%}
-.lp-conta input:focus-visible{outline-color:#8FB0F5}
-.lp-conta-campos{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
-.lp-conta .lp-conta-res{font-size:1.02rem;color:#fff;margin-top:16px}
-.lp-conta-res strong{font-family:var(--serif);font-weight:400;font-size:2.2rem;display:block;letter-spacing:-.01em;line-height:1.15}
-
-/* ── Perguntas frequentes ─────────────────────────────────────────────── */
-.lp-faq{background:var(--bege)}
-.lp-faq .lp-in{display:grid;gap:36px}
-.lp-faq-lista{border-top:1px solid var(--linha-forte)}
-.lp-faq details{border-bottom:1px solid var(--linha-forte)}
-.lp-faq summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:18px;
-  font-weight:700;font-size:1.04rem;padding:20px 0;min-height:44px}
-.lp-faq summary::-webkit-details-marker{display:none}
-.lp-faq summary::after{content:"";flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--linha-forte);
-  background:linear-gradient(var(--grafite),var(--grafite)) center/11px 1.6px no-repeat,
-             linear-gradient(var(--grafite),var(--grafite)) center/1.6px 11px no-repeat;transition:transform .25s ease, background-color .2s}
-.lp-faq details[open] summary::after{transform:rotate(45deg);background-color:var(--branco)}
-.lp-faq details::details-content{block-size:0;overflow:hidden;transition:block-size .3s ease, content-visibility .3s allow-discrete}
-.lp-faq details[open]::details-content{block-size:auto}
-.lp-faq details p{color:var(--cinza);padding:0 48px 22px 0;max-width:68ch}
-.lp-faq details a{color:var(--acento-escuro);font-weight:600}
-.lp-faq-contato{margin-top:6px;color:var(--cinza)}
-.lp-faq-contato a{color:var(--acento-escuro);font-weight:700;text-underline-offset:3px}
-
-/* ── Chamada final ────────────────────────────────────────────────────── */
-.lp-final{padding:88px 0}
-.lp-final-bloco{border-radius:36px;background:var(--grafite);color:#D9D7CF;padding:72px 28px;text-align:center;position:relative;overflow:hidden}
-.lp-final-bloco::before{content:"";position:absolute;inset:auto -10% -55% -10%;height:80%;border-radius:50%;
-  background:radial-gradient(closest-side,rgba(37,99,235,.22),transparent);pointer-events:none}
-.lp-final h2{color:#fff;max-width:21ch;margin:0 auto 18px;position:relative}
-.lp-final h2 em{color:#9DB8F7}
-.lp-final h2 .lp-linha{display:block}
-.lp-final .lp-sub{color:#B9B7AE;position:relative;margin:0 auto}
-.lp-final .lp-acoes{justify-content:center;position:relative}
-.lp-final .lp-desarme{justify-content:center;color:#B9B7AE;position:relative}
-.lp-final .lp-desarme .lp-i{color:#8FD3AE}
-.lp-ps{max-width:600px;margin:40px auto 0;padding-top:26px;border-top:1px solid #3A3B36;color:#B9B7AE;font-size:.96rem;text-align:left;position:relative}
-.lp-ps b{color:#fff}
-
-/* ── Rodapé ───────────────────────────────────────────────────────────── */
-.lp-rodape{border-top:1px solid var(--linha);padding:56px 0 110px;font-size:.92rem;color:var(--cinza)}
-.lp-rodape-grade{display:grid;gap:36px}
-.lp-rodape-marca img{height:40px;width:auto;margin-bottom:14px}
-.lp-rodape-marca p{max-width:34ch}
-.lp-rodape h2{font-family:var(--sans);font-size:.76rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--grafite);margin-bottom:10px}
-.lp-rodape ul{list-style:none}
-.lp-rodape li a{display:inline-flex;align-items:center;min-height:40px;text-decoration:none;color:var(--grafite-2);font-weight:500}
-.lp-rodape li a:hover{color:var(--acento-escuro)}
-.lp-direitos{margin-top:40px;padding-top:24px;border-top:1px solid var(--linha);font-size:.82rem;color:var(--cinza)}
-
-/* A barra fixa do celular: aparece depois do primeiro botão sair da tela */
-.lp-barra{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
-  background:rgba(250,249,246,.94);border-top:1px solid var(--linha);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-  transform:translateY(110%);transition:transform .25s ease}
-.lp-barra.on{transform:none}
-.lp-barra .lp-bt{width:100%}
-
-/* Entrada suave ao aparecer na tela (só com JS e sem "reduzir movimento") */
-.lp-anima [data-revelar]{opacity:0;transform:translateY(18px);transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1)}
-.lp-anima [data-revelar].visto{opacity:1;transform:none}
-.lp-anima .lp-palco > *{animation:subir .9s cubic-bezier(.2,.7,.2,1) both}
-.lp-anima .lp-palco .lp-janela{animation-delay:.05s}
-.lp-anima .lp-palco .lp-cel{animation-delay:.18s}
-.lp-anima .lp-palco .lp-aviso{animation-delay:.42s}
-@keyframes subir{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
-
-/* ── Tamanhos de tela ─────────────────────────────────────────────────── */
-@media (max-width:899px){
-  .lp-nav, .lp-topo .lp-entrar{display:none}
-  .lp-menu-bt{display:inline-flex}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("lp/nova/fontes/montserrat-latin-a5ec5492.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-@media (min-width:900px){
-  .lp-menu{display:none !important}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("lp/nova/fontes/montserrat-latin-ext-a63797c1.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
-/* No celular: a galeria e os planos em faixas que se arrastam de lado — um
-   embaixo do outro eram várias telas de rolagem. */
-@media (max-width:759px){
-  section{padding:68px 0}
-  .lp-in{padding:0 20px}
-  .lp-cabeca{margin-bottom:36px}
-  .lp-heroi{padding:36px 0 64px}
-  .lp-acoes .lp-bt{flex:1 1 100%}
-  .lp-palco{aspect-ratio:1/1.08}
-  .lp-palco::before{inset:6% 0 4% 8%;border-radius:28px}
-  .lp-palco .lp-janela{width:90%;top:0}
-  .lp-palco .lp-cel{width:47%;border-radius:30px;padding:6px}
-  .lp-palco .lp-cel img{border-radius:25px}
-  .lp-palco .lp-cel::before{top:11px;height:11px}
-  .lp-palco .lp-aviso{width:56%;right:0;bottom:6%;font-size:.7rem;padding:10px 11px 9px;border-radius:14px}
-  .lp-aviso-de{font-size:.68rem;margin-bottom:4px}
-  .lp-janela-barra{height:22px}
-  .lp-janela-barra i{width:7px;height:7px}
-  .lp-janela-barra span{display:none}
-  .lp-quadro{padding:28px 20px;border-radius:22px}
-  .lp-quadro-cel{padding:28px 0 0}
-  .lp-galeria{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;margin:0 -20px;padding:0 20px 8px;scrollbar-width:none}
-  .lp-galeria::-webkit-scrollbar{display:none}
-  .lp-galeria li{flex:0 0 80%;scroll-snap-align:center}
-  .lp-arraste{display:block;text-align:center;font-size:.84rem;color:var(--cinza);margin-top:14px}
-  .lp-lista-planos{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;margin:0 -20px;padding:4px 20px 14px;scrollbar-width:none}
-  .lp-lista-planos::-webkit-scrollbar{display:none}
-  .lp-plano{flex:0 0 80%;scroll-snap-align:center}
-  .lp-plano:hover{transform:none}
-  .lp-final{padding:56px 0}
-  .lp-final-bloco{padding:56px 22px;border-radius:28px}
-  .lp-conta{padding:26px 22px}
-  .lp-passo{display:grid;grid-template-columns:60px 1fr;column-gap:8px;padding:24px 0}
-  .lp-passo::before{grid-row:span 2;font-size:2.4rem;margin:0}
-  .lp-tambem{flex-direction:column;align-items:flex-start;gap:10px}
-  .lp-demos .lp-bt{flex:1 1 100%}
-  .lp-selo-teste{font-size:.82rem}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("lp/nova/fontes/montserrat-latin-a5ec5492.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-@media (min-width:760px){
-  .lp-faixa ul{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .lp-faixa li + li{border-left:1px solid var(--linha);padding-left:22px}
-  .lp-galeria{grid-template-columns:repeat(3,1fr)}
-  .lp-passos{grid-template-columns:repeat(3,1fr);gap:36px}
-  .lp-lista-planos{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-  .lp-conta{grid-template-columns:1.1fr 1fr;align-items:center;padding:40px}
-  .lp-barra{display:none}
-  .lp-rodape{padding-bottom:40px}
-  .lp-rodape-grade{grid-template-columns:1.6fr repeat(3,1fr)}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("lp/nova/fontes/montserrat-latin-ext-a63797c1.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
-@media (min-width:1000px){
-  section{padding:112px 0}
-  .lp-heroi{padding:64px 0 104px}
-  .lp-heroi .lp-in{grid-template-columns:1fr 1.02fr;gap:48px}
-  .lp-dia .lp-in{grid-template-columns:1fr 1fr;gap:80px;align-items:start}
-  .lp-recurso{grid-template-columns:.9fr 1.1fr;gap:72px;padding:64px 0}
-  .lp-recurso.lp-inverso{grid-template-columns:1.1fr .9fr}
-  .lp-recurso.lp-inverso .lp-recurso-texto{order:2}
-  .lp-faq .lp-in{grid-template-columns:.8fr 1.2fr;gap:80px;align-items:start}
-  .lp-faq .lp-cabeca{position:sticky;top:calc(var(--topo) + 32px)}
-  .lp-final-bloco{padding:96px 48px}
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("lp/nova/fontes/montserrat-latin-a5ec5492.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-@media (max-width:380px){
-  .lp-topo .lp-in{gap:10px}
-  .lp-topo .lp-bt{padding:0 14px}
-  .lp-logo img{height:30px}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("lp/nova/fontes/plus-jakarta-sans-latin-ext-42f3e901.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
-@media (prefers-reduced-motion:reduce){
-  html{scroll-behavior:auto}
-  *,*::before,*::after{transition:none !important;animation:none !important}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("lp/nova/fontes/plus-jakarta-sans-latin-a389d97d.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("lp/nova/fontes/plus-jakarta-sans-latin-ext-42f3e901.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("lp/nova/fontes/plus-jakarta-sans-latin-a389d97d.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("lp/nova/fontes/plus-jakarta-sans-latin-ext-42f3e901.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("lp/nova/fontes/plus-jakarta-sans-latin-a389d97d.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("lp/nova/fontes/plus-jakarta-sans-latin-ext-42f3e901.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("lp/nova/fontes/plus-jakarta-sans-latin-a389d97d.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+body{margin:0;background:#F8F5EE;color:#0F172A;font-family:'Plus Jakarta Sans',sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#2563EB;text-decoration:none}a:hover{color:#1D4ED8}
+*{box-sizing:border-box}
+:focus-visible{outline:3px solid #2563EB;outline-offset:3px;border-radius:6px}
+[hidden]{display:none !important}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none !important;animation:none !important}}
 </style>
-<script>
-/* As entradas suaves só existem com JS e sem "reduzir movimento": sem um dos
-   dois, a página aparece inteira, parada. */
-if(!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) && 'IntersectionObserver' in window)
-  document.documentElement.classList.add('lp-anima');
-</script>
 </head>
 <body>
-<a class="lp-pular" href="#conteudo">Pular para o conteúdo</a>
-
-<!-- Ícones no mesmo traço do sistema (icones.js), declarados uma vez -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <symbol id="i-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
-    <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4.5 19.5 5.6 16A8 8 0 1 1 8.4 18.6Z"/><path d="M9.5 9.5c.3 2 2.2 4 4.4 4.6l1.1-1.1 1.6.7c-.2 1.2-1.1 1.8-2.1 1.8-3.4-.3-6.1-3-6.4-6.4 0-1 .6-1.9 1.8-2.1l.7 1.6Z"/></symbol>
-    <symbol id="i-escudo" viewBox="0 0 24 24"><path d="M12 3.5 19 6v5.5c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6Z"/><path d="m9 12 2.2 2.2L15.5 10"/></symbol>
-    <symbol id="i-cartao" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18"/></symbol>
-    <symbol id="i-celular" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
-    <symbol id="i-visto" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19.5 7"/></symbol>
-    <symbol id="i-seta" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
-    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16"/></symbol>
-    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
-  </defs>
-</svg>
-
-<header class="lp-topo" id="topo">
-  <div class="lp-in">
-    <a class="lp-logo" href="#conteudo" aria-label="AgendaPro — início"><img src="icones/logotipo.svg" alt="AgendaPro Gestão" width="99" height="36"></a>
-    <nav class="lp-nav" aria-label="Seções da página">
-      <a href="#recursos">Recursos</a>
-      <a href="#como">Como funciona</a>
-      <a href="#planos">Planos</a>
-      <a href="#duvidas">Dúvidas</a>
-    </nav>
-    <a class="lp-entrar" href="entrar.html">Entrar</a>
-    <a class="lp-bt lp-bt-p" href="criar.html" data-cta="topo">Testar grátis</a>
-    <button class="lp-menu-bt" id="menuBt" type="button" aria-expanded="false" aria-controls="menuCel" aria-label="Abrir o menu">
-      <svg class="lp-i lp-abre" aria-hidden="true"><use href="#i-menu"/></svg>
-      <svg class="lp-i lp-fecha" aria-hidden="true"><use href="#i-x"/></svg>
-    </button>
-  </div>
-  <nav class="lp-menu" id="menuCel" aria-label="Menu" hidden>
-    <a href="#recursos">Recursos</a>
-    <a href="#veja">Um salão de verdade</a>
-    <a href="#como">Como funciona</a>
-    <a href="#planos">Planos</a>
-    <a href="#duvidas">Dúvidas</a>
-    <a href="entrar.html">Já sou cliente — Entrar</a>
-    <a class="lp-bt lp-bt-p" href="criar.html" data-cta="menu">Testar 7 dias grátis</a>
+<div id="dc-root"><div class="sc-host" data-sc-name=".lp-original-temp"><div data-dc-tpl="10" style="min-height: 100vh; background: rgb(248, 245, 238); overflow: hidden;"><header data-dc-tpl="11" style="max-width: 1200px; margin: 0px auto; padding: 18px clamp(20px, 4vw, 32px); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px;">
+  <a data-dc-tpl="12" href="#inicio" style="display: flex; flex-shrink: 0;"><img width="700" height="157" data-dc-tpl="13" src="lp/nova/logo.webp" alt="AgendaPro" style="height: clamp(34px, 4vw, 44px); width: auto; display: block;"></a>
+  <nav data-dc-tpl="14" style="display: flex; gap: 18px; font-size: 14px; font-weight: 600; white-space: nowrap; flex: 1 1 0px; justify-content: safe center; min-width: 0px; overflow-x: auto; scrollbar-width: none; padding: 4px 0px;">
+    <a data-dc-tpl="15" href="#recursos" style="color: rgb(51, 65, 85);">Recursos</a>
+    <a data-dc-tpl="16" href="#seu-link" style="color: rgb(51, 65, 85);">Seu link</a>
+    <a data-dc-tpl="17" href="#agendamento" style="color: rgb(51, 65, 85);">Agendamento</a>
+    <a data-dc-tpl="18" href="#whatsapp" style="color: rgb(51, 65, 85);">WhatsApp</a>
+    <a data-dc-tpl="19" href="#equipe" style="color: rgb(51, 65, 85);">Equipe</a>
+    <a data-dc-tpl="20" href="#planos" style="color: rgb(51, 65, 85);">Planos</a>
+    <a data-dc-tpl="21" href="#duvidas" style="color: rgb(51, 65, 85);">Dúvidas</a>
   </nav>
-</header>
-
-<main id="conteudo">
-
-  <!-- HERÓI: promessa, prova e botão acima da dobra -->
-  <section class="lp-heroi">
-    <div class="lp-in">
-      <div>
-        <p class="lp-olho">Agenda online para salão, barbearia, manicure e estética</p>
-        <h1><span>Seu salão organizado.</span> <em>Sua rotina mais leve.</em></h1>
-        <p class="lp-sub">A cliente marca sozinha pelo seu link, a qualquer hora. A confirmação e o
-          lembrete saem no WhatsApp — e a agenda, as clientes e o caixa ficam num lugar só.</p>
-        <div class="lp-acoes">
-          <a class="lp-bt lp-bt-p" href="criar.html" data-cta="heroi" id="ctaHeroi">Testar 7 dias grátis
-            <svg class="lp-i" aria-hidden="true"><use href="#i-seta"/></svg></a>
-          <a class="lp-bt lp-bt-s" href="#recursos">Ver a plataforma</a>
-        </div>
-        <ul class="lp-desarme">
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Sem cartão de crédito</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Sem fidelidade</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Suporte pelo WhatsApp</li>
-        </ul>
+  <div data-dc-tpl="22" style="display: flex; align-items: center; gap: 16px; flex-shrink: 0;">
+    <a data-dc-tpl="23" href="entrar.html" style="color: rgb(15, 23, 42); font-weight: 600; font-size: 14px;">Entrar</a>
+    <a data-dc-tpl="24" href="criar.html" data-cta="botao" class="scp0" style="background: rgb(37, 99, 235); color: rgb(255, 255, 255); padding: 11px 20px; border-radius: 12px; font-weight: 700; font-size: 14px; white-space: nowrap; box-shadow: rgba(37, 99, 235, 0.6) 0px 8px 20px -8px;">Criar conta grátis</a>
+  </div></header><section data-dc-tpl="25" id="inicio" data-screen-label="Hero" style="position: relative; background: linear-gradient(rgb(248, 245, 238) 0%, rgb(238, 242, 253) 100%);">
+  <div data-dc-tpl="26" style="position: absolute; top: -120px; left: -120px; width: 520px; height: 520px; border-radius: 50%; background: radial-gradient(circle, rgba(37, 99, 235, 0.18), rgba(37, 99, 235, 0) 70%); pointer-events: none;"></div>
+  <div data-dc-tpl="27" style="position: relative; max-width: 1200px; margin: 0px auto; padding: 56px clamp(20px, 4vw, 32px) 96px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 40px; align-items: center;">
+    <div data-dc-tpl="28" style="display: flex; flex-direction: column; gap: 26px; align-items: flex-start;">
+      
+      <h1 data-dc-tpl="29" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 900; font-size: clamp(42px, 5.6vw, 72px); line-height: 1; letter-spacing: -0.035em; text-wrap: balance;">Sua agenda online, <span data-dc-tpl="30" style="background: linear-gradient(90deg, rgb(37, 99, 235), rgb(124, 58, 237)) text; color: transparent;">pronta hoje</span></h1>
+      <p data-dc-tpl="31" style="margin: 0px; font-size: 18px; line-height: 1.6; color: rgb(71, 85, 105); max-width: 480px; text-wrap: pretty;">O cliente marca sozinho pelo link, você acompanha tudo de um lugar só — agenda, comanda, comissão e caixa.</p>
+      <div data-dc-tpl="32" style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <a data-dc-tpl="33" href="criar.html" data-cta="botao" class="scp0" style="display: flex; align-items: center; gap: 10px; background: rgb(37, 99, 235); color: rgb(255, 255, 255); padding: 17px 28px; border-radius: 14px; font-weight: 700; font-size: 16px; box-shadow: rgba(37, 99, 235, 0.7) 0px 14px 30px -12px;">Criar conta grátis <span data-dc-tpl="34">→</span></a>
+        <a data-dc-tpl="35" href="entrar.html" class="scp1" style="display: flex; align-items: center; background: rgb(255, 255, 255); color: rgb(15, 23, 42); padding: 17px 24px; border-radius: 14px; font-weight: 700; font-size: 16px; border: 1px solid rgb(226, 220, 207);">Entrar no painel</a>
       </div>
-      <div class="lp-palco">
-        <div class="lp-janela">
-          <div class="lp-janela-barra" aria-hidden="true"><i></i><i></i><i></i><span>agendaprogestao.com.br</span></div>
-          <img src="lp/painel-agenda.webp" width="1400" height="897" fetchpriority="high"
-               alt="O painel do salão: a agenda do dia com uma coluna para cada profissional, os horários marcados e o almoço de cada uma">
-        </div>
-        <div class="lp-cel"><img src="lp/salao-capa.webp" width="600" height="927" fetchpriority="high"
-             alt="O link de agendamento do Salão Megatop no celular da cliente: foto, logo, nome, endereço e o botão Agendar horário"></div>
-        <div class="lp-aviso" role="img" aria-label="Exemplo da confirmação que a cliente recebe no WhatsApp">
-          <div class="lp-aviso-de"><b><svg aria-hidden="true"><use href="#i-zap"/></svg></b>AgendaPro<small>agora</small></div>
-          <p>Olá, Maria! Seu agendamento foi confirmado.
-📅 Data: 17/10
-🕐 Horário: 09:30
-✂️ Serviço: Corte feminino
-👤 Profissional: Ju Barbosa
-🏪 Local: Salão Megatop</p>
-        </div>
-        <span class="lp-aviso-nota">exemplo de confirmação</span>
+      <div data-dc-tpl="36" style="display: flex; flex-direction: column; gap: 10px; font-size: 15px; color: rgb(51, 65, 85);">
+        <span data-dc-tpl="37" style="display: flex; align-items: center; gap: 10px;"><svg data-dc-tpl="38" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round"><path data-dc-tpl="39" d="m5 12 5 5 9-10"></path></svg>Grátis para começar, sem cartão de crédito</span>
+        <span data-dc-tpl="40" style="display: flex; align-items: center; gap: 10px;"><svg data-dc-tpl="41" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round"><path data-dc-tpl="42" d="m5 12 5 5 9-10"></path></svg>Funciona no celular, no computador e sem internet</span>
+        <span data-dc-tpl="43" style="display: flex; align-items: center; gap: 10px;"><svg data-dc-tpl="44" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round"><path data-dc-tpl="45" d="m5 12 5 5 9-10"></path></svg>Serve salão, barbearia, manicure, estética e estúdio</span>
       </div>
     </div>
-  </section>
 
-  <div class="lp-faixa">
-    <div class="lp-in">
-      <ul>
-        <li><svg class="lp-i" aria-hidden="true"><use href="#i-zap"/></svg>WhatsApp pela API oficial da Meta</li>
-        <li><svg class="lp-i" aria-hidden="true"><use href="#i-cartao"/></svg>Pix, cartão ou boleto pelo Mercado Pago</li>
-        <li><svg class="lp-i" aria-hidden="true"><use href="#i-escudo"/></svg>Sem fidelidade e sem multa</li>
-        <li><svg class="lp-i" aria-hidden="true"><use href="#i-celular"/></svg>No celular e no computador</li>
-      </ul>
+    <div data-dc-tpl="46" style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; align-items: center; padding: 10px 0px 30px;">
+      <div data-dc-tpl="47" style="order: 2; display: flex; flex-direction: column; gap: 12px; width: 220px;">
+      <div data-dc-tpl="48" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 16px; padding: 14px 18px; box-shadow: rgba(15, 23, 42, 0.35) 0px 20px 40px -20px; display: flex; flex-direction: column; gap: 2px;">
+        <span data-dc-tpl="49" style="font-size: 22px; font-weight: 700;">R$ 1.070,00</span>
+        <span data-dc-tpl="50" style="font-size: 12px; color: rgb(100, 116, 139);">faturamento</span>
+        <span data-dc-tpl="51" style="font-size: 12px; font-weight: 700; color: rgb(21, 128, 61);">▲ +2040% no mês</span>
+      </div>
+      <div data-dc-tpl="52" style="background: rgb(15, 23, 42); color: rgb(255, 255, 255); border-radius: 16px; padding: 12px 16px; box-shadow: rgba(15, 23, 42, 0.5) 0px 20px 40px -20px; display: flex; align-items: center; gap: 10px;">
+        <span data-dc-tpl="53" style="width: 30px; height: 30px; border-radius: 50%; background: rgb(37, 99, 235); display: flex; align-items: center; justify-content: center;"><svg data-dc-tpl="54" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path data-dc-tpl="55" d="m5 12 5 5 9-10"></path></svg></span>
+        <span data-dc-tpl="56" style="display: flex; flex-direction: column; gap: 1px;"><span data-dc-tpl="57" style="font-size: 13px; font-weight: 700;">Novo agendamento</span><span data-dc-tpl="58" id="heroiAviso" style="font-size: 11px; color: rgb(148, 163, 184);"><span class="sc-interp">Corte feminino · 14:30</span></span></span>
+      </div>
+      <div data-dc-tpl="59" style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+        <div data-dc-tpl="60" style="width: 100%; background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 16px; padding: 12px 14px; box-shadow: rgba(15, 23, 42, 0.4) 0px 24px 44px -20px; display: flex; flex-direction: column; gap: 6px;">
+          <div data-dc-tpl="61" style="display: flex; align-items: center; gap: 8px;">
+            <span data-dc-tpl="62" style="width: 26px; height: 26px; border-radius: 50%; background: rgb(37, 211, 102); display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg data-dc-tpl="63" width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path data-dc-tpl="64" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.8s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.1 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1.1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.3z"></path></svg></span>
+            <span data-dc-tpl="65" style="font-size: 13px; font-weight: 700; flex: 1 1 0%;">AgendaPro</span>
+            <span data-dc-tpl="66" style="font-size: 11px; color: rgb(148, 163, 184);">agora</span>
+          </div>
+          <span data-dc-tpl="67" style="font-size: 12.5px; line-height: 1.45; color: rgb(30, 41, 59);">Olá, <span class="sc-interp">Maria</span>! Seu agendamento foi confirmado.</span>
+          <div data-dc-tpl="68" style="display: flex; flex-direction: column; gap: 1px; font-size: 12px; line-height: 1.5; color: rgb(51, 65, 85);">
+            <span data-dc-tpl="69">📅 Data: 17/10</span>
+            <span data-dc-tpl="70">🕘 Horário: <span class="sc-interp">14:30</span></span>
+            <span data-dc-tpl="71">✂️ Serviço: <span class="sc-interp">Corte feminino</span></span>
+            <span data-dc-tpl="72">👤 Profissional: <span class="sc-interp">Ju Barbosa</span></span>
+            <span data-dc-tpl="73">🏬 Local: <span class="sc-interp">Bella Essência</span></span>
+          </div>
+        </div>
+        <span data-dc-tpl="74" style="display: flex; align-items: center; gap: 6px; background: rgb(15, 23, 42); color: rgb(255, 255, 255); border-radius: 999px; padding: 7px 12px; font-size: 11.5px; font-weight: 600; box-shadow: rgba(15, 23, 42, 0.5) 0px 12px 24px -12px;"><span data-dc-tpl="75" style="width: 7px; height: 7px; border-radius: 50%; background: rgb(37, 211, 102);"></span>Lembrete automático 1h antes</span>
+      </div>
+      </div>
+      <div data-dc-tpl="76" style="order: 1; display: flex; flex-direction: column; align-items: center; gap: 18px;">
+      <div data-dc-tpl="77" style="perspective: 1600px; transform: rotate(-3deg);">
+      <div data-dc-tpl="78" id="heroiGiro" style="position: relative; width: 300px; height: 620px; transform-style: preserve-3d; will-change: transform; transition: transform 1.3s cubic-bezier(0.65, 0, 0.35, 1); transform: rotateY(0deg);">
+        <div data-dc-tpl="79" style="position: absolute; inset: 0px; transform: rotateY(0deg); backface-visibility: hidden; background: rgb(17, 24, 39); border-radius: 48px; padding: 12px; box-shadow: rgba(15, 23, 42, 0.55) 0px 40px 80px -30px, rgb(51, 65, 85) 0px 0px 0px 2px inset;">
+          <img width="600" height="1232" data-dc-tpl="80" id="heroiFrente" src="lp/nova/nicho-salao.webp" alt="Salão de beleza" style="width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; border-radius: 38px; background: rgb(17, 17, 17);">
+        </div>
+        <div data-dc-tpl="81" style="position: absolute; inset: 0px; transform: rotateY(180deg); backface-visibility: hidden; background: rgb(17, 24, 39); border-radius: 48px; padding: 12px; box-shadow: rgba(15, 23, 42, 0.55) 0px 40px 80px -30px, rgb(51, 65, 85) 0px 0px 0px 2px inset;">
+          <img width="600" height="1221" loading="lazy" decoding="async" data-dc-tpl="82" id="heroiVerso" src="lp/nova/nicho-barbearia.webp" alt="Barbearia" style="width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; border-radius: 38px; background: rgb(17, 17, 17);">
+        </div>
+      </div>
+      </div>
+      <div data-dc-tpl="83" style="display: flex; align-items: center; gap: 10px; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 999px; padding: 6px 6px 6px 16px; box-shadow: rgba(15, 23, 42, 0.4) 0px 10px 24px -16px;">
+        <span data-dc-tpl="84" id="heroiRotulo" style="font-size: 13px; font-weight: 700; color: rgb(15, 23, 42); min-width: 140px;"><span class="sc-interp">Salão de beleza</span></span>
+        <div data-dc-tpl="85" id="heroiPontos" style="display: flex; gap: 6px; padding: 6px 8px;">
+          
+            <button data-dc-tpl="87" aria-label="Salão de beleza" style="width: 24px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(37, 99, 235); transition: 0.3s;"></button>
+          
+            <button data-dc-tpl="87" aria-label="Barbearia" style="width: 8px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(203, 213, 225); transition: 0.3s;"></button>
+          
+            <button data-dc-tpl="87" aria-label="Estética" style="width: 8px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(203, 213, 225); transition: 0.3s;"></button>
+          
+            <button data-dc-tpl="87" aria-label="Clínica veterinária" style="width: 8px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(203, 213, 225); transition: 0.3s;"></button>
+          
+        </div>
+      </div>
+      </div>
+    </div>
+  </div></section><section data-dc-tpl="88" id="recursos" data-screen-label="Recursos" style="max-width: 1200px; margin: 0px auto; padding: 96px clamp(20px, 4vw, 32px) 64px; display: flex; flex-direction: column; gap: 44px;">
+  <div data-dc-tpl="89" style="display: flex; flex-direction: column; gap: 14px; max-width: 640px;">
+    <span data-dc-tpl="90" style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);">RECURSOS</span>
+    <h2 data-dc-tpl="91" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(32px, 3.6vw, 44px); line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance;">Tudo do seu salão em um lugar só</h2>
+    <p data-dc-tpl="92" style="margin: 0px; font-size: 17px; line-height: 1.6; color: rgb(71, 85, 105);">Do primeiro agendamento ao fechamento do caixa.</p>
+  </div>
+  <div data-dc-tpl="93" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 16px;">
+    
+      <div data-dc-tpl="95" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="96" style="width: 44px; height: 44px; border-radius: 12px; background: rgb(234, 241, 254); color: rgb(37, 99, 235); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"></path><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"></path></svg></span>
+        <span data-dc-tpl="97" style="font-weight: 700; font-size: 17px;"><span class="sc-interp">Link de agendamento</span></span>
+        <span data-dc-tpl="98" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116); text-wrap: pretty;"><span class="sc-interp">O cliente marca sozinho pelo link, a qualquer hora.</span></span>
+      </div>
+    
+      <div data-dc-tpl="95" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="96" style="width: 44px; height: 44px; border-radius: 12px; background: rgb(234, 241, 254); color: rgb(37, 99, 235); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18v15H3z"></path><path d="M8 2v4M16 2v4M3 10h18"></path></svg></span>
+        <span data-dc-tpl="97" style="font-weight: 700; font-size: 17px;"><span class="sc-interp">Agenda</span></span>
+        <span data-dc-tpl="98" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116); text-wrap: pretty;"><span class="sc-interp">Horários montados pela duração de cada serviço e pela sua jornada.</span></span>
+      </div>
+    
+      <div data-dc-tpl="95" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="96" style="width: 44px; height: 44px; border-radius: 12px; background: rgb(234, 241, 254); color: rgb(37, 99, 235); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"></path><path d="M8 9h8M8 13h8M8 17h5"></path></svg></span>
+        <span data-dc-tpl="97" style="font-weight: 700; font-size: 17px;"><span class="sc-interp">Comanda e caixa</span></span>
+        <span data-dc-tpl="98" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116); text-wrap: pretty;"><span class="sc-interp">Serviços e produtos na mesma comanda, com a taxa da maquininha descontada.</span></span>
+      </div>
+    
+      <div data-dc-tpl="95" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="96" style="width: 44px; height: 44px; border-radius: 12px; background: rgb(234, 241, 254); color: rgb(37, 99, 235); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><path d="M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path><path d="M22 20v-2a4 4 0 0 0-3-3.9"></path></svg></span>
+        <span data-dc-tpl="97" style="font-weight: 700; font-size: 17px;"><span class="sc-interp">Comissão por profissional</span></span>
+        <span data-dc-tpl="98" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116); text-wrap: pretty;"><span class="sc-interp">Sai do item, então uma cliente atendida por duas pessoas conta certo para as duas.</span></span>
+      </div>
+    
+      <div data-dc-tpl="95" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="96" style="width: 44px; height: 44px; border-radius: 12px; background: rgb(234, 241, 254); color: rgb(37, 99, 235); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg></span>
+        <span data-dc-tpl="97" style="font-weight: 700; font-size: 17px;"><span class="sc-interp">Relatórios</span></span>
+        <span data-dc-tpl="98" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116); text-wrap: pretty;"><span class="sc-interp">Faturamento, ticket médio e o que mais saiu. É o que decide preço e vitrine.</span></span>
+      </div>
+    
+      <div data-dc-tpl="95" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="96" style="width: 44px; height: 44px; border-radius: 12px; background: rgb(234, 241, 254); color: rgb(37, 99, 235); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v9H4v-9"></path><path d="M2 7h20v5H2z"></path><path d="M12 21V7"></path></svg></span>
+        <span data-dc-tpl="97" style="font-weight: 700; font-size: 17px;"><span class="sc-interp">Pacotes, cupons e aniversariantes</span></span>
+        <span data-dc-tpl="98" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116); text-wrap: pretty;"><span class="sc-interp">Ferramentas para trazer a cliente de volta.</span></span>
+      </div>
+    
+  </div></section><section data-dc-tpl="99" id="seu-link" data-screen-label="Com a cara do seu salão" style="padding: 24px 0px 96px; overflow: hidden;">
+  <div data-dc-tpl="100" style="max-width: 760px; margin: 0px auto; padding: 0px clamp(20px, 4vw, 32px); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px;">
+    <span data-dc-tpl="101" style="display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);"><span data-dc-tpl="102" style="width: 28px; height: 2px; background: rgb(37, 99, 235);"></span>COM A CARA DO SEU SALÃO</span>
+    <h2 data-dc-tpl="103" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(32px, 3.6vw, 46px); line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance;">Um link que parece seu, <span data-dc-tpl="104" style="background: linear-gradient(90deg, rgb(37, 99, 235), rgb(124, 58, 237)) text; color: transparent;">não de um sistema</span></h2>
+    <p data-dc-tpl="105" style="margin: 0px; font-size: 17px; line-height: 1.6; color: rgb(71, 85, 105); text-wrap: pretty;">Cores, logo, fotos dos serviços e até os produtos que você vende, numa página montada no AgendaPro.</p>
+  </div>
+  <div data-dc-tpl="106" id="anelCaixa" style="perspective: 1400px; height: 560px; display: flex; align-items: center; justify-content: center; margin-top: 24px;">
+    <div data-dc-tpl="107" id="anel" style="position: relative; width: 240px; height: 480px; transform-style: preserve-3d; will-change: transform; transition: transform 1.1s cubic-bezier(0.65, 0, 0.35, 1); transform: translateZ(-400px) rotateY(0deg);">
+        <div data-dc-tpl="108" style="position: absolute; inset: 0px; transform: rotateY(0deg) translateZ(400px); backface-visibility: hidden;">
+          <div data-dc-tpl="109" style="width: 100%; height: 100%; background: rgb(17, 24, 39); border-radius: 40px; padding: 10px; box-shadow: rgba(15, 23, 42, 0.55) 0px 30px 60px -30px, rgb(51, 65, 85) 0px 0px 0px 2px inset;">
+            <img width="480" height="825" loading="lazy" decoding="async" data-dc-tpl="110" src="lp/nova/link-boas-vindas.webp" alt="Boas-vindas e fotos" style="width: 100%; height: 100%; object-fit: cover; object-position: center top; border-radius: 31px; display: block; background: rgb(255, 248, 250);">
+          </div>
+        </div>
+        <div data-dc-tpl="111" style="position: absolute; inset: 0px; transform: rotateY(72deg) translateZ(400px); backface-visibility: hidden;">
+          <div data-dc-tpl="112" style="width: 100%; height: 100%; background: rgb(17, 24, 39); border-radius: 40px; padding: 10px; box-shadow: rgba(15, 23, 42, 0.55) 0px 30px 60px -30px, rgb(51, 65, 85) 0px 0px 0px 2px inset;">
+            <img width="480" height="825" loading="lazy" decoding="async" data-dc-tpl="113" src="lp/nova/link-servicos.webp" alt="Serviços com foto" style="width: 100%; height: 100%; object-fit: cover; object-position: center top; border-radius: 31px; display: block; background: rgb(255, 248, 250);">
+          </div>
+        </div>
+        <div data-dc-tpl="114" style="position: absolute; inset: 0px; transform: rotateY(144deg) translateZ(400px); backface-visibility: hidden;">
+          <div data-dc-tpl="115" style="width: 100%; height: 100%; background: rgb(17, 24, 39); border-radius: 40px; padding: 10px; box-shadow: rgba(15, 23, 42, 0.55) 0px 30px 60px -30px, rgb(51, 65, 85) 0px 0px 0px 2px inset;">
+            <img width="480" height="825" loading="lazy" decoding="async" data-dc-tpl="116" src="lp/nova/link-produtos.webp" alt="Vitrine de produtos" style="width: 100%; height: 100%; object-fit: cover; object-position: center top; border-radius: 31px; display: block; background: rgb(255, 248, 250);">
+          </div>
+        </div>
+        <div data-dc-tpl="117" style="position: absolute; inset: 0px; transform: rotateY(216deg) translateZ(400px); backface-visibility: hidden;">
+          <div data-dc-tpl="118" style="width: 100%; height: 100%; background: rgb(17, 24, 39); border-radius: 40px; padding: 10px; box-shadow: rgba(15, 23, 42, 0.55) 0px 30px 60px -30px, rgb(51, 65, 85) 0px 0px 0px 2px inset;">
+            <img width="600" height="1232" data-dc-tpl="119" src="lp/nova/nicho-salao.webp" alt="Página com a sua marca" style="width: 100%; height: 100%; object-fit: cover; object-position: center top; border-radius: 31px; display: block; background: rgb(255, 248, 250);">
+          </div>
+        </div>
+        <div data-dc-tpl="120" style="position: absolute; inset: 0px; transform: rotateY(288deg) translateZ(400px); backface-visibility: hidden;">
+          <div data-dc-tpl="121" style="width: 100%; height: 100%; background: rgb(17, 24, 39); border-radius: 40px; padding: 10px; box-shadow: rgba(15, 23, 42, 0.55) 0px 30px 60px -30px, rgb(51, 65, 85) 0px 0px 0px 2px inset;">
+            <img width="600" height="1221" loading="lazy" decoding="async" data-dc-tpl="122" src="lp/nova/nicho-barbearia.webp" alt="Barbearia" style="width: 100%; height: 100%; object-fit: cover; object-position: center top; border-radius: 31px; display: block; background: rgb(17, 17, 17);">
+          </div>
+        </div>
     </div>
   </div>
-
-  <!-- ABERTURA E DOR -->
-  <section class="lp-dia" id="dor">
-    <div class="lp-in">
-      <div data-revelar>
-        <p class="lp-olho">O dia a dia de quem atende</p>
-        <h2>Enquanto você atende, <em>o AgendaPro atende o celular</em></h2>
-        <p>Hoje, cada horário marcado custa uma conversa: <strong>"tem vaga amanhã?"</strong>,
-          "e às 15h?", "pode ser com a Carla?".</p>
-        <p>Com o AgendaPro você manda um link. A cliente vê só os horários livres, escolhe
-          e pronto — o WhatsApp confirma e lembra por você.</p>
-        <p>Você fica com tempo para quem está na cadeira. Ela ganha um jeito fácil de marcar,
-          até às 23h de um domingo.</p>
-      </div>
-      <div data-revelar>
-        <h3 style="margin-bottom:16px">Você se reconhece em algum destes?</h3>
-        <ul class="lp-dores">
-          <li>Atende com uma mão e responde "tem horário?" com a outra.</li>
-          <li>Responde mensagem às 23h, porque se demorar ela marca em outro lugar.</li>
-          <li>A cliente esquece, não avisa, e a cadeira fica vazia naquele horário.</li>
-          <li>A agenda está no caderno — ou na sua cabeça — e só você entende.</li>
-          <li>No fim do mês, a comissão da equipe sai na calculadora, com medo de errar.</li>
-        </ul>
-        <p class="lp-fecho">Não é falta de organização. É que salão cheio transforma o WhatsApp
-          num segundo emprego.</p>
-      </div>
+  <div data-dc-tpl="123" style="max-width: 420px; margin: 0px auto; padding: 0px 20px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; min-height: 120px;">
+    <span data-dc-tpl="124" id="anelTitulo" style="font-weight: 700; font-size: 22px;"><span class="sc-interp">Boas-vindas e fotos</span></span>
+    <span data-dc-tpl="125" id="anelTexto" style="font-size: 16px; line-height: 1.55; color: rgb(91, 100, 116);"><span class="sc-interp">O seu trabalho em destaque, logo na entrada.</span></span>
+    <div data-dc-tpl="126" id="anelPontos" style="display: flex; gap: 8px; margin-top: 6px;">
+      
+        <button data-dc-tpl="128" aria-label="Boas-vindas e fotos" style="width: 28px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(37, 99, 235); transition: 0.3s;"></button>
+      
+        <button data-dc-tpl="128" aria-label="Serviços com foto" style="width: 8px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(203, 213, 225); transition: 0.3s;"></button>
+      
+        <button data-dc-tpl="128" aria-label="Vitrine de produtos" style="width: 8px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(203, 213, 225); transition: 0.3s;"></button>
+      
+        <button data-dc-tpl="128" aria-label="Com a sua marca" style="width: 8px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(203, 213, 225); transition: 0.3s;"></button>
+      
+        <button data-dc-tpl="128" aria-label="Barbearia também" style="width: 8px; height: 8px; border-radius: 999px; border: none; padding: 0px; cursor: pointer; background: rgb(203, 213, 225); transition: 0.3s;"></button>
+      
     </div>
-  </section>
-
-  <!-- RECURSOS: cada um com a tela de verdade -->
-  <section id="recursos">
-    <div class="lp-in">
-      <div class="lp-cabeca" data-revelar>
-        <p class="lp-olho">Recursos</p>
-        <h2>Tudo o que o salão precisa, <em>num lugar só</em></h2>
-        <p class="lp-sub">Começa pela agenda e vai até o fechamento do mês. Todas as telas abaixo
-          são do sistema de verdade.</p>
+  </div></section><section data-dc-tpl="129" id="painel" data-screen-label="Painel" style="max-width: 1200px; margin: 0px auto; padding: 32px clamp(20px, 4vw, 32px) 96px;">
+  <div data-dc-tpl="130" style="background: rgb(15, 23, 42); border-radius: 32px; padding: clamp(28px, 5vw, 56px); display: flex; flex-direction: column; gap: 36px; position: relative; overflow: hidden;">
+    <div data-dc-tpl="131" style="position: absolute; right: -160px; top: -160px; width: 480px; height: 480px; border-radius: 50%; background: radial-gradient(circle, rgba(124, 58, 237, 0.35), rgba(124, 58, 237, 0) 70%); pointer-events: none;"></div>
+    <div data-dc-tpl="132" style="position: relative; display: flex; flex-wrap: wrap; gap: 20px 48px; align-items: flex-end; justify-content: space-between;">
+      <div data-dc-tpl="133" style="display: flex; flex-direction: column; gap: 14px; max-width: 560px;">
+        <span data-dc-tpl="134" style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(96, 165, 250);">O PAINEL</span>
+        <h2 data-dc-tpl="135" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.08; letter-spacing: -0.03em; color: rgb(255, 255, 255); text-wrap: balance;">Saiba quanto entrou, quanto saiu e quanto cada um vendeu</h2>
       </div>
-
-      <article class="lp-recurso" data-revelar>
-        <div class="lp-recurso-texto">
-          <span class="lp-num">01 — Agendamento online</span>
-          <h3>A cliente marca sozinha, a qualquer hora</h3>
-          <p>Você manda um link e ela escolhe serviço, profissional e horário — sem baixar
-            aplicativo e sem esperar você responder.</p>
-          <ul class="lp-lista">
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Só aparecem horários livres de verdade</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Respeita a jornada de cada um, o tempo de cada serviço e os bloqueios</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Link para a bio do Instagram e QR Code para o balcão</li>
-          </ul>
+      <p data-dc-tpl="136" style="margin: 0px; font-size: 16px; line-height: 1.6; color: rgb(203, 213, 225); max-width: 380px;">A taxa da maquininha vem junto: o salão recebe menos do que a cliente pagou, e sem isso o faturamento mente sobre o que cai na conta.</p>
+    </div>
+    <div data-dc-tpl="137" style="position: relative; background: rgb(248, 245, 238); border-radius: 20px; overflow: hidden; display: flex; flex-wrap: wrap; min-height: 380px; box-shadow: rgba(0, 0, 0, 0.6) 0px 40px 80px -40px;">
+      <div data-dc-tpl="138" style="flex: 1 0 210px; max-width: 100%; background: rgb(251, 249, 244); border-right: 1px solid rgb(231, 225, 212); padding: 20px 14px; display: flex; flex-direction: column; gap: 6px;">
+        <img width="700" height="157" data-dc-tpl="139" src="lp/nova/logo.webp" alt="AgendaPro" style="width: 150px; height: auto; margin: 0px 0px 14px 6px;">
+        <span data-dc-tpl="140" style="font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: rgb(100, 116, 139); padding: 0px 8px 4px;">DIA A DIA</span>
+        <span data-dc-tpl="141" style="padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: rgb(30, 41, 59);">Hoje</span>
+        <span data-dc-tpl="142" style="padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: rgb(30, 41, 59);">Agenda</span>
+        <span data-dc-tpl="143" style="padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: rgb(30, 41, 59);">Dashboard</span>
+        <span data-dc-tpl="144" style="padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 700; color: rgb(37, 99, 235); background: rgb(234, 241, 254);">Relatórios</span>
+        <span data-dc-tpl="145" style="padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: rgb(30, 41, 59);">Aniversariantes</span>
+        <span data-dc-tpl="146" style="font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: rgb(100, 116, 139); padding: 10px 8px 4px;">CADASTROS</span>
+        <span data-dc-tpl="147" style="padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: rgb(30, 41, 59);">Clientes</span>
+        <span data-dc-tpl="148" style="padding: 9px 10px; border-radius: 10px; font-size: 14px; font-weight: 500; color: rgb(30, 41, 59);">Serviços</span>
+      </div>
+      <div data-dc-tpl="149" style="flex: 999 1 320px; min-width: 0px; padding: 22px; display: flex; flex-direction: column; gap: 18px;">
+        <div data-dc-tpl="150" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <span data-dc-tpl="151" style="font-size: 18px; font-weight: 700;">Relatórios</span>
+          <span data-dc-tpl="152" style="font-size: 12px; font-weight: 600; color: rgb(29, 78, 216); background: rgb(234, 241, 254); border: 1px solid rgb(191, 211, 251); padding: 3px 10px; border-radius: 999px;">Salão Megatop</span>
         </div>
-        <div class="lp-quadro lp-quadro-cel">
-          <div class="lp-cel"><img src="lp/horarios.webp" width="600" height="1169" loading="lazy"
-               alt="A escolha do dia e do horário no link: os dias com vagas e só os horários livres"></div>
+        <div data-dc-tpl="153" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+          <div data-dc-tpl="154" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="155" style="font-size: 22px; font-weight: 700;">R$ 1.070,00</span><span data-dc-tpl="156" style="font-size: 12px; color: rgb(100, 116, 139);">faturamento</span><span data-dc-tpl="157" style="font-size: 12px; font-weight: 700; color: rgb(21, 128, 61);">▲ +2040%</span></div>
+          <div data-dc-tpl="158" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="159" style="font-size: 22px; font-weight: 700;">10</span><span data-dc-tpl="160" style="font-size: 12px; color: rgb(100, 116, 139);">atendimentos concluídos</span></div>
+          <div data-dc-tpl="161" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="162" style="font-size: 22px; font-weight: 700;">R$ 107,00</span><span data-dc-tpl="163" style="font-size: 12px; color: rgb(100, 116, 139);">ticket médio</span></div>
         </div>
-      </article>
-
-      <article class="lp-recurso lp-inverso" data-revelar>
-        <div class="lp-recurso-texto">
-          <span class="lp-num">02 — WhatsApp</span>
-          <h3>Confirmação e lembrete no WhatsApp, sem você digitar nada</h3>
-          <p>As mensagens saem pela API oficial da Meta, com o nome do seu salão no texto. Você não
-            precisa deixar o celular ligado.</p>
-          <ul class="lp-lista">
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Confirmação assim que a cliente marca</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Lembrete antes do horário — você escolhe com quantas horas</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Cada plano tem uma franquia de mensagens por mês</li>
-          </ul>
-        </div>
-        <div class="lp-quadro">
-          <div class="lp-conversa" role="img" aria-label="Exemplo da conversa no WhatsApp da cliente: a confirmação na hora em que ela marcou e o lembrete no dia">
-            <div class="lp-conversa-topo"><b><svg aria-hidden="true"><use href="#i-zap"/></svg></b>
-              <span>AgendaPro<small>conta comercial</small></span></div>
-            <div class="lp-conversa-corpo">
-              <span class="lp-dia-chip">Ontem</span>
-              <div class="lp-balao"><p>Olá, Maria! Seu agendamento foi confirmado.
-
-📅 Data: 17/10
-🕐 Horário: 09:30
-✂️ Serviço: Corte feminino
-👤 Profissional: Ju Barbosa
-🏪 Local: Salão Megatop
-
-Até breve!</p><small>21:47</small></div>
-              <span class="lp-dia-chip">Hoje</span>
-              <div class="lp-balao"><p>🔔 Olá, Maria! Passando para lembrar do seu horário.
-
-🕐 Horário: 09:30 · ✂️ Corte feminino
-🏪 Local: Salão Megatop
-
-Esperamos você!</p><small>07:30</small></div>
-            </div>
-          </div>
-          <span class="lp-legenda">Exemplo com o texto dos modelos de mensagem do AgendaPro</span>
-        </div>
-      </article>
-
-      <article class="lp-recurso" data-revelar>
-        <div class="lp-recurso-texto">
-          <span class="lp-num">03 — Equipe</span>
-          <h3>Cada profissional com a sua agenda</h3>
-          <p>Uma coluna para cada um, com jornada, almoço e bloqueios. Quem atende vê a própria
-            agenda — e só o que a função dela permite.</p>
-          <ul class="lp-lista">
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Dia, 3 dias, semana ou mês</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Marque pelo painel quem ainda prefere mandar mensagem</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Se quiser, aprove cada horário antes de confirmar</li>
-          </ul>
-        </div>
-        <div class="lp-quadro">
-          <div class="lp-janela">
-            <div class="lp-janela-barra" aria-hidden="true"><i></i><i></i><i></i><span>Agenda</span></div>
-            <img src="lp/painel-agenda.webp" width="1400" height="897" loading="lazy"
-                 alt="A agenda do dia no painel, com as colunas da Ana, da Bianca e da Carla">
+        <div data-dc-tpl="164" style="display: flex; flex-direction: column; gap: 8px;">
+          <span data-dc-tpl="165" style="font-size: 15px; font-weight: 700;">Comissão por profissional</span>
+          <div data-dc-tpl="166" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 14px; overflow: hidden; font-size: 13px;">
+            <div data-dc-tpl="167" style="display: grid; grid-template-columns: 2fr 1fr 1.4fr; padding: 10px 14px; border-bottom: 1px solid rgb(239, 234, 224); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: rgb(100, 116, 139);"><span data-dc-tpl="168">PROFISSIONAL</span><span data-dc-tpl="169" style="text-align: right;">ITENS</span><span data-dc-tpl="170" style="text-align: right;">VENDEU</span></div>
+            <div data-dc-tpl="171" style="display: grid; grid-template-columns: 2fr 1fr 1.4fr; padding: 12px 14px; border-bottom: 1px solid rgb(239, 234, 224);"><span data-dc-tpl="172">● Ana Souza</span><span data-dc-tpl="173" style="text-align: right;">11</span><span data-dc-tpl="174" style="text-align: right;">R$ 640,00</span></div>
+            <div data-dc-tpl="175" style="display: grid; grid-template-columns: 2fr 1fr 1.4fr; padding: 12px 14px;"><span data-dc-tpl="176">● Carla Lima</span><span data-dc-tpl="177" style="text-align: right;">7</span><span data-dc-tpl="178" style="text-align: right;">R$ 430,00</span></div>
           </div>
         </div>
-      </article>
-
-      <article class="lp-recurso lp-inverso" data-revelar>
-        <div class="lp-recurso-texto">
-          <span class="lp-num">04 — Clientes</span>
-          <h3>A ficha de cada cliente, sem caderno</h3>
-          <p>Telefone, visitas, faltas e observações — como alergias e preferências — num lugar só,
-            com o WhatsApp dela a um toque.</p>
-          <ul class="lp-lista">
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Quantas vezes veio e quantas faltou</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Aniversariantes do dia, da semana e do mês</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Busca por nome ou telefone</li>
-          </ul>
-        </div>
-        <div class="lp-quadro">
-          <div class="lp-janela">
-            <div class="lp-janela-barra" aria-hidden="true"><i></i><i></i><i></i><span>Clientes</span></div>
-            <img src="lp/painel-clientes.webp" width="1200" height="502" loading="lazy"
-                 alt="A lista de clientes no painel: telefone, última visita, número de visitas e de faltas, e o botão do WhatsApp">
-          </div>
-        </div>
-      </article>
-
-      <article class="lp-recurso" data-revelar>
-        <div class="lp-recurso-texto">
-          <span class="lp-num">05 — Caixa e relatórios</span>
-          <h3>Você sabe quanto entrou, sem planilha</h3>
-          <p>Caixa do dia, comandas, comissões e relatórios por período. Até a taxa da maquininha
-            entra na conta.</p>
-          <ul class="lp-lista">
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Faturamento e ticket médio, comparados com o período anterior</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Comissão de cada profissional, pronta para pagar</li>
-            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Pix, cartão e dinheiro separados, com o líquido de cada um</li>
-          </ul>
-        </div>
-        <div class="lp-quadro">
-          <div class="lp-janela">
-            <div class="lp-janela-barra" aria-hidden="true"><i></i><i></i><i></i><span>Relatórios</span></div>
-            <img src="lp/painel-relatorios.webp" width="1200" height="637" loading="lazy"
-                 alt="O relatório do mês: faturamento, comandas fechadas, ticket médio, comissões a pagar e a comissão de cada profissional">
-          </div>
-        </div>
-      </article>
-
-      <p class="lp-tambem" data-revelar><b>E também:</b>
-        <span>Pacotes de sessões</span><span>Cupons de desconto</span><span>Produtos à venda no link</span>
-        <span>Instala no celular como aplicativo</span></p>
-    </div>
-  </section>
-
-  <!-- PROVA: UM SALÃO DE VERDADE
-       ⚠ DEPOIMENTOS: entram aqui quando houver de verdade (nome, salão, cidade,
-       foto e um resultado específico, com autorização). Não inventar. -->
-  <section class="lp-veja" id="veja">
-    <div class="lp-in">
-      <div class="lp-cabeca lp-centro" data-revelar>
-        <p class="lp-olho">Com a cara do seu salão</p>
-        <h2>Um link que parece seu, <em>não de um sistema</em></h2>
-        <p class="lp-sub">Cores, logo, fotos dos serviços e até os produtos que você vende. Esta é a
-          página do Salão Megatop, de Itu (SP), montada no AgendaPro.</p>
-      </div>
-      <ul class="lp-galeria" data-revelar>
-        <li><figure>
-          <div class="lp-quadro lp-quadro-cel"><div class="lp-cel"><img src="lp/salao-galeria.webp" width="600" height="837" loading="lazy"
-               alt="A entrada da página do Salão Megatop: boas-vindas, os botões Agendar horário e Ver produtos, e a galeria de fotos"></div></div>
-          <figcaption><h3>Boas-vindas e fotos</h3><p>O seu trabalho em destaque, logo na entrada.</p></figcaption>
-        </figure></li>
-        <li><figure>
-          <div class="lp-quadro lp-quadro-cel"><div class="lp-cel"><img src="lp/salao-servicos.webp" width="600" height="1024" loading="lazy"
-               alt="Os serviços do Salão Megatop com foto e duração: hidratação, pedicure e coloração"></div></div>
-          <figcaption><h3>Serviços com foto</h3><p>Ela escolhe pelo que vê, com a duração de cada um.</p></figcaption>
-        </figure></li>
-        <li><figure>
-          <div class="lp-quadro lp-quadro-cel"><div class="lp-cel"><img src="lp/salao-produtos.webp" width="600" height="997" loading="lazy"
-               alt="Os produtos em destaque do Salão Megatop, com foto e preço"></div></div>
-          <figcaption><h3>Vitrine de produtos</h3><p>Seus produtos com preço, na mesma página.</p></figcaption>
-        </figure></li>
-      </ul>
-      <p class="lp-arraste" aria-hidden="true">Arraste para o lado →</p>
-      <div class="lp-demos">
-        <a class="lp-bt lp-bt-s" href="agendar.html?salao=studio-bella&amp;demo=1" target="_blank" rel="noopener">Testar como cliente</a>
-        <a class="lp-bt lp-bt-s" href="app.html?demo=1" target="_blank" rel="noopener">Ver o painel do salão</a>
-      </div>
-      <p class="lp-demos-nota">A demonstração abre com dados de exemplo — nada é marcado de verdade.</p>
-    </div>
-  </section>
-
-  <!-- COMO FUNCIONA -->
-  <section class="lp-como" id="como">
-    <div class="lp-in">
-      <div class="lp-cabeca" data-revelar>
-        <p class="lp-olho">Como funciona</p>
-        <h2>Do cadastro ao primeiro agendamento, <em>no mesmo dia</em></h2>
-      </div>
-      <ol class="lp-passos">
-        <li class="lp-passo" data-revelar>
-          <h3>Configure o seu salão</h3>
-          <p>No primeiro acesso, um passo a passo pergunta o que você faz, quanto cobra, seus
-            horários e quem atende.</p>
-        </li>
-        <li class="lp-passo" data-revelar>
-          <h3>Divulgue o seu link</h3>
-          <p>Na bio do Instagram, no status, no WhatsApp — e em QR Code para imprimir e colar no
-            espelho ou no balcão.</p>
-        </li>
-        <li class="lp-passo" data-revelar>
-          <h3>Acompanhe tudo num lugar só</h3>
-          <p>Os horários chegam na agenda, o WhatsApp confirma e lembra, e o caixa fecha o dia
-            com você.</p>
-        </li>
-      </ol>
-      <p class="lp-mecanismo" data-revelar><b>Ela só vê horário livre de verdade.</b> A agenda respeita a
-        jornada de cada profissional, o tempo de cada serviço, o intervalo entre um e outro e os
-        horários que você bloquear — nada de duas clientes no mesmo horário.</p>
-    </div>
-  </section>
-
-  <!-- A OFERTA (preços do banco; reserva no script) -->
-  <section class="lp-planos" id="planos">
-    <div class="lp-in">
-      <div class="lp-cabeca lp-centro" data-revelar>
-        <span class="lp-selo-teste"><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>
-          Todo plano começa com 7 dias grátis, sem cartão</span>
-        <h2>Escolha pelo tamanho <em>da sua equipe</em></h2>
-        <p class="lp-sub">O preço muda só pela quantidade de profissionais na agenda. Os recursos são os mesmos.</p>
-      </div>
-      <div class="lp-lista-planos" id="listaPlanos"></div>
-      <p class="lp-arraste" aria-hidden="true">Arraste para ver os outros planos →</p>
-      <p class="lp-cobranca">Cobrança mensal pelo Mercado Pago: Pix, cartão de crédito (renova sozinho)
-        ou boleto. Sem fidelidade e sem multa — você cancela quando quiser.</p>
-      <div class="lp-todos" data-revelar>
-        <h3>Em todos os planos pagos</h3>
-        <ul>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Link de agendamento e QR Code</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Agenda da equipe e bloqueios</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Caixa, comanda e comissões</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Relatórios e dashboard</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Ficha de clientes e aniversariantes</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Pacotes e cupons de desconto</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Produtos à venda no link</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Aparência do link do seu jeito</li>
-        </ul>
-      </div>
-      <p class="lp-menor" id="planosMenores">Começando agora? Tem também o <b>Básico</b>, sem mensagens no
-        WhatsApp, e o <b>Grátis</b>, com limite de agendamentos por mês.</p>
-
-      <div class="lp-conta" id="conta" data-revelar>
-        <div>
-          <h3>Quanto as faltas custam hoje?</h3>
-          <p>Faça a conta com os seus números. O lembrete não faz milagre — mas avisa a cliente
-            antes do horário, todas as vezes, sem você lembrar de lembrar.</p>
-        </div>
-        <div>
-          <div class="lp-conta-campos">
-            <label>Valor médio do serviço (R$)
-              <input id="contaValor" type="number" inputmode="numeric" min="0" step="5" value="80"></label>
-            <label>Faltas por mês
-              <input id="contaFaltas" type="number" inputmode="numeric" min="0" step="1" value="4"></label>
-          </div>
-          <p class="lp-conta-res" id="contaRes" aria-live="polite"></p>
-        </div>
       </div>
     </div>
-  </section>
-
-  <!-- PERGUNTAS FREQUENTES (as objeções de antes viraram perguntas) -->
-  <section class="lp-faq" id="duvidas">
-    <div class="lp-in">
-      <div class="lp-cabeca">
-        <p class="lp-olho">Dúvidas</p>
-        <h2>Perguntas <em>frequentes</em></h2>
-        <p class="lp-faq-contato">Não achou a sua? <a id="zapFaq" href="https://wa.me/5511963659620" target="_blank" rel="noopener">Fale com a gente no WhatsApp</a>.</p>
-      </div>
-      <div class="lp-faq-lista">
-        <details><summary>Para quem é o AgendaPro?</summary>
-          <p>Para quem atende com horário marcado: salão, barbearia, manicure, estética. Serve para quem
-            trabalha sozinho — o Essencial é para um profissional — e para equipes: quando o time
-            crescer, você muda de plano sem perder nada do que já cadastrou.</p></details>
-        <details><summary>A cliente precisa baixar algum aplicativo?</summary>
-          <p>Não. Ela abre o seu link no navegador do celular, escolhe o serviço e o horário e informa
-            nome e WhatsApp — sem baixar app e sem criar senha. Se quiser, pode criar uma conta para ver
-            os horários em qualquer aparelho. Quem prefere mandar mensagem continua mandando, e você
-            marca pelo painel em segundos.</p></details>
-        <details><summary>Como eu acesso o sistema?</summary>
-          <p>Pelo navegador, no celular ou no computador, com o seu e-mail e senha. No celular dá para
-            instalar na tela inicial e abrir como aplicativo.</p></details>
-        <details><summary>As mensagens saem do meu WhatsApp?</summary>
-          <p>Saem do WhatsApp do AgendaPro, pela API oficial da Meta, com o nome do seu salão no
-            texto. Você não precisa deixar o celular ligado nem mandar nada à mão. Cada plano tem
-            uma franquia de mensagens por mês.</p></details>
-        <details><summary>Quanto tempo leva para começar? E se eu não tiver tempo de configurar?</summary>
-          <p>Dá para começar hoje. No primeiro acesso, um passo a passo pergunta seus serviços, seus
-            horários e quem atende. No fim, você recebe o link pronto para mandar.</p></details>
-        <details><summary>Como funcionam os planos?</summary>
-          <p>O preço muda pela quantidade de profissionais na agenda; os recursos são os mesmos.
-            Todo plano começa com 7 dias grátis, sem cartão. Para quem está começando, há também o
-            Básico, sem mensagens no WhatsApp, e o Grátis, com limite de agendamentos por mês.</p></details>
-        <details><summary>Quais são as formas de pagamento?</summary>
-          <p>Pix, cartão de crédito (renova sozinho todo mês) ou boleto, pelo Mercado Pago. Sem
-            fidelidade e sem multa.</p></details>
-        <details><summary>E se eu não gostar?</summary>
-          <p>Você testa 7 dias sem colocar cartão. Se não fizer diferença no seu dia, é só não assinar —
-            não cobramos nada, porque nem pedimos cartão. Depois de assinar, não tem fidelidade nem
-            multa: cancela quando quiser.</p></details>
-        <details><summary>Meus dados e os das minhas clientes ficam seguros?</summary>
-          <p>Cada salão só enxerga os próprios dados, e quem trabalha com você só vê o que a função
-            dela permite. Se um dia quiser sair, você mesmo exclui a conta pelo painel.</p></details>
-        <details><summary>Como falo com o suporte?</summary>
-          <p>Direto pelo WhatsApp — de dentro do painel, pelo botão "Ajuda", ou pelo link
-            <a id="zapSuporte" href="https://wa.me/5511963659620" target="_blank" rel="noopener">Fale com a gente</a>.</p></details>
-      </div>
+  </div></section><section data-dc-tpl="179" id="agendamento" data-screen-label="Agendamento online" style="max-width: 1200px; margin: 0px auto; padding: 0px clamp(20px, 4vw, 32px) 96px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 56px; align-items: center;">
+  <div data-dc-tpl="180" style="display: flex; flex-direction: column; gap: 20px;">
+    <span data-dc-tpl="181" style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);">01 — AGENDAMENTO ONLINE</span>
+    <h2 data-dc-tpl="182" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance;">A cliente marca sozinha, a qualquer hora</h2>
+    <p data-dc-tpl="183" style="margin: 0px; font-size: 17px; line-height: 1.6; color: rgb(71, 85, 105); text-wrap: pretty;">Você manda um link e ela escolhe serviço, profissional e horário — sem baixar aplicativo e sem esperar você responder.</p>
+    <div data-dc-tpl="184" style="display: flex; flex-direction: column; gap: 14px; font-size: 16px; line-height: 1.5; color: rgb(30, 41, 59);">
+      <span data-dc-tpl="185" style="display: flex; gap: 12px;"><svg data-dc-tpl="186" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="187" d="m5 12 5 5 9-10"></path></svg>Só aparecem horários livres de verdade</span>
+      <span data-dc-tpl="188" style="display: flex; gap: 12px;"><svg data-dc-tpl="189" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="190" d="m5 12 5 5 9-10"></path></svg>Respeita a jornada de cada um, o tempo de cada serviço e os bloqueios</span>
+      <span data-dc-tpl="191" style="display: flex; gap: 12px;"><svg data-dc-tpl="192" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="193" d="m5 12 5 5 9-10"></path></svg>Link para a bio do Instagram e QR Code para o balcão</span>
     </div>
-  </section>
-
-  <!-- CHAMADA FINAL E P.S. -->
-  <section class="lp-final">
-    <div class="lp-in">
-      <div class="lp-final-bloco" data-revelar>
-        <h2><span class="lp-linha">Mais organização para o seu salão.</span> <em>Mais tranquilidade para você.</em></h2>
-        <p class="lp-sub">Crie sua agenda agora, mande o link no WhatsApp e veja a primeira marcação
-          chegar sem você responder nada.</p>
-        <div class="lp-acoes"><a class="lp-bt lp-bt-claro" href="criar.html" data-cta="final">Criar minha agenda grátis
-          <svg class="lp-i" aria-hidden="true"><use href="#i-seta"/></svg></a></div>
-        <ul class="lp-desarme">
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>7 dias grátis</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Sem cartão</li>
-          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Sem fidelidade</li>
-        </ul>
-        <p class="lp-ps"><b>P.S.:</b> Você não precisa decidir nada agora. São 7 dias para testar com
-          clientes de verdade, sem cartão. Se o AgendaPro não tirar trabalho do seu dia, é só não assinar.</p>
-      </div>
-    </div>
-  </section>
-</main>
-
-<footer class="lp-rodape">
-  <div class="lp-in">
-    <div class="lp-rodape-grade">
-      <div class="lp-rodape-marca">
-        <img src="icones/logotipo.svg" alt="AgendaPro Gestão" width="110" height="40" loading="lazy">
-        <p>Agenda online, WhatsApp, equipe, clientes, caixa e relatórios para salões, barbearias,
-          manicures e estética.</p>
-      </div>
-      <nav aria-label="A página">
-        <h2>A página</h2>
-        <ul>
-          <li><a href="#recursos">Recursos</a></li>
-          <li><a href="#veja">Um salão de verdade</a></li>
-          <li><a href="#como">Como funciona</a></li>
-          <li><a href="#planos">Planos</a></li>
-          <li><a href="#duvidas">Dúvidas</a></li>
-        </ul>
-      </nav>
-      <nav aria-label="Conta">
-        <h2>Conta</h2>
-        <ul>
-          <li><a href="entrar.html">Já sou cliente — Entrar</a></li>
-          <li><a href="criar.html" data-cta="rodape">Criar conta</a></li>
-        </ul>
-      </nav>
-      <nav aria-label="Suporte">
-        <h2>Suporte</h2>
-        <ul>
-          <li><a id="zapDuvida" href="https://wa.me/5511963659620" target="_blank" rel="noopener">Dúvidas? Fale no WhatsApp</a></li>
-        </ul>
-      </nav>
-    </div>
-    <p class="lp-direitos">AgendaPro · Todos os direitos reservados. Software protegido por direitos autorais
-      (Lei 9.610/98 e Lei 9.609/98). Reprodução, distribuição ou uso não autorizado são proibidos.</p>
   </div>
-</footer>
-
-<div class="lp-barra" id="barra" aria-hidden="true">
-  <a class="lp-bt lp-bt-p" href="criar.html" data-cta="barra" tabindex="-1">Testar 7 dias grátis</a>
-</div>
-
-<script src="config.js"></script>
+  <div data-dc-tpl="194" style="background: rgb(241, 236, 225); border-radius: 28px; padding: 32px 16px 0px; display: flex; justify-content: center; overflow: hidden; height: 520px;">
+    <div data-dc-tpl="195" style="width: 300px; flex-shrink: 0; background: rgb(17, 24, 39); border-radius: 44px 44px 0px 0px; padding: 10px 10px 0px;">
+      <div data-dc-tpl="196" style="background: rgb(255, 255, 255); border-radius: 36px 36px 0px 0px; height: 100%; padding: 18px 14px 0px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;">
+        <div data-dc-tpl="197" style="display: flex; align-items: center; gap: 10px;">
+          <span data-dc-tpl="198" style="width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgb(226, 232, 240); display: flex; align-items: center; justify-content: center; font-size: 12px; color: rgb(51, 65, 85);">‹</span>
+          <span data-dc-tpl="199" style="width: 32px; height: 32px; border-radius: 8px; background: rgb(15, 23, 42); color: rgb(255, 255, 255); font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;">SB</span>
+          <span data-dc-tpl="200" style="display: flex; flex-direction: column;"><span data-dc-tpl="201" style="font-size: 13px; font-weight: 700;">Studio Bella</span><span data-dc-tpl="202" style="font-size: 10px; color: rgb(100, 116, 139);">Salão de beleza</span></span>
+        </div>
+        <div data-dc-tpl="203" style="display: flex; gap: 4px;"><span data-dc-tpl="204" style="flex: 1 1 0%; height: 3px; border-radius: 2px; background: rgb(37, 99, 235);"></span><span data-dc-tpl="205" style="flex: 1 1 0%; height: 3px; border-radius: 2px; background: rgb(37, 99, 235);"></span><span data-dc-tpl="206" style="flex: 1 1 0%; height: 3px; border-radius: 2px; background: rgb(37, 99, 235);"></span><span data-dc-tpl="207" style="flex: 1 1 0%; height: 3px; border-radius: 2px; background: rgb(37, 99, 235);"></span><span data-dc-tpl="208" style="flex: 1 1 0%; height: 3px; border-radius: 2px; background: rgb(226, 232, 240);"></span></div>
+        <div data-dc-tpl="209" style="display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="210" style="font-size: 15px; font-weight: 700;">Quando fica bom?</span><span data-dc-tpl="211" style="font-size: 10.5px; color: rgb(71, 85, 105);">Corte feminino · qualquer profissional</span></div>
+        <div data-dc-tpl="212" style="border: 1px solid rgb(226, 232, 240); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 1px;"><span data-dc-tpl="213" style="font-size: 10px; font-weight: 700;">Agenda liberada até domingo, 15/11</span><span data-dc-tpl="214" style="font-size: 9px; color: rgb(100, 116, 139);">Mais horários abrem conforme os dias passam.</span></div>
+        <div data-dc-tpl="215" style="display: flex; gap: 5px;"><div data-dc-tpl="216" style="flex: 1 1 0%; min-width: 0px; border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(148, 163, 184); border-radius: 10px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 1px;"><span data-dc-tpl="217" style="font-size: 9px; opacity: 0.8;">Sex</span><span data-dc-tpl="218" style="font-size: 15px; font-weight: 700;">16</span><span data-dc-tpl="219" style="font-size: 7.5px; opacity: 0.8;">encerrado</span></div><div data-dc-tpl="220" style="flex: 1 1 0%; min-width: 0px; border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 10px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 1px;"><span data-dc-tpl="221" style="font-size: 9px; opacity: 0.8;">Sáb</span><span data-dc-tpl="222" style="font-size: 15px; font-weight: 700;">17</span><span data-dc-tpl="223" style="font-size: 7.5px; opacity: 0.8;">68 vagas</span></div><div data-dc-tpl="224" style="flex: 1 1 0%; min-width: 0px; border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(148, 163, 184); border-radius: 10px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 1px;"><span data-dc-tpl="225" style="font-size: 9px; opacity: 0.8;">Dom</span><span data-dc-tpl="226" style="font-size: 15px; font-weight: 700;">18</span><span data-dc-tpl="227" style="font-size: 7.5px; opacity: 0.8;">cheio</span></div><div data-dc-tpl="228" style="flex: 1 1 0%; min-width: 0px; border: 1px solid rgb(15, 23, 42); background: rgb(15, 23, 42); color: rgb(255, 255, 255); border-radius: 10px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 1px;"><span data-dc-tpl="229" style="font-size: 9px; opacity: 0.8;">Seg</span><span data-dc-tpl="230" style="font-size: 15px; font-weight: 700;">19</span><span data-dc-tpl="231" style="font-size: 7.5px; opacity: 0.8;">72 vagas</span></div><div data-dc-tpl="232" style="flex: 1 1 0%; min-width: 0px; border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 10px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 1px;"><span data-dc-tpl="233" style="font-size: 9px; opacity: 0.8;">Ter</span><span data-dc-tpl="234" style="font-size: 15px; font-weight: 700;">20</span><span data-dc-tpl="235" style="font-size: 7.5px; opacity: 0.8;">100 vagas</span></div></div>
+        <div data-dc-tpl="236" style="border: 1px solid rgb(147, 180, 245); background: rgb(239, 244, 255); border-radius: 10px; padding: 9px 10px; display: flex; flex-direction: column; gap: 1px;"><span data-dc-tpl="237" style="font-size: 10.5px; font-weight: 700;">Próximo horário disponível</span><span data-dc-tpl="238" style="font-size: 9.5px; color: rgb(71, 85, 105);">sábado, 17/10 às 09:00</span></div>
+        <span data-dc-tpl="239" style="font-size: 8.5px; font-weight: 700; letter-spacing: 0.12em; color: rgb(148, 163, 184);">MANHÃ</span>
+        <div data-dc-tpl="240" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;"><span data-dc-tpl="241" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">09:00</span><span data-dc-tpl="242" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">09:15</span><span data-dc-tpl="243" style="border: 1px solid rgb(15, 23, 42); background: rgb(15, 23, 42); color: rgb(255, 255, 255); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">09:30</span><span data-dc-tpl="244" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">09:45</span><span data-dc-tpl="245" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">10:00</span><span data-dc-tpl="246" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">10:15</span><span data-dc-tpl="247" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">10:30</span><span data-dc-tpl="248" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">10:45</span><span data-dc-tpl="249" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">11:00</span><span data-dc-tpl="250" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">11:15</span><span data-dc-tpl="251" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">11:30</span><span data-dc-tpl="252" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">11:45</span></div>
+        <span data-dc-tpl="253" style="font-size: 8.5px; font-weight: 700; letter-spacing: 0.12em; color: rgb(148, 163, 184);">TARDE</span>
+        <div data-dc-tpl="254" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;"><span data-dc-tpl="255" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">12:00</span><span data-dc-tpl="256" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">12:15</span><span data-dc-tpl="257" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">12:30</span><span data-dc-tpl="258" style="border: 1px solid rgb(226, 232, 240); background: rgb(255, 255, 255); color: rgb(15, 23, 42); border-radius: 8px; padding: 8px 0px; text-align: center; font-size: 10.5px; font-weight: 600;">12:45</span></div>
+      </div>
+    </div>
+  </div></section><section data-dc-tpl="259" id="whatsapp" data-screen-label="WhatsApp" style="max-width: 1200px; margin: 0px auto; padding: 0px clamp(20px, 4vw, 32px) 96px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 56px; align-items: center;">
+  <div data-dc-tpl="260" style="display: flex; flex-direction: column; gap: 20px;">
+    <span data-dc-tpl="261" style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);">02 — WHATSAPP</span>
+    <h2 data-dc-tpl="262" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance;">Confirmação e lembrete no WhatsApp, sem você digitar nada</h2>
+    <p data-dc-tpl="263" style="margin: 0px; font-size: 17px; line-height: 1.6; color: rgb(71, 85, 105); text-wrap: pretty;">As mensagens saem pela API oficial da Meta, com o nome do seu salão no texto. Você não precisa deixar o celular ligado.</p>
+    <div data-dc-tpl="264" style="display: flex; flex-direction: column; gap: 14px; font-size: 16px; line-height: 1.5; color: rgb(30, 41, 59);">
+      <span data-dc-tpl="265" style="display: flex; gap: 12px;"><svg data-dc-tpl="266" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="267" d="m5 12 5 5 9-10"></path></svg>Confirmação assim que a cliente marca</span>
+      <span data-dc-tpl="268" style="display: flex; gap: 12px;"><svg data-dc-tpl="269" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="270" d="m5 12 5 5 9-10"></path></svg>Lembrete antes do horário — você escolhe com quantas horas</span>
+      <span data-dc-tpl="271" style="display: flex; gap: 12px;"><svg data-dc-tpl="272" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="273" d="m5 12 5 5 9-10"></path></svg>Cada plano tem uma franquia de mensagens por mês</span>
+    </div>
+  </div>
+  <div data-dc-tpl="274" style="background: rgb(241, 236, 225); border-radius: 28px; padding: clamp(16px, 3vw, 32px);">
+    <div data-dc-tpl="275" style="max-width: 420px; margin: 0px auto; background: rgb(239, 233, 221); border-radius: 22px; overflow: hidden; box-shadow: rgba(15, 23, 42, 0.35) 0px 30px 60px -30px;">
+      <div data-dc-tpl="276" style="background: rgb(255, 255, 255); padding: 16px 20px; display: flex; align-items: center; gap: 14px;">
+        <span data-dc-tpl="277" style="width: 44px; height: 44px; border-radius: 50%; background: rgb(37, 211, 102); display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><svg data-dc-tpl="278" width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path data-dc-tpl="279" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.8s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.1 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1.1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.7-.1 1.3z"></path></svg></span>
+        <div data-dc-tpl="280" style="display: flex; flex-direction: column; gap: 2px;"><span data-dc-tpl="281" style="font-weight: 700; font-size: 17px;">AgendaPro</span><span data-dc-tpl="282" style="font-size: 13px; color: rgb(100, 116, 139);">conta comercial</span></div>
+      </div>
+      <div data-dc-tpl="283" style="padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+        <span data-dc-tpl="284" style="align-self: center; background: rgb(255, 255, 255); border-radius: 8px; padding: 4px 12px; font-size: 12px; color: rgb(71, 85, 105);">Ontem</span>
+        <div data-dc-tpl="285" style="background: rgb(255, 255, 255); border-radius: 4px 14px 14px; padding: 14px 16px 8px; max-width: 88%; display: flex; flex-direction: column; gap: 2px; font-size: 14.5px; line-height: 1.5; color: rgb(30, 41, 59);">
+          <span data-dc-tpl="286">Olá, Maria! Seu agendamento foi confirmado.</span>
+          <span data-dc-tpl="287" style="margin-top: 8px;">📅 Data: 17/10</span>
+          <span data-dc-tpl="288">🕘 Horário: 09:30</span>
+          <span data-dc-tpl="289">✂️ Serviço: Corte feminino</span>
+          <span data-dc-tpl="290">👤 Profissional: Ju Barbosa</span>
+          <span data-dc-tpl="291">🏬 Local: Salão Megatop</span>
+          <span data-dc-tpl="292" style="margin-top: 8px;">Até breve!</span>
+          <span data-dc-tpl="293" style="align-self: flex-end; font-size: 11px; color: rgb(148, 163, 184);">21:47</span>
+        </div>
+        <span data-dc-tpl="294" style="align-self: center; background: rgb(255, 255, 255); border-radius: 8px; padding: 4px 12px; font-size: 12px; color: rgb(71, 85, 105);">Hoje</span>
+        <div data-dc-tpl="295" style="background: rgb(255, 255, 255); border-radius: 4px 14px 14px; padding: 14px 16px 8px; max-width: 88%; display: flex; flex-direction: column; gap: 2px; font-size: 14.5px; line-height: 1.5; color: rgb(30, 41, 59);">
+          <span data-dc-tpl="296">⏰ Olá, Maria! Passando para lembrar do seu horário hoje às 09:30 no Salão Megatop.</span>
+          <span data-dc-tpl="297" style="align-self: flex-end; font-size: 11px; color: rgb(148, 163, 184);">07:30</span>
+        </div>
+      </div>
+    </div>
+  </div></section><section data-dc-tpl="298" id="equipe" data-screen-label="Equipe" style="max-width: 1200px; margin: 0px auto; padding: 0px clamp(20px, 4vw, 32px) 96px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 56px; align-items: center;">
+  <div data-dc-tpl="299" style="display: flex; flex-direction: column; gap: 20px;">
+    <span data-dc-tpl="300" style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);">03 — EQUIPE</span>
+    <h2 data-dc-tpl="301" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance;">Cada profissional com a sua agenda</h2>
+    <p data-dc-tpl="302" style="margin: 0px; font-size: 17px; line-height: 1.6; color: rgb(71, 85, 105); text-wrap: pretty;">Uma coluna para cada um, com jornada, almoço e bloqueios. Quem atende vê a própria agenda — e só o que a função dela permite.</p>
+    <div data-dc-tpl="303" style="display: flex; flex-direction: column; gap: 14px; font-size: 16px; line-height: 1.5; color: rgb(30, 41, 59);">
+      <span data-dc-tpl="304" style="display: flex; gap: 12px;"><svg data-dc-tpl="305" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="306" d="m5 12 5 5 9-10"></path></svg>Dia, 3 dias, semana ou mês</span>
+      <span data-dc-tpl="307" style="display: flex; gap: 12px;"><svg data-dc-tpl="308" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="309" d="m5 12 5 5 9-10"></path></svg>Marque pelo painel quem ainda prefere mandar mensagem</span>
+      <span data-dc-tpl="310" style="display: flex; gap: 12px;"><svg data-dc-tpl="311" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.4" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path data-dc-tpl="312" d="m5 12 5 5 9-10"></path></svg>Se quiser, aprove cada horário antes de confirmar</span>
+    </div>
+  </div>
+  <div data-dc-tpl="313" style="background: rgb(241, 236, 225); border-radius: 28px; padding: clamp(16px, 3vw, 32px);">
+    <div data-dc-tpl="314" style="background: rgb(255, 255, 255); border-radius: 16px; overflow: hidden; box-shadow: rgba(15, 23, 42, 0.35) 0px 30px 60px -30px;">
+      <div data-dc-tpl="315" style="display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: rgb(244, 241, 234); border-bottom: 1px solid rgb(231, 225, 212);"><span data-dc-tpl="316" style="width: 9px; height: 9px; border-radius: 50%; background: rgb(214, 208, 196);"></span><span data-dc-tpl="317" style="width: 9px; height: 9px; border-radius: 50%; background: rgb(214, 208, 196);"></span><span data-dc-tpl="318" style="width: 9px; height: 9px; border-radius: 50%; background: rgb(214, 208, 196);"></span><span data-dc-tpl="319" style="margin-left: 10px; background: rgb(255, 255, 255); border-radius: 6px; padding: 3px 12px; font-size: 11px; color: rgb(51, 65, 85);">Agenda</span></div>
+      <div data-dc-tpl="320" style="padding: 14px; display: flex; flex-direction: column; gap: 10px; background: rgb(251, 249, 244);">
+        <div data-dc-tpl="321" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+          <div data-dc-tpl="322" style="display: flex; gap: 4px; font-size: 10.5px; font-weight: 600;"><span data-dc-tpl="323" style="background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); color: rgb(37, 99, 235); border-radius: 6px; padding: 4px 8px;">Dia</span><span data-dc-tpl="324" style="padding: 4px 8px; color: rgb(71, 85, 105);">3 dias</span><span data-dc-tpl="325" style="padding: 4px 8px; color: rgb(71, 85, 105);">Semana</span><span data-dc-tpl="326" style="padding: 4px 8px; color: rgb(71, 85, 105);">Mês</span></div>
+          <span data-dc-tpl="327" style="background: rgb(37, 99, 235); color: rgb(255, 255, 255); border-radius: 6px; padding: 5px 10px; font-size: 10.5px; font-weight: 700;">+ Agendamento</span>
+        </div>
+        <span data-dc-tpl="328" style="font-size: 12px; font-weight: 700;">Sábado, 17/10/2026</span>
+        <div data-dc-tpl="329" style="display: grid; grid-template-columns: 44px repeat(3, minmax(0px, 1fr)); grid-template-rows: auto repeat(18, 20px); background: rgb(255, 255, 255); border: 1px solid rgb(231, 225, 212); border-radius: 10px; overflow: hidden;">
+          <div data-dc-tpl="330" style="grid-area: 1 / 2; text-align: center; display: flex; flex-direction: column; padding: 6px 0px; border-left: 1px solid rgb(239, 234, 224);"><span data-dc-tpl="331" style="font-size: 10.5px; font-weight: 700;">● Ana</span><span data-dc-tpl="332" style="font-size: 8.5px; color: rgb(148, 163, 184);">09:00–15:00</span></div><div data-dc-tpl="333" style="grid-area: 1 / 3; text-align: center; display: flex; flex-direction: column; padding: 6px 0px; border-left: 1px solid rgb(239, 234, 224);"><span data-dc-tpl="334" style="font-size: 10.5px; font-weight: 700;">● Bianca</span><span data-dc-tpl="335" style="font-size: 8.5px; color: rgb(148, 163, 184);">09:00–17:00</span></div><div data-dc-tpl="336" style="grid-area: 1 / 4; text-align: center; display: flex; flex-direction: column; padding: 6px 0px; border-left: 1px solid rgb(239, 234, 224);"><span data-dc-tpl="337" style="font-size: 10.5px; font-weight: 700;">● Carla</span><span data-dc-tpl="338" style="font-size: 8.5px; color: rgb(148, 163, 184);">09:00–15:00</span></div><span data-dc-tpl="339" style="grid-area: 2 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">08:00</span><span data-dc-tpl="340" style="grid-area: 2 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><span data-dc-tpl="341" style="grid-area: 4 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">09:00</span><span data-dc-tpl="342" style="grid-area: 4 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><span data-dc-tpl="343" style="grid-area: 6 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">10:00</span><span data-dc-tpl="344" style="grid-area: 6 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><span data-dc-tpl="345" style="grid-area: 8 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">11:00</span><span data-dc-tpl="346" style="grid-area: 8 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><span data-dc-tpl="347" style="grid-area: 10 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">12:00</span><span data-dc-tpl="348" style="grid-area: 10 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><span data-dc-tpl="349" style="grid-area: 12 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">13:00</span><span data-dc-tpl="350" style="grid-area: 12 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><span data-dc-tpl="351" style="grid-area: 14 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">14:00</span><span data-dc-tpl="352" style="grid-area: 14 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><span data-dc-tpl="353" style="grid-area: 16 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">15:00</span><span data-dc-tpl="354" style="grid-area: 16 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><span data-dc-tpl="355" style="grid-area: 18 / 1 / span 2; font-size: 9px; color: rgb(148, 163, 184); padding: 2px 6px; border-top: 1px solid rgb(239, 234, 224);">16:00</span><span data-dc-tpl="356" style="grid-area: 18 / 2 / span 2 / 5; border-top: 1px solid rgb(239, 234, 224);"></span><div data-dc-tpl="357" style="grid-area: 4 / 2 / 6; margin: 1px 3px; background: rgb(59, 106, 147); color: rgb(255, 255, 255); border-radius: 5px; padding: 4px 6px; display: flex; flex-direction: column; gap: 1px; overflow: hidden;"><span data-dc-tpl="358" style="font-size: 9.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">09:00 Maria Silva</span><span data-dc-tpl="359" style="font-size: 8.5px; opacity: 0.85;">Corte feminino</span></div><div data-dc-tpl="360" style="grid-area: 7 / 2 / 10; margin: 1px 3px; background: rgb(59, 106, 147); color: rgb(255, 255, 255); border-radius: 5px; padding: 4px 6px; display: flex; flex-direction: column; gap: 1px; overflow: hidden;"><span data-dc-tpl="361" style="font-size: 9.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">10:30 Joana Prado</span><span data-dc-tpl="362" style="font-size: 8.5px; opacity: 0.85;">Coloração</span></div><div data-dc-tpl="363" style="grid-area: 12 / 2 / 13; margin: 1px 3px; background: rgb(236, 234, 228); border-radius: 5px; padding: 3px 6px; font-size: 9px; color: rgb(100, 116, 139);">Almoço</div><div data-dc-tpl="364" style="grid-area: 14 / 2 / 15; margin: 1px 3px; background: rgb(59, 106, 147); color: rgb(255, 255, 255); border-radius: 5px; padding: 4px 6px; display: flex; flex-direction: column; gap: 1px; overflow: hidden;"><span data-dc-tpl="365" style="font-size: 9.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">14:00 Rita Nogueira</span><span data-dc-tpl="366" style="font-size: 8.5px; opacity: 0.85;">Escova</span></div><div data-dc-tpl="367" style="grid-area: 12 / 3 / 13; margin: 1px 3px; background: rgb(63, 127, 120); color: rgb(255, 255, 255); border-radius: 5px; padding: 4px 6px; display: flex; flex-direction: column; gap: 1px; overflow: hidden;"><span data-dc-tpl="368" style="font-size: 9.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">13:00 Joana Prado</span><span data-dc-tpl="369" style="font-size: 8.5px; opacity: 0.85;">Manicure</span></div><div data-dc-tpl="370" style="grid-area: 16 / 3 / 18; margin: 1px 3px; background: rgb(63, 127, 120); color: rgb(255, 255, 255); border-radius: 5px; padding: 4px 6px; display: flex; flex-direction: column; gap: 1px; overflow: hidden;"><span data-dc-tpl="371" style="font-size: 9.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">15:00 Rita Nogueira</span><span data-dc-tpl="372" style="font-size: 8.5px; opacity: 0.85;">Pedicure</span></div><div data-dc-tpl="373" style="grid-area: 4 / 4 / 10; margin: 1px 3px; background: rgb(79, 127, 90); color: rgb(255, 255, 255); border-radius: 5px; padding: 4px 6px; display: flex; flex-direction: column; gap: 1px; overflow: hidden;"><span data-dc-tpl="374" style="font-size: 9.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">09:00 Beatriz Antunes</span><span data-dc-tpl="375" style="font-size: 8.5px; opacity: 0.85;">Mechas</span></div><div data-dc-tpl="376" style="grid-area: 10 / 4 / 11; margin: 1px 3px; background: rgb(236, 234, 228); border-radius: 5px; padding: 3px 6px; font-size: 9px; color: rgb(100, 116, 139);">Almoço</div><div data-dc-tpl="377" style="grid-area: 14 / 4 / 15; margin: 1px 3px; background: rgb(79, 127, 90); color: rgb(255, 255, 255); border-radius: 5px; padding: 4px 6px; display: flex; flex-direction: column; gap: 1px; overflow: hidden;"><span data-dc-tpl="378" style="font-size: 9.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">14:00 Maria Silva</span><span data-dc-tpl="379" style="font-size: 8.5px; opacity: 0.85;"></span></div>
+        </div>
+      </div>
+    </div>
+  </div></section><section data-dc-tpl="380" id="como-funciona" data-screen-label="Como funciona" style="max-width: 1200px; margin: 0px auto; padding: 0px clamp(20px, 4vw, 32px) 96px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 40px; align-items: start;">
+  <div data-dc-tpl="381" style="display: flex; flex-direction: column; gap: 14px;">
+    <span data-dc-tpl="382" style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);">COMO FUNCIONA</span>
+    <h2 data-dc-tpl="383" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: 36px; line-height: 1.08; letter-spacing: -0.03em;">Pronto em 2 minutos</h2>
+    <p data-dc-tpl="384" style="margin: 0px; font-size: 15px; line-height: 1.6; color: rgb(91, 100, 116);">Crie a conta e o link de agendamento sai pronto.</p>
+  </div>
+  <div data-dc-tpl="385" style="display: flex; flex-direction: column; gap: 12px; border-top: 2px solid rgb(37, 99, 235); padding-top: 20px;">
+    <span data-dc-tpl="386" style="font-family: Montserrat, sans-serif; font-weight: 800; font-size: 15px; color: rgb(37, 99, 235);">01</span>
+    <span data-dc-tpl="387" style="font-weight: 700; font-size: 17px;">Cadastre seus serviços</span>
+    <span data-dc-tpl="388" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116);">Com duração e preço. É a duração que monta a agenda.</span>
+  </div>
+  <div data-dc-tpl="389" style="display: flex; flex-direction: column; gap: 12px; border-top: 2px solid rgb(37, 99, 235); padding-top: 20px;">
+    <span data-dc-tpl="390" style="font-family: Montserrat, sans-serif; font-weight: 800; font-size: 15px; color: rgb(37, 99, 235);">02</span>
+    <span data-dc-tpl="391" style="font-weight: 700; font-size: 17px;">Defina sua jornada</span>
+    <span data-dc-tpl="392" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116);">Que dias e horas você atende.</span>
+  </div>
+  <div data-dc-tpl="393" style="display: flex; flex-direction: column; gap: 12px; border-top: 2px solid rgb(124, 58, 237); padding-top: 20px;">
+    <span data-dc-tpl="394" style="font-family: Montserrat, sans-serif; font-weight: 800; font-size: 15px; color: rgb(124, 58, 237);">03</span>
+    <span data-dc-tpl="395" style="font-weight: 700; font-size: 17px;">Mande o link</span>
+    <span data-dc-tpl="396" style="font-size: 15px; line-height: 1.55; color: rgb(91, 100, 116);">Coloque na bio do Instagram, mande no WhatsApp, imprima como QR no espelho.</span>
+  </div></section><section data-dc-tpl="397" id="para-quem" data-screen-label="Para quem" style="background: rgb(241, 236, 225);">
+  <div data-dc-tpl="398" style="max-width: 1200px; margin: 0px auto; padding: 80px clamp(20px, 4vw, 32px); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 48px; align-items: center;">
+    <div data-dc-tpl="399" style="display: flex; flex-direction: column; gap: 22px;">
+      <span data-dc-tpl="400" style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);">PARA QUEM</span>
+      <h2 data-dc-tpl="401" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(30px, 3.4vw, 40px); line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance;">O sistema fala a língua do seu negócio</h2>
+      <p data-dc-tpl="402" style="margin: 0px; font-size: 16px; line-height: 1.6; color: rgb(91, 100, 116);">Barbearia diz "barbeiro", esmalteria diz "manicure".</p>
+      <div data-dc-tpl="403" style="display: flex; flex-wrap: wrap; gap: 10px;">
+        
+          <span data-dc-tpl="405" style="background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 600; color: rgb(30, 41, 59);"><span class="sc-interp">Salão de beleza</span></span>
+        
+          <span data-dc-tpl="405" style="background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 600; color: rgb(30, 41, 59);"><span class="sc-interp">Barbearia</span></span>
+        
+          <span data-dc-tpl="405" style="background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 600; color: rgb(30, 41, 59);"><span class="sc-interp">Manicure e pedicure</span></span>
+        
+          <span data-dc-tpl="405" style="background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 600; color: rgb(30, 41, 59);"><span class="sc-interp">Estética</span></span>
+        
+          <span data-dc-tpl="405" style="background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 600; color: rgb(30, 41, 59);"><span class="sc-interp">Clínica</span></span>
+        
+          <span data-dc-tpl="405" style="background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 600; color: rgb(30, 41, 59);"><span class="sc-interp">Estúdio de tatuagem</span></span>
+        
+          <span data-dc-tpl="405" style="background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 600; color: rgb(30, 41, 59);"><span class="sc-interp">Pet shop</span></span>
+        
+      </div>
+    </div>
+    <div data-dc-tpl="406" style="background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); border-radius: 24px; padding: 32px; display: flex; flex-direction: column; gap: 14px;">
+      <span data-dc-tpl="407" style="width: 48px; height: 48px; border-radius: 14px; background: rgb(15, 23, 42); display: flex; align-items: center; justify-content: center;"><svg data-dc-tpl="408" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2" stroke-linejoin="round"><path data-dc-tpl="409" d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3z"></path></svg></span>
+      <span data-dc-tpl="410" style="font-weight: 700; font-size: 20px;">Seus dados ficam com você</span>
+      <span data-dc-tpl="411" style="font-size: 16px; line-height: 1.6; color: rgb(91, 100, 116);">A agenda e a clientela são suas. Você sai quando quiser, sem multa e sem fidelidade — e, se quiser, exclui a conta pelo próprio painel.</span>
+    </div>
+  </div></section><section data-dc-tpl="412" id="planos" data-screen-label="Planos" style="max-width: 1200px; margin: 0px auto; padding: 96px clamp(20px, 4vw, 32px) 80px; display: flex; flex-direction: column; gap: 40px;">
+  <div data-dc-tpl="413" style="display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center;">
+    <span data-dc-tpl="414" style="font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);">PLANOS</span>
+    <h2 data-dc-tpl="415" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.08; letter-spacing: -0.03em; text-wrap: balance;">O preço muda pela quantidade de profissionais</h2>
+    <p data-dc-tpl="416" style="margin: 0px; font-size: 17px; line-height: 1.6; color: rgb(71, 85, 105); text-wrap: pretty;">Os recursos são os mesmos. Todo plano começa com 7 dias grátis, sem cartão.</p>
+  </div>
+  <div data-dc-tpl="417" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 14px;">
+    <div data-dc-tpl="418" style="background: rgb(255, 255, 255); color: rgb(15, 23, 42); border: 1px solid rgb(231, 225, 212); border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+      <span data-dc-tpl="419" style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: rgb(100, 116, 139);">PARA QUEM ATENDE SÓ</span>
+      <span data-dc-tpl="420" style="font-size: 20px; font-weight: 700; margin-top: -8px;">Essencial</span>
+      <span data-dc-tpl="421" style="display: flex; align-items: baseline; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid rgb(239, 234, 224);"><span data-dc-tpl="422" style="font-family: Montserrat, sans-serif; font-weight: 800; font-size: 34px; letter-spacing: -0.03em;">R$ 97</span><span data-dc-tpl="423" style="font-size: 13px; color: rgb(100, 116, 139);">/mês</span></span>
+      <div data-dc-tpl="424" style="display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.45; color: rgb(51, 65, 85); flex: 1 1 0%;"><span data-dc-tpl="425" style="display: flex; gap: 10px;"><svg data-dc-tpl="426" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="427" d="m5 12 5 5 9-10"></path></svg>1 profissional na agenda</span><span data-dc-tpl="428" style="display: flex; gap: 10px;"><svg data-dc-tpl="429" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="430" d="m5 12 5 5 9-10"></path></svg>500 mensagens no WhatsApp por mês</span><span data-dc-tpl="431" style="display: flex; gap: 10px;"><svg data-dc-tpl="432" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="433" d="m5 12 5 5 9-10"></path></svg>Até 500 clientes na ficha</span></div>
+      
+    </div>
+    <div data-dc-tpl="434" style="background: rgb(255, 255, 255); color: rgb(15, 23, 42); border: 1px solid rgb(231, 225, 212); border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+      <span data-dc-tpl="435" style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: rgb(100, 116, 139);">PARA DUAS PESSOAS</span>
+      <span data-dc-tpl="436" style="font-size: 20px; font-weight: 700; margin-top: -8px;">Dupla</span>
+      <span data-dc-tpl="437" style="display: flex; align-items: baseline; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid rgb(239, 234, 224);"><span data-dc-tpl="438" style="font-family: Montserrat, sans-serif; font-weight: 800; font-size: 34px; letter-spacing: -0.03em;">R$ 157</span><span data-dc-tpl="439" style="font-size: 13px; color: rgb(100, 116, 139);">/mês</span></span>
+      <div data-dc-tpl="440" style="display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.45; color: rgb(51, 65, 85); flex: 1 1 0%;"><span data-dc-tpl="441" style="display: flex; gap: 10px;"><svg data-dc-tpl="442" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="443" d="m5 12 5 5 9-10"></path></svg>Até 2 profissionais na agenda</span><span data-dc-tpl="444" style="display: flex; gap: 10px;"><svg data-dc-tpl="445" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="446" d="m5 12 5 5 9-10"></path></svg>800 mensagens no WhatsApp por mês</span><span data-dc-tpl="447" style="display: flex; gap: 10px;"><svg data-dc-tpl="448" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="449" d="m5 12 5 5 9-10"></path></svg>Até 1.000 clientes na ficha</span></div>
+      
+    </div>
+    <div data-dc-tpl="450" style="background: rgb(15, 23, 42); color: rgb(255, 255, 255); border: 1px solid rgb(15, 23, 42); border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+      <span data-dc-tpl="451" style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: rgb(147, 197, 253);">ATÉ 3 PESSOAS</span>
+      <span data-dc-tpl="452" style="font-size: 20px; font-weight: 700; margin-top: -8px;">Time</span>
+      <span data-dc-tpl="453" style="display: flex; align-items: baseline; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid rgb(51, 65, 85);"><span data-dc-tpl="454" style="font-family: Montserrat, sans-serif; font-weight: 800; font-size: 34px; letter-spacing: -0.03em;">R$ 197</span><span data-dc-tpl="455" style="font-size: 13px; color: rgb(148, 163, 184);">/mês</span></span>
+      <div data-dc-tpl="456" style="display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.45; color: rgb(203, 213, 225); flex: 1 1 0%;"><span data-dc-tpl="457" style="display: flex; gap: 10px;"><svg data-dc-tpl="458" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="459" d="m5 12 5 5 9-10"></path></svg>Até 3 profissionais na agenda</span><span data-dc-tpl="460" style="display: flex; gap: 10px;"><svg data-dc-tpl="461" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="462" d="m5 12 5 5 9-10"></path></svg>1.100 mensagens no WhatsApp por mês</span><span data-dc-tpl="463" style="display: flex; gap: 10px;"><svg data-dc-tpl="464" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="465" d="m5 12 5 5 9-10"></path></svg>Até 2.000 clientes na ficha</span></div>
+      
+    </div>
+    <div data-dc-tpl="466" style="background: rgb(255, 255, 255); color: rgb(15, 23, 42); border: 1px solid rgb(231, 225, 212); border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+      <span data-dc-tpl="467" style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: rgb(100, 116, 139);">ATÉ 6 PESSOAS</span>
+      <span data-dc-tpl="468" style="font-size: 20px; font-weight: 700; margin-top: -8px;">Equipe</span>
+      <span data-dc-tpl="469" style="display: flex; align-items: baseline; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid rgb(239, 234, 224);"><span data-dc-tpl="470" style="font-family: Montserrat, sans-serif; font-weight: 800; font-size: 34px; letter-spacing: -0.03em;">R$ 297</span><span data-dc-tpl="471" style="font-size: 13px; color: rgb(100, 116, 139);">/mês</span></span>
+      <div data-dc-tpl="472" style="display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.45; color: rgb(51, 65, 85); flex: 1 1 0%;"><span data-dc-tpl="473" style="display: flex; gap: 10px;"><svg data-dc-tpl="474" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="475" d="m5 12 5 5 9-10"></path></svg>Até 6 profissionais na agenda</span><span data-dc-tpl="476" style="display: flex; gap: 10px;"><svg data-dc-tpl="477" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="478" d="m5 12 5 5 9-10"></path></svg>2.000 mensagens no WhatsApp por mês</span><span data-dc-tpl="479" style="display: flex; gap: 10px;"><svg data-dc-tpl="480" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="481" d="m5 12 5 5 9-10"></path></svg>Até 3.500 clientes na ficha</span></div>
+      
+    </div>
+    <div data-dc-tpl="482" style="background: rgb(255, 255, 255); color: rgb(15, 23, 42); border: 1px solid rgb(231, 225, 212); border-radius: 20px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+      <span data-dc-tpl="483" style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: rgb(100, 116, 139);">ATÉ 12 PESSOAS</span>
+      <span data-dc-tpl="484" style="font-size: 20px; font-weight: 700; margin-top: -8px;">Salão</span>
+      <span data-dc-tpl="485" style="display: flex; align-items: baseline; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid rgb(239, 234, 224);"><span data-dc-tpl="486" style="font-family: Montserrat, sans-serif; font-weight: 800; font-size: 34px; letter-spacing: -0.03em;">R$ 497</span><span data-dc-tpl="487" style="font-size: 13px; color: rgb(100, 116, 139);">/mês</span></span>
+      <div data-dc-tpl="488" style="display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.45; color: rgb(51, 65, 85); flex: 1 1 0%;"><span data-dc-tpl="489" style="display: flex; gap: 10px;"><svg data-dc-tpl="490" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="491" d="m5 12 5 5 9-10"></path></svg>Até 12 profissionais na agenda</span><span data-dc-tpl="492" style="display: flex; gap: 10px;"><svg data-dc-tpl="493" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="494" d="m5 12 5 5 9-10"></path></svg>3.600 mensagens no WhatsApp por mês</span><span data-dc-tpl="495" style="display: flex; gap: 10px;"><svg data-dc-tpl="496" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2.6" stroke-linecap="round" style="flex-shrink: 0; margin-top: 3px;"><path data-dc-tpl="497" d="m5 12 5 5 9-10"></path></svg>Até 5.000 clientes na ficha</span></div>
+      
+    </div>
+  </div></section><section data-dc-tpl="498" id="duvidas" data-screen-label="Dúvidas" style="background: rgb(241, 236, 225);">
+  <div data-dc-tpl="499" style="max-width: 1200px; margin: 0px auto; padding: 88px clamp(20px, 4vw, 32px); display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-start;">
+    <div data-dc-tpl="500" style="display: flex; flex-direction: column; gap: 16px; flex: 1 1 300px;">
+      <span data-dc-tpl="501" style="display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; color: rgb(37, 99, 235);"><span data-dc-tpl="502" style="width: 28px; height: 2px; background: rgb(37, 99, 235);"></span>DÚVIDAS</span>
+      <h2 data-dc-tpl="503" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 800; font-size: clamp(34px, 4vw, 48px); line-height: 1.02; letter-spacing: -0.03em;">Perguntas <span data-dc-tpl="504" style="background: linear-gradient(90deg, rgb(37, 99, 235), rgb(124, 58, 237)) text; color: transparent;">frequentes</span></h2>
+      <p data-dc-tpl="505" style="margin: 0px; font-size: 16px; color: rgb(71, 85, 105);">Não achou a sua? <a data-dc-tpl="506" href="https://wa.me/5511963659620" id="zapDuvida" target="_blank" rel="noopener" style="font-weight: 700; text-decoration: underline;">Fale com a gente no WhatsApp</a>.</p>
+    </div>
+    <div data-dc-tpl="507" style="flex: 2 1 480px; min-width: 0px; display: flex; flex-direction: column; border-top: 1px solid rgb(217, 210, 195);">
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="true" aria-controls="faqR0" data-faq="0" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">Para quem é o AgendaPro?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">×</span></span>
+          </button><p id="faqR0" data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Para quem atende com horário marcado: salão, barbearia, manicure, estética. Serve para quem trabalha sozinho — o Essencial é para um profissional — e para equipes: quando o time crescer, você muda de plano sem perder nada do que já cadastrou.</span></p>
+          
+        </div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR1" data-faq="1" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">A cliente precisa baixar algum aplicativo?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR1" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Não. Ela abre o seu link no navegador do celular, escolhe o serviço e o horário e informa nome e WhatsApp — sem baixar app e sem criar senha. Se quiser, pode criar uma conta para ver os horários em qualquer aparelho. Quem prefere mandar mensagem continua mandando, e você marca pelo painel em segundos.</span></p></div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR2" data-faq="2" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">Como eu acesso o sistema?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR2" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Pelo navegador, no celular ou no computador, com o seu e-mail e senha. No celular dá para instalar na tela inicial e abrir como aplicativo.</span></p></div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR3" data-faq="3" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">As mensagens saem do meu WhatsApp?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR3" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Não. Elas saem pela API oficial da Meta, com o nome do seu salão no texto. Você não precisa deixar o celular ligado.</span></p></div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR4" data-faq="4" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">Quanto tempo leva para começar? E se eu não tiver tempo de configurar?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR4" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Dá para começar hoje. No primeiro acesso, um passo a passo pergunta seus serviços, seus horários e quem atende. No fim, você recebe o link pronto para mandar.</span></p></div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR5" data-faq="5" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">Como funcionam os planos?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR5" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">O preço muda pela quantidade de profissionais na agenda; os recursos são os mesmos. Todo plano começa com 7 dias grátis, sem cartão. Para quem está começando, há também o Básico, sem mensagens no WhatsApp, e o Grátis, com limite de agendamentos no mês.</span></p></div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR6" data-faq="6" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">Quais são as formas de pagamento?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR6" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Pix, cartão de crédito (renova sozinho todo mês) ou boleto, pelo Mercado Pago. Sem fidelidade e sem multa.</span></p></div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR7" data-faq="7" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">E se eu não gostar?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR7" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Você testa 7 dias sem colocar cartão. Se não fizer diferença no seu dia, é só não assinar — não cobramos nada, porque nem pedimos cartão. Depois de assinar, não tem fidelidade nem multa: cancela quando quiser.</span></p></div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR8" data-faq="8" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">Meus dados e os das minhas clientes ficam seguros?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR8" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Cada salão só enxerga os próprios dados, e quem trabalha com você só vê o que a função dela permite. Se um dia quiser sair, você mesmo exclui a conta pelo painel.</span></p></div>
+      
+        <div data-dc-tpl="509" style="border-bottom: 1px solid rgb(217, 210, 195);">
+          <button type="button" aria-expanded="false" aria-controls="faqR9" data-faq="9" data-dc-tpl="510" style="all: unset; color: rgb(15, 23, 42); font-size: 16px; font-weight: 700; align-items: center; box-sizing: border-box; gap: 16px; cursor: pointer; display: flex; justify-content: space-between; padding: 20px 0px; width: 100%;">
+            <span data-dc-tpl="511"><span class="sc-interp">Como falo com o suporte?</span></span>
+            <span data-dc-tpl="512" style="width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; background: rgb(255, 255, 255); border: 1px solid rgb(226, 220, 207); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 500; color: rgb(37, 99, 235);"><span class="sc-interp">+</span></span>
+          </button><p id="faqR9" hidden data-dc-tpl="514" style="margin: 0px; padding: 0px 48px 22px 0px; font-size: 15.5px; line-height: 1.65; color: rgb(71, 85, 105); text-wrap: pretty;"><span class="sc-interp">Pelo WhatsApp, no botão Ajuda dentro do painel.</span></p></div>
+      
+    </div>
+  </div></section><section data-dc-tpl="515" data-screen-label="CTA final" style="max-width: 1200px; margin: 0px auto; padding: 96px clamp(20px, 4vw, 32px);">
+  <div data-dc-tpl="516" style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 22px;">
+    <h2 data-dc-tpl="517" style="margin: 0px; font-family: Montserrat, sans-serif; font-weight: 900; font-size: clamp(34px, 4.4vw, 56px); line-height: 1.04; letter-spacing: -0.035em; max-width: 760px; text-wrap: balance;">Cadastre seu estabelecimento</h2>
+    <p data-dc-tpl="518" style="margin: 0px; font-size: 18px; line-height: 1.6; color: rgb(71, 85, 105); max-width: 520px;">Salão, barbearia, esmalteria ou estúdio. Leva dois minutos e o link de agendamento sai pronto.</p>
+    <a data-dc-tpl="519" href="criar.html" data-cta="botao" class="scp0" style="display: flex; align-items: center; gap: 10px; background: rgb(37, 99, 235); color: rgb(255, 255, 255); padding: 18px 32px; border-radius: 14px; font-weight: 700; font-size: 17px; box-shadow: rgba(37, 99, 235, 0.7) 0px 14px 30px -12px;">Criar conta grátis <span data-dc-tpl="520">→</span></a>
+    <span data-dc-tpl="521" style="font-size: 14px; color: rgb(100, 116, 139);">Grátis para começar · Sem cartão de crédito</span>
+  </div></section><footer data-dc-tpl="522" style="background: rgb(15, 23, 42); padding: 40px clamp(20px, 4vw, 32px); display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center;">
+  <img width="560" height="125" data-dc-tpl="523" src="lp/nova/logo-rodape.webp" alt="AgendaPro" style="height: 40px; width: auto; border-radius: 4px;">
+  <p data-dc-tpl="524" style="margin: 0px; max-width: 640px; font-size: 13px; line-height: 1.6; color: rgb(148, 163, 184);">AgendaPro · Todos os direitos reservados. Software protegido por direitos autorais (Lei 9.610/98 e Lei 9.609/98). Reprodução, distribuição ou uso não autorizado são proibidos.</p></footer></div></div></div>
 <script>
 (function(){
 'use strict';
 
 /* ── RASTREIO (opcional) ──────────────────────────────────────────────────
-   Preencha para ligar. Vazio, nada de fora é carregado. O clique em qualquer
-   botão de teste conta como "Lead" no Pixel e "generate_lead" no GA4. */
+   Preencha para ligar. Vazio, nada de fora é carregado. O clique em
+   "Criar conta grátis" conta como "Lead" no Pixel e "generate_lead" no GA4. */
 const RASTREIO = { pixelMeta: '', ga4: '' };
-
 if(RASTREIO.pixelMeta){
   !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
   if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
@@ -962,135 +680,88 @@ if(RASTREIO.ga4){
 /* ── OS BOTÕES LEVAM O ANÚNCIO JUNTO ──────────────────────────────────────
    utm_*, fbclid e gclid seguem para o criar.html, que preenche "Como você nos
    conheceu?" com a origem. Sem parâmetro nenhum, vai `origem=pagina`. */
-const veio = new URLSearchParams(location.search);
-const leva = new URLSearchParams();
-for(const [k, v] of veio){
-  if(/^(utm_[a-z]+|fbclid|gclid|origem)$/i.test(k) && v) leva.set(k, v.slice(0, 120));
-}
+const veio = new URLSearchParams(location.search), leva = new URLSearchParams();
+for(const [k, v] of veio) if(/^(utm_[a-z]+|fbclid|gclid|origem)$/i.test(k) && v) leva.set(k, v.slice(0, 120));
 if(!leva.has('origem')) leva.set('origem', 'pagina');
 const destino = 'criar.html?' + leva.toString();
 document.querySelectorAll('[data-cta]').forEach(a => {
   a.href = destino;
   a.addEventListener('click', () => {
-    try{ if(window.fbq) fbq('track', 'Lead', { content_name: a.dataset.cta }); }catch(e){}
-    try{ if(window.gtag) gtag('event', 'generate_lead', { botao: a.dataset.cta }); }catch(e){}
+    try{ if(window.fbq) fbq('track', 'Lead'); }catch(e){}
+    try{ if(window.gtag) gtag('event', 'generate_lead'); }catch(e){}
   });
 });
-const textoZap = '?text=' + encodeURIComponent('Olá! Vi a página do AgendaPro e tenho uma dúvida.');
-['zapDuvida', 'zapFaq', 'zapSuporte'].forEach(id => { const z = document.getElementById(id); if(z) z.href += textoZap; });
+const zap = document.getElementById('zapDuvida');
+if(zap) zap.href += '?text=' + encodeURIComponent('Olá! Vi a página do AgendaPro e tenho uma dúvida.');
 
-/* ── OS PLANOS ────────────────────────────────────────────────────────────
-   Reserva: os preços de hoje. O banco responde por cima (a tabela `planos`
-   é legível sem login), e assim mudar preço no Supabase muda aqui também —
-   sem ninguém precisar lembrar de editar esta página. Nenhum plano leva
-   selo de "recomendado": não temos número que diga qual é o mais escolhido. */
-const real = n => 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number(n) % 1 ? 2 : 0, maximumFractionDigits: 2 });
-const limpo = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
-const RESERVA = [
-  { codigo:'individual', nome:'Essencial', preco:97,  prof:1,  msgs:500,  clientes:500 },
-  { codigo:'duo',        nome:'Dupla',     preco:157, prof:2,  msgs:800,  clientes:1000 },
-  { codigo:'time',       nome:'Time',      preco:197, prof:3,  msgs:1100, clientes:2000 },
-  { codigo:'equipe',     nome:'Equipe',    preco:297, prof:6,  msgs:2000, clientes:3500 },
-  { codigo:'salao',      nome:'Salão',     preco:497, prof:12, msgs:3600, clientes:5000 },
-];
-let menores = { basico: 49.9, gratisAgendamentos: 20 };
-const QUEM = { 1:'Para quem atende só', 2:'Para duas pessoas', 3:'Até 3 pessoas', 6:'Até 6 pessoas', 12:'Até 12 pessoas' };
-const VISTO = '<svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>';
+/* ── OS CARROSSÉIS E AS PERGUNTAS ─────────────────────────────────────────
+   O que o código da ferramenta fazia, em JavaScript simples: o celular do
+   topo vira a cada 4 s entre os tipos de negócio, a roda de telas gira a
+   cada 3,2 s (para quando o mouse está em cima) e as perguntas abrem e
+   fecham. Com "reduzir movimento", nada gira sozinho — os pontinhos seguem. */
+const D = {"nichos": [{"src": "lp/nova/nicho-salao.webp", "label": "Salão de beleza", "notif": "Corte feminino · 14:30", "client": "Maria", "time": "14:30", "service": "Corte feminino", "pro": "Ju Barbosa", "place": "Bella Essência"}, {"src": "lp/nova/nicho-barbearia.webp", "label": "Barbearia", "notif": "Corte + barba · 16:00", "client": "Rafael", "time": "16:00", "service": "Corte + barba", "pro": "Diego", "place": "Barbearia Elite"}, {"src": "lp/nova/nicho-estetica.webp", "label": "Estética", "notif": "Limpeza de pele · 10:00", "client": "Camila", "time": "10:00", "service": "Limpeza de pele", "pro": "Paula", "place": "Bella Vita Estética"}, {"src": "lp/nova/nicho-veterinaria.webp", "label": "Clínica veterinária", "notif": "Consulta · 11:30", "client": "Lucas", "time": "11:30", "service": "Consulta veterinária", "pro": "Dra. Renata", "place": "VidaPet"}], "caps": [{"title": "Boas-vindas e fotos", "desc": "O seu trabalho em destaque, logo na entrada."}, {"title": "Serviços com foto", "desc": "Ela escolhe pelo que vê, com a duração de cada um."}, {"title": "Vitrine de produtos", "desc": "Seus produtos com preço, na mesma página."}, {"title": "Com a sua marca", "desc": "Cores, logo e fotos do seu salão."}, {"title": "Barbearia também", "desc": "O mesmo sistema, com a cara da barbearia."}]};
+const $ = id => document.getElementById(id);
+const q = s => document.querySelector(s);
+const reduz = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const pontos = (caixa, ativo, largura) => [...caixa.querySelectorAll('button')].forEach((b, i) => {
+  b.style.width = i === ativo ? largura : '8px';
+  b.style.background = i === ativo ? '#2563EB' : '#CBD5E1';
+  b.setAttribute('aria-pressed', i === ativo ? 'true' : 'false');
+});
+const texto = (sel, v) => { const el = q(sel); if(el) el.textContent = v; };
 
-function desenharPlanos(lista){
-  const alvo = document.getElementById('listaPlanos');
-  alvo.innerHTML = lista.map(p => `
-    <div class="lp-plano">
-      <span class="lp-plano-quem">${QUEM[p.prof] || ('Até ' + p.prof + ' pessoas')}</span>
-      <h3>${limpo(p.nome)}</h3>
-      <div class="lp-preco">${real(p.preco)}<small> /mês</small></div>
-      <ul>
-        <li>${VISTO}<span>${p.prof === 1 ? '1 profissional' : 'Até ' + p.prof + ' profissionais'} na agenda</span></li>
-        <li>${VISTO}<span>${Number(p.msgs).toLocaleString('pt-BR')} mensagens no WhatsApp por mês</span></li>
-        <li>${VISTO}<span>Até ${Number(p.clientes).toLocaleString('pt-BR')} clientes na ficha</span></li>
-      </ul>
-      <a class="lp-bt lp-bt-p" href="${destino}" data-plano="${limpo(p.codigo)}">Testar grátis</a>
-    </div>`).join('');
-  document.getElementById('planosMenores').innerHTML =
-    `Começando agora? Tem também o <b>Básico</b>, por ${real(menores.basico)}/mês sem mensagens no
-     WhatsApp, e o <b>Grátis</b>, com até ${menores.gratisAgendamentos} agendamentos por mês.`;
-  alvo.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
-    try{ if(window.fbq) fbq('track', 'Lead', { content_name: 'plano-' + a.dataset.plano }); }catch(e){}
-  }));
-  contar();
+// O celular do topo
+let k = 0;
+function pintarHeroi(){
+  const N = D.nichos.length, cur = D.nichos[k % N], nxt = D.nichos[(k + 1) % N];
+  const A = k % 2 === 0 ? cur : nxt, B = k % 2 === 1 ? cur : nxt;
+  $('heroiFrente').src = A.src; $('heroiFrente').alt = A.label;
+  $('heroiVerso').src = B.src; $('heroiVerso').alt = B.label;
+  $('heroiGiro').style.transform = 'rotateY(' + (-180 * k) + 'deg)';
+  texto('#heroiRotulo .sc-interp', cur.label);
+  texto('#heroiAviso .sc-interp', cur.notif);
+  texto('[data-dc-tpl="67"] .sc-interp', cur.client);
+  texto('[data-dc-tpl="70"] .sc-interp', cur.time);
+  texto('[data-dc-tpl="71"] .sc-interp', cur.service);
+  texto('[data-dc-tpl="72"] .sc-interp', cur.pro);
+  texto('[data-dc-tpl="73"] .sc-interp', cur.place);
+  pontos($('heroiPontos'), k % N, '24px');
 }
-desenharPlanos(RESERVA);
+$('heroiGiro').style.transition = 'transform 1.3s cubic-bezier(.65,0,.35,1)';
+$('heroiPontos').querySelectorAll('button').forEach((b, i) => b.addEventListener('click', () => {
+  const N = D.nichos.length; k += ((i - (k % N)) + N) % N; pintarHeroi();
+}));
+// As imagens dos outros tipos já ficam baixadas: virar não espera a rede.
+D.nichos.forEach(n => { const im = new Image(); im.src = n.src; });
 
-(async function lerDoBanco(){
-  const cfg = window.AGENDAPRO || {};
-  if(!cfg.url || !cfg.chave) return;
-  try{
-    const r = await fetch(cfg.url.replace(/\/+$/, '') + '/rest/v1/planos?select=codigo,nome,preco_mes,max_profissionais,recursos,ordem&ativo=eq.true&order=ordem',
-      { headers: { apikey: cfg.chave } });
-    if(!r.ok) return;
-    const linhas = await r.json();
-    const pagos = linhas.filter(l => Number(l.preco_mes) > 0 && (l.recursos || {}).lembrete_whatsapp)
-      .map(l => ({ codigo: l.codigo, nome: l.nome, preco: Number(l.preco_mes), prof: Number(l.max_profissionais),
-                   msgs: Number((l.recursos || {}).mensagens_mes || 0), clientes: Number((l.recursos || {}).max_clientes || 0) }))
-      .filter(l => l.msgs > 0 && l.clientes > 0)
-      .sort((a, b) => a.prof - b.prof);
-    const basico = linhas.find(l => l.codigo === 'basico');
-    const gratis = linhas.find(l => l.codigo === 'gratuito');
-    if(basico) menores.basico = Number(basico.preco_mes);
-    if(gratis && (gratis.recursos || {}).agendamentos_mes) menores.gratisAgendamentos = Number(gratis.recursos.agendamentos_mes);
-    if(pagos.length) desenharPlanos(pagos);
-  }catch(e){ /* fica a reserva */ }
-})();
-
-/* ── A CONTA DAS FALTAS ─────────────────────────────────────────────────── */
-function contar(){
-  const v = Math.max(0, Number(document.getElementById('contaValor').value) || 0);
-  const f = Math.max(0, Number(document.getElementById('contaFaltas').value) || 0);
-  const perde = v * f;
-  const essencial = (document.querySelector('.lp-plano .lp-preco') || {}).textContent || '';
-  document.getElementById('contaRes').innerHTML = perde > 0
-    ? `<strong>${real(perde)} por mês</strong> ficam na mesa com a cadeira vazia.
-       ${essencial ? `O Essencial custa ${essencial.replace(/\s*\/mês.*/, '')} por mês.` : ''}`
-    : 'Sem faltas? Então o lembrete é só cortesia — e o link continua enchendo a agenda.';
+// A roda de telas
+let passo = 0, parado = false;
+function pintarAnel(){
+  const M = D.caps.length, i = ((passo % M) + M) % M;
+  $('anel').style.transform = 'translateZ(-400px) rotateY(' + (-72 * passo) + 'deg)';
+  texto('#anelTitulo .sc-interp', D.caps[i].title);
+  texto('#anelTexto .sc-interp', D.caps[i].desc);
+  pontos($('anelPontos'), i, '28px');
 }
-['contaValor', 'contaFaltas'].forEach(id => document.getElementById(id).addEventListener('input', contar));
+$('anel').style.transition = 'transform 1.1s cubic-bezier(.65,0,.35,1)';
+$('anelPontos').querySelectorAll('button').forEach((b, i) => b.addEventListener('click', () => {
+  const M = D.caps.length, agora = ((passo % M) + M) % M; passo += ((i - agora) % M + M) % M; pintarAnel();
+}));
+$('anelCaixa').addEventListener('mouseenter', () => { parado = true; });
+$('anelCaixa').addEventListener('mouseleave', () => { parado = false; });
 
-/* ── O TOPO E O MENU DO CELULAR ─────────────────────────────────────────── */
-const topo = document.getElementById('topo');
-const marcarRolagem = () => topo.classList.toggle('rolou', window.scrollY > 8);
-window.addEventListener('scroll', marcarRolagem, { passive: true }); marcarRolagem();
-
-const menuBt = document.getElementById('menuBt'), menu = document.getElementById('menuCel');
-function abrirMenu(abre){
-  menu.hidden = !abre;
-  menuBt.setAttribute('aria-expanded', abre ? 'true' : 'false');
-  menuBt.setAttribute('aria-label', abre ? 'Fechar o menu' : 'Abrir o menu');
-}
-menuBt.addEventListener('click', () => abrirMenu(menu.hidden));
-menu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => abrirMenu(false)));
-document.addEventListener('keydown', e => { if(e.key === 'Escape' && !menu.hidden){ abrirMenu(false); menuBt.focus(); } });
-document.addEventListener('click', e => { if(!menu.hidden && !topo.contains(e.target)) abrirMenu(false); });
-if(window.matchMedia) matchMedia('(min-width: 900px)').addEventListener('change', e => { if(e.matches) abrirMenu(false); });
-
-/* ── AS ENTRADAS SUAVES ─────────────────────────────────────────────────── */
-if(document.documentElement.classList.contains('lp-anima')){
-  const olho = new IntersectionObserver(itens => itens.forEach(i => {
-    if(i.isIntersecting){ i.target.classList.add('visto'); olho.unobserve(i.target); }
-  }), { rootMargin: '0px 0px -8% 0px' });
-  document.querySelectorAll('[data-revelar]').forEach(el => olho.observe(el));
+if(!reduz){
+  setInterval(() => { if(!document.hidden && !parado){ passo++; pintarAnel(); } }, 3200);
+  setInterval(() => { if(!document.hidden){ k++; pintarHeroi(); } }, 4000);
 }
 
-/* ── A BARRA DO CELULAR ─────────────────────────────────────────────────── */
-const barra = document.getElementById('barra');
-const heroi = document.getElementById('ctaHeroi');
-if('IntersectionObserver' in window && barra && heroi){
-  new IntersectionObserver(([e]) => {
-    const mostra = !e.isIntersecting && e.boundingClientRect.top < 0;
-    barra.classList.toggle('on', mostra);
-    barra.setAttribute('aria-hidden', mostra ? 'false' : 'true');
-    barra.querySelector('a').tabIndex = mostra ? 0 : -1;
-  }).observe(heroi);
-}
+// As perguntas
+document.querySelectorAll('[data-faq]').forEach(b => b.addEventListener('click', () => {
+  const r = $('faqR' + b.dataset.faq), abre = r.hidden;
+  r.hidden = !abre;
+  b.setAttribute('aria-expanded', abre ? 'true' : 'false');
+  const ic = b.querySelector('[data-dc-tpl="512"] .sc-interp'); if(ic) ic.textContent = abre ? '×' : '+';
+}));
 })();
 </script>
 </body>

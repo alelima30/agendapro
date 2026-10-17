@@ -1,7 +1,8 @@
-Manrope — Copyright 2019 The Manrope Project Authors (https://github.com/sharanda/manrope)
-DM Serif Display — Copyright 2014-2017 Adobe Systems Incorporated; Copyright 2019 Google LLC
+Montserrat — Copyright 2011 The Montserrat Project Authors (https://github.com/JulietaUla/Montserrat)
+Plus Jakarta Sans — Copyright 2020 The Plus Jakarta Sans Project Authors (https://github.com/tokotype/PlusJakartaSans)
 
-As duas sob a SIL Open Font License 1.1 (texto completo abaixo). Arquivos do Fontsource, só o subconjunto latino.
+As duas sob a SIL Open Font License 1.1 (texto completo abaixo). Só os subconjuntos latino e latino
+estendido, tirados do arquivo exportado pela ferramenta de design da página.
 
 PREAMBLE
 The goals of the Open Font License (OFL) are to stimulate worldwide
