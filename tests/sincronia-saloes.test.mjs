@@ -112,9 +112,30 @@ await p.goto(BANCADA + '/app.html');
 await p.waitForFunction(() => typeof bd !== 'undefined' && bd && bd.saloes && salaoAtual, null, { timeout: 15000 });
 await p.waitForTimeout(800);
 
+// Qual das duas abre primeiro depende da ordem em que o banco devolve os
+// salões — não é escolha da tela. O teste vai para a Casa B pelo seletor
+// (como a dona faria), confere que ela chega COM os dados dela, e volta à A.
 const onde = await p.evaluate(() => ({ nome: (acharSalao(salaoAtual) || {}).nome, saloes: bd.saloes.length }));
-diz(onde.nome === 'Casa A' && onde.saloes === 2, 'o painel abriu na Casa A, com as duas casas no seletor', JSON.stringify(onde));
-diz(daCasaB() === antes, 'só abrir o painel na Casa A não tirou nada da Casa B', 'ficou ' + daCasaB());
+diz(onde.saloes === 2, 'o painel abriu com as duas casas no seletor', JSON.stringify(onde));
+diz(daCasaB() === antes, 'só abrir o painel não tirou nada da Casa B', 'ficou ' + daCasaB());
+
+const naCasa = async id => {
+  await p.selectOption('#selSalao', id);
+  await p.waitForFunction(id => salaoAtual === id
+    && bd.profissionais.length && bd.profissionais.every(x => x.salaoId === id), id, { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(400);
+  return p.evaluate(() => ({ nome: (acharSalao(salaoAtual) || {}).nome,
+    profs: bd.profissionais.filter(x => x.salaoId === salaoAtual).length,
+    jornadaDaPrimeira: Object.keys((bd.profissionais[0] || {}).jornada || {}).length,
+    comandas: (bd.comandas || []).length }));
+};
+const emB = await naCasa(casaB);
+diz(emB.nome === 'Casa B' && emB.profs === 1 && emB.jornadaDaPrimeira === 5 && emB.comandas === 1,
+    'trocar para a Casa B no seletor traz a equipe, a jornada e a comanda DELA (antes: vazia)', JSON.stringify(emB));
+const emA = await naCasa(casaA);
+diz(emA.nome === 'Casa A' && emA.profs === 1 && emA.comandas === 0,
+    'e voltar para a Casa A traz a dela, sem a comanda da B', JSON.stringify(emA));
+diz(daCasaB() === antes, 'ir e voltar não tirou nada da Casa B', 'ficou ' + daCasaB());
 
 const doRetrato = await p.evaluate(() => {
   const casa = salaoAtual;

@@ -118,6 +118,11 @@ select.plano{
 }
 .acao:hover{border-color:rgba(37,99,235,.5);color:#E8EEF7}
 .acao.perigo:hover{border-color:rgba(251,113,133,.55);color:#FB7185}
+a.acao{text-decoration:none;display:inline-block}
+.acoes{display:flex;gap:6px;flex-wrap:wrap;min-width:220px}
+.contato{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px}
+.contato a{color:#4ADE80;font-weight:600;text-decoration:none}
+.contato a:hover{text-decoration:underline}
 
 .recado{
   padding:15px 18px;border-radius:10px;background:#1B2740;
@@ -219,8 +224,15 @@ async function carregar(){
   }
 
   try{
-    painel = await Dados.chamar('painel_plataforma');
-    if(Array.isArray(painel)) painel = painel[0];
+    // Os acessos de suporte vêm junto, mas não podem derrubar o painel: banco
+    // sem o 38_suporte.sql instalado responde que a função não existe.
+    const [p, acessos] = await Promise.all([
+      Dados.chamar('painel_plataforma'),
+      Dados.chamar('acessos_de_suporte', { p_limite: 30 })
+        .catch(e => { console.info('[plataforma] acessos de suporte:', e.message); return null; }),
+    ]);
+    painel = Array.isArray(p) ? p[0] : p;
+    painel.acessos = Array.isArray(acessos) ? acessos : null;
     desenhar();
   }catch(e){
     console.error('[plataforma]', e);
@@ -312,14 +324,50 @@ function desenhar(){
       </tbody></table></div>`;
   }
 
+  /* Quem entrou no painel de quem, pelo modo suporte. O dono do salão vê o
+     mesmo registro do lado dele; aqui é a plataforma prestando contas a si
+     mesma. */
+  if(painel.acessos){
+    h += `<h2>Acessos de suporte</h2>`;
+    h += painel.acessos.length
+      ? `<div class="rolo"><table>
+          <thead><tr><th>Quando</th><th>Salão</th><th>Quem</th><th>Edição</th>
+            <th class="num">Alterações</th><th>Situação</th></tr></thead><tbody>
+          ${painel.acessos.map(a => `<tr>
+            <td class="num">${quando(a.iniciadoEm)}</td>
+            <td><div class="nome">${escapar(a.salao)}</div><div class="slug">${escapar(a.slug)}</div></td>
+            <td>${escapar(a.quem)}</td>
+            <td class="${a.edicaoDesde ? '' : 'morto'}">${a.edicaoDesde ? 'liberada às ' + hora(a.edicaoDesde) : 'só leitura'}</td>
+            <td class="num ${Number(a.alteracoes) ? '' : 'morto'}">${Number(a.alteracoes) || 0}</td>
+            <td class="${a.encerradoEm ? 'morto' : ''}">${a.encerradoEm ? 'encerrado' : 'aberto'}</td>
+          </tr>`).join('')}
+          </tbody></table></div>`
+      : `<div class="rolo"><div class="vazio">Nenhum acesso de suporte ainda.</div></div>`;
+  }
+
   document.getElementById('corpo').innerHTML = h;
+}
+
+const quando = d => d ? new Date(d).toLocaleString('pt-BR',
+  { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
+const hora = d => d ? new Date(d).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '—';
+
+/* "teste até 26/08/26" aparecia para teste VENCIDO — o salão já estava no
+   Grátis e a etiqueta dizia que ainda testava. A data é do salão (dia, sem
+   hora): vale até o fim dela. */
+function testeVencido(s){
+  if(s.assinatura !== 'trial' || !s.trialAte) return false;
+  const hoje = new Date().toLocaleDateString('en-CA');      // AAAA-MM-DD, no fuso daqui
+  return String(s.trialAte).slice(0, 10) < hoje;
 }
 
 function linhaSalao(s){
   const pago = Number(s.preco) > 0;
   const suspenso = s.status !== 'ativo';
+  const vencido = testeVencido(s);
+  const emTeste = s.assinatura === 'trial' && !vencido;
   const etq = suspenso ? 'ruim'
-            : s.assinatura === 'trial' ? 'teste'
+            : emTeste ? 'teste'
             : pago ? 'pago' : 'gratis';
 
   // Equipe acima do limite do plano é dinheiro na mesa: o gatilho já barra
@@ -337,7 +385,8 @@ function linhaSalao(s){
     <td><select class="plano" onchange="mudarPlano('${s.id}', this.value, this)">
           ${opcoes}</select></td>
     <td><span class="etq ${etq}">${suspenso ? 'suspenso'
-         : s.assinatura === 'trial' ? 'teste até ' + data(s.trialAte)
+         : emTeste ? 'teste até ' + data(s.trialAte)
+         : vencido ? 'teste venceu ' + data(s.trialAte) + ' · ' + escapar(s.planoNome || 'Grátis')
          : pago ? 'pagando' : 'gratuito'}</span></td>
     <td class="num ${noLimite ? '' : 'morto'}">${s.profissionais}/${s.limite}</td>
     <td class="num ${Number(s.agendamentosMes) ? '' : 'morto'}">${s.agendamentosMes}</td>
@@ -348,10 +397,65 @@ function linhaSalao(s){
          de aspas duplas, o atributo terminava ali e o botão virava
          "mudarStatus('…', 'suspenso', " — clicar dava erro de sintaxe e não
          suspendia nem religava salão nenhum. Achado pelo caça-bug. -->
-    <td><button class="acao ${suspenso ? '' : 'perigo'}" data-nome="${escapar(s.nome)}"
+    <td><div class="acoes">
+      <!-- Abre o painel do salão em modo suporte: só leitura até "Liberar
+           edição", e cada acesso fica registrado (38_suporte.sql). -->
+      <a class="acao" href="app.html?suporte=${s.id}" target="_blank" rel="noopener">Abrir painel</a>
+      <button class="acao" onclick="contatoDoDono('${s.id}', this)">Falar com o dono</button>
+      <button class="acao" data-nome="${escapar(s.nome)}"
+          onclick="estenderTeste('${s.id}', this.dataset.nome)">Estender teste</button>
+      <button class="acao ${suspenso ? '' : 'perigo'}" data-nome="${escapar(s.nome)}"
           onclick="mudarStatus('${s.id}', '${suspenso ? 'ativo' : 'suspenso'}', this.dataset.nome)">
-          ${suspenso ? 'Religar' : 'Suspender'}</button></td>
+          ${suspenso ? 'Religar' : 'Suspender'}</button>
+    </div></td>
   </tr>`;
+}
+
+/* ── Falar com o dono ─────────────────────────────────────────────────────
+   O WhatsApp do salão muitas vezes é o da recepção. Este é o de quem é DONO,
+   perguntado ao banco só na hora (o painel não baixa o telefone de todo
+   mundo). Vira link no lugar do botão: abrir janela depois de esperar o
+   banco é o que o navegador bloqueia como pop-up. */
+async function contatoDoDono(salaoId, bt){
+  bt.disabled = true;
+  try{
+    const r = await Dados.chamar('contato_do_dono', { p_salao: salaoId });
+    const donos = Array.isArray(r) ? r : [];
+    if(!donos.length){ bt.textContent = 'sem dono ativo'; return; }
+    const links = donos.map(d => {
+      const w = zap(d.telefone);
+      return `<span class="contato"><b>${escapar(d.nome)}</b>
+        ${w ? `<a href="${w}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+        ${d.email ? `<a href="mailto:${encodeURIComponent(d.email)}">${escapar(d.email)}</a>` : ''}
+        ${!w && !d.email ? '<span class="morto">sem contato</span>' : ''}</span>`;
+    }).join('');
+    const caixa = document.createElement('span');
+    caixa.innerHTML = links;
+    bt.replaceWith(caixa);
+  }catch(e){
+    console.error('[plataforma] contato do dono:', e);
+    alert('Não consegui buscar o contato do dono.\n\n' + e.message);
+    bt.disabled = false;
+  }
+}
+
+/* ── Estender teste ───────────────────────────────────────────────────────
+   O salão volta a ser teste até a data — mesmo que já tenha vencido, e mesmo
+   que o WhatsApp dele já tenha usado o teste uma vez (39_teste_unico): a
+   exceção é decisão sua, não do cadastro. O banco limita a 90 dias. */
+async function estenderTeste(salaoId, nome){
+  const resp = prompt('Estender o teste de ' + nome + ' por quantos dias, a partir de hoje?', '7');
+  if(resp === null) return;
+  const dias = parseInt(resp, 10);
+  if(!(dias >= 1 && dias <= 90)){ alert('Escolha de 1 a 90 dias.'); return; }
+  const ate = new Date(Date.now() + dias * 864e5).toLocaleDateString('en-CA');
+  try{
+    await Dados.chamar('estender_teste', { p_salao: salaoId, p_ate: ate });
+    await carregar();
+  }catch(e){
+    console.error('[plataforma] estender teste:', e);
+    alert('Não consegui estender o teste.\n\n' + e.message);
+  }
 }
 
 /* ── Mudar plano ──────────────────────────────────────────────────────────

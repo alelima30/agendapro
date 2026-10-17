@@ -22,7 +22,7 @@ insert into public.perfis (id, nome, telefone, super_admin) values
   ('5e000000-0000-0000-0000-0000000000ad', 'Ale (plataforma)', '+5511900009001', true),
   ('5e000000-0000-0000-0000-0000000000d0', 'Ju', '+5511900009002', false),
   ('5e000000-0000-0000-0000-0000000000e0', 'Zé', '+5511900009003', false)
-on conflict (id) do update set super_admin = excluded.super_admin;
+on conflict (id) do update set super_admin = excluded.super_admin, nome = excluded.nome, telefone = excluded.telefone;
 
 insert into public.saloes (id, slug, nome, tipo, status) values
   ('5e100000-0000-0000-0000-000000000001', 'salao-suporte', 'Salão Suporte', 'salao', 'ativo'),
@@ -109,10 +109,15 @@ select t_verdade('   e estender o teste também: o salão volta a ser teste até
   and (select trial_ate = current_date + 10 from public.assinaturas where salao_id = '5e100000-0000-0000-0000-000000000001'));
 select t_verdade('   (teste com data no passado é recusado)',
   recusado($$select public.estender_teste('5e100000-0000-0000-0000-000000000001', current_date - 1)$$));
+select t_verdade('   e vê o contato de quem é dono (para o "Falar com o dono")',
+  (select x->>'nome' = 'Ju' and x->>'telefone' = '+5511900009002'
+     from jsonb_array_elements(public.contato_do_dono('5e100000-0000-0000-0000-000000000001')) x));
 
 \echo ''
 \echo 'Quem abre sessão, e quem vê os acessos'
 select set_config('request.jwt.claim.sub', '5e000000-0000-0000-0000-0000000000e0', false);
+select t_verdade('   o dono de outra casa não vê o contato da Ju',
+  recusado($$select public.contato_do_dono('5e100000-0000-0000-0000-000000000001')$$));
 select t_verdade('8. o dono de outra casa não abre sessão de suporte no salão da Ju',
   recusado($$select public.iniciar_suporte('5e100000-0000-0000-0000-000000000001')$$));
 select t_verdade('   nem estende teste',

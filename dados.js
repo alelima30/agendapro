@@ -1289,7 +1289,11 @@ async function baixar(salaoId){
      caso da conta de plataforma pura — não desce nada. */
   const eu = sessao && sessao.usuarioId;
   const souDaPlataforma = perfis.some(p => p.id === eu && p.superAdmin);
-  const sohDe = souDaPlataforma
+  /* No modo suporte (o admin abriu o painel de um salão cliente), o salão a
+     baixar é aquele e só aquele — nem os da própria plataforma vêm junto. */
+  const emSuporte = souDaPlataforma && suporteDe;
+  const sohDe = emSuporte ? [suporteDe]
+    : souDaPlataforma
     ? vinculos.filter(v => v.perfilId === eu && v.status === 'ativo').map(v => v.salaoId)
     : [];   // dono comum: o RLS já entrega só o que é dele
 
@@ -1322,7 +1326,7 @@ async function baixar(salaoId){
      `vinculos` já foi buscada acima, sem filtro de propósito: é por ela que
      se descobre a QUAIS salões a pessoa pertence — filtrar pelo salão atual
      esconderia os outros dela. */
-  const alvo = salaoId || (sohDe.length ? sohDe[0] : null);
+  const alvo = emSuporte ? suporteDe : (salaoId || (sohDe.length ? sohDe[0] : null));
   const resto = TABELAS_SO_LEITURA.concat(TABELAS_SINCRONIZADAS)
     .filter(t => t !== 'perfis' && t !== 'vinculos');
 
@@ -1343,9 +1347,25 @@ async function baixar(salaoId){
   const bd = { perfis, vinculos };
   resto.forEach((t, i) => { bd[t] = respostas[i]; });
   if(alvo) soDoAlvo(bd);
+  /* `saloes`, `perfis` e `vinculos` descem sem filtro de salão — para a conta
+     da plataforma, isso é a plataforma inteira. No suporte, fica o salão
+     aberto, a equipe dele e a própria conta. */
+  if(emSuporte){
+    bd.saloes = (bd.saloes || []).filter(s => s.id === suporteDe);
+    bd.vinculos = vinculos.filter(v => v.salaoId === suporteDe || v.perfilId === eu);
+    const daCasa = new Set(bd.vinculos.map(v => v.perfilId).concat([eu]));
+    bd.perfis = perfis.filter(p => daCasa.has(p.id));
+  }
   if(falhas.length) bd.falhas = falhas;
   return bd;
 }
+
+/* O salão que a plataforma abriu em modo suporte. Quem liga é o app.html,
+   e só depois de o banco aceitar `iniciar_suporte()` — que recusa quem não é
+   da plataforma. Para qualquer outra conta isto não muda nada: o `baixar()`
+   só olha para ele quando a conta é `super_admin`. */
+let suporteDe = null;
+function modoSuporte(salaoId){ suporteDe = salaoId || null; }
 
 /* ── A FILHA VEM PELA MÃE, OU APAGA A CASA DO LADO ──────────────────────────
    As tabelas sem `salao_id` descem SEM filtro (não há coluna por onde
@@ -1540,6 +1560,7 @@ Dados.baixar = baixar;
 Dados.subir = subir;
 Dados.TABELAS_SINCRONIZADAS = TABELAS_SINCRONIZADAS;
 Dados.FILHAS = FILHAS;        // conferido pelo sincronia-saloes.test.mjs
+Dados.modoSuporte = modoSuporte;
 
 Dados.enviarImagem = enviarImagem;
 Dados.apagarImagem = apagarImagem;

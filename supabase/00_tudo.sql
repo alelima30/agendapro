@@ -3210,10 +3210,13 @@ begin
         'em_teste',      count(*) filter (
                            where s.status = 'ativo' and a.status = 'trial'
                              and (a.trial_ate is null or a.trial_ate >= v_hoje)),
+        -- Pelo plano que VALE (o `pl`), e não pelo status da assinatura: teste
+        -- vencido continua com status 'trial', e por isso não entrava em
+        -- conta nenhuma — nem "em teste", nem "no gratuito".
         'no_gratuito',   count(*) filter (
                            where s.status = 'ativo'
                              and coalesce(pl.preco_mes, 0) = 0
-                             and coalesce(a.status, 'x') <> 'trial'),
+                             and coalesce(pl.codigo, 'gratuito') <> 'trial'),
         'inadimplentes', count(*) filter (where a.status = 'inadimplente'),
         -- Receita recorrente do mês: a soma do que os salões ativos pagam
         -- HOJE, pelo plano que vale hoje.
@@ -15959,6 +15962,23 @@ begin
        limit greatest(1, least(coalesce(p_limite, 30), 200))) t), '[]'::jsonb);
 end $$;
 
+/* O contato de quem é DONO do salão — o WhatsApp do salão (que o admin já
+   vê) muitas vezes é o da recepção. Para o "Falar com o dono" do admin. */
+create or replace function public.contato_do_dono(p_salao uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_super() then
+    raise exception 'Só a plataforma vê o contato do dono.' using errcode = 'insufficient_privilege';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('nome', p.nome, 'telefone', p.telefone,
+                                        'email', coalesce(p.email, u.email)) order by p.nome)
+      from public.vinculos v
+      join public.perfis p on p.id = v.perfil_id
+      left join auth.users u on u.id = p.id
+     where v.salao_id = p_salao and v.papel = 'dono' and v.status = 'ativo'), '[]'::jsonb);
+end $$;
+
 /* Estender o teste de um salão até uma data. Volta a ser teste mesmo que já
    tenha vencido (a casa estava no Grátis e ganha mais dias). */
 create or replace function public.estender_teste(p_salao uuid, p_ate date)
@@ -16097,6 +16117,7 @@ revoke all on function public.liberar_edicao_suporte(uuid) from public, anon;
 revoke all on function public.encerrar_suporte(uuid) from public, anon;
 revoke all on function public.acessos_de_suporte(int) from public, anon;
 revoke all on function public.estender_teste(uuid, date) from public, anon;
+revoke all on function public.contato_do_dono(uuid) from public, anon;
 revoke all on function public.salao_da_linha(text, jsonb) from public, anon, authenticated;
 revoke all on function public.tg_suporte() from public, anon, authenticated;
 revoke all on function public.definir_status_salao(uuid, text) from public;
@@ -16105,6 +16126,7 @@ grant execute on function public.liberar_edicao_suporte(uuid) to authenticated;
 grant execute on function public.encerrar_suporte(uuid) to authenticated;
 grant execute on function public.acessos_de_suporte(int) to authenticated;
 grant execute on function public.estender_teste(uuid, date) to authenticated;
+grant execute on function public.contato_do_dono(uuid) to authenticated;
 grant execute on function public.definir_status_salao(uuid, text) to authenticated;
 
 -- ###########################################################################

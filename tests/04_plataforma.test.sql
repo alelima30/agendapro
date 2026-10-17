@@ -194,4 +194,24 @@ begin;
   end $$;
 rollback;
 
+-- O teste VENCIDO: continua com status 'trial', mas o que vale é o Grátis. Ele
+-- não entrava em conta nenhuma do placar — nem "em teste", nem "no gratuito".
+begin;
+  insert into public.saloes (id, slug, nome, fuso) values
+    ('50000000-0000-0000-0000-00000000000c', 'salao-c', 'Studio C', 'America/Sao_Paulo');
+  insert into public.assinaturas (salao_id, plano, status, trial_ate) values
+    ('50000000-0000-0000-0000-00000000000c', 'trial', 'trial', current_date - 2);
+  set local role authenticated;
+  set local request.jwt.claim.sub = 'ee000000-0000-0000-0000-00000000000e';
+  do $$
+  declare v jsonb;
+  begin
+    v := public.painel_plataforma();
+    perform t_igual('o teste vencido não conta como em teste',
+                    (v->'resumo'->>'em_teste')::bigint, 1);
+    perform t_igual('e conta no gratuito, que é onde ele está',
+                    (v->'resumo'->>'no_gratuito')::bigint, 1);
+  end $$;
+rollback;
+
 select t_ok('plataforma: tudo conferido');

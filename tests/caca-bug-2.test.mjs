@@ -110,7 +110,7 @@ console.log('\n3. A plataforma: "Suspender" e "Religar" chamam com o nome certo'
       t.innerHTML = '<tbody>' + linhaSalao({ id: '11111111-2222-3333-4444-555555555555', nome, slug: 'studio',
         status, plano: 'individual', assinatura: 'ativa', preco: 97, profissionais: 1, limite: 1,
         agendamentosMes: 3, ultimoAgendamento: null, origem: null }) + '</tbody>';
-      t.querySelector('button.acao').click();
+      t.querySelector('button.acao[onclick*="mudarStatus"]').click();
       t.remove();
       return window.__chamado;
     }, [nome, status]);

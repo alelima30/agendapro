@@ -544,6 +544,19 @@
   background:var(--ac-soft); border:1px solid var(--ac-line); color:var(--txt);
   border-radius:var(--r-md, 12px); padding:9px 12px; margin:0 0 12px; font-size:13.5px; line-height:1.4;
 }
+/* O modo suporte: a plataforma dentro do painel de um salão cliente. Colada
+   embaixo do topo; com a edição liberada, no tom de alerta. Só tokens do tema. */
+.faixa-suporte{
+  position:sticky; top:60px; z-index:39;
+  display:flex; align-items:center; gap:8px 10px; flex-wrap:wrap;
+  background:var(--ac-soft); color:var(--txt);
+  border-bottom:1px solid var(--ac-line); padding:8px 22px;
+  font-size:13.5px; line-height:1.4;
+}
+.faixa-suporte.editando{ background:var(--er-soft); border-bottom-color:var(--er-500) }
+.faixa-suporte .espaco{ flex:1 }
+.faixa-suporte .btn{ padding:6px 12px; font-size:13px }
+@media (max-width:700px){ .faixa-suporte{ padding:8px 14px } }
 /* O que o plano inclui (tela do Plano): ✓ no que tem, cadeado no que falta. */
 .plano-inclui ul{ list-style:none; margin:0; padding:0; display:grid; gap:5px }
 .plano-inclui li{ display:flex; gap:8px; align-items:baseline; font-size:13.5px }

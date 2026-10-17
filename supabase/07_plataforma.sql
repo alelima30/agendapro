@@ -64,10 +64,13 @@ begin
         'em_teste',      count(*) filter (
                            where s.status = 'ativo' and a.status = 'trial'
                              and (a.trial_ate is null or a.trial_ate >= v_hoje)),
+        -- Pelo plano que VALE (o `pl`), e não pelo status da assinatura: teste
+        -- vencido continua com status 'trial', e por isso não entrava em
+        -- conta nenhuma — nem "em teste", nem "no gratuito".
         'no_gratuito',   count(*) filter (
                            where s.status = 'ativo'
                              and coalesce(pl.preco_mes, 0) = 0
-                             and coalesce(a.status, 'x') <> 'trial'),
+                             and coalesce(pl.codigo, 'gratuito') <> 'trial'),
         'inadimplentes', count(*) filter (where a.status = 'inadimplente'),
         -- Receita recorrente do mês: a soma do que os salões ativos pagam
         -- HOJE, pelo plano que vale hoje.

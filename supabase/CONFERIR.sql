@@ -856,6 +856,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
   select 38, 'Modo suporte (só leitura, com "Liberar edição")',
          case
            when to_regprocedure('public.iniciar_suporte(uuid)') is null
+             or to_regprocedure('public.contato_do_dono(uuid)') is null
              or to_regclass('public.suporte_alteracoes') is null
              or not exists (select 1 from pg_trigger where tgname = 'zz_suporte'
                               and tgrelid = 'public.servicos'::regclass)
@@ -863,6 +864,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
            else 'certo' end,
          case
            when to_regprocedure('public.iniciar_suporte(uuid)') is null
+             or to_regprocedure('public.contato_do_dono(uuid)') is null
              or to_regclass('public.suporte_alteracoes') is null
              or not exists (select 1 from pg_trigger where tgname = 'zz_suporte'
                               and tgrelid = 'public.servicos'::regclass)

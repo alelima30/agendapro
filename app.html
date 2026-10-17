@@ -609,6 +609,9 @@ span.ajuda{display:block;margin-top:5px}
        onclick="return abrirAjuda(this)" aria-label="Precisa de ajuda? Fale no WhatsApp">
       <span data-ico="whatsapp"></span><span>Ajuda</span></a>
   </header>
+  <!-- O MODO SUPORTE: a conta da plataforma dentro do painel de um cliente.
+       Fica colada embaixo do topo, em toda tela, enquanto durar. -->
+  <div id="faixaSuporte" class="faixa-suporte" role="status" style="display:none"></div>
 
   <div class="veu" id="veu" onclick="alternarLateral()"></div>
 
@@ -2034,7 +2037,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.9ab2fa';
+const VERSAO_APP = 'v9.1cc3c3';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2052,7 +2055,19 @@ function recarregarDeVerdade(){
     .then(acabar);
 }
 
-function trocarSalao(sid){
+async function trocarSalao(sid){
+  /* ⚠ NA NUVEM, O ESTABELECIMENTO NOVO VEM DO BANCO. O `baixar()` traz só o
+     salão escolhido — agenda, equipe, clientes, caixa. Trocar só o
+     `salaoAtual` mostrava o outro estabelecimento com os dados de nenhum:
+     medido na bancada, a Casa B, com uma profissional e cinco faixas de
+     jornada, aparecia com zero. Antes de ler, a gravação que estiver na fila
+     termina: ela é do salão de antes. */
+  if(NA_NUVEM){
+    await _filaGravacao;
+    salaoAtual = sid;
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+  }
   salaoAtual = sid;
   const s = acharSalao(sid);
   document.getElementById('mTipo').textContent = (s.tipo || 'salão');
@@ -2073,6 +2088,9 @@ function trocarSalao(sid){
 /* Sair encerra a sessão no banco antes de trocar de tela. Só apagar o token
    do navegador deixaria o refresh vivo no servidor. */
 async function sair(){
+  // No suporte, "Sair" é sair do salão do cliente — de volta ao admin, com a
+  // sessão de suporte encerrada no banco. A conta da plataforma continua.
+  if(emSuporte()) return sairDoSuporte();
   if(!confirm('Sair do painel?')) return;
   try{ if(window.Dados && Dados.sair) await Dados.sair(); }
   catch(e){ console.warn('[AgendaPro] sessão já estava encerrada:', e.message); }
@@ -12861,7 +12879,7 @@ async function pintarConta(){
       <b>Esta conta entrou sem e-mail</b> — pelo código do WhatsApp, ou criada
       direto no Supabase. Sem endereço não dá para conferir a senha atual, nem
       para recuperar a senha por e-mail.</div>`}
-    <div class="linha-fina" style="margin:20px 0 16px"></div>
+    ${emSuporte() ? '' : `<div class="linha-fina" style="margin:20px 0 16px"></div>
     <div class="zona-excluir">
       <b>Excluir conta</b>
       <p class="secao-sub" style="margin:4px 0 10px">Apaga o seu acesso e, nos
@@ -12869,7 +12887,7 @@ async function pintarConta(){
         desfazer.</p>
       <button type="button" class="btn btn-perigo" id="btExcluirConta"
               onclick="abrirExcluirConta()">Excluir minha conta</button>
-    </div>`;
+    </div>`}`;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -12891,6 +12909,9 @@ async function pintarConta(){
    ═══════════════════════════════════════════════════════════════════════════ */
 let paraExcluir = [];
 async function abrirExcluirConta(){
+  // No modo suporte a conta logada é a da PLATAFORMA: excluir daqui apagaria
+  // a sua, não a do cliente. O botão nem aparece; isto é a segunda trava.
+  if(emSuporte()) return avisoDoSuporte('excluir a conta');
   try{
     const r = await Dados.chamar('o_que_excluir_apaga');
     paraExcluir = Array.isArray(r) ? r : [];
@@ -14636,6 +14657,7 @@ async function mostrarCartao(){
 }
 
 async function assinarCartao(codigo){
+  if(emSuporte()) return avisoDoSuporte('assinar ou pagar plano');
   if(!souGestor()){
     alert('Só o proprietário ou um administrador pode assinar o plano.\n\n'
         + 'Peça para quem responde pelo salão entrar e fazer a assinatura.');
@@ -14735,6 +14757,7 @@ async function cancelarCartao(){
 let cobrancaAberta = null;
 
 function assinar(codigo, metodo){
+  if(emSuporte()) return avisoDoSuporte('assinar ou pagar plano');
   /* ⚠ O PAPEL É CONFERIDO ANTES DE QUALQUER OUTRA COISA, E TEM MOTIVO.
      A ordem natural seria buscar a assinatura primeiro. Só que a recepção NÃO
      LÊ `assinaturas` — a policy é `e_gestor(salao_id)` —, então para ela
@@ -14973,11 +14996,102 @@ function sohMeusSaloes(d){
   if(!eu) return d;
   const meus = (d.vinculos || []).filter(v => v.perfilId === eu).map(v => v.salaoId);
   const souDaPlataforma = (d.perfis || []).some(p => p.id === eu && p.superAdmin);
+  // No modo suporte o salão é o que o admin abriu, e mais nenhum.
+  if(souDaPlataforma && emSuporte()){
+    d.saloes = (d.saloes || []).filter(s => s.id === modoSuporte.salao);
+    return d;
+  }
   // Sem vínculo nenhum: só zera se for conta de plataforma, que é quem
   // enxerga salão dos outros. Dono comum sem vínculo já não veria nada.
   if(meus.length) d.saloes = (d.saloes || []).filter(s => meus.includes(s.id));
   else if(souDaPlataforma) d.saloes = [];
   return d;
+}
+
+/* ── O MODO SUPORTE ───────────────────────────────────────────────────────
+   O admin.html abre `app.html?suporte=<salão>` para ver o painel de um
+   cliente do jeito que o cliente vê — e responder "não acho onde muda o
+   horário" olhando a mesma tela.
+
+   Quem decide é o banco (38_suporte.sql): `iniciar_suporte()` recusa quem não
+   é da plataforma, e um gatilho recusa QUALQUER gravação nesse salão até a
+   pessoa tocar em "Liberar edição" — que vale duas horas e registra o antes e
+   o depois de tudo. Esta parte só abre a porta certa, deixa a faixa no topo
+   de toda tela dizendo onde se está, e tira do caminho o que, aqui, seria da
+   conta errada: excluir conta e assinar plano são da plataforma, não do
+   cliente. */
+const modoSuporte = { salao: null, acesso: null, nome: '', ate: 0, fim: null };
+const ehUuid = t => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(t || ''));
+const emSuporte = () => !!modoSuporte.salao;
+const suporteEditando = () => emSuporte() && modoSuporte.ate > Date.now();
+
+async function entrarNoSuporte(){
+  const pedido = new URLSearchParams(location.search).get('suporte');
+  if(!NA_NUVEM || !ehUuid(pedido)) return;
+  try{
+    const r = await Dados.chamar('iniciar_suporte', { p_salao: pedido });
+    const v = (Array.isArray(r) ? r[0] : r) || {};
+    Object.assign(modoSuporte, { salao: pedido, acesso: v.acesso, nome: v.nome || '' });
+    Dados.modoSuporte(pedido);
+    salaoAtual = pedido;
+    document.title = 'Suporte · ' + modoSuporte.nome + ' — AgendaPro';
+  }catch(e){
+    // Conta comum com o endereço do admin na mão: o banco recusou, e o painel
+    // abre como sempre — o dela. Só a plataforma ouve o porquê.
+    console.info('[AgendaPro] modo suporte não abriu:', e.message);
+    if(!/privilege|plataforma abre/i.test(e.message || ''))
+      alert('Não consegui abrir o modo suporte:\n\n' + e.message);
+  }
+}
+
+function pintarFaixaSuporte(){
+  const f = document.getElementById('faixaSuporte');
+  if(!f) return;
+  if(!emSuporte()){ f.style.display = 'none'; return; }
+  const editando = suporteEditando();
+  f.style.display = '';
+  f.classList.toggle('editando', editando);
+  const quem = `<b>Modo suporte · ${escapar(modoSuporte.nome)}</b>`;
+  f.innerHTML = editando
+    ? `<span>${quem} — edição liberada até ${new Date(modoSuporte.ate)
+          .toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })}.
+         Tudo o que você mudar fica registrado, e o dono do salão pode ver.</span>
+       <span class="espaco"></span>
+       <button class="btn" onclick="sairDoSuporte()">Sair do suporte</button>`
+    : `<span>${quem} — só leitura. Nada do que você mexer aqui é gravado.</span>
+       <span class="espaco"></span>
+       <button class="btn btn-p" onclick="liberarEdicaoSuporte()">Liberar edição</button>
+       <button class="btn" onclick="sairDoSuporte()">Sair do suporte</button>`;
+}
+
+async function liberarEdicaoSuporte(){
+  if(!confirm('Liberar edição em ' + modoSuporte.nome + '?\n\n'
+      + 'Por duas horas você poderá mudar a agenda, os cadastros e o caixa deste '
+      + 'salão. Tudo o que mudar fica registrado, com o antes e o depois, e o '
+      + 'dono do salão pode ver.')) return;
+  try{
+    const r = await Dados.chamar('liberar_edicao_suporte', { p_acesso: modoSuporte.acesso });
+    const v = (Array.isArray(r) ? r[0] : r) || {};
+    modoSuporte.ate = v.ate ? new Date(v.ate).getTime() : Date.now() + 2 * 3600e3;
+    // Passadas as duas horas o banco volta a recusar; a faixa volta junto.
+    clearTimeout(modoSuporte.fim);
+    modoSuporte.fim = setTimeout(pintarFaixaSuporte, Math.max(0, modoSuporte.ate - Date.now()) + 1000);
+    pintarFaixaSuporte();
+  }catch(e){
+    alert('Não consegui liberar a edição:\n\n' + e.message);
+  }
+}
+
+async function sairDoSuporte(){
+  try{ await Dados.chamar('encerrar_suporte', { p_acesso: modoSuporte.acesso }); }
+  catch(e){ console.warn('[AgendaPro] encerrar suporte:', e.message); }
+  location.href = 'admin.html';
+}
+
+function avisoDoSuporte(oQue){
+  alert('No modo suporte não dá para ' + oQue + ': a conta logada é a da '
+      + 'plataforma, não a do dono do salão.\n\nPara mudar o plano ou a '
+      + 'situação do salão, use o painel da plataforma (admin).');
 }
 
 /* ── A JORNADA VAI E VOLTA EM DOIS FORMATOS ───────────────────────────────
@@ -15649,6 +15763,11 @@ function salvar(){
       .catch(async e => {
         _geracaoGravacao++;
         console.error('[AgendaPro] falha ao gravar:', e);
+        // No suporte só leitura a recusa é a trava funcionando, não um defeito.
+        if(emSuporte() && /Modo suporte: só leitura/.test(e.message || ''))
+          alert('Modo suporte: só leitura. Nada foi gravado.\n\nPara mexer neste '
+              + 'salão, toque em "Liberar edição" na faixa do topo.');
+        else
         alert('NÃO consegui salvar no banco:\n\n' + limparRecusa(e.message)
             + '\n\nO que está na tela ainda não foi gravado.');
 
@@ -17563,6 +17682,7 @@ function iniciar(){
   rotularTema();
   montarAbas();
   mostrarQuemEstaLogado();
+  pintarFaixaSuporte();
   pintar();
   /* O restaurante abre na tela de Pedidos (uma vez só por carga da página:
      o `iniciar()` roda de novo quando o nome ou o tipo muda, e não pode
@@ -17575,8 +17695,9 @@ function iniciar(){
   }
   /* Por último, e depois do `pintar()`: o assistente cobre a tela, e cobrir
      uma tela em branco faria a pessoa fechá-lo para descobrir o que tem
-     atrás. Fechado, ele já revela o painel montado. */
-  talvezOferecerPrimeiroDia();
+     atrás. Fechado, ele já revela o painel montado. No suporte, nunca: o
+     assistente é para o dono, e preenchê-lo gravaria no salão dele. */
+  if(!emSuporte()) talvezOferecerPrimeiroDia();
 }
 
 /* ── QUEM ESTÁ USANDO O SISTEMA AGORA ─────────────────────────────────────
@@ -17633,6 +17754,8 @@ function mostrarQuemEstaLogado(){
        acaba (o `finally` garante que some até se der erro). */
     if(NA_NUVEM) mostrarCarregando(true);
     try{
+    // Antes da primeira leitura: no suporte, ela já desce só o salão aberto.
+    await entrarNoSuporte();
     bd = await carregarTudo();
     // Só o modo nuvem desiste quando não vem nada: ali o null significa
     // "o banco não respondeu". No modo demonstração, null é o esperado na
@@ -17713,7 +17836,8 @@ function mostrarQuemEstaLogado(){
     }
     iniciar();
     // Comanda desligada na plataforma: o salão passa a "Só a agenda" no banco.
-    gravarSoAgendaSeDesligada();
+    // No suporte, não: abrir o painel de um cliente não grava nada nele.
+    if(!emSuporte()) gravarSoAgendaSeDesligada();
     ligarSincronizacao();
     registrarServiceWorker();
     ajustarBotaoInstalar();
