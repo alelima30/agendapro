@@ -227,20 +227,27 @@ verdade('e a seta tem tamanho de botão — ' + e1.larguraSeta + 'px',
    Ele reescreve o `#capaServicos` com `data-ico` novo, e ninguém pinta
    depois. Medido sem a chamada, os seis SVGs viram ZERO.
 
-   Hoje nenhuma tela dispara esse caminho — todo `desenhar()` solto pertence a
-   outro passo. A linha é prevenção, e é por isso que esta verificação força o
-   redesenho à mão: prevenção sem teste é uma linha que ninguém sabe se ainda
-   funciona, e a primeira pessoa a "limpar" o código a leva embora. */
-const antesDoRedesenho = await b.evaluate(() =>
-  document.querySelectorAll('.sv-cartao-ir svg, .sv-cartao-relogio svg').length);
+   E esse caminho existe: para quem está logada, o `entrarNoSalao()` espera
+   o `aposEntrar()` e redesenha com a capa aberta. Foi assim que o atalho
+   "Meus horários" do Salão Megatop apareceu como uma bolinha sem ícone — a
+   chamada pintava só os serviços, e o `#capaAtalhos` ficava cru. Por isso o
+   redesenho aqui é feito com uma sessão, para o atalho estar na tela. */
+await b.evaluate(() => { sessao = { nome: 'Cliente Teste', telefone: '11999990000' }; irPara('capa'); });
+await b.waitForTimeout(150);
+const ICONES_DA_CAPA = '.sv-cartao-ir svg, .sv-cartao-relogio svg, #capaAtalhos .atalho-ic svg';
+const antesDoRedesenho = await b.evaluate(s => document.querySelectorAll(s).length, ICONES_DA_CAPA);
+const atalhosAntes = await b.evaluate(() => document.querySelectorAll('#capaAtalhos .atalho-ic svg').length);
 await b.evaluate(() => desenhar());
 await b.waitForTimeout(150);
-const depoisDoRedesenho = await b.evaluate(() =>
-  document.querySelectorAll('.sv-cartao-ir svg, .sv-cartao-relogio svg').length);
+const depoisDoRedesenho = await b.evaluate(s => document.querySelectorAll(s).length, ICONES_DA_CAPA);
+const atalhosCrus = await b.evaluate(() => document.querySelectorAll('#capaAtalhos [data-ico]').length);
 igual('redesenhando a capa, os ícones continuam desenhados',
   depoisDoRedesenho, antesDoRedesenho);
-verdade('(e havia ícones para perder: ' + antesDoRedesenho + ')',
-  antesDoRedesenho > 0);
+verdade('(e havia ícones para perder: ' + antesDoRedesenho + ', ' + atalhosAntes + ' deles nos atalhos)',
+  antesDoRedesenho > 0 && atalhosAntes > 0);
+igual('o atalho "Meus horários" não fica com o ícone cru (bolinha vazia)', atalhosCrus, 0);
+await b.evaluate(() => { sessao = null; irPara('capa'); });
+await b.waitForTimeout(150);
 
 /* ── A COR É A DO SALÃO ───────────────────────────────────────────────────
    A imagem de referência era roxa. Roxo escrito à mão no CSS deixaria a

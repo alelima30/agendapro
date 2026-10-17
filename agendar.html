@@ -2526,14 +2526,17 @@ function desenharCapa(){
      `data-ico` novo em folha, e ninguém pinta depois — o relógio e a seta
      viram dois espaços em branco, e sobra um botão redondo vazio no canto.
 
-     Hoje nenhuma tela faz isso: todo `desenhar()` solto pertence a outro
-     passo. Então esta linha é PREVENÇÃO, e é honesto dizer o nome dela. O que
-     ela evita é silencioso e o custo dela é varrer um elemento — o pintor
-     apaga o `data-ico` ao trocar, então rodar de novo não acha nada.
+     ⚠ ACONTECE, E COM QUEM JÁ É CLIENTE. Eu tinha escrito aqui que nenhuma
+     tela fazia isso. Faz: o `entrarNoSalao()`, para quem está logada, espera
+     o `aposEntrar()` e chama `desenhar()` com a capa já aberta. A linha
+     antiga pintava só o `#capaServicos` — e o `#capaAtalhos`, reescrito
+     logo acima, ficava com o `data-ico` cru. Visto no Salão Megatop: o
+     atalho "Meus horários" virou uma bolinha colorida sem o calendário.
 
-     O `moldura.test.mjs` força esse redesenho de propósito, para que isto não
-     vire uma linha que ninguém sabe se ainda funciona. */
-  if(window.aplicarIcones) aplicarIcones(document.getElementById('capaServicos'));
+     Por isso pinta a capa inteira. O custo continua o de varrer um elemento
+     — o pintor apaga o `data-ico` ao trocar, então rodar de novo não acha
+     nada. O `moldura.test.mjs` força esse redesenho, com atalho na tela. */
+  if(window.aplicarIcones) aplicarIcones(document.getElementById('p-capa'));
 
   montarSlides(svs);
 

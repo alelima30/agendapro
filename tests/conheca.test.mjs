@@ -10,7 +10,12 @@
        já marca "Como você nos conheceu?";
      · a barra fixa do celular só aparece depois que o botão do topo sai da
        tela;
-     · sem Pixel/GA configurados, nada de fora é carregado.
+     · sem Pixel/GA configurados, nada de fora é carregado — nem as fontes,
+       que moram em lp/fontes/;
+     · o menu do celular abre, fecha e leva às seções; todo link interno
+       aponta para uma seção que existe;
+     · nenhum plano ganha selo de "recomendado" sem número que o sustente;
+     · quem pede "reduzir movimento" vê a página inteira, parada.
 
    O banco é simulado interceptando a chamada (page.route): o teste não
    depende de rede nem do Supabase de verdade.
@@ -45,13 +50,13 @@ const PLANOS = (essencial) => [
   { codigo:'salao',      nome:'Salão',     preco_mes:497,   max_profissionais:12, ordem:6, recursos:{ lembrete_whatsapp:true, mensagens_mes:3600, max_clientes:5000 } },
 ];
 
-async function abrir({ largura, banco, busca = '' }){
+async function abrir({ largura, banco, busca = '', movimento = 'no-preference' }){
   const ctx = await nav.newContext({ viewport:{ width: largura, height: 800 },
-    isMobile: largura < 700, hasTouch: largura < 700 });
+    isMobile: largura < 700, hasTouch: largura < 700, reducedMotion: movimento });
   const p = await ctx.newPage();
   const erros = [], deFora = [];
   p.on('pageerror', e => erros.push(e.message));
-  p.on('request', r => { if(/facebook|googletagmanager|google-analytics/.test(r.url())) deFora.push(r.url()); });
+  p.on('request', r => { if(/facebook|googletagmanager|google-analytics|fonts\.g/.test(r.url())) deFora.push(r.url()); });
   await p.route('**/rest/v1/planos**', rota => banco
     ? rota.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(banco) })
     : rota.abort());
@@ -120,15 +125,41 @@ console.log('\nNo celular');
     vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     barra: document.getElementById('barra').classList.contains('on'),
     h1: document.querySelector('h1').textContent.trim(),
+    h1s: document.querySelectorAll('h1').length,
+    sub: document.querySelector('.lp-heroi .lp-sub').textContent.replace(/\s+/g, ' '),
   }));
   diz(topo.vaza === 0, 'a página não rola para o lado', `sobram ${topo.vaza}px`);
-  diz(/agenda cheia/i.test(topo.h1) && /WhatsApp/.test(topo.h1), 'a promessa está no título', topo.h1);
+  diz(topo.h1s === 1 && /organizado/.test(topo.h1) && /rotina mais leve/.test(topo.h1),
+      'um título só (h1), com a promessa', topo.h1);
+  diz(/link/.test(topo.sub) && /WhatsApp/.test(topo.sub) && /caixa/.test(topo.sub),
+      'e o subtítulo diz como: link, WhatsApp, agenda e caixa', topo.sub);
   diz(!topo.barra, 'no topo, a barra fixa fica escondida (o botão do herói está à vista)');
 
+  // O menu do celular: abre, leva à seção e fecha sozinho; Esc também fecha.
+  const menu0 = await p.evaluate(() => ({ nav: getComputedStyle(document.querySelector('.lp-nav')).display,
+    bt: getComputedStyle(document.getElementById('menuBt')).display, fechado: document.getElementById('menuCel').hidden }));
+  diz(menu0.nav === 'none' && menu0.bt !== 'none' && menu0.fechado,
+      'no celular, os links do topo viram um botão de menu, fechado', JSON.stringify(menu0));
+  await p.click('#menuBt'); await p.waitForTimeout(150);
+  const menu1 = await p.evaluate(() => ({ aberto: !document.getElementById('menuCel').hidden,
+    aria: document.getElementById('menuBt').getAttribute('aria-expanded'),
+    alvos: [...document.querySelectorAll('#menuCel a')].map(a => Math.round(a.getBoundingClientRect().height)) }));
+  diz(menu1.aberto && menu1.aria === 'true' && menu1.alvos.every(h => h >= 44),
+      'tocar abre o menu (aria-expanded) com alvos de toque de 44px ou mais', JSON.stringify(menu1));
+  await p.click('#menuCel a[href="#planos"]'); await p.waitForTimeout(900);
+  const menu2 = await p.evaluate(() => ({ fechado: document.getElementById('menuCel').hidden,
+    topo: Math.round(document.getElementById('planos').getBoundingClientRect().top) }));
+  diz(menu2.fechado && Math.abs(menu2.topo) < 120, 'escolher "Planos" leva até os planos e fecha o menu', JSON.stringify(menu2));
+  await p.click('#menuBt'); await p.keyboard.press('Escape'); await p.waitForTimeout(100);
+  diz(await p.evaluate(() => document.getElementById('menuCel').hidden && document.activeElement.id === 'menuBt'),
+      'Esc fecha o menu e devolve o foco ao botão');
+  await p.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' })); await p.waitForTimeout(300);
+
   // Rola a página inteira devagar: as imagens com loading=lazy precisam carregar.
-  await p.evaluate(async () => { for(let y = 0; y < document.body.scrollHeight; y += 500){ window.scrollTo(0, y); await new Promise(r => setTimeout(r, 60)); } });
-  await p.waitForTimeout(600);
+  await p.evaluate(async () => { for(let y = 0; y < document.body.scrollHeight; y += 400){ window.scrollTo({ top: y, behavior: 'instant' }); await new Promise(r => setTimeout(r, 60)); } });
+  await p.waitForTimeout(900);
   const fundo = await p.evaluate(() => ({
+    escondidos: [...document.querySelectorAll('[data-revelar]:not(.visto)')].length,
     barra: document.getElementById('barra').classList.contains('on'),
     imgs: [...document.images].filter(i => i.offsetParent !== null).map(i => [i.getAttribute('src'), i.naturalWidth > 0, !!i.alt]),
   }));
@@ -136,7 +167,12 @@ console.log('\nNo celular');
   diz(fundo.imgs.length >= 3 && fundo.imgs.every(([, carregou]) => carregou),
       'todas as imagens visíveis carregam (também as que esperam a rolagem)', JSON.stringify(fundo.imgs.filter(x => !x[1])));
   diz(fundo.imgs.every(([, , alt]) => alt), 'e toda imagem tem texto alternativo');
+  diz(fundo.escondidos === 0, 'depois de rolar, nada fica escondido pela animação de entrada (nem a galeria de lado)',
+      fundo.escondidos + ' escondido(s)');
 
+  const galeria = await p.evaluate(() => { const g = document.querySelector('.lp-galeria');
+    return { rola: g.scrollWidth > g.clientWidth, estilo: getComputedStyle(g).overflowX }; });
+  diz(galeria.rola && galeria.estilo === 'auto', 'as telas do Salão Megatop também ficam numa faixa de lado', JSON.stringify(galeria));
   const faixa = await p.evaluate(() => { const l = document.getElementById('listaPlanos');
     return { rola: l.scrollWidth > l.clientWidth, estilo: getComputedStyle(l).overflowX }; });
   diz(faixa.rola && faixa.estilo === 'auto', 'os planos ficam numa faixa que se arrasta de lado', JSON.stringify(faixa));
@@ -165,6 +201,50 @@ console.log('\nNo computador');
   }));
   diz(pc.barra === 'none', 'a barra fixa é só do celular');
   diz(pc.botoes.every(h => h <= 56), 'o botão de cada plano cabe numa linha', pc.botoes.join(', '));
+
+  const pagina = await p.evaluate(() => ({
+    nav: getComputedStyle(document.querySelector('.lp-nav')).display,
+    menuBt: getComputedStyle(document.getElementById('menuBt')).display,
+    // todo link "#algo" aponta para um id que existe
+    orfaos: [...document.querySelectorAll('a[href^="#"]')].map(a => a.getAttribute('href'))
+      .filter(h => h.length > 1 && !document.getElementById(h.slice(1))),
+    destaque: document.querySelectorAll('.lp-destaque').length,
+    estilosPlano: [...new Set([...document.querySelectorAll('.lp-plano .lp-bt')].map(b => b.className))],
+    fontes: [...document.fonts].filter(f => f.status === 'loaded').map(f => f.family.replace(/"/g, '')),
+    semMedida: [...document.images].filter(i => !i.getAttribute('width') || !i.getAttribute('height')).map(i => i.getAttribute('src')),
+    heroiPreguica: [...document.querySelectorAll('.lp-heroi img')].filter(i => i.loading === 'lazy').length,
+    restoSemPreguica: [...document.querySelectorAll('main img')].filter(i => !i.closest('.lp-heroi') && i.loading !== 'lazy').map(i => i.getAttribute('src')),
+    canonico: (document.querySelector('link[rel=canonical]') || {}).href || '',
+    og: (document.querySelector('meta[property="og:image"]') || {}).content || '',
+    secoesSemH2: [...document.querySelectorAll('main > section:not(.lp-heroi)')].filter(s => !s.querySelector('h2')).map(s => s.id || s.className),
+  }));
+  diz(pagina.nav !== 'none' && pagina.menuBt === 'none', 'no computador, os links do topo aparecem e o botão de menu não', JSON.stringify([pagina.nav, pagina.menuBt]));
+  diz(pagina.orfaos.length === 0, 'todo link interno (#…) leva a uma seção que existe', pagina.orfaos.join(', '));
+  diz(pagina.destaque === 0 && pagina.estilosPlano.length === 1,
+      'nenhum plano ganha selo de "recomendado", e todos os botões de plano têm o mesmo estilo', JSON.stringify(pagina.estilosPlano));
+  diz(pagina.fontes.includes('Manrope') && pagina.fontes.includes('DM Serif Display'),
+      'as fontes da página carregam do próprio site (lp/fontes)', pagina.fontes.join(', '));
+  diz(pagina.semMedida.length === 0, 'toda imagem declara largura e altura (a página não pula enquanto carrega)', pagina.semMedida.join(', '));
+  diz(pagina.heroiPreguica === 0 && pagina.restoSemPreguica.length === 0,
+      'as imagens do topo carregam já; as de baixo, só quando chegam perto', pagina.restoSemPreguica.join(', '));
+  diz(/conheca\.html$/.test(pagina.canonico) && /lp\/og\.jpg$/.test(pagina.og), 'link canônico e imagem de compartilhamento no lugar');
+  diz(pagina.secoesSemH2.length === 0, 'cada seção abaixo do topo tem o seu h2', pagina.secoesSemH2.join(', '));
+
+  await p.click('#duvidas summary'); await p.waitForTimeout(450);
+  diz(await p.evaluate(() => document.querySelector('#duvidas details').open
+        && document.querySelector('#duvidas details p').getBoundingClientRect().height > 20),
+      'a pergunta frequente abre ao clicar');
+  await ctx.close();
+}
+
+console.log('\nQuem pede menos movimento');
+{
+  const { ctx, p } = await abrir({ largura: 375, banco: PLANOS(97), movimento: 'reduce' });
+  const parado = await p.evaluate(() => ({
+    anima: document.documentElement.classList.contains('lp-anima'),
+    opacos: [...document.querySelectorAll('[data-revelar]')].filter(e => getComputedStyle(e).opacity !== '1').length,
+  }));
+  diz(!parado.anima && parado.opacos === 0, 'com "reduzir movimento", tudo aparece de uma vez, sem animação', JSON.stringify(parado));
   await ctx.close();
 }
 

@@ -91,9 +91,13 @@ secao('1 e 2. No painel: a etiqueta e o cadastro');
   await p.evaluate(() => { try{ fecharModal(); }catch(e){} if(typeof pdFechar === 'function') pdFechar(true); });
   await p.evaluate(() => irPara('produtos'));
   await p.waitForTimeout(700);
+  /* Em ordem de nome: o que se confere aqui é a etiqueta de cada produto, não
+     a ordem da lista. Comparando na ordem em que vinham, a suíte reprovou uma
+     vez com os cinco pares certos — só o Condicionador tinha vindo por último. */
   const etiquetas = () => p.evaluate(() => Object.fromEntries([...document.querySelectorAll('#listaProdutos tbody tr')]
     .map(tr => [tr.querySelector('b').textContent.trim(),
-      (tr.querySelector('.tag-cat') || {}).textContent ? tr.querySelector('.tag-cat').textContent.trim() : null])));
+      (tr.querySelector('.tag-cat') || {}).textContent ? tr.querySelector('.tag-cat').textContent.trim() : null])
+    .sort(([a], [b]) => a.localeCompare(b, 'pt-BR'))));
   const e1 = await etiquetas();
   igual('cada produto com a etiqueta da sua categoria, embaixo do nome', e1, {
     'Condicionador':'Tratamento de cabelo', 'Máscara de hidratação':'Tratamento de cabelo',

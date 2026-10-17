@@ -4,16 +4,24 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Agenda online para salão e barbearia | AgendaPro</title>
-<meta name="description" content="A cliente marca sozinha pelo seu link, a qualquer hora, e a confirmação e o lembrete saem no WhatsApp. Teste 7 dias grátis, sem cartão." />
-<meta name="theme-color" content="#2563EB" />
+<meta name="description" content="A cliente marca sozinha pelo seu link e o WhatsApp confirma e lembra. Agenda da equipe, clientes e caixa num lugar só. 7 dias grátis, sem cartão." />
+<link rel="canonical" href="https://www.agendaprogestao.com.br/conheca.html" />
+<meta name="theme-color" content="#FAF9F6" />
 <link rel="icon" type="image/png" href="icones/icone-192.png" />
 <link rel="apple-touch-icon" href="icones/apple-touch-icon.png" />
 <meta property="og:type" content="website" />
 <meta property="og:locale" content="pt_BR" />
-<meta property="og:title" content="Sua agenda cheia, sem viver no WhatsApp — AgendaPro" />
-<meta property="og:description" content="Link de agendamento 24h, confirmação e lembrete no WhatsApp, agenda da equipe, caixa e relatórios. 7 dias grátis, sem cartão." />
+<meta property="og:site_name" content="AgendaPro" />
+<meta property="og:url" content="https://www.agendaprogestao.com.br/conheca.html" />
+<meta property="og:title" content="Seu salão organizado. Sua rotina mais leve. — AgendaPro" />
+<meta property="og:description" content="Link de agendamento 24h, confirmação e lembrete no WhatsApp, agenda da equipe, clientes, caixa e relatórios. 7 dias grátis, sem cartão." />
 <meta property="og:image" content="https://www.agendaprogestao.com.br/lp/og.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
+<link rel="preload" href="lp/fontes/manrope.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="lp/fontes/dm-serif-display.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="preload" href="lp/fontes/dm-serif-display-italico.woff2" as="font" type="font/woff2" crossorigin />
 <!--
   ═══════════════════════════════════════════════════════════════════════════
   A PÁGINA DOS ANÚNCIOS
@@ -22,313 +30,504 @@
   ao login, que é o que o cliente de hoje espera. Esta é a porta de quem nunca
   ouviu falar do AgendaPro — vem de anúncio, de link na bio, de indicação.
 
-  ⚠ NADA AQUI É INVENTADO. Cada recurso citado existe no sistema; os prints
-  são da demonstração de verdade (lp/*.webp, refeitos a partir do demo); os
-  preços vêm do banco (tabela `planos`, que o visitante anônimo pode ler) e,
+  ⚠ NADA AQUI É INVENTADO. Cada recurso citado existe no sistema. As telas
+  são de verdade:
+    · lp/salao-*.webp — a página do Salão Megatop (Itu/SP), dos prints do
+      celular mandados pelo dono do AgendaPro (só tiradas as barras do
+      aparelho e do navegador);
+    · lp/painel-*.webp e lp/horarios.webp — o painel e o link rodando na
+      demonstração (app.html?demo=1, agendar.html?salao=studio-bella&demo=1).
+  Os preços vêm do banco (tabela `planos`, que o visitante anônimo pode ler) e,
   se o banco não responder, ficam os de reserva escritos abaixo. Não há
   depoimento nem número de clientes porque ainda não temos os de verdade —
   o lugar deles está marcado, comentado, mais abaixo.
 
   Os botões levam ao criar.html carregando os parâmetros do anúncio (utm_*,
   fbclid, gclid): o cadastro sabe de onde a pessoa veio.
+
+  As fontes (Manrope e DM Serif Display, licença OFL) moram em lp/fontes/:
+  nenhuma requisição a terceiros para desenhar a página.
   ═══════════════════════════════════════════════════════════════════════════
 -->
 <style>
-/* Os mesmos tokens do estilo.css (nomes e valores): a página de venda tem a
-   cara do produto que ela vende. Copiados, e não importados, para a página
-   abrir leve — quem chega de anúncio, no 4G, decide em três segundos. */
+@font-face{font-family:"Manrope";src:url("lp/fontes/manrope.woff2") format("woff2");font-weight:200 800;font-style:normal;font-display:swap;
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"DM Serif Display";src:url("lp/fontes/dm-serif-display.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap;
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"DM Serif Display";src:url("lp/fontes/dm-serif-display-italico.woff2") format("woff2");font-weight:400;font-style:italic;font-display:swap;
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+
+/* A paleta da página de venda: papel (off-white e bege) e grafite, com o azul
+   da marca (#2563EB, o mesmo do logotipo e dos botões do sistema) como único
+   destaque. O cinza dos textos é um tom abaixo do #77766F da referência: o
+   original não passa no contraste AA em texto corrido sobre o bege. */
 :root{
-  --n-0:#FFFFFF; --n-50:#F8FAFC; --n-100:#F1F5F9; --n-200:#E2E8F0; --n-300:#CBD5E1;
-  --n-400:#94A3B8; --n-500:#64748B; --n-600:#475569; --n-700:#334155; --n-900:#172033; --n-950:#0F172A;
-  --az-50:#EFF6FF; --az-100:#DBEAFE; --az-600:#2563EB; --az-700:#1D4ED8; --az-800:#1E40AF;
-  --rx-600:#7C3AED; --rx-50:#F5F3FF;
-  --su-500:#15803D; --su-soft:rgba(21,128,61,.10);
-  --grad-marca:linear-gradient(96deg,#2563EB 0%,#4F46E5 52%,#7C3AED 100%);
-  --txt:var(--n-900); --txt2:var(--n-600); --txt3:var(--n-500);
-  --borda:var(--n-200); --painel:var(--n-0); --fundo:var(--n-50);
-  --acao:var(--az-600); --acao-hover:var(--az-700);
-  --r:16px; --r-sm:11px; --r-pill:999px;
-  --sombra:0 1px 2px rgba(15,23,42,.06), 0 8px 24px -12px rgba(15,23,42,.18);
-  --sombra-forte:0 2px 6px rgba(15,23,42,.08), 0 30px 60px -24px rgba(15,23,42,.35);
-  --fonte:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Roboto,Arial,sans-serif;
-  --fonte-display:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Roboto,Arial,sans-serif;
+  --off:#FAF9F6; --bege:#F1EDE5; --bege-2:#E9E3D8; --bege-3:#DCD4C6; --branco:#FFFFFF;
+  --grafite:#242522; --grafite-2:#34352F; --cinza:#6B6A63; --cinza-claro:#77766F;
+  --linha:rgba(36,37,34,.10); --linha-forte:rgba(36,37,34,.18);
+  --acento:#2563EB; --acento-escuro:#1D4ED8; --acento-suave:#E8EDF8;
+  --ok:#2F6B4F;
+  --r-lg:28px; --r:20px; --r-sm:12px; --r-pill:999px;
+  --sombra-1:0 1px 2px rgba(36,37,34,.05), 0 8px 24px -14px rgba(36,37,34,.22);
+  --sombra-2:0 2px 6px rgba(36,37,34,.06), 0 34px 70px -34px rgba(36,37,34,.42);
+  --sans:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --serif:"DM Serif Display",Georgia,"Times New Roman",serif;
+  --topo:72px;
+  interpolate-size:allow-keywords;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
-body{font-family:var(--fonte);color:var(--txt);background:var(--fundo);line-height:1.55;
-  -webkit-font-smoothing:antialiased;font-size:17px}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{font-family:var(--sans);color:var(--grafite);background:var(--off);line-height:1.6;font-size:17px;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"ss01" 0;overflow-x:hidden}
 img{max-width:100%;display:block}
 a{color:inherit}
-:focus-visible{outline:3px solid var(--az-600);outline-offset:3px;border-radius:6px}
-.lp-in{max-width:1120px;margin:0 auto;padding:0 20px}
-h1,h2,h3{font-family:var(--fonte-display);line-height:1.15;letter-spacing:-.02em;color:var(--n-950)}
-h2{font-size:clamp(1.6rem,4.6vw,2.4rem);margin-bottom:14px}
-h3{font-size:1.12rem;margin-bottom:6px}
-.lp-sub{color:var(--txt2);font-size:1.05rem;max-width:60ch}
-.lp-olho{display:inline-block;font-size:.8rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--az-700);background:var(--az-50);border:1px solid var(--az-100);padding:6px 12px;border-radius:var(--r-pill);margin-bottom:16px}
-.lp-cor{background:var(--grad-marca);-webkit-background-clip:text;background-clip:text;color:transparent}
-section{padding:72px 0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2.5px solid var(--acento);outline-offset:3px;border-radius:8px}
+.lp-pular{position:absolute;left:12px;top:-60px;z-index:60;background:var(--grafite);color:#fff;padding:10px 16px;border-radius:var(--r-sm);text-decoration:none;font-weight:600}
+.lp-pular:focus{top:12px}
+.lp-in{max-width:1180px;margin:0 auto;padding:0 24px}
+section{padding:88px 0;scroll-margin-top:var(--topo)}
+
+/* Tipografia: a serifa só nos títulos de seção; o resto é Manrope */
+h1,h2{font-family:var(--serif);font-weight:400;letter-spacing:-.012em;color:var(--grafite);text-wrap:balance}
+h1 em,h2 em{font-style:italic;color:var(--acento)}
+h2{font-size:clamp(2.05rem,1.35rem + 2.7vw,3.25rem);line-height:1.06;margin-bottom:18px}
+h3{font-size:1.14rem;line-height:1.3;font-weight:700;letter-spacing:-.01em}
+.lp-olho{display:inline-flex;align-items:center;gap:10px;font-size:.76rem;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--grafite);margin-bottom:20px}
+.lp-olho::before{content:"";width:22px;height:1.5px;background:var(--acento)}
+.lp-sub{color:var(--cinza);font-size:1.1rem;line-height:1.65;max-width:56ch}
 .lp-centro{text-align:center}
 .lp-centro .lp-sub{margin-left:auto;margin-right:auto}
+.lp-centro .lp-olho{justify-content:center}
+.lp-cabeca{max-width:760px;margin-bottom:52px}
+.lp-cabeca.lp-centro{margin-left:auto;margin-right:auto}
 
-/* Botões */
-.lp-bt{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:54px;padding:0 26px;
-  border-radius:var(--r-sm);font-weight:700;font-size:1.05rem;text-decoration:none;cursor:pointer;border:0;
-  transition:transform .15s, box-shadow .15s, background .15s}
-.lp-bt-p{background:var(--acao);color:#fff;box-shadow:0 10px 24px -10px rgba(37,99,235,.7)}
-.lp-bt-p:hover{background:var(--acao-hover);transform:translateY(-1px)}
-.lp-bt-s{background:var(--painel);color:var(--txt);border:1px solid var(--borda)}
-.lp-bt-s:hover{border-color:var(--n-300)}
-.lp-desarme{margin-top:12px;font-size:.88rem;color:var(--txt3)}
-.lp-desarme b{color:var(--txt2);font-weight:600}
+/* Ícones: o mesmo traço do sistema (icones.js) */
+.lp-i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
-/* Topo */
-.lp-topo{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.88);backdrop-filter:saturate(1.4) blur(10px);
-  -webkit-backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--borda)}
-.lp-topo .lp-in{display:flex;align-items:center;justify-content:space-between;height:64px;gap:12px}
-.lp-logo img{height:34px;width:auto}
-.lp-topo nav{display:flex;align-items:center;gap:8px}
-.lp-entrar{font-weight:600;font-size:.95rem;text-decoration:none;color:var(--txt2);padding:10px 12px;min-height:44px;display:inline-flex;align-items:center}
-.lp-topo .lp-bt{min-height:44px;padding:0 16px;font-size:.95rem}
+/* Botões: um estilo por tipo de ação */
+.lp-bt{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:54px;padding:0 28px;
+  border-radius:var(--r-pill);font-weight:700;font-size:1rem;letter-spacing:-.005em;text-decoration:none;cursor:pointer;border:0;
+  transition:transform .2s ease, background-color .2s ease, box-shadow .2s ease, border-color .2s ease}
+.lp-bt .lp-i{width:18px;height:18px;transition:transform .2s ease}
+.lp-bt:hover .lp-i{transform:translateX(3px)}
+.lp-bt-p{background:var(--grafite);color:#fff;box-shadow:0 12px 26px -14px rgba(36,37,34,.7)}
+.lp-bt-p:hover{background:#000;transform:translateY(-1px)}
+.lp-bt-s{background:transparent;color:var(--grafite);border:1.5px solid var(--linha-forte)}
+.lp-bt-s:hover{border-color:var(--grafite);background:var(--branco)}
+.lp-bt-claro{background:var(--off);color:var(--grafite)}
+.lp-bt-claro:hover{background:#fff;transform:translateY(-1px)}
+.lp-desarme{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:22px;list-style:none;font-size:.9rem;color:var(--cinza);font-weight:500}
+.lp-desarme li{display:inline-flex;align-items:center;gap:7px}
+.lp-desarme .lp-i{width:16px;height:16px;color:var(--ok);stroke-width:2.2}
 
-/* Herói */
-.lp-heroi{padding:48px 0 64px;background:
-  radial-gradient(900px 420px at 85% -10%, rgba(124,58,237,.10), transparent 60%),
-  radial-gradient(700px 380px at -10% 10%, rgba(37,99,235,.10), transparent 60%), var(--painel)}
-.lp-heroi .lp-in{display:grid;gap:40px;align-items:center}
-.lp-heroi h1{font-size:clamp(2.15rem,7.4vw,3.6rem);margin-bottom:16px}
-.lp-heroi .lp-sub{font-size:1.15rem}
-.lp-acoes{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
-.lp-demo-link{font-weight:600;color:var(--az-700);text-decoration:none;display:inline-flex;align-items:center;min-height:54px;padding:0 6px}
-.lp-demo-link:hover{text-decoration:underline}
-.lp-palco{position:relative;justify-self:center;width:min(330px,86vw)}
-.lp-cel{border-radius:38px;padding:10px;background:var(--n-950);box-shadow:var(--sombra-forte)}
-.lp-cel img{border-radius:29px;width:100%;height:auto;background:#fff}
-.lp-zap{position:absolute;left:-14%;bottom:-6%;width:min(268px,74vw);background:#E7FFDB;color:#111B21;
-  border-radius:14px 14px 14px 4px;padding:12px 14px 10px;font-size:.84rem;line-height:1.45;
-  box-shadow:0 18px 40px -16px rgba(15,23,42,.45);border:1px solid rgba(0,0,0,.05)}
-.lp-zap-de{font-size:.72rem;font-weight:700;color:#008069;margin-bottom:4px}
-.lp-zap p{white-space:pre-line}
-.lp-zap small{display:block;text-align:right;color:#667781;font-size:.7rem;margin-top:4px}
-.lp-zap-nota{position:absolute;right:0;bottom:-14%;font-size:.72rem;color:var(--txt3)}
+/* ── Topo ─────────────────────────────────────────────────────────────── */
+.lp-topo{position:sticky;top:0;z-index:40;background:rgba(250,249,246,.86);
+  backdrop-filter:saturate(1.3) blur(14px);-webkit-backdrop-filter:saturate(1.3) blur(14px);
+  border-bottom:1px solid transparent;transition:border-color .25s, background-color .25s}
+.lp-topo.rolou{border-bottom-color:var(--linha)}
+.lp-topo .lp-in{display:flex;align-items:center;gap:20px;height:var(--topo)}
+.lp-logo{display:inline-flex;align-items:center;min-height:44px;margin-right:auto}
+.lp-logo img{height:36px;width:auto}
+.lp-nav{display:flex;align-items:center;gap:4px}
+.lp-nav a{font-size:.94rem;font-weight:600;color:var(--grafite-2);text-decoration:none;padding:10px 14px;border-radius:var(--r-pill);
+  min-height:44px;display:inline-flex;align-items:center;transition:background-color .2s}
+.lp-nav a:hover{background:var(--bege)}
+.lp-entrar{font-size:.94rem;font-weight:600;text-decoration:none;padding:10px 14px;min-height:44px;display:inline-flex;align-items:center}
+.lp-entrar:hover{text-decoration:underline;text-underline-offset:4px}
+.lp-topo .lp-bt{min-height:44px;padding:0 20px;font-size:.92rem}
+.lp-menu-bt{display:none;width:44px;height:44px;border-radius:var(--r-pill);border:1.5px solid var(--linha-forte);background:transparent;
+  align-items:center;justify-content:center;cursor:pointer}
+.lp-menu-bt .lp-i{width:20px;height:20px}
+.lp-menu-bt .lp-fecha{display:none}
+.lp-menu-bt[aria-expanded="true"] .lp-abre{display:none}
+.lp-menu-bt[aria-expanded="true"] .lp-fecha{display:block}
+.lp-menu{position:absolute;left:0;right:0;top:100%;background:var(--off);border-bottom:1px solid var(--linha);
+  box-shadow:0 30px 40px -30px rgba(36,37,34,.35);padding:8px 20px 22px}
+.lp-menu[hidden]{display:none}
+.lp-menu a:not(.lp-bt){display:flex;align-items:center;justify-content:space-between;min-height:54px;font-size:1.08rem;font-weight:600;
+  text-decoration:none;border-bottom:1px solid var(--linha)}
+.lp-menu .lp-bt{width:100%;margin-top:18px}
 
-/* Faixa de confiança */
-.lp-faixa{padding:22px 0;background:var(--painel);border-top:1px solid var(--borda);border-bottom:1px solid var(--borda)}
-.lp-faixa ul{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px}
-.lp-faixa li{display:flex;align-items:center;gap:10px;font-size:.92rem;color:var(--txt2);font-weight:600}
-.lp-ic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--az-50);color:var(--az-700)}
-.lp-ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+/* ── Herói ────────────────────────────────────────────────────────────── */
+.lp-heroi{padding:56px 0 88px;position:relative;overflow:hidden}
+.lp-heroi .lp-in{display:grid;gap:56px;align-items:center}
+.lp-heroi h1{font-size:clamp(2.75rem,1.6rem + 4.4vw,4.6rem);line-height:1.01;margin-bottom:24px}
+.lp-heroi h1 span{display:block}
+.lp-heroi .lp-sub{font-size:1.16rem;max-width:50ch}
+.lp-acoes{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:34px}
 
-/* Abertura e dor */
-.lp-abre p{font-size:1.12rem;color:var(--txt2);max-width:62ch;margin:0 auto 14px}
-.lp-abre p strong{color:var(--txt)}
-.lp-dor{background:var(--painel)}
-.lp-dor ul{list-style:none;display:grid;gap:12px;margin:26px 0 22px;max-width:720px}
-.lp-dor li{display:flex;gap:12px;align-items:flex-start;background:var(--fundo);border:1px solid var(--borda);
-  border-radius:var(--r-sm);padding:14px 16px;font-size:1.02rem}
-.lp-dor li::before{content:"";flex:none;width:9px;height:9px;margin-top:9px;border-radius:50%;background:var(--rx-600)}
-.lp-dor .lp-fecho{font-weight:700;font-size:1.1rem;max-width:62ch}
+/* A composição: o painel do salão atrás, o link da cliente na frente, e a
+   confirmação que chega no WhatsApp. Tudo tela de verdade. */
+.lp-palco{position:relative;width:100%;max-width:600px;justify-self:center;aspect-ratio:1/1.02}
+.lp-palco::before{content:"";position:absolute;inset:9% 0 3% 12%;border-radius:36px;background:var(--bege)}
+.lp-palco .lp-janela{position:absolute;right:0;top:4%;width:86%}
+.lp-palco .lp-cel{position:absolute;left:0;bottom:0;width:39%}
+.lp-palco .lp-aviso{position:absolute;right:4%;bottom:7%;width:min(290px,50%)}
+.lp-aviso-nota{position:absolute;right:4%;bottom:0;font-size:.72rem;color:var(--cinza-claro)}
 
-/* Como funciona */
-.lp-passos{display:grid;gap:16px;margin-top:30px;counter-reset:passo}
-.lp-passo{background:var(--painel);border:1px solid var(--borda);border-radius:var(--r);padding:22px;box-shadow:var(--sombra);position:relative}
-.lp-passo::before{counter-increment:passo;content:counter(passo);display:grid;place-items:center;width:38px;height:38px;
-  border-radius:12px;background:var(--grad-marca);color:#fff;font-weight:800;margin-bottom:12px}
-.lp-passo p{color:var(--txt2)}
-.lp-mecanismo{margin-top:22px;padding:18px 20px;border-radius:var(--r);background:var(--az-50);border:1px solid var(--az-100);color:var(--n-700)}
-.lp-mecanismo b{color:var(--az-800)}
+.lp-janela{background:var(--branco);border-radius:14px;overflow:hidden;border:1px solid var(--linha);box-shadow:var(--sombra-2)}
+.lp-janela-barra{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;background:#F6F4EF;border-bottom:1px solid var(--linha)}
+.lp-janela-barra i{width:9px;height:9px;border-radius:50%;background:var(--bege-3)}
+.lp-janela-barra span{margin-left:12px;font-size:.68rem;font-weight:600;color:var(--cinza-claro);background:var(--branco);
+  border-radius:6px;padding:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lp-janela img{width:100%;height:auto}
 
-/* Benefícios */
-.lp-beneficios{background:var(--painel)}
-.lp-grade{display:grid;gap:14px;margin-top:30px}
-.lp-card{border:1px solid var(--borda);border-radius:var(--r);padding:20px;background:var(--painel)}
-.lp-card .lp-ic{margin-bottom:12px}
-.lp-card p{color:var(--txt2);font-size:.98rem}
+.lp-cel{position:relative;background:var(--grafite);padding:8px;border-radius:40px;box-shadow:var(--sombra-2)}
+.lp-cel::before{content:"";position:absolute;z-index:1;top:15px;left:50%;width:28%;height:16px;border-radius:10px;background:var(--grafite);transform:translateX(-50%)}
+.lp-cel img{width:100%;height:auto;border-radius:32px;background:#fff}
 
-/* Veja funcionando */
-.lp-veja .lp-telas{display:grid;gap:22px;margin-top:30px;align-items:start}
-.lp-tela figcaption{margin-top:10px;font-size:.92rem;color:var(--txt2);text-align:center}
-.lp-tela .lp-cel{max-width:300px;margin:0 auto}
-.lp-pc{border-radius:14px;overflow:hidden;border:1px solid var(--borda);box-shadow:var(--sombra-forte);background:#fff}
-.lp-pc-barra{display:flex;gap:6px;padding:10px 12px;background:var(--n-100);border-bottom:1px solid var(--borda)}
-.lp-pc-barra i{width:10px;height:10px;border-radius:50%;background:var(--n-300)}
-.lp-pc img{width:100%;height:auto}
-.lp-demos{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:28px}
+.lp-aviso{background:var(--branco);border-radius:18px;padding:14px 16px 12px;font-size:.8rem;line-height:1.5;color:#111B21;
+  box-shadow:0 22px 44px -22px rgba(36,37,34,.5), 0 0 0 1px var(--linha)}
+.lp-aviso-de{display:flex;align-items:center;gap:8px;font-size:.74rem;font-weight:700;color:var(--grafite);margin-bottom:6px}
+.lp-aviso-de b{width:22px;height:22px;border-radius:50%;background:#25D366;display:grid;place-items:center;flex:none}
+.lp-aviso-de b svg{width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2.2}
+.lp-aviso-de small{margin-left:auto;font-weight:500;color:var(--cinza-claro)}
+.lp-aviso p{white-space:pre-line}
 
-/* Planos */
-.lp-planos{background:var(--painel)}
-.lp-selo-teste{display:inline-flex;align-items:center;gap:8px;background:var(--su-soft);color:var(--su-500);font-weight:700;
-  padding:8px 14px;border-radius:var(--r-pill);font-size:.92rem;margin-bottom:14px}
-.lp-lista-planos{display:grid;gap:14px;margin-top:28px}
-.lp-plano{border:1px solid var(--borda);border-radius:var(--r);padding:22px;background:var(--painel);display:flex;flex-direction:column}
-.lp-plano-quem{font-size:.85rem;font-weight:700;color:var(--az-700);text-transform:uppercase;letter-spacing:.06em}
-.lp-plano h3{font-size:1.35rem;margin:4px 0 8px}
-.lp-preco{font-size:2.1rem;font-weight:800;letter-spacing:-.03em;color:var(--n-950)}
-.lp-preco small{font-size:.95rem;font-weight:600;color:var(--txt3);letter-spacing:0}
-.lp-plano ul{list-style:none;margin:14px 0 18px;display:grid;gap:7px;font-size:.95rem;color:var(--txt2)}
-.lp-plano li::before{content:"✓ ";color:var(--su-500);font-weight:800}
-.lp-plano .lp-bt{margin-top:auto;width:100%}
+/* ── Faixa de confiança ───────────────────────────────────────────────── */
+.lp-faixa{border-top:1px solid var(--linha);border-bottom:1px solid var(--linha);background:var(--branco)}
+.lp-faixa ul{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.lp-faixa li{display:flex;align-items:center;gap:12px;padding:20px 8px;font-size:.9rem;font-weight:600;color:var(--grafite-2);line-height:1.35}
+.lp-faixa .lp-i{width:22px;height:22px;color:var(--acento)}
+
+/* ── O dia a dia (abertura e dor) ─────────────────────────────────────── */
+.lp-dia{background:var(--bege)}
+.lp-dia .lp-in{display:grid;gap:44px}
+.lp-dia p{color:var(--cinza);font-size:1.08rem;max-width:56ch;margin-bottom:14px}
+.lp-dia p strong{color:var(--grafite);font-weight:700}
+.lp-dores{list-style:none;counter-reset:dor;border-top:1px solid var(--linha-forte)}
+.lp-dores li{counter-increment:dor;display:grid;grid-template-columns:42px 1fr;gap:6px;padding:18px 0;border-bottom:1px solid var(--linha-forte);font-size:1.04rem;font-weight:500}
+.lp-dores li::before{content:counter(dor, decimal-leading-zero);font-family:var(--serif);font-size:1.15rem;color:var(--acento);line-height:1.5}
+.lp-dia .lp-fecho{margin-top:24px;font-family:var(--serif);font-size:1.5rem;line-height:1.3;color:var(--grafite);max-width:none}
+
+/* ── Recursos ─────────────────────────────────────────────────────────── */
+.lp-recurso{display:grid;gap:36px;align-items:center;padding:44px 0;border-top:1px solid var(--linha)}
+.lp-recurso:first-of-type{border-top:0;padding-top:0}
+.lp-num{display:block;font-size:.76rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--acento-escuro);margin-bottom:14px}
+.lp-recurso h3{font-size:clamp(1.45rem,1.15rem + 1vw,1.85rem);line-height:1.18;letter-spacing:-.02em;margin-bottom:14px}
+.lp-recurso p{color:var(--cinza);font-size:1.05rem;max-width:48ch}
+.lp-lista{list-style:none;margin-top:22px;display:grid;gap:12px}
+.lp-lista li{display:grid;grid-template-columns:22px 1fr;gap:10px;font-size:.98rem;font-weight:500;color:var(--grafite-2)}
+.lp-lista .lp-i{width:18px;height:18px;margin-top:3px;color:var(--acento);stroke-width:2.2}
+.lp-quadro{position:relative;border-radius:var(--r-lg);background:var(--bege);padding:40px 32px;display:grid;place-items:center;overflow:hidden}
+.lp-quadro .lp-janela{width:100%}
+.lp-quadro-cel{padding:40px 0 0;aspect-ratio:1/1;place-items:start center}
+.lp-quadro-cel .lp-cel{width:min(300px,72%);border-radius:40px 40px 0 0;padding:8px 8px 0}
+.lp-quadro-cel .lp-cel img{border-radius:32px 32px 0 0}
+.lp-legenda{display:block;margin-top:12px;font-size:.8rem;color:var(--cinza-claro);text-align:center}
+.lp-tambem{margin-top:44px;padding:22px 26px;border-radius:var(--r);border:1px solid var(--linha);background:var(--branco);
+  display:flex;flex-wrap:wrap;align-items:center;gap:10px 26px;font-size:.95rem;color:var(--cinza)}
+.lp-tambem b{color:var(--grafite);font-weight:700;margin-right:4px}
+.lp-tambem span{display:inline-flex;align-items:center;gap:8px}
+.lp-tambem span::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--acento)}
+
+/* A conversa do WhatsApp (o texto é o dos modelos do sistema) */
+.lp-conversa{width:min(380px,100%);border-radius:22px;overflow:hidden;background:#EFEAE2;box-shadow:var(--sombra-2)}
+.lp-conversa-topo{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--branco);border-bottom:1px solid var(--linha);font-weight:700;font-size:.92rem}
+.lp-conversa-topo b{width:34px;height:34px;border-radius:50%;background:#25D366;display:grid;place-items:center}
+.lp-conversa-topo b svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2}
+.lp-conversa-topo small{display:block;font-weight:500;color:var(--cinza-claro);font-size:.74rem}
+.lp-conversa-corpo{padding:16px 14px 18px;display:grid;gap:10px}
+.lp-balao{background:var(--branco);border-radius:4px 14px 14px 14px;padding:10px 12px 6px;max-width:88%;font-size:.84rem;line-height:1.5;color:#111B21;
+  box-shadow:0 1px 1px rgba(0,0,0,.06)}
+.lp-balao p{white-space:pre-line}
+.lp-balao small{display:block;text-align:right;font-size:.68rem;color:#667781;margin-top:2px}
+.lp-dia-chip{justify-self:center;font-size:.7rem;font-weight:600;color:#54656F;background:rgba(255,255,255,.85);padding:3px 10px;border-radius:8px}
+
+/* ── Um salão de verdade ──────────────────────────────────────────────── */
+.lp-veja{background:var(--bege)}
+.lp-galeria{display:grid;gap:22px;list-style:none}
+.lp-galeria figure{display:flex;flex-direction:column}
+.lp-galeria .lp-quadro{background:var(--off)}
+.lp-galeria li:nth-child(2) .lp-quadro{background:var(--bege-2)}
+.lp-galeria li:nth-child(3) .lp-quadro{background:var(--acento-suave)}
+.lp-galeria figcaption{padding:20px 4px 0}
+.lp-galeria figcaption h3{margin-bottom:4px}
+.lp-galeria figcaption p{color:var(--cinza);font-size:.96rem}
+.lp-galeria figcaption::after{content:"";display:block;width:28px;height:1.5px;background:var(--acento);margin-top:14px}
 .lp-arraste{display:none}
-.lp-plano.lp-destaque{border:2px solid var(--az-600);box-shadow:0 18px 40px -22px rgba(37,99,235,.55)}
-.lp-todos{margin-top:24px;padding:20px;border-radius:var(--r);background:var(--fundo);border:1px solid var(--borda)}
-.lp-todos h3{margin-bottom:10px}
-.lp-todos ul{list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px 16px;font-size:.95rem;color:var(--txt2)}
-.lp-todos li::before{content:"✓ ";color:var(--su-500);font-weight:800}
-.lp-menor{margin-top:16px;font-size:.95rem;color:var(--txt2)}
+.lp-demos{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:44px}
+.lp-demos .lp-bt{flex:0 1 250px}
+.lp-demos-nota{text-align:center;margin-top:14px;font-size:.86rem;color:var(--cinza)}
+
+/* ── Como funciona ────────────────────────────────────────────────────── */
+.lp-como{background:var(--branco)}
+.lp-passos{list-style:none;display:grid;gap:0;counter-reset:passo}
+.lp-passo{counter-increment:passo;padding:28px 0;border-top:1px solid var(--linha-forte)}
+.lp-passo::before{content:counter(passo, decimal-leading-zero);display:block;font-family:var(--serif);font-size:3.6rem;line-height:1;color:var(--acento);margin-bottom:18px}
+.lp-passo h3{font-size:1.25rem;margin-bottom:8px}
+.lp-passo p{color:var(--cinza);max-width:38ch}
+.lp-mecanismo{margin-top:48px;padding:6px 0 6px 24px;border-left:2px solid var(--acento);max-width:760px;font-size:1.06rem;color:var(--cinza)}
+.lp-mecanismo b{color:var(--grafite)}
+
+/* ── Planos ───────────────────────────────────────────────────────────── */
+.lp-selo-teste{display:inline-flex;align-items:center;gap:8px;background:var(--acento-suave);color:var(--acento-escuro);font-weight:700;
+  padding:8px 16px;border-radius:var(--r-pill);font-size:.88rem;margin-bottom:22px}
+.lp-selo-teste .lp-i{width:16px;height:16px;stroke-width:2.4}
+.lp-lista-planos{display:grid;gap:16px}
+.lp-plano{border:1px solid var(--linha);border-radius:var(--r);padding:26px 24px 24px;background:var(--branco);display:flex;flex-direction:column;
+  transition:border-color .2s, box-shadow .2s, transform .2s}
+.lp-plano:hover{border-color:var(--linha-forte);box-shadow:var(--sombra-1);transform:translateY(-2px)}
+.lp-plano-quem{font-size:.74rem;font-weight:700;color:var(--cinza);text-transform:uppercase;letter-spacing:.12em}
+.lp-plano h3{font-size:1.3rem;margin:6px 0 14px}
+.lp-preco{font-family:var(--serif);font-size:2.6rem;line-height:1;letter-spacing:-.01em;color:var(--grafite)}
+.lp-preco small{font-family:var(--sans);font-size:.9rem;font-weight:600;color:var(--cinza);letter-spacing:0}
+.lp-plano ul{list-style:none;margin:20px 0 24px;padding-top:18px;border-top:1px solid var(--linha);display:grid;gap:10px;font-size:.93rem;color:var(--grafite-2)}
+.lp-plano li{display:grid;grid-template-columns:20px 1fr;gap:8px}
+.lp-plano li .lp-i{width:16px;height:16px;margin-top:3px;color:var(--acento);stroke-width:2.4}
+.lp-plano .lp-bt{margin-top:auto;width:100%;min-height:50px;padding:0 18px}
+.lp-cobranca{margin-top:22px;font-size:.92rem;color:var(--cinza);text-align:center}
+.lp-todos{margin-top:40px;padding:28px;border-radius:var(--r);background:var(--bege)}
+.lp-todos h3{margin-bottom:16px}
+.lp-todos ul{list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 22px;font-size:.95rem;color:var(--grafite-2)}
+.lp-todos li{display:grid;grid-template-columns:20px 1fr;gap:8px}
+.lp-todos .lp-i{width:16px;height:16px;margin-top:3px;color:var(--acento);stroke-width:2.4}
+.lp-menor{margin-top:18px;font-size:.95rem;color:var(--cinza);text-align:center}
 
 /* A conta das faltas */
-.lp-conta{margin-top:30px;border-radius:var(--r);padding:22px;background:var(--n-950);color:#E2E8F0;display:grid;gap:18px}
-.lp-conta h3{color:#fff}
-.lp-conta p{color:#CBD5E1;font-size:.95rem}
-.lp-conta label{display:flex;flex-direction:column;gap:6px;font-size:.9rem;font-weight:600;color:#CBD5E1}
-.lp-conta input{font:inherit;font-size:1.1rem;padding:12px 14px;border-radius:var(--r-sm);border:1px solid #334155;background:#1E293B;color:#fff;min-height:48px;width:100%}
+.lp-conta{margin-top:40px;border-radius:var(--r-lg);padding:32px 28px;background:var(--grafite);color:#D9D7CF;display:grid;gap:24px}
+.lp-conta h3{color:#fff;font-family:var(--serif);font-weight:400;font-size:1.8rem;letter-spacing:-.01em;margin-bottom:8px}
+.lp-conta p{color:#B9B7AE;font-size:.98rem}
+.lp-conta label{display:flex;flex-direction:column;gap:8px;font-size:.88rem;font-weight:600;color:#D9D7CF}
+.lp-conta input{font:inherit;font-size:1.1rem;font-weight:600;padding:12px 14px;border-radius:var(--r-sm);border:1px solid #4A4B45;background:#2E2F2B;color:#fff;min-height:50px;width:100%}
+.lp-conta input:focus-visible{outline-color:#8FB0F5}
 .lp-conta-campos{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
-.lp-conta-res{font-size:1.05rem;color:#fff}
-.lp-conta-res strong{font-size:1.9rem;display:block;letter-spacing:-.02em}
+.lp-conta .lp-conta-res{font-size:1.02rem;color:#fff;margin-top:16px}
+.lp-conta-res strong{font-family:var(--serif);font-weight:400;font-size:2.2rem;display:block;letter-spacing:-.01em;line-height:1.15}
 
-/* Objeções e FAQ */
-.lp-objecoes{display:grid;gap:12px;margin-top:26px}
-.lp-obj{background:var(--painel);border:1px solid var(--borda);border-radius:var(--r);padding:20px}
-.lp-obj h3{font-size:1.05rem;color:var(--n-950)}
-.lp-obj p{color:var(--txt2)}
-.lp-garantia{margin-top:34px;display:grid;gap:18px;align-items:center;padding:24px;border-radius:var(--r);
-  background:var(--painel);border:1px solid var(--borda);box-shadow:var(--sombra)}
-.lp-carimbo{width:112px;height:112px;border-radius:50%;display:grid;place-items:center;text-align:center;
-  background:var(--grad-marca);color:#fff;font-weight:800;line-height:1.1;font-size:.95rem;padding:10px;margin:0 auto;
-  box-shadow:0 0 0 6px var(--rx-50)}
-.lp-carimbo b{font-size:1.9rem;display:block}
-.lp-faq{background:var(--painel)}
-.lp-faq details{border-bottom:1px solid var(--borda);padding:4px 0}
-.lp-faq summary{cursor:pointer;list-style:none;font-weight:700;font-size:1.04rem;padding:16px 36px 16px 0;position:relative;min-height:44px}
+/* ── Perguntas frequentes ─────────────────────────────────────────────── */
+.lp-faq{background:var(--bege)}
+.lp-faq .lp-in{display:grid;gap:36px}
+.lp-faq-lista{border-top:1px solid var(--linha-forte)}
+.lp-faq details{border-bottom:1px solid var(--linha-forte)}
+.lp-faq summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:18px;
+  font-weight:700;font-size:1.04rem;padding:20px 0;min-height:44px}
 .lp-faq summary::-webkit-details-marker{display:none}
-.lp-faq summary::after{content:"+";position:absolute;right:4px;top:12px;font-size:1.5rem;color:var(--az-700);font-weight:500}
-.lp-faq details[open] summary::after{content:"–"}
-.lp-faq details p{color:var(--txt2);padding:0 0 16px;max-width:70ch}
-.lp-faq-lista{max-width:820px;margin:26px auto 0}
+.lp-faq summary::after{content:"";flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--linha-forte);
+  background:linear-gradient(var(--grafite),var(--grafite)) center/11px 1.6px no-repeat,
+             linear-gradient(var(--grafite),var(--grafite)) center/1.6px 11px no-repeat;transition:transform .25s ease, background-color .2s}
+.lp-faq details[open] summary::after{transform:rotate(45deg);background-color:var(--branco)}
+.lp-faq details::details-content{block-size:0;overflow:hidden;transition:block-size .3s ease, content-visibility .3s allow-discrete}
+.lp-faq details[open]::details-content{block-size:auto}
+.lp-faq details p{color:var(--cinza);padding:0 48px 22px 0;max-width:68ch}
+.lp-faq details a{color:var(--acento-escuro);font-weight:600}
+.lp-faq-contato{margin-top:6px;color:var(--cinza)}
+.lp-faq-contato a{color:var(--acento-escuro);font-weight:700;text-underline-offset:3px}
 
-/* Final */
-.lp-final{background:var(--n-950);color:#E2E8F0;text-align:center}
-.lp-final h2{color:#fff}
-.lp-final .lp-sub{color:#CBD5E1}
-.lp-final .lp-desarme{color:#94A3B8}
-.lp-final .lp-desarme b{color:#CBD5E1}
-.lp-ps{max-width:640px;margin:34px auto 0;padding-top:24px;border-top:1px solid #1E293B;color:#CBD5E1;font-size:.98rem;text-align:left}
+/* ── Chamada final ────────────────────────────────────────────────────── */
+.lp-final{padding:88px 0}
+.lp-final-bloco{border-radius:36px;background:var(--grafite);color:#D9D7CF;padding:72px 28px;text-align:center;position:relative;overflow:hidden}
+.lp-final-bloco::before{content:"";position:absolute;inset:auto -10% -55% -10%;height:80%;border-radius:50%;
+  background:radial-gradient(closest-side,rgba(37,99,235,.22),transparent);pointer-events:none}
+.lp-final h2{color:#fff;max-width:21ch;margin:0 auto 18px;position:relative}
+.lp-final h2 em{color:#9DB8F7}
+.lp-final h2 .lp-linha{display:block}
+.lp-final .lp-sub{color:#B9B7AE;position:relative;margin:0 auto}
+.lp-final .lp-acoes{justify-content:center;position:relative}
+.lp-final .lp-desarme{justify-content:center;color:#B9B7AE;position:relative}
+.lp-final .lp-desarme .lp-i{color:#8FD3AE}
+.lp-ps{max-width:600px;margin:40px auto 0;padding-top:26px;border-top:1px solid #3A3B36;color:#B9B7AE;font-size:.96rem;text-align:left;position:relative}
 .lp-ps b{color:#fff}
 
-/* Rodapé */
-.lp-rodape{background:var(--n-950);color:#94A3B8;font-size:.86rem;padding:28px 0 96px;border-top:1px solid #1E293B}
-.lp-rodape .lp-in{display:grid;gap:14px}
-.lp-rodape a{color:#CBD5E1}
-.lp-rodape nav{display:flex;flex-wrap:wrap;gap:8px 18px}
-.lp-rodape nav a{min-height:44px;display:inline-flex;align-items:center}
+/* ── Rodapé ───────────────────────────────────────────────────────────── */
+.lp-rodape{border-top:1px solid var(--linha);padding:56px 0 110px;font-size:.92rem;color:var(--cinza)}
+.lp-rodape-grade{display:grid;gap:36px}
+.lp-rodape-marca img{height:40px;width:auto;margin-bottom:14px}
+.lp-rodape-marca p{max-width:34ch}
+.lp-rodape h2{font-family:var(--sans);font-size:.76rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--grafite);margin-bottom:10px}
+.lp-rodape ul{list-style:none}
+.lp-rodape li a{display:inline-flex;align-items:center;min-height:40px;text-decoration:none;color:var(--grafite-2);font-weight:500}
+.lp-rodape li a:hover{color:var(--acento-escuro)}
+.lp-direitos{margin-top:40px;padding-top:24px;border-top:1px solid var(--linha);font-size:.82rem;color:var(--cinza)}
 
 /* A barra fixa do celular: aparece depois do primeiro botão sair da tela */
 .lp-barra{position:fixed;left:0;right:0;bottom:0;z-index:30;padding:10px 16px calc(10px + env(safe-area-inset-bottom));
-  background:rgba(255,255,255,.95);border-top:1px solid var(--borda);backdrop-filter:blur(8px);
-  transform:translateY(110%);transition:transform .25s}
+  background:rgba(250,249,246,.94);border-top:1px solid var(--linha);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  transform:translateY(110%);transition:transform .25s ease}
 .lp-barra.on{transform:none}
 .lp-barra .lp-bt{width:100%}
 
-/* No celular, os cinco planos numa faixa que se arrasta de lado: um embaixo
-   do outro eram mais de duas telas de rolagem só de preço. */
+/* Entrada suave ao aparecer na tela (só com JS e sem "reduzir movimento") */
+.lp-anima [data-revelar]{opacity:0;transform:translateY(18px);transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1)}
+.lp-anima [data-revelar].visto{opacity:1;transform:none}
+.lp-anima .lp-palco > *{animation:subir .9s cubic-bezier(.2,.7,.2,1) both}
+.lp-anima .lp-palco .lp-janela{animation-delay:.05s}
+.lp-anima .lp-palco .lp-cel{animation-delay:.18s}
+.lp-anima .lp-palco .lp-aviso{animation-delay:.42s}
+@keyframes subir{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+
+/* ── Tamanhos de tela ─────────────────────────────────────────────────── */
+@media (max-width:899px){
+  .lp-nav, .lp-topo .lp-entrar{display:none}
+  .lp-menu-bt{display:inline-flex}
+}
+@media (min-width:900px){
+  .lp-menu{display:none !important}
+}
+/* No celular: a galeria e os planos em faixas que se arrastam de lado — um
+   embaixo do outro eram várias telas de rolagem. */
 @media (max-width:759px){
-  .lp-so-grande{display:none}
-  .lp-lista-planos{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;
-    margin:28px -20px 0;padding:4px 20px 12px;scrollbar-width:none}
+  section{padding:68px 0}
+  .lp-in{padding:0 20px}
+  .lp-cabeca{margin-bottom:36px}
+  .lp-heroi{padding:36px 0 64px}
+  .lp-acoes .lp-bt{flex:1 1 100%}
+  .lp-palco{aspect-ratio:1/1.08}
+  .lp-palco::before{inset:6% 0 4% 8%;border-radius:28px}
+  .lp-palco .lp-janela{width:90%;top:0}
+  .lp-palco .lp-cel{width:47%;border-radius:30px;padding:6px}
+  .lp-palco .lp-cel img{border-radius:25px}
+  .lp-palco .lp-cel::before{top:11px;height:11px}
+  .lp-palco .lp-aviso{width:56%;right:0;bottom:6%;font-size:.7rem;padding:10px 11px 9px;border-radius:14px}
+  .lp-aviso-de{font-size:.68rem;margin-bottom:4px}
+  .lp-janela-barra{height:22px}
+  .lp-janela-barra i{width:7px;height:7px}
+  .lp-janela-barra span{display:none}
+  .lp-quadro{padding:28px 20px;border-radius:22px}
+  .lp-quadro-cel{padding:28px 0 0}
+  .lp-galeria{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;margin:0 -20px;padding:0 20px 8px;scrollbar-width:none}
+  .lp-galeria::-webkit-scrollbar{display:none}
+  .lp-galeria li{flex:0 0 80%;scroll-snap-align:center}
+  .lp-arraste{display:block;text-align:center;font-size:.84rem;color:var(--cinza);margin-top:14px}
+  .lp-lista-planos{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;margin:0 -20px;padding:4px 20px 14px;scrollbar-width:none}
   .lp-lista-planos::-webkit-scrollbar{display:none}
-  .lp-plano{flex:0 0 78%;scroll-snap-align:center}
-  .lp-arraste{display:block;text-align:center;font-size:.86rem;color:var(--txt3);margin-top:4px}
+  .lp-plano{flex:0 0 80%;scroll-snap-align:center}
+  .lp-plano:hover{transform:none}
+  .lp-final{padding:56px 0}
+  .lp-final-bloco{padding:56px 22px;border-radius:28px}
+  .lp-conta{padding:26px 22px}
+  .lp-passo{display:grid;grid-template-columns:60px 1fr;column-gap:8px;padding:24px 0}
+  .lp-passo::before{grid-row:span 2;font-size:2.4rem;margin:0}
+  .lp-tambem{flex-direction:column;align-items:flex-start;gap:10px}
+  .lp-demos .lp-bt{flex:1 1 100%}
+  .lp-selo-teste{font-size:.82rem}
 }
 @media (min-width:760px){
-  section{padding:96px 0}
-  .lp-heroi{padding:72px 0 96px}
-  .lp-heroi .lp-in{grid-template-columns:1.1fr .9fr}
   .lp-faixa ul{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .lp-passos{grid-template-columns:repeat(3,1fr)}
-  .lp-grade{grid-template-columns:repeat(2,1fr)}
-  .lp-veja .lp-telas{grid-template-columns:300px 300px 1fr}
+  .lp-faixa li + li{border-left:1px solid var(--linha);padding-left:22px}
+  .lp-galeria{grid-template-columns:repeat(3,1fr)}
+  .lp-passos{grid-template-columns:repeat(3,1fr);gap:36px}
   .lp-lista-planos{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-  .lp-conta{grid-template-columns:1.2fr 1fr}
-  .lp-objecoes{grid-template-columns:repeat(2,1fr)}
-  .lp-garantia{grid-template-columns:140px 1fr}
+  .lp-conta{grid-template-columns:1.1fr 1fr;align-items:center;padding:40px}
   .lp-barra{display:none}
-  .lp-rodape{padding-bottom:28px}
+  .lp-rodape{padding-bottom:40px}
+  .lp-rodape-grade{grid-template-columns:1.6fr repeat(3,1fr)}
 }
 @media (min-width:1000px){
-  .lp-grade{grid-template-columns:repeat(4,1fr)}
+  section{padding:112px 0}
+  .lp-heroi{padding:64px 0 104px}
+  .lp-heroi .lp-in{grid-template-columns:1fr 1.02fr;gap:48px}
+  .lp-dia .lp-in{grid-template-columns:1fr 1fr;gap:80px;align-items:start}
+  .lp-recurso{grid-template-columns:.9fr 1.1fr;gap:72px;padding:64px 0}
+  .lp-recurso.lp-inverso{grid-template-columns:1.1fr .9fr}
+  .lp-recurso.lp-inverso .lp-recurso-texto{order:2}
+  .lp-faq .lp-in{grid-template-columns:.8fr 1.2fr;gap:80px;align-items:start}
+  .lp-faq .lp-cabeca{position:sticky;top:calc(var(--topo) + 32px)}
+  .lp-final-bloco{padding:96px 48px}
 }
-@media (max-width:420px){
-  .lp-topo .lp-entrar{padding:10px 6px}
-  .lp-zap{left:-6%}
+@media (max-width:380px){
+  .lp-topo .lp-in{gap:10px}
+  .lp-topo .lp-bt{padding:0 14px}
+  .lp-logo img{height:30px}
 }
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
-  .lp-bt,.lp-barra{transition:none}
+  *,*::before,*::after{transition:none !important;animation:none !important}
 }
 </style>
+<script>
+/* As entradas suaves só existem com JS e sem "reduzir movimento": sem um dos
+   dois, a página aparece inteira, parada. */
+if(!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) && 'IntersectionObserver' in window)
+  document.documentElement.classList.add('lp-anima');
+</script>
 </head>
 <body>
+<a class="lp-pular" href="#conteudo">Pular para o conteúdo</a>
 
 <!-- Ícones no mesmo traço do sistema (icones.js), declarados uma vez -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
     <symbol id="i-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
     <symbol id="i-zap" viewBox="0 0 24 24"><path d="M4.5 19.5 5.6 16A8 8 0 1 1 8.4 18.6Z"/><path d="M9.5 9.5c.3 2 2.2 4 4.4 4.6l1.1-1.1 1.6.7c-.2 1.2-1.1 1.8-2.1 1.8-3.4-.3-6.1-3-6.4-6.4 0-1 .6-1.9 1.8-2.1l.7 1.6Z"/></symbol>
-    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
-    <symbol id="i-equipe" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3 2.9-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><path d="M16 5.6a3 3 0 0 1 0 5.8M17.5 14.6c1.6.6 2.7 2.1 3 4.4"/></symbol>
-    <symbol id="i-caixa" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 14.5h4"/></symbol>
-    <symbol id="i-ficha" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c.8-3.4 3.6-5.3 7-5.3s6.2 1.9 7 5.3"/></symbol>
-    <symbol id="i-etiqueta" viewBox="0 0 24 24"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.5 1.5 0 0 1 0 2.1l-6.4 6.4a1.5 1.5 0 0 1-2.1 0Z"/><circle cx="8" cy="8" r="1.4"/></symbol>
-    <symbol id="i-pincel" viewBox="0 0 24 24"><path d="M14.5 4.5 19.5 9.5 11 18l-5-5Z"/><path d="M6 13c-2 .5-2.5 2.5-2.5 6.5 4 0 6-.5 6.5-2.5"/></symbol>
     <symbol id="i-escudo" viewBox="0 0 24 24"><path d="M12 3.5 19 6v5.5c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6Z"/><path d="m9 12 2.2 2.2L15.5 10"/></symbol>
     <symbol id="i-cartao" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18"/></symbol>
     <symbol id="i-celular" viewBox="0 0 24 24"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></symbol>
-    <symbol id="i-solto" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19.5 7"/></symbol>
+    <symbol id="i-visto" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19.5 7"/></symbol>
+    <symbol id="i-seta" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
   </defs>
 </svg>
 
-<header class="lp-topo">
+<header class="lp-topo" id="topo">
   <div class="lp-in">
-    <a class="lp-logo" href="#topo" aria-label="AgendaPro — início"><img src="icones/logotipo.svg" alt="AgendaPro" width="94" height="34"></a>
-    <nav aria-label="Conta">
-      <a class="lp-entrar" href="entrar.html">Entrar</a>
-      <a class="lp-bt lp-bt-p" href="criar.html" data-cta="topo">Testar grátis</a>
+    <a class="lp-logo" href="#conteudo" aria-label="AgendaPro — início"><img src="icones/logotipo.svg" alt="AgendaPro Gestão" width="99" height="36"></a>
+    <nav class="lp-nav" aria-label="Seções da página">
+      <a href="#recursos">Recursos</a>
+      <a href="#como">Como funciona</a>
+      <a href="#planos">Planos</a>
+      <a href="#duvidas">Dúvidas</a>
     </nav>
+    <a class="lp-entrar" href="entrar.html">Entrar</a>
+    <a class="lp-bt lp-bt-p" href="criar.html" data-cta="topo">Testar grátis</a>
+    <button class="lp-menu-bt" id="menuBt" type="button" aria-expanded="false" aria-controls="menuCel" aria-label="Abrir o menu">
+      <svg class="lp-i lp-abre" aria-hidden="true"><use href="#i-menu"/></svg>
+      <svg class="lp-i lp-fecha" aria-hidden="true"><use href="#i-x"/></svg>
+    </button>
   </div>
+  <nav class="lp-menu" id="menuCel" aria-label="Menu" hidden>
+    <a href="#recursos">Recursos</a>
+    <a href="#veja">Um salão de verdade</a>
+    <a href="#como">Como funciona</a>
+    <a href="#planos">Planos</a>
+    <a href="#duvidas">Dúvidas</a>
+    <a href="entrar.html">Já sou cliente — Entrar</a>
+    <a class="lp-bt lp-bt-p" href="criar.html" data-cta="menu">Testar 7 dias grátis</a>
+  </nav>
 </header>
 
-<main id="topo">
+<main id="conteudo">
 
-  <!-- 1 · 2 · 4 — HEADLINE, SUBHEADLINE E CTA ACIMA DA DOBRA -->
+  <!-- HERÓI: promessa, prova e botão acima da dobra -->
   <section class="lp-heroi">
     <div class="lp-in">
       <div>
-        <span class="lp-olho">Agenda online para salão, barbearia, manicure e estética</span>
-        <h1>Sua agenda cheia, <span class="lp-cor">sem viver no WhatsApp</span></h1>
+        <p class="lp-olho">Agenda online para salão, barbearia, manicure e estética</p>
+        <h1><span>Seu salão organizado.</span> <em>Sua rotina mais leve.</em></h1>
         <p class="lp-sub">A cliente marca sozinha pelo seu link, a qualquer hora. A confirmação e o
-          lembrete saem no WhatsApp sem você digitar nada.</p>
+          lembrete saem no WhatsApp — e a agenda, as clientes e o caixa ficam num lugar só.</p>
         <div class="lp-acoes">
-          <a class="lp-bt lp-bt-p" href="criar.html" data-cta="heroi" id="ctaHeroi">Testar 7 dias grátis</a>
-          <a class="lp-demo-link" href="agendar.html?salao=studio-bella&amp;demo=1" target="_blank" rel="noopener">Ver como a cliente marca →</a>
+          <a class="lp-bt lp-bt-p" href="criar.html" data-cta="heroi" id="ctaHeroi">Testar 7 dias grátis
+            <svg class="lp-i" aria-hidden="true"><use href="#i-seta"/></svg></a>
+          <a class="lp-bt lp-bt-s" href="#recursos">Ver a plataforma</a>
         </div>
-        <p class="lp-desarme"><b>Sem cartão de crédito</b> · Começa hoje · Sem fidelidade</p>
+        <ul class="lp-desarme">
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Sem cartão de crédito</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Sem fidelidade</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Suporte pelo WhatsApp</li>
+        </ul>
       </div>
       <div class="lp-palco">
-        <div class="lp-cel"><img src="lp/capa.webp" width="600" height="808"
-             alt="O link de agendamento do salão no celular da cliente: nome do salão, endereço e o botão Agendar horário"></div>
-        <div class="lp-zap" role="img" aria-label="Exemplo da confirmação que a cliente recebe no WhatsApp">
-          <div class="lp-zap-de">AgendaPro</div>
+        <div class="lp-janela">
+          <div class="lp-janela-barra" aria-hidden="true"><i></i><i></i><i></i><span>agendaprogestao.com.br</span></div>
+          <img src="lp/painel-agenda.webp" width="1400" height="897" fetchpriority="high"
+               alt="O painel do salão: a agenda do dia com uma coluna para cada profissional, os horários marcados e o almoço de cada uma">
+        </div>
+        <div class="lp-cel"><img src="lp/salao-capa.webp" width="600" height="927" fetchpriority="high"
+             alt="O link de agendamento do Salão Megatop no celular da cliente: foto, logo, nome, endereço e o botão Agendar horário"></div>
+        <div class="lp-aviso" role="img" aria-label="Exemplo da confirmação que a cliente recebe no WhatsApp">
+          <div class="lp-aviso-de"><b><svg aria-hidden="true"><use href="#i-zap"/></svg></b>AgendaPro<small>agora</small></div>
           <p>Olá, Maria! Seu agendamento foi confirmado.
-
 📅 Data: 17/10
 🕐 Horário: 09:30
 ✂️ Serviço: Corte feminino
-👤 Profissional: Ana
-🏪 Local: Studio Bella</p>
-          <small>09:12 ✓✓</small>
+👤 Profissional: Ju Barbosa
+🏪 Local: Salão Megatop</p>
         </div>
-        <span class="lp-zap-nota">exemplo de confirmação</span>
+        <span class="lp-aviso-nota">exemplo de confirmação</span>
       </div>
     </div>
   </section>
@@ -336,168 +535,276 @@ section{padding:72px 0}
   <div class="lp-faixa">
     <div class="lp-in">
       <ul>
-        <li><span class="lp-ic"><svg><use href="#i-zap"/></svg></span>WhatsApp pela API oficial da Meta</li>
-        <li><span class="lp-ic"><svg><use href="#i-cartao"/></svg></span>Pix, cartão ou boleto pelo Mercado Pago</li>
-        <li><span class="lp-ic"><svg><use href="#i-escudo"/></svg></span>Sem fidelidade e sem multa</li>
-        <li><span class="lp-ic"><svg><use href="#i-celular"/></svg></span>No celular e no computador</li>
+        <li><svg class="lp-i" aria-hidden="true"><use href="#i-zap"/></svg>WhatsApp pela API oficial da Meta</li>
+        <li><svg class="lp-i" aria-hidden="true"><use href="#i-cartao"/></svg>Pix, cartão ou boleto pelo Mercado Pago</li>
+        <li><svg class="lp-i" aria-hidden="true"><use href="#i-escudo"/></svg>Sem fidelidade e sem multa</li>
+        <li><svg class="lp-i" aria-hidden="true"><use href="#i-celular"/></svg>No celular e no computador</li>
       </ul>
     </div>
   </div>
 
-  <!-- 3 — ABERTURA / PROPOSTA DE VALOR -->
-  <section class="lp-abre lp-centro">
+  <!-- ABERTURA E DOR -->
+  <section class="lp-dia" id="dor">
     <div class="lp-in">
-      <h2>Enquanto você atende, o AgendaPro atende o celular</h2>
-      <p>Hoje, cada horário marcado custa uma conversa: <strong>"tem vaga amanhã?"</strong>,
-        "e às 15h?", "pode ser com a Carla?".</p>
-      <p>Com o AgendaPro você manda um link. A cliente vê só os horários livres, escolhe
-        e pronto — o WhatsApp confirma e lembra por você.</p>
-      <p>Você fica com tempo para quem está na cadeira. Ela ganha um jeito fácil de marcar,
-        até às 23h de um domingo.</p>
-    </div>
-  </section>
-
-  <!-- 5 — IDENTIFICAÇÃO DA DOR -->
-  <section class="lp-dor" id="dor">
-    <div class="lp-in">
-      <h2>Você se reconhece em algum destes?</h2>
-      <ul>
-        <li>Atende com uma mão e responde "tem horário?" com a outra.</li>
-        <li>Responde mensagem às 23h, porque se demorar ela marca em outro lugar.</li>
-        <li>A cliente esquece, não avisa, e a cadeira fica vazia naquele horário.</li>
-        <li>A agenda está no caderno — ou na sua cabeça — e só você entende.</li>
-        <li>No fim do mês, a comissão da equipe sai na calculadora, com medo de errar.</li>
-      </ul>
-      <p class="lp-fecho">Não é falta de organização. É que salão cheio transforma o WhatsApp
-        num segundo emprego.</p>
-    </div>
-  </section>
-
-  <!-- 6 — A SOLUÇÃO E O MECANISMO -->
-  <section id="como">
-    <div class="lp-in">
-      <h2>Seu link de agendamento trabalha 24 horas</h2>
-      <p class="lp-sub">Três passos, e a partir daí a agenda se enche sozinha.</p>
-      <div class="lp-passos">
-        <div class="lp-passo">
-          <h3>Cadastre serviços e horários</h3>
-          <p>No primeiro acesso, um passo a passo pergunta o que você faz, quanto cobra,
-            seus horários e quem atende.</p>
-        </div>
-        <div class="lp-passo">
-          <h3>Mande o seu link</h3>
-          <p>Na bio do Instagram, no status, no WhatsApp. Ele também sai em QR Code para
-            imprimir e colar no espelho ou no balcão.</p>
-        </div>
-        <div class="lp-passo">
-          <h3>A cliente marca, o WhatsApp avisa</h3>
-          <p>Ela escolhe serviço, profissional e horário. A confirmação sai na hora, e o
-            lembrete antes do atendimento.</p>
-        </div>
+      <div data-revelar>
+        <p class="lp-olho">O dia a dia de quem atende</p>
+        <h2>Enquanto você atende, <em>o AgendaPro atende o celular</em></h2>
+        <p>Hoje, cada horário marcado custa uma conversa: <strong>"tem vaga amanhã?"</strong>,
+          "e às 15h?", "pode ser com a Carla?".</p>
+        <p>Com o AgendaPro você manda um link. A cliente vê só os horários livres, escolhe
+          e pronto — o WhatsApp confirma e lembra por você.</p>
+        <p>Você fica com tempo para quem está na cadeira. Ela ganha um jeito fácil de marcar,
+          até às 23h de um domingo.</p>
       </div>
-      <p class="lp-mecanismo"><b>Ela só vê horário livre de verdade.</b> A agenda respeita a
+      <div data-revelar>
+        <h3 style="margin-bottom:16px">Você se reconhece em algum destes?</h3>
+        <ul class="lp-dores">
+          <li>Atende com uma mão e responde "tem horário?" com a outra.</li>
+          <li>Responde mensagem às 23h, porque se demorar ela marca em outro lugar.</li>
+          <li>A cliente esquece, não avisa, e a cadeira fica vazia naquele horário.</li>
+          <li>A agenda está no caderno — ou na sua cabeça — e só você entende.</li>
+          <li>No fim do mês, a comissão da equipe sai na calculadora, com medo de errar.</li>
+        </ul>
+        <p class="lp-fecho">Não é falta de organização. É que salão cheio transforma o WhatsApp
+          num segundo emprego.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- RECURSOS: cada um com a tela de verdade -->
+  <section id="recursos">
+    <div class="lp-in">
+      <div class="lp-cabeca" data-revelar>
+        <p class="lp-olho">Recursos</p>
+        <h2>Tudo o que o salão precisa, <em>num lugar só</em></h2>
+        <p class="lp-sub">Começa pela agenda e vai até o fechamento do mês. Todas as telas abaixo
+          são do sistema de verdade.</p>
+      </div>
+
+      <article class="lp-recurso" data-revelar>
+        <div class="lp-recurso-texto">
+          <span class="lp-num">01 — Agendamento online</span>
+          <h3>A cliente marca sozinha, a qualquer hora</h3>
+          <p>Você manda um link e ela escolhe serviço, profissional e horário — sem baixar
+            aplicativo e sem esperar você responder.</p>
+          <ul class="lp-lista">
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Só aparecem horários livres de verdade</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Respeita a jornada de cada um, o tempo de cada serviço e os bloqueios</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Link para a bio do Instagram e QR Code para o balcão</li>
+          </ul>
+        </div>
+        <div class="lp-quadro lp-quadro-cel">
+          <div class="lp-cel"><img src="lp/horarios.webp" width="600" height="1169" loading="lazy"
+               alt="A escolha do dia e do horário no link: os dias com vagas e só os horários livres"></div>
+        </div>
+      </article>
+
+      <article class="lp-recurso lp-inverso" data-revelar>
+        <div class="lp-recurso-texto">
+          <span class="lp-num">02 — WhatsApp</span>
+          <h3>Confirmação e lembrete no WhatsApp, sem você digitar nada</h3>
+          <p>As mensagens saem pela API oficial da Meta, com o nome do seu salão no texto. Você não
+            precisa deixar o celular ligado.</p>
+          <ul class="lp-lista">
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Confirmação assim que a cliente marca</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Lembrete antes do horário — você escolhe com quantas horas</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Cada plano tem uma franquia de mensagens por mês</li>
+          </ul>
+        </div>
+        <div class="lp-quadro">
+          <div class="lp-conversa" role="img" aria-label="Exemplo da conversa no WhatsApp da cliente: a confirmação na hora em que ela marcou e o lembrete no dia">
+            <div class="lp-conversa-topo"><b><svg aria-hidden="true"><use href="#i-zap"/></svg></b>
+              <span>AgendaPro<small>conta comercial</small></span></div>
+            <div class="lp-conversa-corpo">
+              <span class="lp-dia-chip">Ontem</span>
+              <div class="lp-balao"><p>Olá, Maria! Seu agendamento foi confirmado.
+
+📅 Data: 17/10
+🕐 Horário: 09:30
+✂️ Serviço: Corte feminino
+👤 Profissional: Ju Barbosa
+🏪 Local: Salão Megatop
+
+Até breve!</p><small>21:47</small></div>
+              <span class="lp-dia-chip">Hoje</span>
+              <div class="lp-balao"><p>🔔 Olá, Maria! Passando para lembrar do seu horário.
+
+🕐 Horário: 09:30 · ✂️ Corte feminino
+🏪 Local: Salão Megatop
+
+Esperamos você!</p><small>07:30</small></div>
+            </div>
+          </div>
+          <span class="lp-legenda">Exemplo com o texto dos modelos de mensagem do AgendaPro</span>
+        </div>
+      </article>
+
+      <article class="lp-recurso" data-revelar>
+        <div class="lp-recurso-texto">
+          <span class="lp-num">03 — Equipe</span>
+          <h3>Cada profissional com a sua agenda</h3>
+          <p>Uma coluna para cada um, com jornada, almoço e bloqueios. Quem atende vê a própria
+            agenda — e só o que a função dela permite.</p>
+          <ul class="lp-lista">
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Dia, 3 dias, semana ou mês</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Marque pelo painel quem ainda prefere mandar mensagem</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Se quiser, aprove cada horário antes de confirmar</li>
+          </ul>
+        </div>
+        <div class="lp-quadro">
+          <div class="lp-janela">
+            <div class="lp-janela-barra" aria-hidden="true"><i></i><i></i><i></i><span>Agenda</span></div>
+            <img src="lp/painel-agenda.webp" width="1400" height="897" loading="lazy"
+                 alt="A agenda do dia no painel, com as colunas da Ana, da Bianca e da Carla">
+          </div>
+        </div>
+      </article>
+
+      <article class="lp-recurso lp-inverso" data-revelar>
+        <div class="lp-recurso-texto">
+          <span class="lp-num">04 — Clientes</span>
+          <h3>A ficha de cada cliente, sem caderno</h3>
+          <p>Telefone, visitas, faltas e observações — como alergias e preferências — num lugar só,
+            com o WhatsApp dela a um toque.</p>
+          <ul class="lp-lista">
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Quantas vezes veio e quantas faltou</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Aniversariantes do dia, da semana e do mês</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Busca por nome ou telefone</li>
+          </ul>
+        </div>
+        <div class="lp-quadro">
+          <div class="lp-janela">
+            <div class="lp-janela-barra" aria-hidden="true"><i></i><i></i><i></i><span>Clientes</span></div>
+            <img src="lp/painel-clientes.webp" width="1200" height="502" loading="lazy"
+                 alt="A lista de clientes no painel: telefone, última visita, número de visitas e de faltas, e o botão do WhatsApp">
+          </div>
+        </div>
+      </article>
+
+      <article class="lp-recurso" data-revelar>
+        <div class="lp-recurso-texto">
+          <span class="lp-num">05 — Caixa e relatórios</span>
+          <h3>Você sabe quanto entrou, sem planilha</h3>
+          <p>Caixa do dia, comandas, comissões e relatórios por período. Até a taxa da maquininha
+            entra na conta.</p>
+          <ul class="lp-lista">
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Faturamento e ticket médio, comparados com o período anterior</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Comissão de cada profissional, pronta para pagar</li>
+            <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Pix, cartão e dinheiro separados, com o líquido de cada um</li>
+          </ul>
+        </div>
+        <div class="lp-quadro">
+          <div class="lp-janela">
+            <div class="lp-janela-barra" aria-hidden="true"><i></i><i></i><i></i><span>Relatórios</span></div>
+            <img src="lp/painel-relatorios.webp" width="1200" height="637" loading="lazy"
+                 alt="O relatório do mês: faturamento, comandas fechadas, ticket médio, comissões a pagar e a comissão de cada profissional">
+          </div>
+        </div>
+      </article>
+
+      <p class="lp-tambem" data-revelar><b>E também:</b>
+        <span>Pacotes de sessões</span><span>Cupons de desconto</span><span>Produtos à venda no link</span>
+        <span>Instala no celular como aplicativo</span></p>
+    </div>
+  </section>
+
+  <!-- PROVA: UM SALÃO DE VERDADE
+       ⚠ DEPOIMENTOS: entram aqui quando houver de verdade (nome, salão, cidade,
+       foto e um resultado específico, com autorização). Não inventar. -->
+  <section class="lp-veja" id="veja">
+    <div class="lp-in">
+      <div class="lp-cabeca lp-centro" data-revelar>
+        <p class="lp-olho">Com a cara do seu salão</p>
+        <h2>Um link que parece seu, <em>não de um sistema</em></h2>
+        <p class="lp-sub">Cores, logo, fotos dos serviços e até os produtos que você vende. Esta é a
+          página do Salão Megatop, de Itu (SP), montada no AgendaPro.</p>
+      </div>
+      <ul class="lp-galeria" data-revelar>
+        <li><figure>
+          <div class="lp-quadro lp-quadro-cel"><div class="lp-cel"><img src="lp/salao-galeria.webp" width="600" height="837" loading="lazy"
+               alt="A entrada da página do Salão Megatop: boas-vindas, os botões Agendar horário e Ver produtos, e a galeria de fotos"></div></div>
+          <figcaption><h3>Boas-vindas e fotos</h3><p>O seu trabalho em destaque, logo na entrada.</p></figcaption>
+        </figure></li>
+        <li><figure>
+          <div class="lp-quadro lp-quadro-cel"><div class="lp-cel"><img src="lp/salao-servicos.webp" width="600" height="1024" loading="lazy"
+               alt="Os serviços do Salão Megatop com foto e duração: hidratação, pedicure e coloração"></div></div>
+          <figcaption><h3>Serviços com foto</h3><p>Ela escolhe pelo que vê, com a duração de cada um.</p></figcaption>
+        </figure></li>
+        <li><figure>
+          <div class="lp-quadro lp-quadro-cel"><div class="lp-cel"><img src="lp/salao-produtos.webp" width="600" height="997" loading="lazy"
+               alt="Os produtos em destaque do Salão Megatop, com foto e preço"></div></div>
+          <figcaption><h3>Vitrine de produtos</h3><p>Seus produtos com preço, na mesma página.</p></figcaption>
+        </figure></li>
+      </ul>
+      <p class="lp-arraste" aria-hidden="true">Arraste para o lado →</p>
+      <div class="lp-demos">
+        <a class="lp-bt lp-bt-s" href="agendar.html?salao=studio-bella&amp;demo=1" target="_blank" rel="noopener">Testar como cliente</a>
+        <a class="lp-bt lp-bt-s" href="app.html?demo=1" target="_blank" rel="noopener">Ver o painel do salão</a>
+      </div>
+      <p class="lp-demos-nota">A demonstração abre com dados de exemplo — nada é marcado de verdade.</p>
+    </div>
+  </section>
+
+  <!-- COMO FUNCIONA -->
+  <section class="lp-como" id="como">
+    <div class="lp-in">
+      <div class="lp-cabeca" data-revelar>
+        <p class="lp-olho">Como funciona</p>
+        <h2>Do cadastro ao primeiro agendamento, <em>no mesmo dia</em></h2>
+      </div>
+      <ol class="lp-passos">
+        <li class="lp-passo" data-revelar>
+          <h3>Configure o seu salão</h3>
+          <p>No primeiro acesso, um passo a passo pergunta o que você faz, quanto cobra, seus
+            horários e quem atende.</p>
+        </li>
+        <li class="lp-passo" data-revelar>
+          <h3>Divulgue o seu link</h3>
+          <p>Na bio do Instagram, no status, no WhatsApp — e em QR Code para imprimir e colar no
+            espelho ou no balcão.</p>
+        </li>
+        <li class="lp-passo" data-revelar>
+          <h3>Acompanhe tudo num lugar só</h3>
+          <p>Os horários chegam na agenda, o WhatsApp confirma e lembra, e o caixa fecha o dia
+            com você.</p>
+        </li>
+      </ol>
+      <p class="lp-mecanismo" data-revelar><b>Ela só vê horário livre de verdade.</b> A agenda respeita a
         jornada de cada profissional, o tempo de cada serviço, o intervalo entre um e outro e os
         horários que você bloquear — nada de duas clientes no mesmo horário.</p>
     </div>
   </section>
 
-  <!-- 7 — BENEFÍCIOS -->
-  <section class="lp-beneficios" id="beneficios">
-    <div class="lp-in">
-      <h2>Tudo o que o salão precisa, num lugar só</h2>
-      <p class="lp-sub">Começa pela agenda e vai até o fechamento do mês.</p>
-      <div class="lp-grade">
-        <div class="lp-card"><span class="lp-ic"><svg><use href="#i-relogio"/></svg></span>
-          <h3>Agendamento 24h</h3>
-          <p>Quem manda mensagem enquanto você atende não fica esperando: marca sozinha, na hora.</p></div>
-        <div class="lp-card"><span class="lp-ic"><svg><use href="#i-zap"/></svg></span>
-          <h3>Confirmação e lembrete</h3>
-          <p>A mensagem sai sozinha, com data, horário e serviço. Menos esquecimento, menos cadeira vazia.</p></div>
-        <div class="lp-card"><span class="lp-ic"><svg><use href="#i-link"/></svg></span>
-          <h3>Sem app para baixar</h3>
-          <p>É um link: abre no celular da cliente, ela escolhe o horário e pronto.</p></div>
-        <div class="lp-card"><span class="lp-ic"><svg><use href="#i-equipe"/></svg></span>
-          <h3>Equipe e comissões</h3>
-          <p>Cada profissional vê a própria agenda, e a comissão já sai calculada.</p></div>
-        <div class="lp-card"><span class="lp-ic"><svg><use href="#i-caixa"/></svg></span>
-          <h3>Caixa e relatórios</h3>
-          <p>Você sabe quanto entrou hoje, no mês e o que mais vende — sem planilha.</p></div>
-        <div class="lp-card"><span class="lp-ic"><svg><use href="#i-ficha"/></svg></span>
-          <h3>Ficha de cada cliente</h3>
-          <p>Histórico, faltas e observações, e o aviso de quem faz aniversário para mandar os parabéns.</p></div>
-        <div class="lp-card"><span class="lp-ic"><svg><use href="#i-etiqueta"/></svg></span>
-          <h3>Pacotes, cupons e produtos</h3>
-          <p>Venda pacotes de sessões, crie cupons e mostre seus produtos na mesma página.</p></div>
-        <div class="lp-card"><span class="lp-ic"><svg><use href="#i-pincel"/></svg></span>
-          <h3>Com a cara do seu salão</h3>
-          <p>Cores, logo, fotos e modelos prontos: o link parece seu, não de um sistema.</p></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 8 — PROVA: VER FUNCIONANDO
-       ⚠ DEPOIMENTOS: entram aqui quando houver de verdade (nome, salão, cidade,
-       foto e um resultado específico). Não inventar. Modelo:
-       <blockquote class="lp-obj"><p>"…"</p><footer>Nome · Salão · Cidade</footer></blockquote>
-  -->
-  <section class="lp-veja" id="veja">
-    <div class="lp-in lp-centro">
-      <h2>Veja funcionando, sem criar conta</h2>
-      <p class="lp-sub">Estas são telas de verdade. Abra a demonstração e faça uma marcação
-        como se fosse a sua cliente.</p>
-      <div class="lp-telas">
-        <figure class="lp-tela lp-so-grande">
-          <div class="lp-cel"><img src="lp/capa.webp" width="600" height="808" loading="lazy"
-               alt="A página do salão que a cliente abre pelo link"></div>
-          <figcaption>A página que a cliente abre</figcaption>
-        </figure>
-        <figure class="lp-tela">
-          <div class="lp-cel"><img src="lp/horarios.webp" width="600" height="1169" loading="lazy"
-               alt="A escolha do dia e do horário, mostrando só os horários livres"></div>
-          <figcaption>Ela vê só os horários livres</figcaption>
-        </figure>
-        <figure class="lp-tela">
-          <div class="lp-pc"><div class="lp-pc-barra"><i></i><i></i><i></i></div>
-            <img src="lp/agenda.webp" width="1400" height="853" loading="lazy"
-                 alt="A agenda do dia no painel do salão, com uma coluna por profissional"></div>
-          <figcaption>E você acompanha tudo no painel</figcaption>
-        </figure>
-      </div>
-      <div class="lp-demos">
-        <a class="lp-bt lp-bt-s" href="agendar.html?salao=studio-bella&amp;demo=1" target="_blank" rel="noopener">Testar como cliente</a>
-        <a class="lp-bt lp-bt-s" href="app.html?demo=1" target="_blank" rel="noopener">Ver o painel do salão</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- 9 — A OFERTA (preços do banco; reserva abaixo) -->
+  <!-- A OFERTA (preços do banco; reserva no script) -->
   <section class="lp-planos" id="planos">
     <div class="lp-in">
-      <div class="lp-centro">
-        <span class="lp-selo-teste"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><use href="#i-solto"/></svg>
+      <div class="lp-cabeca lp-centro" data-revelar>
+        <span class="lp-selo-teste"><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>
           Todo plano começa com 7 dias grátis, sem cartão</span>
-        <h2>Escolha pelo tamanho da sua equipe</h2>
+        <h2>Escolha pelo tamanho <em>da sua equipe</em></h2>
         <p class="lp-sub">O preço muda só pela quantidade de profissionais na agenda. Os recursos são os mesmos.</p>
       </div>
       <div class="lp-lista-planos" id="listaPlanos"></div>
       <p class="lp-arraste" aria-hidden="true">Arraste para ver os outros planos →</p>
-      <div class="lp-todos">
+      <p class="lp-cobranca">Cobrança mensal pelo Mercado Pago: Pix, cartão de crédito (renova sozinho)
+        ou boleto. Sem fidelidade e sem multa — você cancela quando quiser.</p>
+      <div class="lp-todos" data-revelar>
         <h3>Em todos os planos pagos</h3>
         <ul>
-          <li>Link de agendamento e QR Code</li>
-          <li>Agenda da equipe e bloqueios</li>
-          <li>Caixa, comanda e comissões</li>
-          <li>Relatórios e dashboard</li>
-          <li>Ficha de clientes e aniversariantes</li>
-          <li>Pacotes e cupons de desconto</li>
-          <li>Produtos à venda no link</li>
-          <li>Aparência do link do seu jeito</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Link de agendamento e QR Code</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Agenda da equipe e bloqueios</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Caixa, comanda e comissões</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Relatórios e dashboard</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Ficha de clientes e aniversariantes</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Pacotes e cupons de desconto</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Produtos à venda no link</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Aparência do link do seu jeito</li>
         </ul>
       </div>
       <p class="lp-menor" id="planosMenores">Começando agora? Tem também o <b>Básico</b>, sem mensagens no
         WhatsApp, e o <b>Grátis</b>, com limite de agendamentos por mês.</p>
 
-      <div class="lp-conta" id="conta">
+      <div class="lp-conta" id="conta" data-revelar>
         <div>
           <h3>Quanto as faltas custam hoje?</h3>
           <p>Faça a conta com os seus números. O lembrete não faz milagre — mas avisa a cliente
@@ -510,102 +817,115 @@ section{padding:72px 0}
             <label>Faltas por mês
               <input id="contaFaltas" type="number" inputmode="numeric" min="0" step="1" value="4"></label>
           </div>
-          <p class="lp-conta-res" id="contaRes" aria-live="polite" style="margin-top:14px"></p>
+          <p class="lp-conta-res" id="contaRes" aria-live="polite"></p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- 10 · 11 — QUEBRA DE OBJEÇÕES E GARANTIA -->
-  <section id="duvidas">
+  <!-- PERGUNTAS FREQUENTES (as objeções de antes viraram perguntas) -->
+  <section class="lp-faq" id="duvidas">
     <div class="lp-in">
-      <h2>“Mas e se…”</h2>
-      <div class="lp-objecoes">
-        <div class="lp-obj"><h3>…minhas clientes não souberem usar?</h3>
-          <p>É um link, como qualquer site: ela escolhe o serviço e o horário, coloca nome e
-            WhatsApp e pronto. Sem baixar app, sem criar senha. Quem prefere mandar mensagem
-            continua mandando — e você marca pelo painel em segundos.</p></div>
-        <div class="lp-obj"><h3>…eu não tiver tempo de configurar?</h3>
-          <p>No primeiro acesso, um passo a passo pergunta seus serviços, seus horários e quem
-            atende. No fim, você recebe o link pronto para mandar.</p></div>
-        <div class="lp-obj"><h3>…eu já usar o WhatsApp para tudo?</h3>
-          <p>Ótimo, continua usando. A confirmação e o lembrete chegam pelo WhatsApp. O que sai
-            da sua mão é o vai e vem do "tem horário?".</p></div>
-        <div class="lp-obj"><h3>…estiver caro para mim agora?</h3>
-          <p>Faça a conta das faltas aqui em cima: horário vazio não volta. E se a hora é de
-            economizar, comece pelo Grátis ou pelo Básico.</p></div>
-        <div class="lp-obj"><h3>…eu não gostar?</h3>
-          <p>Você testa 7 dias sem colocar cartão. Depois, não tem fidelidade nem multa:
-            cancela quando quiser.</p></div>
+      <div class="lp-cabeca">
+        <p class="lp-olho">Dúvidas</p>
+        <h2>Perguntas <em>frequentes</em></h2>
+        <p class="lp-faq-contato">Não achou a sua? <a id="zapFaq" href="https://wa.me/5511963659620" target="_blank" rel="noopener">Fale com a gente no WhatsApp</a>.</p>
       </div>
-
-      <div class="lp-garantia">
-        <div class="lp-carimbo"><span><b>7</b>dias grátis<br>sem cartão</span></div>
-        <div>
-          <h3>Teste com clientes de verdade, sem risco</h3>
-          <p class="lp-sub">Crie a agenda, mande o link e veja as marcações chegando. Se não fizer
-            diferença no seu dia, é só não assinar — não cobramos nada, porque nem pedimos cartão.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 13 — FAQ -->
-  <section class="lp-faq" id="faq">
-    <div class="lp-in">
-      <h2 class="lp-centro">Perguntas frequentes</h2>
       <div class="lp-faq-lista">
+        <details><summary>Para quem é o AgendaPro?</summary>
+          <p>Para quem atende com horário marcado: salão, barbearia, manicure, estética. Serve para quem
+            trabalha sozinho — o Essencial é para um profissional — e para equipes: quando o time
+            crescer, você muda de plano sem perder nada do que já cadastrou.</p></details>
         <details><summary>A cliente precisa baixar algum aplicativo?</summary>
-          <p>Não. Ela abre o seu link no navegador do celular, escolhe o horário e informa nome e
-            WhatsApp. Se quiser, pode criar uma conta para ver os horários em qualquer aparelho.</p></details>
+          <p>Não. Ela abre o seu link no navegador do celular, escolhe o serviço e o horário e informa
+            nome e WhatsApp — sem baixar app e sem criar senha. Se quiser, pode criar uma conta para ver
+            os horários em qualquer aparelho. Quem prefere mandar mensagem continua mandando, e você
+            marca pelo painel em segundos.</p></details>
+        <details><summary>Como eu acesso o sistema?</summary>
+          <p>Pelo navegador, no celular ou no computador, com o seu e-mail e senha. No celular dá para
+            instalar na tela inicial e abrir como aplicativo.</p></details>
         <details><summary>As mensagens saem do meu WhatsApp?</summary>
           <p>Saem do WhatsApp do AgendaPro, pela API oficial da Meta, com o nome do seu salão no
             texto. Você não precisa deixar o celular ligado nem mandar nada à mão. Cada plano tem
             uma franquia de mensagens por mês.</p></details>
-        <details><summary>Serve para quem trabalha sem equipe?</summary>
-          <p>Sim, o Essencial é para um profissional. Quando a equipe crescer, você muda de plano
-            sem perder nada do que já cadastrou.</p></details>
-        <details><summary>Funciona no celular e no computador?</summary>
-          <p>Nos dois, pelo navegador. No celular dá para instalar na tela inicial e abrir como
-            aplicativo.</p></details>
-        <details><summary>Quanto tempo leva para começar?</summary>
-          <p>Dá para começar hoje. O passo a passo do primeiro dia leva você do cadastro até o link
-            pronto para mandar.</p></details>
+        <details><summary>Quanto tempo leva para começar? E se eu não tiver tempo de configurar?</summary>
+          <p>Dá para começar hoje. No primeiro acesso, um passo a passo pergunta seus serviços, seus
+            horários e quem atende. No fim, você recebe o link pronto para mandar.</p></details>
+        <details><summary>Como funcionam os planos?</summary>
+          <p>O preço muda pela quantidade de profissionais na agenda; os recursos são os mesmos.
+            Todo plano começa com 7 dias grátis, sem cartão. Para quem está começando, há também o
+            Básico, sem mensagens no WhatsApp, e o Grátis, com limite de agendamentos por mês.</p></details>
         <details><summary>Quais são as formas de pagamento?</summary>
           <p>Pix, cartão de crédito (renova sozinho todo mês) ou boleto, pelo Mercado Pago. Sem
             fidelidade e sem multa.</p></details>
-        <details><summary>Tem suporte?</summary>
-          <p>Tem, direto pelo WhatsApp — de dentro do painel ou pelo botão aqui embaixo.</p></details>
+        <details><summary>E se eu não gostar?</summary>
+          <p>Você testa 7 dias sem colocar cartão. Se não fizer diferença no seu dia, é só não assinar —
+            não cobramos nada, porque nem pedimos cartão. Depois de assinar, não tem fidelidade nem
+            multa: cancela quando quiser.</p></details>
         <details><summary>Meus dados e os das minhas clientes ficam seguros?</summary>
           <p>Cada salão só enxerga os próprios dados, e quem trabalha com você só vê o que a função
             dela permite. Se um dia quiser sair, você mesmo exclui a conta pelo painel.</p></details>
+        <details><summary>Como falo com o suporte?</summary>
+          <p>Direto pelo WhatsApp — de dentro do painel, pelo botão "Ajuda", ou pelo link
+            <a id="zapSuporte" href="https://wa.me/5511963659620" target="_blank" rel="noopener">Fale com a gente</a>.</p></details>
       </div>
     </div>
   </section>
 
-  <!-- 14 · 15 — CTA FINAL E P.S. -->
+  <!-- CHAMADA FINAL E P.S. -->
   <section class="lp-final">
     <div class="lp-in">
-      <h2>Hoje à noite, sua próxima cliente pode marcar sozinha</h2>
-      <p class="lp-sub" style="margin:0 auto">Crie sua agenda agora, mande o link no WhatsApp e veja
-        a primeira marcação chegar sem você responder nada.</p>
-      <div style="margin-top:28px"><a class="lp-bt lp-bt-p" href="criar.html" data-cta="final">Criar minha agenda grátis</a></div>
-      <p class="lp-desarme"><b>7 dias grátis</b> · sem cartão · sem fidelidade</p>
-      <p class="lp-ps"><b>P.S.:</b> Você não precisa decidir nada agora. São 7 dias para testar com
-        clientes de verdade, sem cartão. Se o AgendaPro não tirar trabalho do seu dia, é só não assinar.</p>
+      <div class="lp-final-bloco" data-revelar>
+        <h2><span class="lp-linha">Mais organização para o seu salão.</span> <em>Mais tranquilidade para você.</em></h2>
+        <p class="lp-sub">Crie sua agenda agora, mande o link no WhatsApp e veja a primeira marcação
+          chegar sem você responder nada.</p>
+        <div class="lp-acoes"><a class="lp-bt lp-bt-claro" href="criar.html" data-cta="final">Criar minha agenda grátis
+          <svg class="lp-i" aria-hidden="true"><use href="#i-seta"/></svg></a></div>
+        <ul class="lp-desarme">
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>7 dias grátis</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Sem cartão</li>
+          <li><svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>Sem fidelidade</li>
+        </ul>
+        <p class="lp-ps"><b>P.S.:</b> Você não precisa decidir nada agora. São 7 dias para testar com
+          clientes de verdade, sem cartão. Se o AgendaPro não tirar trabalho do seu dia, é só não assinar.</p>
+      </div>
     </div>
   </section>
 </main>
 
 <footer class="lp-rodape">
   <div class="lp-in">
-    <img src="icones/logotipo-branco.svg" alt="AgendaPro" width="94" height="34" style="height:30px;width:auto">
-    <nav aria-label="Rodapé">
-      <a href="entrar.html">Já sou cliente — Entrar</a>
-      <a href="criar.html" data-cta="rodape">Criar conta</a>
-      <a id="zapDuvida" href="https://wa.me/5511963659620" target="_blank" rel="noopener">Dúvidas? Fale no WhatsApp</a>
-    </nav>
-    <p>AgendaPro · Todos os direitos reservados. Software protegido por direitos autorais
+    <div class="lp-rodape-grade">
+      <div class="lp-rodape-marca">
+        <img src="icones/logotipo.svg" alt="AgendaPro Gestão" width="110" height="40" loading="lazy">
+        <p>Agenda online, WhatsApp, equipe, clientes, caixa e relatórios para salões, barbearias,
+          manicures e estética.</p>
+      </div>
+      <nav aria-label="A página">
+        <h2>A página</h2>
+        <ul>
+          <li><a href="#recursos">Recursos</a></li>
+          <li><a href="#veja">Um salão de verdade</a></li>
+          <li><a href="#como">Como funciona</a></li>
+          <li><a href="#planos">Planos</a></li>
+          <li><a href="#duvidas">Dúvidas</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Conta">
+        <h2>Conta</h2>
+        <ul>
+          <li><a href="entrar.html">Já sou cliente — Entrar</a></li>
+          <li><a href="criar.html" data-cta="rodape">Criar conta</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Suporte">
+        <h2>Suporte</h2>
+        <ul>
+          <li><a id="zapDuvida" href="https://wa.me/5511963659620" target="_blank" rel="noopener">Dúvidas? Fale no WhatsApp</a></li>
+        </ul>
+      </nav>
+    </div>
+    <p class="lp-direitos">AgendaPro · Todos os direitos reservados. Software protegido por direitos autorais
       (Lei 9.610/98 e Lei 9.609/98). Reprodução, distribuição ou uso não autorizado são proibidos.</p>
   </div>
 </footer>
@@ -656,14 +976,16 @@ document.querySelectorAll('[data-cta]').forEach(a => {
     try{ if(window.gtag) gtag('event', 'generate_lead', { botao: a.dataset.cta }); }catch(e){}
   });
 });
-const zap = document.getElementById('zapDuvida');
-if(zap) zap.href += '?text=' + encodeURIComponent('Olá! Vi a página do AgendaPro e tenho uma dúvida.');
+const textoZap = '?text=' + encodeURIComponent('Olá! Vi a página do AgendaPro e tenho uma dúvida.');
+['zapDuvida', 'zapFaq', 'zapSuporte'].forEach(id => { const z = document.getElementById(id); if(z) z.href += textoZap; });
 
 /* ── OS PLANOS ────────────────────────────────────────────────────────────
    Reserva: os preços de hoje. O banco responde por cima (a tabela `planos`
    é legível sem login), e assim mudar preço no Supabase muda aqui também —
-   sem ninguém precisar lembrar de editar esta página. */
+   sem ninguém precisar lembrar de editar esta página. Nenhum plano leva
+   selo de "recomendado": não temos número que diga qual é o mais escolhido. */
 const real = n => 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: Number(n) % 1 ? 2 : 0, maximumFractionDigits: 2 });
+const limpo = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 const RESERVA = [
   { codigo:'individual', nome:'Essencial', preco:97,  prof:1,  msgs:500,  clientes:500 },
   { codigo:'duo',        nome:'Dupla',     preco:157, prof:2,  msgs:800,  clientes:1000 },
@@ -673,20 +995,21 @@ const RESERVA = [
 ];
 let menores = { basico: 49.9, gratisAgendamentos: 20 };
 const QUEM = { 1:'Para quem atende só', 2:'Para duas pessoas', 3:'Até 3 pessoas', 6:'Até 6 pessoas', 12:'Até 12 pessoas' };
+const VISTO = '<svg class="lp-i" aria-hidden="true"><use href="#i-visto"/></svg>';
 
 function desenharPlanos(lista){
   const alvo = document.getElementById('listaPlanos');
-  alvo.innerHTML = lista.map((p, i) => `
-    <div class="lp-plano${i === 0 ? ' lp-destaque' : ''}">
+  alvo.innerHTML = lista.map(p => `
+    <div class="lp-plano">
       <span class="lp-plano-quem">${QUEM[p.prof] || ('Até ' + p.prof + ' pessoas')}</span>
-      <h3>${p.nome}</h3>
+      <h3>${limpo(p.nome)}</h3>
       <div class="lp-preco">${real(p.preco)}<small> /mês</small></div>
       <ul>
-        <li>${p.prof === 1 ? '1 profissional' : 'Até ' + p.prof + ' profissionais'} na agenda</li>
-        <li>${Number(p.msgs).toLocaleString('pt-BR')} mensagens no WhatsApp por mês</li>
-        <li>Até ${Number(p.clientes).toLocaleString('pt-BR')} clientes na ficha</li>
+        <li>${VISTO}<span>${p.prof === 1 ? '1 profissional' : 'Até ' + p.prof + ' profissionais'} na agenda</span></li>
+        <li>${VISTO}<span>${Number(p.msgs).toLocaleString('pt-BR')} mensagens no WhatsApp por mês</span></li>
+        <li>${VISTO}<span>Até ${Number(p.clientes).toLocaleString('pt-BR')} clientes na ficha</span></li>
       </ul>
-      <a class="lp-bt ${i === 0 ? 'lp-bt-p' : 'lp-bt-s'}" href="${destino}" data-plano="${p.codigo}">Testar grátis</a>
+      <a class="lp-bt lp-bt-p" href="${destino}" data-plano="${limpo(p.codigo)}">Testar grátis</a>
     </div>`).join('');
   document.getElementById('planosMenores').innerHTML =
     `Começando agora? Tem também o <b>Básico</b>, por ${real(menores.basico)}/mês sem mensagens no
@@ -731,6 +1054,31 @@ function contar(){
     : 'Sem faltas? Então o lembrete é só cortesia — e o link continua enchendo a agenda.';
 }
 ['contaValor', 'contaFaltas'].forEach(id => document.getElementById(id).addEventListener('input', contar));
+
+/* ── O TOPO E O MENU DO CELULAR ─────────────────────────────────────────── */
+const topo = document.getElementById('topo');
+const marcarRolagem = () => topo.classList.toggle('rolou', window.scrollY > 8);
+window.addEventListener('scroll', marcarRolagem, { passive: true }); marcarRolagem();
+
+const menuBt = document.getElementById('menuBt'), menu = document.getElementById('menuCel');
+function abrirMenu(abre){
+  menu.hidden = !abre;
+  menuBt.setAttribute('aria-expanded', abre ? 'true' : 'false');
+  menuBt.setAttribute('aria-label', abre ? 'Fechar o menu' : 'Abrir o menu');
+}
+menuBt.addEventListener('click', () => abrirMenu(menu.hidden));
+menu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => abrirMenu(false)));
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !menu.hidden){ abrirMenu(false); menuBt.focus(); } });
+document.addEventListener('click', e => { if(!menu.hidden && !topo.contains(e.target)) abrirMenu(false); });
+if(window.matchMedia) matchMedia('(min-width: 900px)').addEventListener('change', e => { if(e.matches) abrirMenu(false); });
+
+/* ── AS ENTRADAS SUAVES ─────────────────────────────────────────────────── */
+if(document.documentElement.classList.contains('lp-anima')){
+  const olho = new IntersectionObserver(itens => itens.forEach(i => {
+    if(i.isIntersecting){ i.target.classList.add('visto'); olho.unobserve(i.target); }
+  }), { rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('[data-revelar]').forEach(el => olho.observe(el));
+}
 
 /* ── A BARRA DO CELULAR ─────────────────────────────────────────────────── */
 const barra = document.getElementById('barra');
