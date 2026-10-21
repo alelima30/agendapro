@@ -226,13 +226,16 @@ async function carregar(){
   try{
     // Os acessos de suporte vêm junto, mas não podem derrubar o painel: banco
     // sem o 38_suporte.sql instalado responde que a função não existe.
-    const [p, acessos] = await Promise.all([
+    const [p, acessos, ajustes] = await Promise.all([
       Dados.chamar('painel_plataforma'),
       Dados.chamar('acessos_de_suporte', { p_limite: 30 })
         .catch(e => { console.info('[plataforma] acessos de suporte:', e.message); return null; }),
+      Dados.chamar('ajustes_da_plataforma')
+        .catch(e => { console.info('[plataforma] ajustes:', e.message); return null; }),
     ]);
     painel = Array.isArray(p) ? p[0] : p;
     painel.acessos = Array.isArray(acessos) ? acessos : null;
+    painel.ajustes = (Array.isArray(ajustes) ? ajustes[0] : ajustes) || null;
     desenhar();
   }catch(e){
     console.error('[plataforma]', e);
@@ -322,6 +325,27 @@ function desenhar(){
       </tr></thead><tbody>
       ${saloes.map(linhaSalao).join('')}
       </tbody></table></div>`;
+  }
+
+  /* A forma de pagamento nas mensagens. Desligada até os quatro modelos
+     `*_pagamento` estarem aprovados na Meta (MODELOS.md): ligada antes, a
+     confirmação e os avisos iriam para um modelo que não existe e não
+     chegariam. */
+  if(painel.ajustes){
+    const ligado = !!painel.ajustes.mensagensComPagamento;
+    h += `<h2>Mensagens do WhatsApp</h2>
+      <div class="recado" id="ajustePagamento">
+        <b>Forma de pagamento nas mensagens: ${ligado ? 'ligada' : 'desligada'}</b>
+        A confirmação e o lembrete da cliente, o aviso à profissional e o lembrete
+        para o salão passam a dizer como a cliente vai pagar (Pix, cartão,
+        pacote…). Usam os quatro modelos <code>*_pagamento</code> do MODELOS.md:
+        ${ligado ? 'desligando, o sistema volta aos modelos de antes na hora.'
+                 : 'ligue só depois que os quatro estiverem <b style="display:inline">aprovados</b> na Meta.'}
+        <div style="margin-top:10px">
+          <button class="acao ${ligado ? 'perigo' : ''}" onclick="ligarPagamentoNasMensagens(${!ligado})">
+            ${ligado ? 'Desligar' : 'Ligar a forma de pagamento'}</button>
+        </div>
+      </div>`;
   }
 
   /* Quem entrou no painel de quem, pelo modo suporte. O dono do salão vê o
@@ -436,6 +460,23 @@ async function contatoDoDono(salaoId, bt){
     console.error('[plataforma] contato do dono:', e);
     alert('Não consegui buscar o contato do dono.\n\n' + e.message);
     bt.disabled = false;
+  }
+}
+
+/* ── A forma de pagamento nas mensagens ──────────────────────────────────── */
+async function ligarPagamentoNasMensagens(ligar){
+  if(ligar && !confirm('Os quatro modelos *_pagamento já estão APROVADOS na Meta?\n\n'
+      + 'Ligado antes da aprovação, a confirmação e os avisos vão para um modelo '
+      + 'que não existe e não chegam a ninguém.')) return;
+  try{
+    const r = await Dados.chamar('definir_mensagens_com_pagamento', { p_ligar: ligar });
+    const v = (Array.isArray(r) ? r[0] : r) || {};
+    alert((v.ligado ? 'Ligado' : 'Desligado') + '. ' + (Number(v.refeitas) || 0)
+        + ' mensagem(ns) que ainda estavam na fila foram refeitas.');
+    await carregar();
+  }catch(e){
+    console.error('[plataforma] pagamento nas mensagens:', e);
+    alert('Não consegui mudar.\n\n' + e.message);
   }
 }
 

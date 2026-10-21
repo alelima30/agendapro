@@ -94,6 +94,37 @@ alter table public.agendamentos drop constraint if exists agend_forma_pagamento;
 alter table public.agendamentos add constraint agend_forma_pagamento
   check (forma_pagamento is null or forma_pagamento in ('pix', 'dinheiro', 'debito', 'credito'));
 
+/* ── A FORMA MUDOU: AS MENSAGENS QUE NÃO SAÍRAM ACOMPANHAM ─────────────────
+   A recepção anota "vai pagar no Pix" depois de marcado: o lembrete que ainda
+   não saiu tem de dizer Pix (com os modelos de pagamento ligados — ver
+   `mensagens_com_pagamento()` no 21). Mora AQUI, junto da coluna, e não no
+   21: no pacote de atualização (98_modulos) este arquivo vem por último, e um
+   gatilho "on update of forma_pagamento" criado antes dele não acharia a
+   coluna. As funções de mensagem que ele chama são do 21 e só são procuradas
+   quando ele dispara. Desligados os modelos de pagamento, refazer não muda
+   nada — o texto e as variáveis são os mesmos. */
+create or replace function public.tg_notificacao_pagamento_mudou()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.forma_pagamento is not distinct from old.forma_pagamento then return new; end if;
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_agendamento(new.id, n.tipo), n.corpo),
+         variaveis = coalesce(public.variaveis_agendamento(new.id, n.tipo), n.variaveis)
+   where n.agendamento_id = new.id and n.status = 'pendente'
+     and n.tipo in ('confirmacao','lembrete','novo');
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_lembrete_equipe(new.id, n.profissional_id), n.corpo),
+         variaveis = coalesce(public.variaveis_lembrete_equipe(new.id, n.profissional_id), n.variaveis)
+   where n.agendamento_id = new.id and n.status = 'pendente' and n.tipo = 'lembrete_equipe';
+  return new;
+end $$;
+revoke all on function public.tg_notificacao_pagamento_mudou() from public, anon, authenticated;
+
+drop trigger if exists tg_notif_pagamento on public.agendamentos;
+create trigger tg_notif_pagamento
+  after update of forma_pagamento on public.agendamentos
+  for each row execute function public.tg_notificacao_pagamento_mudou();
+
 -- ---------------------------------------------------------------------------
 -- 1c) A cliente que precisa de confirmação
 --

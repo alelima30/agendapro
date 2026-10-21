@@ -1371,6 +1371,26 @@ alter table public.agendamentos add column if not exists forma_pagamento text;
 alter table public.agendamentos drop constraint if exists agend_forma_pagamento;
 alter table public.agendamentos add constraint agend_forma_pagamento
   check (forma_pagamento is null or forma_pagamento in ('pix', 'dinheiro', 'debito', 'credito'));
+create or replace function public.tg_notificacao_pagamento_mudou()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.forma_pagamento is not distinct from old.forma_pagamento then return new; end if;
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_agendamento(new.id, n.tipo), n.corpo),
+         variaveis = coalesce(public.variaveis_agendamento(new.id, n.tipo), n.variaveis)
+   where n.agendamento_id = new.id and n.status = 'pendente'
+     and n.tipo in ('confirmacao','lembrete','novo');
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_lembrete_equipe(new.id, n.profissional_id), n.corpo),
+         variaveis = coalesce(public.variaveis_lembrete_equipe(new.id, n.profissional_id), n.variaveis)
+   where n.agendamento_id = new.id and n.status = 'pendente' and n.tipo = 'lembrete_equipe';
+  return new;
+end $$;
+revoke all on function public.tg_notificacao_pagamento_mudou() from public, anon, authenticated;
+drop trigger if exists tg_notif_pagamento on public.agendamentos;
+create trigger tg_notif_pagamento
+  after update of forma_pagamento on public.agendamentos
+  for each row execute function public.tg_notificacao_pagamento_mudou();
 alter table public.clientes
   add column if not exists exige_confirmacao boolean not null default false;
 create or replace function public.cliente_exige_confirmacao(
@@ -2270,46 +2290,17 @@ begin
   return public.servico_fora_do_dia(p_servicos, p_de);
 end $$;
 
-create or replace function public.notif_liga(p_salao uuid, p_chave text,
-                                             p_padrao boolean default true)
-returns boolean language sql stable set search_path = public as $$
-  select coalesce(
-    (select (cfg->>p_chave)::boolean from public.saloes
-      where id = p_salao and cfg->>p_chave in ('true','false')),
-    p_padrao)
+create or replace function public.mensagens_com_pagamento()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select a.valor = 'true'::jsonb from public.plataforma_ajustes a
+                    where a.chave = 'mensagensComPagamento'), false)
 $$;
 
-create or replace function public.notif_num(p_salao uuid, p_chave text,
-                                            p_padrao int)
-returns int language sql stable set search_path = public as $$
-  select coalesce(
-    (select (cfg->>p_chave)::int from public.saloes
-      where id = p_salao and cfg->>p_chave ~ '^[0-9]+$'),
-    p_padrao)
-$$;
-
-create or replace function public.lembrete_minutos(p_salao uuid)
-returns int language sql stable set search_path = public as $$
-  select case when public.notif_liga(p_salao, 'notifLembrete', true)
-              then greatest(0, least(1440,
-                     public.notif_num(p_salao, 'notifLembreteMin', 120)))
-              else 0 end
-$$;
-
-create or replace function public.modelo_de(p_tipo text)
-returns text language sql immutable set search_path = public as $$
-  select case p_tipo
-    when 'confirmacao'       then 'agendapro_confirmacao'
-    when 'lembrete'          then 'agendapro_lembrete'
-    when 'novo'              then 'agendapro_aviso_profissional'
-    when 'resumo'            then 'agendapro_agenda_hoje'
-    when 'lembrete_equipe'   then 'agendapro_lembrete_equipe'
-    when 'pedido_novo'       then 'agendapro_pedido_novo'
-    when 'pedido_confirmado' then 'agendapro_pedido_confirmado'
-    when 'pedido_a_caminho'  then 'agendapro_pedido_a_caminho'
-    when 'pedido_pronto'     then 'agendapro_pedido_pronto'
-    when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
-  end
+create or replace function public.linha_pagamento(p_pecas jsonb)
+returns text language sql stable security definer set search_path = public as $$
+  select case when public.mensagens_com_pagamento()
+              then E'\n💳 Pagamento: ' || coalesce(p_pecas->>'pagamento', 'A combinar no salão')
+              else '' end
 $$;
 
 create or replace function public.pecas_agendamento(p_agendamento uuid)
@@ -2338,7 +2329,65 @@ begin
     'servico',  coalesce(v_serv, 'atendimento'),
     'casa',     coalesce(v_casa, '—'),
     'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
-    'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'));
+    'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'),
+    'pagamento', case
+      when to_jsonb(a)->>'pacote_cliente_id' is not null then 'Pacote (já pago)'
+      when to_jsonb(a)->>'forma_pagamento' = 'pix'      then 'Pix'
+      when to_jsonb(a)->>'forma_pagamento' = 'dinheiro' then 'Dinheiro'
+      when to_jsonb(a)->>'forma_pagamento' = 'debito'   then 'Cartão de débito'
+      when to_jsonb(a)->>'forma_pagamento' = 'credito'  then 'Cartão de crédito'
+      when coalesce((to_jsonb(a)->>'valor_previsto')::numeric, 0) <= 0 then 'Sem custo'
+      else 'A combinar no salão' end);
+end $$;
+
+create or replace function public.texto_agendamento(
+  p_agendamento uuid, p_tipo text)
+returns text language plpgsql stable security definer set search_path = public as $$
+declare
+  j jsonb;
+  v_casa text; v_cli text; v_prof text; v_serv text;
+  v_data text; v_hora text;
+begin
+  j := public.pecas_agendamento(p_agendamento);
+  if j is null then return null; end if;
+  v_cli  := j->>'cliente';  v_prof := j->>'prof';
+  v_serv := j->>'servico';  v_casa := j->>'casa';
+  v_data := j->>'data';     v_hora := j->>'hora';
+  if p_tipo = 'confirmacao' then
+    return format(
+      'Olá, %s! Seu agendamento foi realizado com sucesso.'
+      || E'\n\n📅 Data: %s'
+      || E'\n🕐 Horário: %s'
+      || E'\n✂️ Serviço: %s'
+      || E'\n👤 Profissional: %s'
+      || E'\n🏪 %s%s',
+      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa,
+      public.linha_pagamento(j));
+  elsif p_tipo = 'lembrete' then
+    return format(
+      '🔔 Olá, %s!'
+      || E'\n\nEste é um lembrete do seu agendamento:'
+      || E'\n\n📅 %s'
+      || E'\n🕐 %s'
+      || E'\n✂️ %s'
+      || E'\n👤 %s'
+      || E'\n🏪 %s%s'
+      || E'\n\nEsperamos você!',
+      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa,
+      public.linha_pagamento(j));
+  elsif p_tipo = 'novo' then
+    return format(
+      'Olá, %s. Um horário foi agendado com você.'
+      || E'\n\n👤 Cliente: %s'
+      || E'\n✂️ Serviço: %s'
+      || E'\n📅 Data: %s'
+      || E'\n🕐 Horário: %s'
+      || E'\n🏪 Local: %s%s'
+      || E'\n\nAviso automático do sistema de agendamento.',
+      split_part(v_prof, ' ', 1), v_cli, v_serv, v_data, v_hora, v_casa,
+      public.linha_pagamento(j));
+  end if;
+  return null;
 end $$;
 
 create or replace function public.variavel_limpa(p_texto text, p_teto int default 900)
@@ -2349,6 +2398,13 @@ returns text language sql immutable set search_path = public as $$
     else t
   end
   from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
+$$;
+
+create or replace function public.variavel_pagamento(p_pecas jsonb)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select case when public.mensagens_com_pagamento()
+              then jsonb_build_array(public.variavel_limpa(p_pecas->>'pagamento'))
+              else '[]'::jsonb end
 $$;
 
 create or replace function public.variaveis_lembrete_equipe(
@@ -2365,7 +2421,8 @@ begin
                                    'equipe')),
     public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
     public.variavel_limpa(j->>'prof'),    public.variavel_limpa(j->>'data'),
-    public.variavel_limpa(j->>'hora'),    public.variavel_limpa(j->>'casa'));
+    public.variavel_limpa(j->>'hora'),    public.variavel_limpa(j->>'casa'))
+    || public.variavel_pagamento(j);
 end $$;
 
 create or replace function public.texto_lembrete_equipe(
@@ -2382,10 +2439,55 @@ begin
     || E'\n💼 Profissional: %s'
     || E'\n📅 Data: %s'
     || E'\n🕐 Horário: %s'
-    || E'\n🏪 Local: %s'
+    || E'\n🏪 Local: %s%s'
     || E'\n\nAviso automático do sistema de agendamento.',
-    v->>0, v->>1, v->>2, v->>3, v->>4, v->>5, v->>6);
+    v->>0, v->>1, v->>2, v->>3, v->>4, v->>5, v->>6,
+    case when jsonb_array_length(v) > 7 then E'\n💳 Pagamento: ' || (v->>7) else '' end);
 end $$;
+
+create or replace function public.notif_liga(p_salao uuid, p_chave text,
+                                             p_padrao boolean default true)
+returns boolean language sql stable set search_path = public as $$
+  select coalesce(
+    (select (cfg->>p_chave)::boolean from public.saloes
+      where id = p_salao and cfg->>p_chave in ('true','false')),
+    p_padrao)
+$$;
+
+create or replace function public.notif_num(p_salao uuid, p_chave text,
+                                            p_padrao int)
+returns int language sql stable set search_path = public as $$
+  select coalesce(
+    (select (cfg->>p_chave)::int from public.saloes
+      where id = p_salao and cfg->>p_chave ~ '^[0-9]+$'),
+    p_padrao)
+$$;
+
+create or replace function public.lembrete_minutos(p_salao uuid)
+returns int language sql stable set search_path = public as $$
+  select case when public.notif_liga(p_salao, 'notifLembrete', true)
+              then greatest(0, least(1440,
+                     public.notif_num(p_salao, 'notifLembreteMin', 120)))
+              else 0 end
+$$;
+
+create or replace function public.modelo_de(p_tipo text)
+returns text language sql stable set search_path = public as $$
+  select case p_tipo
+    when 'confirmacao'       then 'agendapro_confirmacao'
+    when 'lembrete'          then 'agendapro_lembrete'
+    when 'novo'              then 'agendapro_aviso_profissional'
+    when 'resumo'            then 'agendapro_agenda_hoje'
+    when 'lembrete_equipe'   then 'agendapro_lembrete_equipe'
+    when 'pedido_novo'       then 'agendapro_pedido_novo'
+    when 'pedido_confirmado' then 'agendapro_pedido_confirmado'
+    when 'pedido_a_caminho'  then 'agendapro_pedido_a_caminho'
+    when 'pedido_pronto'     then 'agendapro_pedido_pronto'
+    when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
+  end
+  || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
+               and public.mensagens_com_pagamento() then '_pagamento' else '' end
+$$;
 
 create or replace function public.refazer_lembrete_equipe(p_agendamento uuid)
 returns void language plpgsql security definer set search_path = public as $$
@@ -2464,53 +2566,6 @@ begin
   end loop;
 end $$;
 
-create or replace function public.texto_agendamento(
-  p_agendamento uuid, p_tipo text)
-returns text language plpgsql stable security definer set search_path = public as $$
-declare
-  j jsonb;
-  v_casa text; v_cli text; v_prof text; v_serv text;
-  v_data text; v_hora text;
-begin
-  j := public.pecas_agendamento(p_agendamento);
-  if j is null then return null; end if;
-  v_cli  := j->>'cliente';  v_prof := j->>'prof';
-  v_serv := j->>'servico';  v_casa := j->>'casa';
-  v_data := j->>'data';     v_hora := j->>'hora';
-  if p_tipo = 'confirmacao' then
-    return format(
-      'Olá, %s! Seu agendamento foi realizado com sucesso.'
-      || E'\n\n📅 Data: %s'
-      || E'\n🕐 Horário: %s'
-      || E'\n✂️ Serviço: %s'
-      || E'\n👤 Profissional: %s'
-      || E'\n🏪 %s',
-      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa);
-  elsif p_tipo = 'lembrete' then
-    return format(
-      '🔔 Olá, %s!'
-      || E'\n\nEste é um lembrete do seu agendamento:'
-      || E'\n\n📅 %s'
-      || E'\n🕐 %s'
-      || E'\n✂️ %s'
-      || E'\n👤 %s'
-      || E'\n🏪 %s'
-      || E'\n\nEsperamos você!',
-      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa);
-  elsif p_tipo = 'novo' then
-    return format(
-      'Olá, %s. Um horário foi agendado com você.'
-      || E'\n\n👤 Cliente: %s'
-      || E'\n✂️ Serviço: %s'
-      || E'\n📅 Data: %s'
-      || E'\n🕐 Horário: %s'
-      || E'\n🏪 Local: %s'
-      || E'\n\nAviso automático do sistema de agendamento.',
-      split_part(v_prof, ' ', 1), v_cli, v_serv, v_data, v_hora, v_casa);
-  end if;
-  return null;
-end $$;
-
 create or replace function public.variaveis_agendamento(
   p_agendamento uuid, p_tipo text)
 returns jsonb language plpgsql stable security definer set search_path = public as $$
@@ -2522,13 +2577,15 @@ begin
     return jsonb_build_array(
       public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
       public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
-      public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'));
+      public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'))
+      || public.variavel_pagamento(j);
   elsif p_tipo = 'novo' then
     return jsonb_build_array(
       public.variavel_limpa(split_part(j->>'prof', ' ', 1)),
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
       public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'),
-      public.variavel_limpa(j->>'casa'));
+      public.variavel_limpa(j->>'casa'))
+      || public.variavel_pagamento(j);
   end if;
   return null;
 end $$;

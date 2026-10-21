@@ -206,6 +206,100 @@ Aviso automático do sistema de agendamento.
 
 ---
 
+# Os quatro com a forma de pagamento
+
+"Temos que colocar o pagamento — Pix, cartão de crédito — nos modelos, para o
+profissional e a cliente." São os mesmos quatro de cima que falam de **um**
+agendamento, com uma linha a mais: **💳 Pagamento**, sempre a **última**
+variável. Mesmas regras: **Utilidade**, **Português (BR)**, sem cabeçalho e sem
+botão.
+
+O que vai em Pagamento: **Pix**, **Dinheiro**, **Cartão de débito**, **Cartão
+de crédito** (o que a cliente escolheu no link ou a recepção anotou),
+**Pacote (já pago)**, **Sem custo**, ou **A combinar no salão** quando
+ninguém informou.
+
+> **⚠ A ordem para ligar.** Enquanto estes quatro não estiverem
+> **aprovados**, o sistema continua mandando os de cima — nada muda. Depois
+> da aprovação, ligue em **admin → Mensagens do WhatsApp → Ligar a forma de
+> pagamento**. Ligar antes faria toda confirmação e todo aviso sair para um
+> modelo que não existe (erro 132001), e não chegar. Os de cima podem ficar
+> cadastrados: desligando, o sistema volta para eles na hora.
+
+## 1b. `agendapro_confirmacao_pagamento`
+
+```
+Olá, {{1}}! Seu agendamento foi confirmado.
+
+📅 Data: {{2}}
+🕐 Horário: {{3}}
+✂️ Serviço: {{4}}
+👤 Profissional: {{5}}
+🏪 Local: {{6}}
+💳 Pagamento: {{7}}
+
+Até breve!
+```
+
+As seis da confirmação, na mesma ordem, e `{{7}}` a forma de pagamento (ex.:
+Pix).
+
+## 2b. `agendapro_lembrete_pagamento`
+
+```
+🔔 Olá, {{1}}! Passando para lembrar do seu horário.
+
+📅 Data: {{2}}
+🕐 Horário: {{3}}
+✂️ Serviço: {{4}}
+👤 Profissional: {{5}}
+🏪 Local: {{6}}
+💳 Pagamento: {{7}}
+
+Esperamos você!
+```
+
+As seis do lembrete, na mesma ordem, e `{{7}}` a forma de pagamento.
+
+## 3b. `agendapro_aviso_profissional_pagamento`
+
+```
+Olá, {{1}}. Um horário foi agendado com você.
+
+👤 Cliente: {{2}}
+✂️ Serviço: {{3}}
+📅 Data: {{4}}
+🕐 Horário: {{5}}
+🏪 Local: {{6}}
+💳 Pagamento: {{7}}
+
+Aviso automático do sistema de agendamento.
+```
+
+As seis do aviso à profissional, na mesma ordem, e `{{7}}` como a cliente vai
+pagar — é o que a profissional precisa saber antes de a cliente sentar.
+
+## 5b. `agendapro_lembrete_equipe_pagamento`
+
+```
+Olá, {{1}}. Lembrete de um horário agendado.
+
+👤 Cliente: {{2}}
+✂️ Serviço: {{3}}
+💼 Profissional: {{4}}
+📅 Data: {{5}}
+🕐 Horário: {{6}}
+🏪 Local: {{7}}
+💳 Pagamento: {{8}}
+
+Aviso automático do sistema de agendamento.
+```
+
+As sete do lembrete para o salão, na mesma ordem, e `{{8}}` a forma de
+pagamento.
+
+---
+
 # Os cinco do modo Pedidos (restaurante, pizzaria, lanchonete)
 
 Só são usados por estabelecimento do tipo **Restaurante** (`37_pedidos.sql`).

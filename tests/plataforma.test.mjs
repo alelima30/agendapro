@@ -149,6 +149,30 @@ console.log('\nQuem é');
     'vieram ' + (trazido.clientes || []).length);
   diz((trazido.saloes || []).length === 0,
     'nem a lista de salões dos outros', 'vieram ' + (trazido.saloes || []).length);
+
+  /* ── A FORMA DE PAGAMENTO NAS MENSAGENS ─────────────────────────────────
+     "Colocar o pagamento — Pix, cartão de crédito — nos modelos." Os modelos
+     `*_pagamento` nascem desligados (o modelo aprovado de hoje não quebra) e
+     a plataforma liga aqui, depois de aprová-los na Meta. A bancada é
+     dividida com as outras suítes: o teste desliga de novo no fim. */
+  const pa = await abrir(c.sessao);
+  pa.dialogos = [];
+  pa.on('dialog', d => { pa.dialogos.push(d.message()); d.accept(); });
+  const ajuste = () => pa.textContent('#ajustePagamento').catch(() => '');
+  diz(/desligada/.test(await ajuste()) && /aprovados/.test(await ajuste()),
+    'o admin mostra "forma de pagamento nas mensagens: desligada", e quando ligar',
+    (await ajuste()).replace(/\s+/g, ' ').slice(0, 160));
+  await pa.click('#ajustePagamento button');
+  await pa.waitForTimeout(1200);
+  diz(pa.dialogos.some(m => /APROVADOS na Meta/.test(m)),
+    'ligar pergunta antes se os modelos já foram aprovados', pa.dialogos.join(' | '));
+  diz(/ligada/.test(await ajuste()) && !/desligada/.test(await ajuste()),
+    'e liga', (await ajuste()).replace(/\s+/g, ' ').slice(0, 120));
+  await pa.click('#ajustePagamento button');
+  await pa.waitForTimeout(1200);
+  diz(/desligada/.test(await ajuste()), 'e desliga de novo (a bancada volta como estava)');
+  diz(pa.erros.length === 0, 'sem erro de JavaScript', pa.erros.join(' · '));
+  await pa.context().close();
 }
 
 console.log('\nSem banco configurado');

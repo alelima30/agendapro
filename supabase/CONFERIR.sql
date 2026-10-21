@@ -887,6 +887,24 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (39_teste_unico)'
            else '' end
   union all
+  /* A forma de pagamento nas mensagens: os modelos `*_pagamento`, que a
+     plataforma liga no admin depois de aprovados na Meta. "certo" aqui quer
+     dizer que o banco sabe montá-los — não que estejam ligados. */
+  select 40, 'Mensagens com a forma de pagamento (pronto para ligar)',
+         case
+           when to_regprocedure('public.definir_mensagens_com_pagamento(boolean)') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_notif_pagamento'
+                              and tgrelid = 'public.agendamentos'::regclass)
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.definir_mensagens_com_pagamento(boolean)') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_notif_pagamento'
+                              and tgrelid = 'public.agendamentos'::regclass)
+             then 'cole o 00_tudo.sql de novo (21_notificacoes)'
+           when public.mensagens_com_pagamento() then 'ligado'
+           else 'desligado — ligue no admin depois de aprovar os 4 modelos *_pagamento' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

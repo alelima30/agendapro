@@ -138,9 +138,11 @@ alter table public.notificacoes add constraint notificacoes_tipo_check
                   'pedido_pronto','pedido_cancelado'));
 
 /* O modelo aprovado na Meta, por tipo — a lista inteira, porque esta função
-   substitui a do 21 (a de número maior vale). */
+   substitui a do 21 (a de número maior vale). Com o sufixo `_pagamento` dos
+   quatro que falam de um agendamento, quando a plataforma ligou os modelos
+   com a forma de pagamento (21, `mensagens_com_pagamento()`). */
 create or replace function public.modelo_de(p_tipo text)
-returns text language sql immutable set search_path = public as $$
+returns text language sql stable set search_path = public as $$
   select case p_tipo
     when 'confirmacao'       then 'agendapro_confirmacao'
     when 'lembrete'          then 'agendapro_lembrete'
@@ -154,6 +156,8 @@ returns text language sql immutable set search_path = public as $$
     when 'pedido_pronto'     then 'agendapro_pedido_pronto'
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
   end
+  || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
+               and public.mensagens_com_pagamento() then '_pagamento' else '' end
 $$;
 
 /* A cota por tipo (22_cotas), com os do pedido no lugar certo: os que vão

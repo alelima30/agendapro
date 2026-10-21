@@ -1450,14 +1450,24 @@ function falarNoWhatsapp(agId){
     cliente: (nomeCliente(a.clienteId) || '').split(' ')[0],
     horario: porExtenso(a.data) + ' às ' + hm(a.inicio),
     empresa: (acharSalao(salaoAtual) || {}).nome || 'salão',
+    pagamento: pagamentoDoRecado(a),
   });
+}
+
+/* Como ela vai pagar, por extenso, para o recado: a forma do agendamento, o
+   pacote, ou "a combinar" quando ninguém informou — nunca vazio, para o
+   "Pagamento:" do recado nunca ficar pendurado. */
+function pagamentoDoRecado(a){
+  if(a.pacoteClienteId) return 'pacote (já pago)';
+  return nomeDaFormaPagamento(a.formaPagamento) || 'a combinar';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    OS RECADOS QUE O DONO ESCREVE UMA VEZ
 
-   Quatro modelos, editáveis em Meu negócio, com três parâmetros: ${cliente},
-   ${horario} e ${empresa}.
+   Quatro modelos, editáveis em Meu negócio, com quatro parâmetros: ${cliente},
+   ${horario}, ${empresa} e ${pagamento} (como ela vai pagar — "colocar o
+   pagamento, Pix, cartão de crédito, nos modelos").
 
    ── POR QUE MODELO, E NÃO TEXTO PRONTO NOSSO ──────────────────────────────
    Porque o jeito de falar é do salão, não nosso. Uma barbearia escreve "e
@@ -1481,7 +1491,7 @@ const MODELOS_MANUAIS = [
    + 'WhatsApp de um horário.'],
   ['confirmacao', 'Confirmar o horário',
    'Oi ${cliente}, tudo bem? Seu horário de ${horario} está confirmado! '
-   + 'Te esperamos aqui no ${empresa}.',
+   + 'Pagamento: ${pagamento}. Te esperamos aqui no ${empresa}.',
    'Para responder quem pediu horário pelo link e está esperando resposta.'],
   ['indisponivel', 'Avisar que não tem mais',
    'Oi ${cliente}, tudo bem? Infelizmente o horário de ${horario} não está '
@@ -1498,6 +1508,7 @@ const PARAMETROS_RECADO = [
   ['cliente', 'o primeiro nome dela'],
   ['horario', 'o dia e a hora do atendimento'],
   ['empresa', 'o nome do seu salão'],
+  ['pagamento', 'como ela vai pagar (Pix, cartão, pacote…)'],
 ];
 
 /* ⚠ O CAMPO NASCE VAZIO, COM O PADRÃO COMO DICA — e não preenchido com ele.
@@ -1550,6 +1561,9 @@ function preencherRecado(modelo, dados){
       Object.prototype.hasOwnProperty.call(dados, chave) ? (dados[chave] || '') : '')
     // Sobrou "de " ou "  " de um parâmetro que saiu vazio: limpa.
     .replace(/\s+de\s*([.,!?]|$)/gm, '$1')
+    // E o rótulo que ficou sem nada ("Pagamento: ." — falando pela ficha, sem
+    // horário nenhum): a frase inteira sai.
+    .replace(/\s*[^.!?\n]*:\s*[.!?]/g, '')
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
 }
@@ -1601,6 +1615,7 @@ function falarComCliente(clienteId){
     cliente: (nomeCliente(clienteId) || '').split(' ')[0],
     horario: '',
     empresa: (acharSalao(salaoAtual) || {}).nome || 'salão',
+    pagamento: '',
   });
 }
 
@@ -2040,7 +2055,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.4724ca';
+const VERSAO_APP = 'v9.4588dc';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o

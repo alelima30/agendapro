@@ -266,8 +266,54 @@ begin
     'servico',  coalesce(v_serv, 'atendimento'),
     'casa',     coalesce(v_casa, '—'),
     'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
-    'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'));
+    'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'),
+    /* Como a cliente vai pagar — "colocar o pagamento, Pix, cartão de
+       crédito, nos modelos, para o profissional e a cliente". Lido por
+       `to_jsonb`, e não `a.forma_pagamento`: a coluna do pacote nasce depois
+       deste módulo (27), e esta função roda nas colagens de quem atualiza. */
+    'pagamento', case
+      when to_jsonb(a)->>'pacote_cliente_id' is not null then 'Pacote (já pago)'
+      when to_jsonb(a)->>'forma_pagamento' = 'pix'      then 'Pix'
+      when to_jsonb(a)->>'forma_pagamento' = 'dinheiro' then 'Dinheiro'
+      when to_jsonb(a)->>'forma_pagamento' = 'debito'   then 'Cartão de débito'
+      when to_jsonb(a)->>'forma_pagamento' = 'credito'  then 'Cartão de crédito'
+      when coalesce((to_jsonb(a)->>'valor_previsto')::numeric, 0) <= 0 then 'Sem custo'
+      else 'A combinar no salão' end);
 end $$;
+
+/* ── A FORMA DE PAGAMENTO NA MENSAGEM: LIGADA PELA PLATAFORMA ───────────────
+   A linha "💳 Pagamento" só existe nos modelos `*_pagamento` (MODELOS.md).
+   Modelo aprovado na Meta não se edita, e mandar uma variável a mais para o
+   modelo antigo faz a Meta recusar a mensagem inteira (132000). Então os
+   modelos novos ficam desligados até a plataforma cadastrá-los, vê-los
+   aprovados e ligar no admin — até lá sai tudo como sempre saiu.
+
+   O ajuste mora numa tabela da plataforma, fechada a todo mundo: só as
+   funções abaixo leem, e só a conta da plataforma muda. */
+create table if not exists public.plataforma_ajustes (
+  chave         text primary key,
+  valor         jsonb not null,
+  atualizado_em timestamptz not null default now()
+);
+alter table public.plataforma_ajustes enable row level security;
+alter table public.plataforma_ajustes force row level security;
+revoke all on public.plataforma_ajustes from anon, authenticated;
+
+create or replace function public.mensagens_com_pagamento()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select a.valor = 'true'::jsonb from public.plataforma_ajustes a
+                    where a.chave = 'mensagensComPagamento'), false)
+$$;
+
+-- A linha do texto do histórico. Vazia enquanto os modelos com pagamento
+-- estiverem desligados. (A variável que vai para a Meta, `variavel_pagamento`,
+-- mora depois do `variavel_limpa()`, que ela usa.)
+create or replace function public.linha_pagamento(p_pecas jsonb)
+returns text language sql stable security definer set search_path = public as $$
+  select case when public.mensagens_com_pagamento()
+              then E'\n💳 Pagamento: ' || coalesce(p_pecas->>'pagamento', 'A combinar no salão')
+              else '' end
+$$;
 
 create or replace function public.texto_agendamento(
   p_agendamento uuid, p_tipo text)
@@ -286,6 +332,8 @@ begin
   v_serv := j->>'servico';  v_casa := j->>'casa';
   v_data := j->>'data';     v_hora := j->>'hora';
 
+  -- O `%s` depois do local é a linha "💳 Pagamento" — vazia com os modelos
+  -- de pagamento desligados (ver `mensagens_com_pagamento()`).
   if p_tipo = 'confirmacao' then
     return format(
       'Olá, %s! Seu agendamento foi realizado com sucesso.'
@@ -293,8 +341,9 @@ begin
       || E'\n🕐 Horário: %s'
       || E'\n✂️ Serviço: %s'
       || E'\n👤 Profissional: %s'
-      || E'\n🏪 %s',
-      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa);
+      || E'\n🏪 %s%s',
+      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa,
+      public.linha_pagamento(j));
 
   elsif p_tipo = 'lembrete' then
     return format(
@@ -304,9 +353,10 @@ begin
       || E'\n🕐 %s'
       || E'\n✂️ %s'
       || E'\n👤 %s'
-      || E'\n🏪 %s'
+      || E'\n🏪 %s%s'
       || E'\n\nEsperamos você!',
-      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa);
+      split_part(v_cli, ' ', 1), v_data, v_hora, v_serv, v_prof, v_casa,
+      public.linha_pagamento(j));
 
   elsif p_tipo = 'novo' then
     return format(
@@ -315,9 +365,10 @@ begin
       || E'\n✂️ Serviço: %s'
       || E'\n📅 Data: %s'
       || E'\n🕐 Horário: %s'
-      || E'\n🏪 Local: %s'
+      || E'\n🏪 Local: %s%s'
       || E'\n\nAviso automático do sistema de agendamento.',
-      split_part(v_prof, ' ', 1), v_cli, v_serv, v_data, v_hora, v_casa);
+      split_part(v_prof, ' ', 1), v_cli, v_serv, v_data, v_hora, v_casa,
+      public.linha_pagamento(j));
   end if;
   return null;
 end $$;
@@ -361,6 +412,16 @@ returns text language sql immutable set search_path = public as $$
   from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
 $$;
 
+/* A forma de pagamento como ÚLTIMA variável, só nos modelos `*_pagamento`.
+   Desligados, devolve lista vazia e as variáveis ficam exatamente as de
+   antes — o modelo cadastrado hoje continua recebendo o número que espera. */
+create or replace function public.variavel_pagamento(p_pecas jsonb)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select case when public.mensagens_com_pagamento()
+              then jsonb_build_array(public.variavel_limpa(p_pecas->>'pagamento'))
+              else '[]'::jsonb end
+$$;
+
 /* Achata uma lista numa linha só, separada por " · " — variável de modelo
    não aceita quebra de linha.
 
@@ -381,8 +442,12 @@ $$;
 /* O nome do modelo cadastrado na Meta, por tipo. Fixo de propósito: o número
    do WhatsApp é da plataforma, um só para todos os salões, e portanto os
    modelos também são. Salão nenhum cadastra modelo próprio. */
+/* ⚠ STABLE, e não mais IMMUTABLE: o nome depende do ajuste da plataforma.
+   Com os modelos de pagamento ligados, os quatro que falam de UM agendamento
+   viram o `*_pagamento` cadastrado ao lado (MODELOS.md), com a forma de
+   pagamento como última variável. */
 create or replace function public.modelo_de(p_tipo text)
-returns text language sql immutable set search_path = public as $$
+returns text language sql stable set search_path = public as $$
   select case p_tipo
     when 'confirmacao' then 'agendapro_confirmacao'
     when 'lembrete'    then 'agendapro_lembrete'
@@ -404,6 +469,8 @@ returns text language sql immutable set search_path = public as $$
     -- O lembrete para o salão (7c): quem atende e/ou o dono, antes do horário.
     when 'lembrete_equipe' then 'agendapro_lembrete_equipe'
   end
+  || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
+               and public.mensagens_com_pagamento() then '_pagamento' else '' end
 $$;
 
 /* As variáveis, NA ORDEM em que o modelo cadastrado as espera.
@@ -435,10 +502,12 @@ begin
     -- confirmado" sem saber onde — e quem frequenta dois salões que usam o
     -- sistema não tem como distinguir um do outro. Por último para não mexer
     -- na posição das cinco que já existiam.
+    -- (+ {{7}} forma de pagamento, só no `*_pagamento` — `variavel_pagamento()`)
     return jsonb_build_array(
       public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
       public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
-      public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'));
+      public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'))
+      || public.variavel_pagamento(j);
 
   elsif p_tipo = 'novo' then
     -- {{1}} primeiro nome de quem atende  {{2}} cliente (nome INTEIRO)
@@ -447,11 +516,13 @@ begin
     -- O nome inteiro da cliente, e não só o primeiro: é ele que a
     -- profissional procura na agenda. E o salão, porque quem trabalha em duas
     -- casas que usam o sistema recebe os dois avisos do mesmo número.
+    -- (+ {{7}} forma de pagamento, só no `*_pagamento` — `variavel_pagamento()`)
     return jsonb_build_array(
       public.variavel_limpa(split_part(j->>'prof', ' ', 1)),
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
       public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'),
-      public.variavel_limpa(j->>'casa'));
+      public.variavel_limpa(j->>'casa'))
+      || public.variavel_pagamento(j);
   end if;
   return null;
 end $$;
@@ -952,6 +1023,66 @@ create trigger tg_notif_servico
   after insert or update or delete on public.agendamento_servicos
   for each row execute function public.tg_notificacao_servico_mudou();
 
+/* (A forma de pagamento mudou depois de marcado: o gatilho que reescreve as
+   mensagens pendentes mora no 09_cliente, junto da coluna — ver lá.) */
+
+/* ── LIGAR OS MODELOS COM PAGAMENTO (o admin) ──────────────────────────────
+   Só a conta da plataforma, e só depois de os quatro `*_pagamento` estarem
+   APROVADOS na Meta: ligado antes, toda confirmação e todo aviso sairiam
+   para um modelo que não existe (132001) — e não chegariam.
+
+   Ligar (ou desligar) também refaz o que ainda está na fila: a mensagem
+   pendente sai pelo modelo que vale na hora de sair, com o número certo de
+   variáveis. */
+create or replace function public.definir_mensagens_com_pagamento(p_ligar boolean)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_refeitas int := 0; v_n int;
+begin
+  if not public.is_super() then
+    raise exception 'Só a plataforma liga os modelos de mensagem.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  insert into public.plataforma_ajustes (chave, valor, atualizado_em)
+       values ('mensagensComPagamento', to_jsonb(coalesce(p_ligar, false)), now())
+  on conflict (chave) do update set valor = excluded.valor, atualizado_em = now();
+
+  update public.notificacoes n
+     set modelo    = public.modelo_de(n.tipo),
+         corpo     = coalesce(public.texto_agendamento(n.agendamento_id, n.tipo), n.corpo),
+         variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, n.tipo), n.variaveis)
+   where n.status = 'pendente' and n.agendamento_id is not null
+     and n.tipo in ('confirmacao','lembrete','novo');
+  get diagnostics v_n = row_count; v_refeitas := v_refeitas + v_n;
+  update public.notificacoes n
+     set modelo    = public.modelo_de(n.tipo),
+         corpo     = coalesce(public.texto_lembrete_equipe(n.agendamento_id, n.profissional_id), n.corpo),
+         variaveis = coalesce(public.variaveis_lembrete_equipe(n.agendamento_id, n.profissional_id), n.variaveis)
+   where n.status = 'pendente' and n.agendamento_id is not null and n.tipo = 'lembrete_equipe';
+  get diagnostics v_n = row_count; v_refeitas := v_refeitas + v_n;
+
+  return jsonb_build_object('ligado', public.mensagens_com_pagamento(), 'refeitas', v_refeitas);
+end $$;
+
+create or replace function public.ajustes_da_plataforma()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_super() then
+    raise exception 'Só a plataforma vê os ajustes.' using errcode = 'insufficient_privilege';
+  end if;
+  return jsonb_build_object('mensagensComPagamento', public.mensagens_com_pagamento());
+end $$;
+
+revoke all on function public.definir_mensagens_com_pagamento(boolean) from public, anon;
+revoke all on function public.ajustes_da_plataforma() from public, anon;
+grant execute on function public.definir_mensagens_com_pagamento(boolean) to authenticated;
+grant execute on function public.ajustes_da_plataforma() to authenticated;
+revoke all on function public.linha_pagamento(jsonb) from public, anon, authenticated;
+-- Um sim ou não da plataforma: não é segredo, mas não há por que abrir à
+-- internet sem login (portas.test.sql). Quem monta mensagem é o banco.
+revoke all on function public.mensagens_com_pagamento() from public, anon;
+grant execute on function public.mensagens_com_pagamento() to authenticated;
+revoke all on function public.variavel_pagamento(jsonb) from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- 7c) O LEMBRETE PARA O SALÃO
 --
@@ -995,12 +1126,14 @@ begin
   if j is null then return null; end if;
   select coalesce(nullif(btrim(pr.apelido), ''), pr.nome) into v_quem
     from public.profissionais pr where pr.id = p_destinatario;
+  -- (+ {{8}} forma de pagamento, só no `*_pagamento` — `variavel_pagamento()`)
   return jsonb_build_array(
     public.variavel_limpa(coalesce(nullif(split_part(btrim(coalesce(v_quem, '')), ' ', 1), ''),
                                    'equipe')),
     public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
     public.variavel_limpa(j->>'prof'),    public.variavel_limpa(j->>'data'),
-    public.variavel_limpa(j->>'hora'),    public.variavel_limpa(j->>'casa'));
+    public.variavel_limpa(j->>'hora'),    public.variavel_limpa(j->>'casa'))
+    || public.variavel_pagamento(j);
 end $$;
 
 /* O mesmo, por extenso, para o histórico do painel. */
@@ -1018,9 +1151,11 @@ begin
     || E'\n💼 Profissional: %s'
     || E'\n📅 Data: %s'
     || E'\n🕐 Horário: %s'
-    || E'\n🏪 Local: %s'
+    || E'\n🏪 Local: %s%s'
     || E'\n\nAviso automático do sistema de agendamento.',
-    v->>0, v->>1, v->>2, v->>3, v->>4, v->>5, v->>6);
+    v->>0, v->>1, v->>2, v->>3, v->>4, v->>5, v->>6,
+    -- A oitava só existe com os modelos de pagamento ligados.
+    case when jsonb_array_length(v) > 7 then E'\n💳 Pagamento: ' || (v->>7) else '' end);
 end $$;
 
 /* Põe na fila o que deve existir para este agendamento, e cancela o que não
