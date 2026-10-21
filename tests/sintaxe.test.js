@@ -443,19 +443,21 @@ console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
     'o lembrete para o salão acrescenta o valor e a forma de pagamento no fim');
   for(const { tipo, modelo } of nomes.filter(x =>
         ['confirmacao', 'lembrete', 'novo', 'lembrete_equipe'].includes(x.tipo))){
-    const corpo = blocoDe(modelo + '_valor');
-    if(!corpo){ dizer(false, `${modelo}_valor: tem seção no MODELOS.md`); continue; }
+    // A confirmação é _valor (o _pagamento dela entrou como Marketing na Meta).
+    const sufixo = tipo === 'confirmacao' ? '_valor' : '_pagamento';
+    const corpo = blocoDe(modelo + sufixo);
+    if(!corpo){ dizer(false, `${modelo}${sufixo}: tem seção no MODELOS.md`); continue; }
     const distintos = [...new Set([...corpo.matchAll(/\{\{(\d+)\}\}/g)].map(m => +m[1]))]
       .sort((a, b) => a - b);
     const n = noSql[tipo] + 2;
     dizer(distintos.length === n && distintos.every((v, i) => v === i + 1),
-      `${modelo}_valor: ${n} variáveis, de 1 a ${n} (as ${noSql[tipo]} de sempre + valor + pagamento)`,
+      `${modelo}${sufixo}: ${n} variáveis, de 1 a ${n} (as ${noSql[tipo]} de sempre + valor + pagamento)`,
       JSON.stringify(distintos));
     dizer(new RegExp('💰 Valor: \\{\\{' + (n - 1) + '\\}\\}').test(corpo)
           && new RegExp('💳 Pagamento: \\{\\{' + n + '\\}\\}').test(corpo),
-      `${modelo}_valor: as duas últimas são "💰 Valor" e "💳 Pagamento", nessa ordem`);
+      `${modelo}${sufixo}: as duas últimas são "💰 Valor" e "💳 Pagamento", nessa ordem`);
     dizer(!corpo.trim().startsWith('{{') && !corpo.trim().endsWith('}}'),
-      `${modelo}_valor: o texto não começa nem termina com variável`);
+      `${modelo}${sufixo}: o texto não começa nem termina com variável`);
   }
 
   /* Os cinco do modo Pedidos (37_pedidos): o mesmo contrato, com as variáveis

@@ -887,7 +887,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (39_teste_unico)'
            else '' end
   union all
-  /* A forma de pagamento nas mensagens: os modelos `*_valor`, que a
+  /* A forma de pagamento nas mensagens: os modelos com valor (MODELOS.md), que a
      plataforma liga no admin depois de aprovados na Meta. "certo" aqui quer
      dizer que o banco sabe montá-los — não que estejam ligados. */
   select 40, 'Mensagens com valor e forma de pagamento (pronto para ligar)',
@@ -903,7 +903,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
                               and tgrelid = 'public.agendamentos'::regclass)
              then 'cole o 00_tudo.sql de novo (21_notificacoes)'
            when public.mensagens_com_pagamento() then 'ligado'
-           else 'desligado — ligue no admin depois de aprovar os 4 modelos *_valor' end
+           else 'desligado — ligue no admin depois de aprovar os 4 modelos com valor' end
   union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das

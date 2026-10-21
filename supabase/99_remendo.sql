@@ -2498,7 +2498,9 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
-               and public.mensagens_com_pagamento() then '_valor' else '' end
+               and public.mensagens_com_pagamento()
+          then case when p_tipo = 'confirmacao' then '_valor' else '_pagamento' end
+          else '' end
 $$;
 
 create or replace function public.refazer_lembrete_equipe(p_agendamento uuid)

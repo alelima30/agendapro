@@ -95,17 +95,17 @@ select t_verdade('   com 8 variáveis: as 6 de sempre, o valor (R$ 60,00) e a fo
 select t_verdade('   e o histórico diz "💰 Valor: R$ 60,00" e "💳 Pagamento: Pix"',
   (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).corpo like E'%💰 Valor: R$ 60,00\n💳 Pagamento: Pix%');
 select t_verdade('   o lembrete da cliente também (8: R$ 60,00, Pix)',
-  (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).modelo = 'agendapro_lembrete_valor'
+  (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).modelo = 'agendapro_lembrete_pagamento'
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).variaveis->>6 = 'R$ 60,00'
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).variaveis->>7 = 'Pix');
 select t_verdade('   o aviso à profissional também (8: R$ 60,00, Pix)',
-  (linha('6e500000-0000-0000-0000-000000000001', 'novo')).modelo = 'agendapro_aviso_profissional_valor'
+  (linha('6e500000-0000-0000-0000-000000000001', 'novo')).modelo = 'agendapro_aviso_profissional_pagamento'
   and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis) = 8
   and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis->>6 = 'R$ 60,00'
   and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis->>7 = 'Pix'
   and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).corpo like '%💰 Valor: R$ 60,00%');
 select t_verdade('   e o lembrete para o salão (9: R$ 60,00, Pix)',
-  (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).modelo = 'agendapro_lembrete_equipe_valor'
+  (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).modelo = 'agendapro_lembrete_equipe_pagamento'
   and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis) = 9
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis->>7 = 'R$ 60,00'
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis->>8 = 'Pix'
