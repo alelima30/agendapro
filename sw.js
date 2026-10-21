@@ -16,7 +16,7 @@
 /* Sobe a cada correção publicada, e tem que andar junto com o VERSAO_APP do
    app.html: o carimbo na lateral mostra aquele, e dois números divergentes
    fariam a tela afirmar uma versão que não é a que está servindo. */
-const VERSAO = 'agendapro-v9.379b93';
+const VERSAO = 'agendapro-v9.2cad5d';
 
 const ESSENCIAIS = [
   './',
@@ -74,7 +74,14 @@ self.addEventListener('fetch', ev => {
   // Só cuidamos de GET do mesmo endereço. Chamada de API (Supabase, quando
   // entrar) passa direto: resposta de banco em cache é receita de dado velho.
   if(req.method !== 'GET') return;
-  if(new URL(req.url).origin !== self.location.origin) return;
+  const u = new URL(req.url);
+  if(u.origin !== self.location.origin) return;
+  /* E o banco no MESMO endereço também passa direto. Olhar só a origem
+     bastava com o Supabase em outro domínio; servido junto com as páginas
+     (a bancada de testes, ou um domínio próprio na frente dos dois), a
+     leitura da agenda ia para o cache — e sem rede o painel abria com a
+     agenda de ontem como se fosse a de agora. */
+  if(/^\/(rest|auth|functions|storage|realtime)\/v1\//.test(u.pathname)) return;
 
   ev.respondWith((async () => {
     try{

@@ -146,6 +146,22 @@ const doRetrato = await p.evaluate(() => {
 diz(doRetrato.jornadasDeFora === 0 && doRetrato.itensDeFora === 0,
     'o retrato da Casa A não carrega jornada nem item de comanda da Casa B', JSON.stringify(doRetrato));
 
+/* A rede cai bem na hora de trocar de casa. Antes o painel seguia para a Casa
+   B com os dados de nenhuma — a B aparecia vazia, como se não tivesse nada. */
+await p.route('**/rest/v1/**', r => r.abort());
+await p.selectOption('#selSalao', casaB);
+await p.waitForTimeout(1500);
+const caiu = await p.evaluate(() => ({ casa: (acharSalao(salaoAtual) || {}).nome,
+  seletor: (acharSalao(document.getElementById('selSalao').value) || {}).nome,
+  topo: document.getElementById('tbSalao').textContent,
+  profs: bd.profissionais.filter(x => x.salaoId === salaoAtual).length }));
+await p.unroute('**/rest/v1/**');
+diz(caiu.casa === 'Casa A' && caiu.seletor === 'Casa A' && caiu.topo === 'Casa A' && caiu.profs === 1,
+    'sem rede na troca, o painel fica na Casa A com os dados dela (antes: Casa B vazia)', JSON.stringify(caiu));
+const avisos = dialogos.splice(0);
+diz(avisos.some(m => /conex/i.test(m)) && !avisos.some(m => /config\.js/.test(m)),
+    'e avisa que é falta de conexão, não "confira o config.js"', avisos.join(' | '));
+
 // Ela marca o horário da profissional da Casa A e salva.
 await p.evaluate(async () => {
   const prof = bd.profissionais[0];
@@ -159,6 +175,32 @@ const daCasaA = Number(sql(`select count(*) from jornadas j join profissionais p
 diz(daCasaA === 1, 'e o horário que ela marcou na Casa A foi para o banco', 'achei ' + daCasaA);
 diz(!dialogos.length, 'sem aviso de gravação recusada', dialogos.join(' | '));
 diz(erros.length === 0, 'sem erro de JavaScript', erros.join(' | '));
+
+/* Abrir o painel sem internet. Antes: "Nenhum salão nesta conta — crie o seu
+   em dois minutos", para a dona de duas casas. */
+{
+  const c2 = await nav.newContext({ viewport: { width: 390, height: 844 } });
+  await c2.addInitScript(([base, s]) => {
+    window.AGENDAPRO = { url: base, chave: 'k', ambiente: 'bancada' };
+    localStorage.setItem('agendapro.sessao', JSON.stringify(s));
+  }, [BANCADA, sessao]);
+  const q = await c2.newPage();
+  const errosQ = [];
+  q.on('pageerror', e => errosQ.push(e.message));
+  q.on('dialog', d => d.dismiss());
+  await q.route('**/rest/v1/**', r => r.abort());
+  await q.goto(BANCADA + '/app.html');
+  await q.waitForTimeout(2500);
+  const txt = (await q.textContent('.corpo').catch(() => '')) || '';
+  diz(/falar com o servidor/i.test(txt) && !/Nenhum salão/i.test(txt),
+      'abrir sem internet diz que não falou com o servidor — não "Nenhum salão nesta conta"',
+      txt.replace(/\s+/g, ' ').slice(0, 140));
+  diz(await q.isVisible('button:has-text("Tentar de novo")'), 'com o botão "Tentar de novo"');
+  const guardada = await q.evaluate(() => { try{ return !!JSON.parse(localStorage.getItem('agendapro.sessao')).token; }catch(e){ return false; } });
+  diz(guardada, 'e o login continua guardado no aparelho');
+  diz(errosQ.length === 0, 'sem erro de JavaScript', errosQ.join(' | '));
+  await c2.close();
+}
 
 await nav.close();
 console.log(`\n${ok} ok, ${mau} falha(s)`);

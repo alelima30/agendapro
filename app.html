@@ -2058,7 +2058,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.379b93';
+const VERSAO_APP = 'v9.2cad5d';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2085,9 +2085,18 @@ async function trocarSalao(sid){
      termina: ela é do salão de antes. */
   if(NA_NUVEM){
     await _filaGravacao;
+    const antes = salaoAtual;
     salaoAtual = sid;
     const novo = await carregarTudo();
-    if(novo) bd = novo;
+    /* A leitura falhou (o `carregarTudo()` já avisou): fica no de antes. Seguir
+       mostrava o salão novo com os dados de nenhum, como se estivesse vazio. */
+    if(!novo){
+      salaoAtual = antes;
+      const sel = document.getElementById('selSalao');
+      if(sel) sel.value = antes;
+      return;
+    }
+    bd = novo;
   }
   salaoAtual = sid;
   const s = acharSalao(sid);
@@ -14967,7 +14976,9 @@ async function conferirPagamento(){
   try{
     const id = cobrancaAberta && cobrancaAberta.id;
     const paga = id ? await cobrancaFoiPaga(id) : null;
-    bd = await carregarTudo();
+    // Leitura que falhou devolve nulo: o painel continua com o que tinha.
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
     const a = assinaturaAtual();
     const ativa = !!(a && a.status === 'ativa' && a.venceEm && a.venceEm >= hoje());
     if(paga === true || (paga === null && ativa)){
@@ -15624,6 +15635,13 @@ async function carregarTudo(){
     return montarAgenda(montarJornadas(cru));
   }catch(e){
     console.error('[AgendaPro] não consegui ler o banco:', e);
+    /* Sem rede é o caso comum — celular sem sinal, wi-fi do salão caindo — e
+       não tem nada a ver com config.js. Na abertura, quem avisa é a tela (ver
+       a partida, lá embaixo); com o painel já aberto, o que está nele fica. */
+    if(e && e.semRede){
+      if(bd) alert(e.message + '\n\nO que está na tela continua.');
+      return null;
+    }
     alert('Não consegui falar com o banco:\n\n' + e.message
         + '\n\nConfira url e chave no config.js.');
     return null;
@@ -17817,7 +17835,17 @@ function mostrarQuemEstaLogado(){
     // Só o modo nuvem desiste quando não vem nada: ali o null significa
     // "o banco não respondeu". No modo demonstração, null é o esperado na
     // primeira visita — e é a deixa para semear.
-    if(NA_NUVEM && !bd) return;
+    /* O banco não respondeu. Sem esta frase a tela ficava em branco — e,
+       antes de o `baixar()` distinguir rede de permissão, dizia "Nenhum salão
+       nesta conta" para quem só estava sem sinal. */
+    const semConexao = () => {
+      semSalao('<b>Não consegui falar com o servidor</b>'
+        + 'Confira a internet do aparelho. Seus dados continuam guardados. '
+        + '<br><br><button type="button" class="btn btn-p" onclick="location.reload()">'
+        + 'Tentar de novo</button>');
+      document.getElementById('abas').innerHTML = '';
+    };
+    if(NA_NUVEM && !bd) return semConexao();
     if(NA_NUVEM){
       /* ── A SESSÃO QUE VENCEU NO MEIO DO EXPEDIENTE ────────────────────
          O token do Supabase vale uma hora. Quando ele vence e a renovação
@@ -17882,7 +17910,12 @@ function mostrarQuemEstaLogado(){
          Com dois salões a releitura é necessária de verdade: a primeira
          trouxe as linhas dos dois misturadas, e a tela precisa das de um. */
       const precisaRecarregar = bd.saloes.length > 1 && salaoAtual !== antes;
-      if(precisaRecarregar) bd = await carregarTudo();
+      if(precisaRecarregar){
+        bd = await carregarTudo();
+        // A primeira leitura trouxe as duas casas misturadas: seguir com ela
+        // é o que fazia salvar numa apagar as filhas da outra.
+        if(!bd) return semConexao();
+      }
     } else {
       // Primeira visita: `carregar()` devolve null, e é a deixa para semear.
       if(!bd || !bd.saloes || !bd.saloes.length){

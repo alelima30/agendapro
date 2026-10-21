@@ -544,6 +544,14 @@ async function renovarSessao(){
         expiraEm: quandoVence(r) });
       return true;
     }catch(e){
+      /* ⚠ SÓ SE O SERVIDOR RECUSOU. Sem internet o `fetch` nem chega lá, e
+         apagar a sessão aqui deslogava quem só abriu o painel sem sinal depois
+         de uma hora parado — e sem sinal ela nem consegue entrar de novo. A
+         sessão fica, e a próxima tentativa com rede renova. */
+      if(!(e && e.status >= 400 && e.status < 500)){
+        console.info('[dados] renovação adiada (sem resposta do servidor): ' + e.message);
+        return false;
+      }
       /* Refresh recusado é a sessão acabando de verdade — passou do prazo, ou
          a pessoa saiu noutro aparelho. Apagar é o certo: guardada, ela faria
          cada tela seguinte tentar e falhar de novo, calada. */
@@ -1207,10 +1215,25 @@ function diferenca(tabela, antes, agora){
    anos parecendo permissão. Agora o segundo caso grita — porque é defeito
    nosso, e some se ninguém olhar. `falhas` é preenchido por referência para
    sobreviver ao `Promise.all` de baixo. */
+/* O servidor não respondeu: sem internet, rede caindo, Supabase fora do ar.
+   Erro de HTTP traz o `status` (o `conferir()` põe); o `fetch` que nem chegou
+   lá não traz. 5xx também é "agora não", não "você não pode". */
+const semResposta = e => !(e && e.status) || e.status >= 500;
+
 async function buscarTabela(t, filtro, falhas){
   try{
     return await Dados.lista(t, filtro);
   }catch(e){
+    /* ⚠ SEM REDE NÃO É "SEM ACESSO". Engolido como os outros, o celular sem
+       sinal recebia tudo vazio, e o painel abria dizendo "Nenhum salão nesta
+       conta — crie o seu" para quem tem salão, agenda e caixa lá dentro. Sobe,
+       e o `baixar()` inteiro falha: retrato pela metade é pior que nenhum. */
+    if(semResposta(e)){
+      const erro = new Error('Sem conexão com o servidor agora. Confira a internet e '
+                           + 'tente de novo — seus dados continuam guardados.');
+      erro.semRede = true;
+      throw erro;
+    }
     const cru = String(e.message || '');
     if(/does not exist|malformed|invalid input|400/i.test(cru)){
       console.error('[dados] pergunta malfeita para "' + t + '" — isto é '
