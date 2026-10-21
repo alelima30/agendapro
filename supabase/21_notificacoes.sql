@@ -298,7 +298,7 @@ begin
 end $$;
 
 /* ── A FORMA DE PAGAMENTO NA MENSAGEM: LIGADA PELA PLATAFORMA ───────────────
-   A linha "💳 Pagamento" só existe nos modelos `*_pagamento` (MODELOS.md).
+   A linha "💳 Pagamento" só existe nos modelos `*_valor` (MODELOS.md).
    Modelo aprovado na Meta não se edita, e mandar uma variável a mais para o
    modelo antigo faz a Meta recusar a mensagem inteira (132000). Então os
    modelos novos ficam desligados até a plataforma cadastrá-los, vê-los
@@ -431,7 +431,7 @@ returns text language sql immutable set search_path = public as $$
 $$;
 
 /* O valor e a forma de pagamento como as DUAS ÚLTIMAS variáveis, nessa
-   ordem, só nos modelos `*_pagamento`. Desligados, devolve lista vazia e as
+   ordem, só nos modelos `*_valor`. Desligados, devolve lista vazia e as
    variáveis ficam exatamente as de antes — o modelo cadastrado hoje continua
    recebendo o número que espera. */
 drop function if exists public.variavel_pagamento(jsonb);
@@ -465,7 +465,7 @@ $$;
    modelos também são. Salão nenhum cadastra modelo próprio. */
 /* ⚠ STABLE, e não mais IMMUTABLE: o nome depende do ajuste da plataforma.
    Com os modelos de pagamento ligados, os quatro que falam de UM agendamento
-   viram o `*_pagamento` cadastrado ao lado (MODELOS.md), com a forma de
+   viram o `*_valor` cadastrado ao lado (MODELOS.md), com a forma de
    pagamento como última variável. */
 create or replace function public.modelo_de(p_tipo text)
 returns text language sql stable set search_path = public as $$
@@ -491,7 +491,7 @@ returns text language sql stable set search_path = public as $$
     when 'lembrete_equipe' then 'agendapro_lembrete_equipe'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
-               and public.mensagens_com_pagamento() then '_pagamento' else '' end
+               and public.mensagens_com_pagamento() then '_valor' else '' end
 $$;
 
 /* As variáveis, NA ORDEM em que o modelo cadastrado as espera.
@@ -523,7 +523,7 @@ begin
     -- confirmado" sem saber onde — e quem frequenta dois salões que usam o
     -- sistema não tem como distinguir um do outro. Por último para não mexer
     -- na posição das cinco que já existiam.
-    -- (+ {{7}} valor e {{8}} forma de pagamento, só no `*_pagamento` — `variaveis_pagamento()`)
+    -- (+ {{7}} valor e {{8}} forma de pagamento, só no `*_valor` — `variaveis_pagamento()`)
     return jsonb_build_array(
       public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
       public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
@@ -537,7 +537,7 @@ begin
     -- O nome inteiro da cliente, e não só o primeiro: é ele que a
     -- profissional procura na agenda. E o salão, porque quem trabalha em duas
     -- casas que usam o sistema recebe os dois avisos do mesmo número.
-    -- (+ {{7}} valor e {{8}} forma de pagamento, só no `*_pagamento` — `variaveis_pagamento()`)
+    -- (+ {{7}} valor e {{8}} forma de pagamento, só no `*_valor` — `variaveis_pagamento()`)
     return jsonb_build_array(
       public.variavel_limpa(split_part(j->>'prof', ' ', 1)),
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
@@ -1048,7 +1048,7 @@ create trigger tg_notif_servico
    mensagens pendentes mora no 09_cliente, junto da coluna — ver lá.) */
 
 /* ── LIGAR OS MODELOS COM PAGAMENTO (o admin) ──────────────────────────────
-   Só a conta da plataforma, e só depois de os quatro `*_pagamento` estarem
+   Só a conta da plataforma, e só depois de os quatro `*_valor` estarem
    APROVADOS na Meta: ligado antes, toda confirmação e todo aviso sairiam
    para um modelo que não existe (132001) — e não chegariam.
 
@@ -1147,7 +1147,7 @@ begin
   if j is null then return null; end if;
   select coalesce(nullif(btrim(pr.apelido), ''), pr.nome) into v_quem
     from public.profissionais pr where pr.id = p_destinatario;
-  -- (+ {{8}} valor e {{9}} forma de pagamento, só no `*_pagamento` — `variaveis_pagamento()`)
+  -- (+ {{8}} valor e {{9}} forma de pagamento, só no `*_valor` — `variaveis_pagamento()`)
   return jsonb_build_array(
     public.variavel_limpa(coalesce(nullif(split_part(btrim(coalesce(v_quem, '')), ' ', 1), ''),
                                    'equipe')),

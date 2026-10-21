@@ -157,7 +157,7 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
-               and public.mensagens_com_pagamento() then '_pagamento' else '' end
+               and public.mensagens_com_pagamento() then '_valor' else '' end
 $$;
 
 /* A cota por tipo (22_cotas), com os do pedido no lugar certo: os que vão

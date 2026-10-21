@@ -2524,7 +2524,7 @@ returns text language sql stable set search_path = public as $$
     when 'lembrete_equipe' then 'agendapro_lembrete_equipe'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
-               and public.mensagens_com_pagamento() then '_pagamento' else '' end
+               and public.mensagens_com_pagamento() then '_valor' else '' end
 $$;
 create or replace function public.variaveis_agendamento(
   p_agendamento uuid, p_tipo text)
@@ -5512,7 +5512,7 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
-               and public.mensagens_com_pagamento() then '_pagamento' else '' end
+               and public.mensagens_com_pagamento() then '_valor' else '' end
 $$;
 create or replace function public.pode_enviar_tipo(p_salao uuid, p_tipo text)
 returns boolean language sql stable security definer set search_path = public as $$

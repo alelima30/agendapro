@@ -7,7 +7,7 @@
 --      número de variáveis — o modelo cadastrado na Meta não quebra;
 --   2. só a plataforma liga;
 --   3. ligado, a confirmação, o lembrete, o aviso à profissional e o lembrete
---      para o salão vão pelo `*_pagamento`, com a forma como ÚLTIMA variável
+--      para o salão vão pelo `*_valor`, com a forma como ÚLTIMA variável
 --      e a linha "💳 Pagamento" no texto do histórico;
 --   4. ligar refaz o que já estava na fila, e desligar volta;
 --   5. o que vai escrito: Pix, Cartão de crédito, Pacote (já pago), A combinar;
@@ -87,7 +87,7 @@ select set_config('request.jwt.claim.sub', '', false);
 \echo ''
 \echo 'Ligado'
 select t_verdade('3. a confirmação que já estava na fila passa ao modelo com pagamento',
-  (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).modelo = 'agendapro_confirmacao_pagamento');
+  (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).modelo = 'agendapro_confirmacao_valor');
 select t_verdade('   com 8 variáveis: as 6 de sempre, o valor (R$ 60,00) e a forma (Pix)',
   jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis) = 8
   and (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis->>6 = 'R$ 60,00'
@@ -95,17 +95,17 @@ select t_verdade('   com 8 variáveis: as 6 de sempre, o valor (R$ 60,00) e a fo
 select t_verdade('   e o histórico diz "💰 Valor: R$ 60,00" e "💳 Pagamento: Pix"',
   (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).corpo like E'%💰 Valor: R$ 60,00\n💳 Pagamento: Pix%');
 select t_verdade('   o lembrete da cliente também (8: R$ 60,00, Pix)',
-  (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).modelo = 'agendapro_lembrete_pagamento'
+  (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).modelo = 'agendapro_lembrete_valor'
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).variaveis->>6 = 'R$ 60,00'
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).variaveis->>7 = 'Pix');
 select t_verdade('   o aviso à profissional também (8: R$ 60,00, Pix)',
-  (linha('6e500000-0000-0000-0000-000000000001', 'novo')).modelo = 'agendapro_aviso_profissional_pagamento'
+  (linha('6e500000-0000-0000-0000-000000000001', 'novo')).modelo = 'agendapro_aviso_profissional_valor'
   and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis) = 8
   and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis->>6 = 'R$ 60,00'
   and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis->>7 = 'Pix'
   and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).corpo like '%💰 Valor: R$ 60,00%');
 select t_verdade('   e o lembrete para o salão (9: R$ 60,00, Pix)',
-  (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).modelo = 'agendapro_lembrete_equipe_pagamento'
+  (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).modelo = 'agendapro_lembrete_equipe_valor'
   and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis) = 9
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis->>7 = 'R$ 60,00'
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis->>8 = 'Pix'

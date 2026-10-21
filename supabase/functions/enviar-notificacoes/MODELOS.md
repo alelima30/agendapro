@@ -214,6 +214,17 @@ duas linhas a mais no fim: **💰 Valor** e **💳 Pagamento** — sempre as **d
 últimas** variáveis, nessa ordem. Mesmas regras: **Utilidade**, **Português
 (BR)**, sem cabeçalho e sem botão.
 
+> **⚠ CATEGORIA: UTILIDADE — a tela da Meta já abre com "Marketing" marcado.**
+> Na primeira tela de "Criar modelo", troque para **Utilidade** antes de
+> avançar. Foi assim que o `agendapro_confirmacao_pagamento` entrou como
+> Marketing: categoria de modelo **não se troca depois**, e marketing custa
+> cerca de 8 vezes mais e fica segurado para quem nunca falou com o número.
+> Por isso os nomes agora terminam em **`_valor`** — os `_pagamento` podem ser
+> apagados na Meta; o sistema não os usa.
+>
+> Se mesmo marcando Utilidade a Meta mudar sozinha para Marketing, não ligue:
+> me avise, que o texto é ajustado e vai com outro nome.
+
 - **Valor**: o total do atendimento, como o painel mostra — a soma dos
   serviços, menos o desconto do cupom (ex.: **R$ 80,00**). Sessão de pacote
   sai **R$ 0,00**.
@@ -229,7 +240,7 @@ duas linhas a mais no fim: **💰 Valor** e **💳 Pagamento** — sempre as **d
 > modelo que não existe (erro 132001), e não chegar. Os de cima podem ficar
 > cadastrados: desligando, o sistema volta para eles na hora.
 
-## 1b. `agendapro_confirmacao_pagamento`
+## 1b. `agendapro_confirmacao_valor`
 
 ```
 Olá, {{1}}! Seu agendamento foi confirmado.
@@ -248,7 +259,7 @@ Até breve!
 As seis da confirmação, na mesma ordem; `{{7}}` o valor (ex.: R$ 80,00) e
 `{{8}}` a forma de pagamento (ex.: Pix).
 
-## 2b. `agendapro_lembrete_pagamento`
+## 2b. `agendapro_lembrete_valor`
 
 ```
 🔔 Olá, {{1}}! Passando para lembrar do seu horário.
@@ -267,7 +278,7 @@ Esperamos você!
 As seis do lembrete, na mesma ordem; `{{7}}` o valor e `{{8}}` a forma de
 pagamento.
 
-## 3b. `agendapro_aviso_profissional_pagamento`
+## 3b. `agendapro_aviso_profissional_valor`
 
 ```
 Olá, {{1}}. Um horário foi agendado com você.
@@ -287,7 +298,7 @@ As seis do aviso à profissional, na mesma ordem; `{{7}}` o valor e `{{8}}`
 como a cliente vai pagar — o que a profissional precisa saber antes de a
 cliente sentar.
 
-## 5b. `agendapro_lembrete_equipe_pagamento`
+## 5b. `agendapro_lembrete_equipe_valor`
 
 ```
 Olá, {{1}}. Lembrete de um horário agendado.

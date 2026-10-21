@@ -152,7 +152,7 @@ console.log('\nQuem é');
 
   /* ── A FORMA DE PAGAMENTO NAS MENSAGENS ─────────────────────────────────
      "Colocar o pagamento — Pix, cartão de crédito — nos modelos." Os modelos
-     `*_pagamento` nascem desligados (o modelo aprovado de hoje não quebra) e
+     `*_valor` nascem desligados (o modelo aprovado de hoje não quebra) e
      a plataforma liga aqui, depois de aprová-los na Meta. A bancada é
      dividida com as outras suítes: o teste desliga de novo no fim. */
   const pa = await abrir(c.sessao);

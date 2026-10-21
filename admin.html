@@ -328,7 +328,7 @@ function desenhar(){
   }
 
   /* A forma de pagamento nas mensagens. Desligada até os quatro modelos
-     `*_pagamento` estarem aprovados na Meta (MODELOS.md): ligada antes, a
+     `*_valor` estarem aprovados na Meta (MODELOS.md): ligada antes, a
      confirmação e os avisos iriam para um modelo que não existe e não
      chegariam. */
   if(painel.ajustes){
@@ -338,7 +338,7 @@ function desenhar(){
         <b>Valor e forma de pagamento nas mensagens: ${ligado ? 'ligada' : 'desligada'}</b>
         A confirmação e o lembrete da cliente, o aviso à profissional e o lembrete
         para o salão passam a dizer o valor do atendimento e como a cliente vai
-        pagar (Pix, cartão, pacote…). Usam os quatro modelos <code>*_pagamento</code> do MODELOS.md:
+        pagar (Pix, cartão, pacote…). Usam os quatro modelos <code>*_valor</code> do MODELOS.md:
         ${ligado ? 'desligando, o sistema volta aos modelos de antes na hora.'
                  : 'ligue só depois que os quatro estiverem <b style="display:inline">aprovados</b> na Meta.'}
         <div style="margin-top:10px">
@@ -465,7 +465,7 @@ async function contatoDoDono(salaoId, bt){
 
 /* ── A forma de pagamento nas mensagens ──────────────────────────────────── */
 async function ligarPagamentoNasMensagens(ligar){
-  if(ligar && !confirm('Os quatro modelos *_pagamento já estão APROVADOS na Meta?\n\n'
+  if(ligar && !confirm('Os quatro modelos *_valor já estão APROVADOS na Meta?\n\n'
       + 'Ligado antes da aprovação, a confirmação e os avisos vão para um modelo '
       + 'que não existe e não chegam a ninguém.')) return;
   try{
