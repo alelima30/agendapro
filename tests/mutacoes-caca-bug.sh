@@ -225,8 +225,8 @@ troca app.html \
 
 echo "27. banco: o pacote cobre a acompanhante"
 troca supabase/09_cliente.sql \
-  "  if v_perfil is not null and not coalesce(p_acompanhante, false) and exists (" \
-  "  if v_perfil is not null and exists (" \
+  "  if v_perfil is not null and not coalesce(p_acompanhante, false)" \
+  "  if v_perfil is not null" \
   && rodar "a acompanhante é atendida de graça"
 
 echo "28. link: o segundo horário não diz que é da acompanhante"

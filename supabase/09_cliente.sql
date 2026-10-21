@@ -351,9 +351,15 @@ begin
      segundo horário chega com `p_acompanhante`: sem esta condição, os dois
      horários saíam por R$ 0,00 e gastavam DUAS sessões do pacote dela — a
      acompanhante era atendida de graça. Decisão do dono do produto: a
-     acompanhante paga à parte. "Para outra pessoa" (a filha, sozinha) não
-     passa por aqui e continua como era. */
-  if v_perfil is not null and not coalesce(p_acompanhante, false) and exists (
+     acompanhante paga à parte.
+
+     ⚠ E "PARA OUTRA PESSOA" TAMBÉM NÃO. A cliente logada marcava para a mãe,
+     o filho, quem fosse (`p_atendido_nome` preenchido), e o horário saía por
+     R$ 0,00 gastando a sessão do pacote DELA — a mãe era atendida de graça.
+     "Somente para mim tem que funcionar": o pacote cobre quando quem vem é a
+     dona da conta. Para outra pessoa, preço normal, e a sessão fica. */
+  if v_perfil is not null and not coalesce(p_acompanhante, false)
+     and nullif(btrim(coalesce(p_atendido_nome, '')), '') is null and exists (
        select 1 from public.clientes c
         where c.id = v_cliente and c.perfil_id = v_perfil)
   then

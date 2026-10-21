@@ -388,7 +388,9 @@ select t_verdade('o da acompanhante sai pelo preço normal (R$ 80), fora do paco
          from public.agendamentos where id = (select id from da_amiga)));
 select t_igual('uma sessão só foi gasta, não duas', sessoes_carla() - :antes, 1);
 
--- E "para outra pessoa" (a filha, sozinha) continua como era.
+-- E "para outra pessoa" (a filha, sozinha) também paga: o pacote é da Carla.
+-- Era zero, gastando a sessão dela — "somente para mim tem que funcionar".
+select sessoes_carla() as antes_filha \gset
 select set_config('request.jwt.claim.sub', 'cb000000-0000-0000-0000-00000000000c', false);
 create temporary table da_filha as
 select * from public.agendar('cb000000-2222-0000-0000-000000000001'::uuid,
@@ -396,8 +398,10 @@ select * from public.agendar('cb000000-2222-0000-0000-000000000001'::uuid,
   array['cb000000-3333-0000-0000-000000000001'::uuid], 'Carla', '51911112222',
   p_atendido_nome => 'Nina (filha)');
 select set_config('request.jwt.claim.sub', '', false);
-select t_verdade('"para outra pessoa" continua usando o pacote, como antes',
-  (select valor from da_filha) = 0);
+select t_verdade('"para outra pessoa" sai pelo preço normal (R$ 80), fora do pacote',
+  (select valor from da_filha) = 80
+  and (select pacote_cliente_id is null from public.agendamentos where id = (select id from da_filha)));
+select t_igual('e não gasta sessão do pacote dela', sessoes_carla() - :antes_filha, 0);
 
 -- ── 10. A fila não prende ──────────────────────────────────────────────────
 -- O worker marca 'enviando' e, se cair antes de devolver o resultado, a linha

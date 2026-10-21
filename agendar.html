@@ -1868,7 +1868,14 @@ async function carregarMeusPacotes(){
    Sem dia escolhido ainda, usa hoje: é o melhor palpite para a lista de
    serviços, que aparece ANTES do calendário. Quando ela escolher o dia, o
    resumo refaz a conta com a data de verdade. */
+/* O PACOTE É DELA. Marcando para outra pessoa — a mãe, o filho —, ele não
+   cobre: o banco grava o preço normal (`p_atendido_nome`, 09_cliente) e a
+   sessão fica. "Somente para mim tem que funcionar." A tela diz o mesmo, em
+   vez de prometer R$ 0,00 que o banco não grava. */
+const paraOutraPessoa = () => escolha.para === 'filho';
+
 function pacoteCobre(ids, data){
+  if(paraOutraPessoa()) return false;
   if(!meusPacotes.length || !ids || !ids.length) return false;
   const d = data ? new Date(data + 'T12:00:00') : new Date();
   const dow = d.getDay();
@@ -1907,6 +1914,8 @@ function pacoteVivo(p, ids, data){
    deixar a pessoa escolher um horário que o `agendar()` vai recusar três
    cliques depois — recusa no fim do caminho é a pior hora de receber um não. */
 function pacoteQueBloqueia(ids, data){
+  // Para outra pessoa o pacote nem entra: os dias dele não fecham nada.
+  if(paraOutraPessoa()) return null;
   if(!meusPacotes.length || !ids || !ids.length) return null;
   const dow = new Date((data || hoje()) + 'T12:00:00').getDay();
   return meusPacotes.find(p => p.so_nos_dias && pacoteVivo(p, ids, data)
@@ -4197,6 +4206,13 @@ function desenharPronto(pendente, prof){
    está, e "seu pacote vale seg, ter e qua" quando o dia é outro. O caso
    barrado (`so_nos_dias`) não chega aqui — ela nem escolheu horário. */
 function avisoDoPacote(){
+  // Para outra pessoa: o pacote dela cobriria estes serviços, mas não cobre a
+  // mãe nem o filho — e é melhor ela saber disso aqui do que no balcão.
+  if(paraOutraPessoa())
+    return pacoteDestesServicos(escolha.servicos, escolha.data)
+      ? `<div class="recado" style="margin-top:10px">O seu pacote é só seu: o
+          atendimento de ${escapar(nomeDoAtendido() || 'outra pessoa')} é cobrado
+          normalmente.</div>` : '';
   if(pacoteCobre(escolha.servicos, escolha.data) && escolha.para === 'ambos')
     return `<div class="recado ok" style="margin-top:10px">O seu horário está no
       seu pacote. O de ${escapar(nomeDoAtendido() || 'quem vem com você')} é

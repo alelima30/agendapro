@@ -6343,7 +6343,8 @@ begin
   else
     v_quem := btrim(p_atendido_nome);
   end if;
-  if v_perfil is not null and not coalesce(p_acompanhante, false) and exists (
+  if v_perfil is not null and not coalesce(p_acompanhante, false)
+     and nullif(btrim(coalesce(p_atendido_nome, '')), '') is null and exists (
        select 1 from public.clientes c
         where c.id = v_cliente and c.perfil_id = v_perfil)
   then

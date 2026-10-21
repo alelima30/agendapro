@@ -222,6 +222,30 @@ verdade('sem login, meus_pacotes() não devolve nada — ' + JSON.stringify(vazi
   'devolveu pacote para quem não provou quem é');
 
 /* ══════════════════════════════════════════════════════════════════════════
+   3b — ⚠ O PACOTE É DELA, NÃO DA MÃE
+
+   "No pacote, quando o cliente acessa e coloca para outra pessoa — filho,
+   mãe —, ele atende ainda no valor zero? Somente para mim tem que funcionar."
+   Atendia: a Maria logada marcava "para outra pessoa" e o horário saía por
+   R$ 0,00, gastando a sessão do pacote dela.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('Logada, marcando para outra pessoa');
+
+const paraMae = await maria.chamar('agendar', {
+  p_profissional: prof.id, p_inicio: daquiA(7, 15), p_servicos: [manutencao.id],
+  p_nome: 'Maria Pacote', p_telefone: TEL_MARIA, p_atendido_nome: 'Joana (mãe)' });
+igual('para a mãe, a manutenção custa os R$ 40 — o pacote é só da Maria',
+  Number(paraMae[0].valor), 40);
+const depoisDaMae = await maria.chamar('meus_pacotes', { p_salao: SALAO });
+igual('e nenhuma sessão do pacote dela foi gasta',
+  Number(((Array.isArray(depoisDaMae) ? depoisDaMae : [])[0] || {}).restantes), 3);
+await desmarcar(paraMae[0].id);
+
+const paraEla = await marcar(maria, [manutencao.id], daquiA(7, 16), 'Maria Pacote', TEL_MARIA);
+igual('para ela mesma, continua saindo por R$ 0,00', Number(paraEla[0].valor), 0);
+await desmarcar(paraEla[0].id);
+
+/* ══════════════════════════════════════════════════════════════════════════
    4 — AS SESSÕES ACABAM, E CANCELAR DEVOLVE
    ══════════════════════════════════════════════════════════════════════════ */
 secao('Gastando as sessões');
