@@ -620,6 +620,9 @@ span.ajuda{display:block;margin-top:5px}
        plano estava nem ate quando tinha tudo liberado. Uma faixa fina no alto
        de toda tela, so para quem gere o salao, so durante o teste. -->
   <div id="faixaTeste" class="faixa-teste" style="display:none"></div>
+  <!-- O passo a passo adiado: "Faço depois" não reabre sozinho, e esta faixa
+       oferece continuar enquanto o salão não tem serviço e horário. -->
+  <div id="faixaPrimeiroDia" class="faixa-teste" style="display:none"></div>
 
   <!-- ══════════ AGENDA ══════════ -->
   <section class="tela on" id="tela-agenda">
@@ -2037,7 +2040,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.758b93';
+const VERSAO_APP = 'v9.548ba0';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -8685,6 +8688,7 @@ function rotularTabelas(raiz, soComCabecalho){
 
 function pintar(){
   pintarFaixaTeste();
+  pintarFaixaPrimeiroDia();
   aplicarTravaDaTela(telaAtual);
   if(telaAtual === 'agenda')   pintarAgenda();
   if(telaAtual === 'pedidos')  pintarPedidos();
@@ -16295,8 +16299,14 @@ function pdFechar(terminou){
   const painel = document.getElementById('primeiroDia');
   const passo = PD_PASSOS[pdPasso - 1];
   if(painel && !painel.hidden && passo && passo.guardar) passo.guardar();
+  /* Fechar no meio é "faço depois", e depois quer dizer depois: `adiado`
+     impede que ele se abra sozinho de novo. Antes ele voltava a CADA carga
+     da página, no passo em que a pessoa parou — e no celular, onde o rodapé
+     estava escondido, o X era a única saída: recarregar dava sempre no
+     assistente. O caminho de volta é a faixa "Continuar o passo a passo"
+     (enquanto o salão não tem serviço e horário) e o botão em Meu negócio. */
   pdMarcar(terminou ? { passo: PD_PASSOS.length, feito: true }
-                    : { passo: pdPasso });
+                    : { passo: pdPasso, adiado: true });
   document.getElementById('primeiroDia').hidden = true;
   /* `iniciar()` e não `pintar()`: o assistente pode ter mudado o nome e o
      tipo do salão, e os dois vivem na moldura — seletor, topo, vocabulário —
@@ -17289,7 +17299,11 @@ function talvezOferecerPrimeiroDia(){
   if(!souGestor()) return;
   const sl = acharSalao(salaoAtual);
   if(!sl) return;
-  if(((sl.cfg || {}).primeiroDia || {}).feito) return;
+  const marca = (sl.cfg || {}).primeiroDia || {};
+  /* Terminado, ou fechado com "Faço depois": não se abre mais sozinho. O
+     `passo` guardado conta como já oferecido — é a marca que fica de quem
+     fechou antes de o `adiado` existir (e de quem andou e recarregou). */
+  if(marca.feito || jaOferecido(marca)) return;
   /* O restaurante não passa por este assistente: ele pede serviços, quem
      atende e o horário de cada um — nada disso é o começo de uma pizzaria.
      O começo dela está no cartão "Primeiros passos" da tela de Pedidos. */
@@ -17298,10 +17312,35 @@ function talvezOferecerPrimeiroDia(){
      tenha visto este assistente — é o caso de quem já usava o sistema antes
      de ele existir, e abrir um passo a passo de cadastro para essa pessoa
      seria sugerir que algo está faltando quando não está. */
-  const pronto = doSalao(bd.servicos).length
-              && doSalao(bd.profissionais).some(temJornadaAlguma);
-  if(pronto) return;
-  abrirPrimeiroDia(((sl.cfg || {}).primeiroDia || {}).passo || 1);
+  if(salaoPronto()) return;
+  abrirPrimeiroDia(marca.passo || 1);
+}
+
+const jaOferecido = marca => !!(marca.adiado || marca.passo);
+
+function salaoPronto(){
+  return !!(doSalao(bd.servicos).length
+            && doSalao(bd.profissionais).some(temJornadaAlguma));
+}
+
+/* O assistente adiado não some do mapa: enquanto o salão não tem serviço e
+   horário — o link da cliente ainda não marca nada —, uma faixa no alto
+   oferece continuar de onde parou. Toque, e não uma janela por cima de tudo:
+   quem fechou já disse que agora não. */
+function pintarFaixaPrimeiroDia(){
+  const el = document.getElementById('faixaPrimeiroDia');
+  if(!el) return;
+  const sl = acharSalao(salaoAtual);
+  const marca = ((sl && sl.cfg) || {}).primeiroDia || {};
+  const mostra = sl && jaOferecido(marca) && !marca.feito && sl.tipo !== 'restaurante'
+    && souGestor() && !emSuporte() && !salaoPronto();
+  if(!mostra){ el.style.display = 'none'; return; }
+  const total = PD_PASSOS.length, passo = Math.min(Math.max(1, Number(marca.passo) || 1), total);
+  el.innerHTML = `<span><b>Falta pouco para o seu link marcar horário:</b>
+      cadastre os serviços e o horário de atendimento.</span>
+    <button type="button" class="btn btn-peq" onclick="abrirPrimeiroDia(${passo})">Continuar o
+      passo a passo (${passo} de ${total})</button>`;
+  el.style.display = '';
 }
 
 function registrarServiceWorker(){

@@ -734,15 +734,44 @@ const noMeio = await p.evaluate(() => {
 e('fechar no meio guarda em que passo a pessoa parou — ' + noMeio.passo,
   noMeio.fechou && noMeio.passo === 3 && !noMeio.feito, JSON.stringify(noMeio));
 
+/* "Quando eu recarrego a página vai direto pro assistente" — ele reabria
+   sozinho a cada carga, no passo em que a pessoa parou. Fechar é "faço
+   depois": recarregar não abre mais nada por cima; uma faixa oferece
+   continuar, e continua exatamente dali. */
 const voltou = await p.evaluate(() => {
   pdOferecido.clear();
   bd.servicos = bd.servicos.filter(s => s.salaoId !== salaoAtual);
-  salvar(); iniciar();
+  salvar(); iniciar();                       // é o que recarregar a página faz
+  const faixa = document.getElementById('faixaPrimeiroDia');
+  return { abriu: !document.getElementById('primeiroDia').hidden,
+           faixa: faixa.style.display !== 'none' ? faixa.textContent.replace(/\s+/g, ' ').trim() : '' };
+});
+e('fechado no meio, recarregar NÃO abre o assistente sozinho',
+  !voltou.abriu, JSON.stringify(voltou));
+e('e uma faixa oferece continuar, dizendo de que passo — ' + voltou.faixa,
+  /Continuar o passo a passo \(3 de 10\)/.test(voltou.faixa), JSON.stringify(voltou));
+const continuou = await p.evaluate(() => {
+  document.querySelector('#faixaPrimeiroDia button').click();
   return { abriu: !document.getElementById('primeiroDia').hidden,
            contador: document.getElementById('pdContador').textContent };
 });
-e('e ao voltar ele recomeça exatamente dali — ' + voltou.contador,
-  voltou.abriu && voltou.contador === 'Passo 3 de 10', JSON.stringify(voltou));
+e('tocar em continuar recomeça exatamente dali — ' + continuou.contador,
+  continuou.abriu && continuou.contador === 'Passo 3 de 10', JSON.stringify(continuou));
+
+// Quem fechou ANTES de a marca `adiado` existir tem só o passo guardado.
+const antigo = await p.evaluate(() => {
+  document.getElementById('primeiroDia').hidden = true;
+  const sl = acharSalao(salaoAtual);
+  const guardado = sl.cfg.primeiroDia;
+  sl.cfg = Object.assign({}, sl.cfg, { primeiroDia: { passo: 1 } });
+  pdOferecido.clear(); iniciar();
+  const abriu = !document.getElementById('primeiroDia').hidden;
+  sl.cfg = Object.assign({}, sl.cfg, { primeiroDia: guardado });
+  abrirPrimeiroDia(3);
+  return abriu;
+});
+e('quem já tinha fechado antes desta correção também não é mais interrompido',
+  !antigo, 'abriu sozinho com { passo: 1 } guardado');
 
 const terminou = await p.evaluate(() => {
   pdPasso = 10; pdDesenhar(); pdAndar(1);     // "Terminei"
@@ -750,13 +779,15 @@ const terminou = await p.evaluate(() => {
   pdOferecido.clear();
   iniciar();
   return { feito: !!marca.feito,
-           voltou: !document.getElementById('primeiroDia').hidden };
+           voltou: !document.getElementById('primeiroDia').hidden,
+           faixa: document.getElementById('faixaPrimeiroDia').style.display !== 'none' };
 });
 e('terminado, ele marca que acabou', terminou.feito, JSON.stringify(terminou));
 /* Assistente que reaparece depois de terminado vira lembrete de uma tarefa
    que acabou — e o botão em Meu negócio é o caminho de volta para quem quiser. */
 e('e nunca mais aparece sozinho, nem com o salão ainda vazio',
   !terminou.voltou, 'apareceu de novo depois de terminado');
+e('nem a faixa de continuar', !terminou.faixa, 'a faixa ficou depois de terminado');
 
 
 /* ══════════════════════════════════════════════════════════════════════════
