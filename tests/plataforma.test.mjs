@@ -132,7 +132,19 @@ console.log('\nQuem é');
      na abertura para uma tela que descarta tudo em seguida.
 
      Acesso ela tem; exposição à toa, não. O painel dela é o admin.html, que
-     passa por RPC — o app.html não precisa de uma linha sequer. */
+     passa por RPC — o app.html não precisa de uma linha sequer.
+
+     O cliente de terceiro é criado aqui: com a bancada recém-montada não há
+     nenhum, e o teste passava ou caía conforme a suíte que rodou antes. */
+  const outra = novaAba(null);
+  const marca = Date.now().toString(36);
+  await outra.criarConta({ email:`outro-salao-${marca}@teste.com`, senha:'minhasenhaboa',
+    nome:'Dona de Outro Salão', telefone:'+5511' + (900000000 + (Date.now() % 89999999)) });
+  const cr = await outra.chamar('criar_salao', { p_nome_salao:'Outro Salão ' + marca,
+    p_tipo:'salao', p_telefone:'(11) 3222-1100', p_documento:null, p_origem:null });
+  await outra.inserir('clientes', { salaoId: cr[0].salao_id, nome:'Cliente de Terceiro',
+    telefone:'11' + (900000000 + Math.floor(Math.random() * 99999999)) });
+
   const bd = await fetch(BANCADA + "/rest/v1/clientes?select=id", {
     headers: { apikey:'k', Authorization: 'Bearer ' + c.sessao.token } })
     .then(r => r.json());
