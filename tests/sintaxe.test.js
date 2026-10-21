@@ -429,29 +429,31 @@ console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
       'a Meta recusa o cadastro assim');
   }
 
-  /* OS QUATRO COM A FORMA DE PAGAMENTO. Os mesmos de cima com uma variável a
-     mais — a última, a forma de pagamento —, ligados pela plataforma
-     (`mensagens_com_pagamento()`). O banco acrescenta essa variável pelo
-     `variavel_pagamento()` no fim de cada ramo; o texto cadastrado tem de ter
-     exatamente uma a mais, numerada em seguida, e na linha "💳 Pagamento". */
-  dizer(/'confirmacao','lembrete'\) then[\s\S]*?\|\| public\.variavel_pagamento\(j\);[\s\S]*?elsif/.test(corpoVA),
-    'a confirmação e o lembrete acrescentam a forma de pagamento no fim');
-  dizer(/p_tipo = 'novo' then[\s\S]*?\|\| public\.variavel_pagamento\(j\);[\s\S]*?end if;/.test(corpoVA),
-    'o aviso à profissional acrescenta a forma de pagamento no fim');
-  dizer(/\|\| public\.variavel_pagamento\(j\);\s*$/.test(corpoLE),
-    'o lembrete para o salão acrescenta a forma de pagamento no fim');
+  /* OS QUATRO COM O VALOR E A FORMA DE PAGAMENTO. Os mesmos de cima com
+     duas variáveis a mais — as duas últimas, o valor e a forma de pagamento,
+     nessa ordem —, ligados pela plataforma (`mensagens_com_pagamento()`). O
+     banco as acrescenta pelo `variaveis_pagamento()` no fim de cada ramo; o
+     texto cadastrado tem de ter exatamente duas a mais, numeradas em seguida,
+     nas linhas "💰 Valor" e "💳 Pagamento". */
+  dizer(/'confirmacao','lembrete'\) then[\s\S]*?\|\| public\.variaveis_pagamento\(j\);[\s\S]*?elsif/.test(corpoVA),
+    'a confirmação e o lembrete acrescentam o valor e a forma de pagamento no fim');
+  dizer(/p_tipo = 'novo' then[\s\S]*?\|\| public\.variaveis_pagamento\(j\);[\s\S]*?end if;/.test(corpoVA),
+    'o aviso à profissional acrescenta o valor e a forma de pagamento no fim');
+  dizer(/\|\| public\.variaveis_pagamento\(j\);\s*$/.test(corpoLE),
+    'o lembrete para o salão acrescenta o valor e a forma de pagamento no fim');
   for(const { tipo, modelo } of nomes.filter(x =>
         ['confirmacao', 'lembrete', 'novo', 'lembrete_equipe'].includes(x.tipo))){
     const corpo = blocoDe(modelo + '_pagamento');
     if(!corpo){ dizer(false, `${modelo}_pagamento: tem seção no MODELOS.md`); continue; }
     const distintos = [...new Set([...corpo.matchAll(/\{\{(\d+)\}\}/g)].map(m => +m[1]))]
       .sort((a, b) => a - b);
-    const n = noSql[tipo] + 1;
+    const n = noSql[tipo] + 2;
     dizer(distintos.length === n && distintos.every((v, i) => v === i + 1),
-      `${modelo}_pagamento: ${n} variáveis, de 1 a ${n} (as ${noSql[tipo]} de sempre + pagamento)`,
+      `${modelo}_pagamento: ${n} variáveis, de 1 a ${n} (as ${noSql[tipo]} de sempre + valor + pagamento)`,
       JSON.stringify(distintos));
-    dizer(new RegExp('💳 Pagamento: \\{\\{' + n + '\\}\\}').test(corpo),
-      `${modelo}_pagamento: a última é a da linha "💳 Pagamento"`);
+    dizer(new RegExp('💰 Valor: \\{\\{' + (n - 1) + '\\}\\}').test(corpo)
+          && new RegExp('💳 Pagamento: \\{\\{' + n + '\\}\\}').test(corpo),
+      `${modelo}_pagamento: as duas últimas são "💰 Valor" e "💳 Pagamento", nessa ordem`);
     dizer(!corpo.trim().startsWith('{{') && !corpo.trim().endsWith('}}'),
       `${modelo}_pagamento: o texto não começa nem termina com variável`);
   }

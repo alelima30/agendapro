@@ -890,7 +890,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
   /* A forma de pagamento nas mensagens: os modelos `*_pagamento`, que a
      plataforma liga no admin depois de aprovados na Meta. "certo" aqui quer
      dizer que o banco sabe montá-los — não que estejam ligados. */
-  select 40, 'Mensagens com a forma de pagamento (pronto para ligar)',
+  select 40, 'Mensagens com valor e forma de pagamento (pronto para ligar)',
          case
            when to_regprocedure('public.definir_mensagens_com_pagamento(boolean)') is null
              or not exists (select 1 from pg_trigger where tgname = 'tg_notif_pagamento'

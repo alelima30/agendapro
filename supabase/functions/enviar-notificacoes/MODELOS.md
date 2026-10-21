@@ -206,18 +206,21 @@ Aviso automático do sistema de agendamento.
 
 ---
 
-# Os quatro com a forma de pagamento
+# Os quatro com o valor e a forma de pagamento
 
-"Temos que colocar o pagamento — Pix, cartão de crédito — nos modelos, para o
-profissional e a cliente." São os mesmos quatro de cima que falam de **um**
-agendamento, com uma linha a mais: **💳 Pagamento**, sempre a **última**
-variável. Mesmas regras: **Utilidade**, **Português (BR)**, sem cabeçalho e sem
-botão.
+"Falta forma de pagamento e valor" nos modelos, para o profissional e a
+cliente. São os mesmos quatro de cima que falam de **um** agendamento, com
+duas linhas a mais no fim: **💰 Valor** e **💳 Pagamento** — sempre as **duas
+últimas** variáveis, nessa ordem. Mesmas regras: **Utilidade**, **Português
+(BR)**, sem cabeçalho e sem botão.
 
-O que vai em Pagamento: **Pix**, **Dinheiro**, **Cartão de débito**, **Cartão
-de crédito** (o que a cliente escolheu no link ou a recepção anotou),
-**Pacote (já pago)**, **Sem custo**, ou **A combinar no salão** quando
-ninguém informou.
+- **Valor**: o total do atendimento, como o painel mostra — a soma dos
+  serviços, menos o desconto do cupom (ex.: **R$ 80,00**). Sessão de pacote
+  sai **R$ 0,00**.
+- **Pagamento**: **Pix**, **Dinheiro**, **Cartão de débito**, **Cartão de
+  crédito** (o que a cliente escolheu no link ou a recepção anotou),
+  **Pacote (já pago)**, **Sem custo**, ou **A combinar no salão** quando
+  ninguém informou.
 
 > **⚠ A ordem para ligar.** Enquanto estes quatro não estiverem
 > **aprovados**, o sistema continua mandando os de cima — nada muda. Depois
@@ -236,13 +239,14 @@ Olá, {{1}}! Seu agendamento foi confirmado.
 ✂️ Serviço: {{4}}
 👤 Profissional: {{5}}
 🏪 Local: {{6}}
-💳 Pagamento: {{7}}
+💰 Valor: {{7}}
+💳 Pagamento: {{8}}
 
 Até breve!
 ```
 
-As seis da confirmação, na mesma ordem, e `{{7}}` a forma de pagamento (ex.:
-Pix).
+As seis da confirmação, na mesma ordem; `{{7}}` o valor (ex.: R$ 80,00) e
+`{{8}}` a forma de pagamento (ex.: Pix).
 
 ## 2b. `agendapro_lembrete_pagamento`
 
@@ -254,12 +258,14 @@ Pix).
 ✂️ Serviço: {{4}}
 👤 Profissional: {{5}}
 🏪 Local: {{6}}
-💳 Pagamento: {{7}}
+💰 Valor: {{7}}
+💳 Pagamento: {{8}}
 
 Esperamos você!
 ```
 
-As seis do lembrete, na mesma ordem, e `{{7}}` a forma de pagamento.
+As seis do lembrete, na mesma ordem; `{{7}}` o valor e `{{8}}` a forma de
+pagamento.
 
 ## 3b. `agendapro_aviso_profissional_pagamento`
 
@@ -271,13 +277,15 @@ Olá, {{1}}. Um horário foi agendado com você.
 📅 Data: {{4}}
 🕐 Horário: {{5}}
 🏪 Local: {{6}}
-💳 Pagamento: {{7}}
+💰 Valor: {{7}}
+💳 Pagamento: {{8}}
 
 Aviso automático do sistema de agendamento.
 ```
 
-As seis do aviso à profissional, na mesma ordem, e `{{7}}` como a cliente vai
-pagar — é o que a profissional precisa saber antes de a cliente sentar.
+As seis do aviso à profissional, na mesma ordem; `{{7}}` o valor e `{{8}}`
+como a cliente vai pagar — o que a profissional precisa saber antes de a
+cliente sentar.
 
 ## 5b. `agendapro_lembrete_equipe_pagamento`
 
@@ -290,13 +298,14 @@ Olá, {{1}}. Lembrete de um horário agendado.
 📅 Data: {{5}}
 🕐 Horário: {{6}}
 🏪 Local: {{7}}
-💳 Pagamento: {{8}}
+💰 Valor: {{8}}
+💳 Pagamento: {{9}}
 
 Aviso automático do sistema de agendamento.
 ```
 
-As sete do lembrete para o salão, na mesma ordem, e `{{8}}` a forma de
-pagamento.
+As sete do lembrete para o salão, na mesma ordem; `{{8}}` o valor e `{{9}}` a
+forma de pagamento.
 
 ---
 

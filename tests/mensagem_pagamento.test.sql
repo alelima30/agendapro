@@ -88,24 +88,28 @@ select set_config('request.jwt.claim.sub', '', false);
 \echo 'Ligado'
 select t_verdade('3. a confirmação que já estava na fila passa ao modelo com pagamento',
   (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).modelo = 'agendapro_confirmacao_pagamento');
-select t_verdade('   com 7 variáveis, e a última é "Pix"',
-  jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis) = 7
-  and (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis->>6 = 'Pix');
-select t_verdade('   e o histórico diz "💳 Pagamento: Pix"',
-  (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).corpo like '%💳 Pagamento: Pix%');
-select t_verdade('   o lembrete da cliente também (7, Pix)',
+select t_verdade('   com 8 variáveis: as 6 de sempre, o valor (R$ 60,00) e a forma (Pix)',
+  jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis) = 8
+  and (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis->>6 = 'R$ 60,00'
+  and (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis->>7 = 'Pix');
+select t_verdade('   e o histórico diz "💰 Valor: R$ 60,00" e "💳 Pagamento: Pix"',
+  (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).corpo like E'%💰 Valor: R$ 60,00\n💳 Pagamento: Pix%');
+select t_verdade('   o lembrete da cliente também (8: R$ 60,00, Pix)',
   (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).modelo = 'agendapro_lembrete_pagamento'
-  and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).variaveis->>6 = 'Pix');
-select t_verdade('   o aviso à profissional também (7, Pix)',
+  and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).variaveis->>6 = 'R$ 60,00'
+  and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete')).variaveis->>7 = 'Pix');
+select t_verdade('   o aviso à profissional também (8: R$ 60,00, Pix)',
   (linha('6e500000-0000-0000-0000-000000000001', 'novo')).modelo = 'agendapro_aviso_profissional_pagamento'
-  and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis) = 7
-  and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis->>6 = 'Pix'
-  and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).corpo like '%💳 Pagamento: Pix%');
-select t_verdade('   e o lembrete para o salão (8, Pix)',
+  and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis) = 8
+  and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis->>6 = 'R$ 60,00'
+  and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).variaveis->>7 = 'Pix'
+  and (linha('6e500000-0000-0000-0000-000000000001', 'novo')).corpo like '%💰 Valor: R$ 60,00%');
+select t_verdade('   e o lembrete para o salão (9: R$ 60,00, Pix)',
   (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).modelo = 'agendapro_lembrete_equipe_pagamento'
-  and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis) = 8
-  and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis->>7 = 'Pix'
-  and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).corpo like '%💳 Pagamento: Pix%');
+  and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis) = 9
+  and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis->>7 = 'R$ 60,00'
+  and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis->>8 = 'Pix'
+  and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).corpo like E'%💰 Valor: R$ 60,00\n💳 Pagamento: Pix%');
 select t_verdade('   o resumo do dia não muda (não é de um agendamento só)',
   public.modelo_de('resumo') = 'agendapro_agenda_hoje');
 
@@ -113,12 +117,21 @@ select t_verdade('   o resumo do dia não muda (não é de um agendamento só)',
 \echo 'O que vai escrito'
 select marcar('6e500000-0000-0000-0000-000000000002', 4, null);
 select t_verdade('5. sem forma informada: "A combinar no salão"',
-  (linha('6e500000-0000-0000-0000-000000000002', 'confirmacao')).variaveis->>6 = 'A combinar no salão');
+  (linha('6e500000-0000-0000-0000-000000000002', 'confirmacao')).variaveis->>7 = 'A combinar no salão');
 update public.agendamentos set forma_pagamento = 'credito' where id = '6e500000-0000-0000-0000-000000000002';
 select t_verdade('6. a recepção anota "cartão de crédito" depois: o que não saiu passa a dizer isso',
-  (linha('6e500000-0000-0000-0000-000000000002', 'lembrete')).variaveis->>6 = 'Cartão de crédito'
-  and (linha('6e500000-0000-0000-0000-000000000002', 'novo')).variaveis->>6 = 'Cartão de crédito'
-  and (linha('6e500000-0000-0000-0000-000000000002', 'lembrete_equipe')).variaveis->>7 = 'Cartão de crédito');
+  (linha('6e500000-0000-0000-0000-000000000002', 'lembrete')).variaveis->>7 = 'Cartão de crédito'
+  and (linha('6e500000-0000-0000-0000-000000000002', 'novo')).variaveis->>7 = 'Cartão de crédito'
+  and (linha('6e500000-0000-0000-0000-000000000002', 'lembrete_equipe')).variaveis->>8 = 'Cartão de crédito');
+
+-- O valor é o do painel: a soma dos serviços menos o desconto (o cupom).
+update public.agendamentos set desconto = 15 where id = '6e500000-0000-0000-0000-000000000002';
+select t_verdade('   o valor desconta o cupom, como o painel: R$ 60 − R$ 15 = "R$ 45,00"',
+  public.pecas_agendamento('6e500000-0000-0000-0000-000000000002')->>'valor' = 'R$ 45,00');
+insert into public.agendamento_servicos (agendamento_id, servico_id, duracao_min, preco, ordem)
+  values ('6e500000-0000-0000-0000-000000000002', '6e300000-0000-0000-0000-000000000001', 30, 1200, 2);
+select t_verdade('   e escreve o milhar do jeito brasileiro: "R$ 1.245,00"',
+  public.pecas_agendamento('6e500000-0000-0000-0000-000000000002')->>'valor' = 'R$ 1.245,00');
 
 insert into public.pacotes (id, salao_id, nome, sessoes, validade_dias, preco)
   values ('6e600000-0000-0000-0000-000000000001', '6e100000-0000-0000-0000-000000000001', 'Corte do mês', 4, 60, 200);
@@ -127,8 +140,9 @@ insert into public.pacote_clientes (id, pacote_id, cliente_id, sessoes, vence_em
           '6e400000-0000-0000-0000-000000000001', 4, current_date + 60);
 update public.agendamentos set pacote_cliente_id = '6e700000-0000-0000-0000-000000000001'
  where id = '6e500000-0000-0000-0000-000000000002';
-select t_verdade('   atendimento pelo pacote: "Pacote (já pago)"',
-  public.pecas_agendamento('6e500000-0000-0000-0000-000000000002')->>'pagamento' = 'Pacote (já pago)');
+select t_verdade('   atendimento pelo pacote: "R$ 0,00" e "Pacote (já pago)"',
+  public.pecas_agendamento('6e500000-0000-0000-0000-000000000002')->>'valor' = 'R$ 0,00'
+  and public.pecas_agendamento('6e500000-0000-0000-0000-000000000002')->>'pagamento' = 'Pacote (já pago)');
 
 \echo ''
 \echo 'Desligar volta'
@@ -139,6 +153,6 @@ select t_verdade('4. desligado de novo, o que está na fila volta ao modelo de a
   (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).modelo = 'agendapro_confirmacao'
   and jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis) = 6
   and (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).corpo not like '%Pagamento%');
-select t_verdade('   e o lembrete para o salão volta a 7',
+select t_verdade('   e o lembrete para o salão volta a 7, sem valor nem pagamento',
   jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).variaveis) = 7
   and (linha('6e500000-0000-0000-0000-000000000001', 'lembrete_equipe')).modelo = 'agendapro_lembrete_equipe');

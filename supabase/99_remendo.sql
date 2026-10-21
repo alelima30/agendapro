@@ -2299,7 +2299,8 @@ $$;
 create or replace function public.linha_pagamento(p_pecas jsonb)
 returns text language sql stable security definer set search_path = public as $$
   select case when public.mensagens_com_pagamento()
-              then E'\n💳 Pagamento: ' || coalesce(p_pecas->>'pagamento', 'A combinar no salão')
+              then E'\n💰 Valor: ' || coalesce(p_pecas->>'valor', '—')
+                || E'\n💳 Pagamento: ' || coalesce(p_pecas->>'pagamento', 'A combinar no salão')
               else '' end
 $$;
 
@@ -2308,9 +2309,17 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare
   a public.agendamentos%rowtype;
   v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
+  v_linhas int; v_soma numeric; v_total numeric; v_pacote boolean;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
   if a.id is null then return null; end if;
+  select count(*), coalesce(sum(asv.preco), 0) into v_linhas, v_soma
+    from public.agendamento_servicos asv where asv.agendamento_id = a.id;
+  v_pacote := to_jsonb(a)->>'pacote_cliente_id' is not null;
+  v_total := case
+    when v_pacote then 0
+    when v_linhas = 0 then coalesce((to_jsonb(a)->>'valor_previsto')::numeric, 0)
+    else greatest(0, v_soma - coalesce((to_jsonb(a)->>'desconto')::numeric, 0)) end;
   select coalesce(s.fuso, 'America/Sao_Paulo'), s.nome
     into v_fuso, v_casa
     from public.saloes s where s.id = a.salao_id;
@@ -2330,13 +2339,14 @@ begin
     'casa',     coalesce(v_casa, '—'),
     'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
     'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'),
+    'valor', 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,'),
     'pagamento', case
-      when to_jsonb(a)->>'pacote_cliente_id' is not null then 'Pacote (já pago)'
+      when v_pacote then 'Pacote (já pago)'
       when to_jsonb(a)->>'forma_pagamento' = 'pix'      then 'Pix'
       when to_jsonb(a)->>'forma_pagamento' = 'dinheiro' then 'Dinheiro'
       when to_jsonb(a)->>'forma_pagamento' = 'debito'   then 'Cartão de débito'
       when to_jsonb(a)->>'forma_pagamento' = 'credito'  then 'Cartão de crédito'
-      when coalesce((to_jsonb(a)->>'valor_previsto')::numeric, 0) <= 0 then 'Sem custo'
+      when v_total <= 0 then 'Sem custo'
       else 'A combinar no salão' end);
 end $$;
 
@@ -2400,10 +2410,11 @@ returns text language sql immutable set search_path = public as $$
   from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
 $$;
 
-create or replace function public.variavel_pagamento(p_pecas jsonb)
+create or replace function public.variaveis_pagamento(p_pecas jsonb)
 returns jsonb language sql stable security definer set search_path = public as $$
   select case when public.mensagens_com_pagamento()
-              then jsonb_build_array(public.variavel_limpa(p_pecas->>'pagamento'))
+              then jsonb_build_array(public.variavel_limpa(p_pecas->>'valor'),
+                                     public.variavel_limpa(p_pecas->>'pagamento'))
               else '[]'::jsonb end
 $$;
 
@@ -2422,7 +2433,7 @@ begin
     public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
     public.variavel_limpa(j->>'prof'),    public.variavel_limpa(j->>'data'),
     public.variavel_limpa(j->>'hora'),    public.variavel_limpa(j->>'casa'))
-    || public.variavel_pagamento(j);
+    || public.variaveis_pagamento(j);
 end $$;
 
 create or replace function public.texto_lembrete_equipe(
@@ -2442,7 +2453,8 @@ begin
     || E'\n🏪 Local: %s%s'
     || E'\n\nAviso automático do sistema de agendamento.',
     v->>0, v->>1, v->>2, v->>3, v->>4, v->>5, v->>6,
-    case when jsonb_array_length(v) > 7 then E'\n💳 Pagamento: ' || (v->>7) else '' end);
+    case when jsonb_array_length(v) > 8
+         then E'\n💰 Valor: ' || (v->>7) || E'\n💳 Pagamento: ' || (v->>8) else '' end);
 end $$;
 
 create or replace function public.notif_liga(p_salao uuid, p_chave text,
@@ -2578,14 +2590,14 @@ begin
       public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
       public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
       public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'))
-      || public.variavel_pagamento(j);
+      || public.variaveis_pagamento(j);
   elsif p_tipo = 'novo' then
     return jsonb_build_array(
       public.variavel_limpa(split_part(j->>'prof', ' ', 1)),
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
       public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'),
       public.variavel_limpa(j->>'casa'))
-      || public.variavel_pagamento(j);
+      || public.variaveis_pagamento(j);
   end if;
   return null;
 end $$;

@@ -335,10 +335,10 @@ function desenhar(){
     const ligado = !!painel.ajustes.mensagensComPagamento;
     h += `<h2>Mensagens do WhatsApp</h2>
       <div class="recado" id="ajustePagamento">
-        <b>Forma de pagamento nas mensagens: ${ligado ? 'ligada' : 'desligada'}</b>
+        <b>Valor e forma de pagamento nas mensagens: ${ligado ? 'ligada' : 'desligada'}</b>
         A confirmação e o lembrete da cliente, o aviso à profissional e o lembrete
-        para o salão passam a dizer como a cliente vai pagar (Pix, cartão,
-        pacote…). Usam os quatro modelos <code>*_pagamento</code> do MODELOS.md:
+        para o salão passam a dizer o valor do atendimento e como a cliente vai
+        pagar (Pix, cartão, pacote…). Usam os quatro modelos <code>*_pagamento</code> do MODELOS.md:
         ${ligado ? 'desligando, o sistema volta aos modelos de antes na hora.'
                  : 'ligue só depois que os quatro estiverem <b style="display:inline">aprovados</b> na Meta.'}
         <div style="margin-top:10px">

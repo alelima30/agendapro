@@ -1450,6 +1450,7 @@ function falarNoWhatsapp(agId){
     cliente: (nomeCliente(a.clienteId) || '').split(' ')[0],
     horario: porExtenso(a.data) + ' às ' + hm(a.inicio),
     empresa: (acharSalao(salaoAtual) || {}).nome || 'salão',
+    valor: real(totalDe(a)),
     pagamento: pagamentoDoRecado(a),
   });
 }
@@ -1465,9 +1466,9 @@ function pagamentoDoRecado(a){
 /* ═══════════════════════════════════════════════════════════════════════════
    OS RECADOS QUE O DONO ESCREVE UMA VEZ
 
-   Quatro modelos, editáveis em Meu negócio, com quatro parâmetros: ${cliente},
-   ${horario}, ${empresa} e ${pagamento} (como ela vai pagar — "colocar o
-   pagamento, Pix, cartão de crédito, nos modelos").
+   Quatro modelos, editáveis em Meu negócio, com cinco parâmetros: ${cliente},
+   ${horario}, ${empresa}, ${valor} e ${pagamento} (quanto e como ela vai
+   pagar — "falta forma de pagamento e valor" nos modelos).
 
    ── POR QUE MODELO, E NÃO TEXTO PRONTO NOSSO ──────────────────────────────
    Porque o jeito de falar é do salão, não nosso. Uma barbearia escreve "e
@@ -1491,7 +1492,7 @@ const MODELOS_MANUAIS = [
    + 'WhatsApp de um horário.'],
   ['confirmacao', 'Confirmar o horário',
    'Oi ${cliente}, tudo bem? Seu horário de ${horario} está confirmado! '
-   + 'Pagamento: ${pagamento}. Te esperamos aqui no ${empresa}.',
+   + 'Valor: ${valor}. Pagamento: ${pagamento}. Te esperamos aqui no ${empresa}.',
    'Para responder quem pediu horário pelo link e está esperando resposta.'],
   ['indisponivel', 'Avisar que não tem mais',
    'Oi ${cliente}, tudo bem? Infelizmente o horário de ${horario} não está '
@@ -1508,6 +1509,7 @@ const PARAMETROS_RECADO = [
   ['cliente', 'o primeiro nome dela'],
   ['horario', 'o dia e a hora do atendimento'],
   ['empresa', 'o nome do seu salão'],
+  ['valor', 'o valor do atendimento (R$)'],
   ['pagamento', 'como ela vai pagar (Pix, cartão, pacote…)'],
 ];
 
@@ -1615,6 +1617,7 @@ function falarComCliente(clienteId){
     cliente: (nomeCliente(clienteId) || '').split(' ')[0],
     horario: '',
     empresa: (acharSalao(salaoAtual) || {}).nome || 'salão',
+    valor: '',
     pagamento: '',
   });
 }
@@ -2055,7 +2058,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.4588dc';
+const VERSAO_APP = 'v9.379b93';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o

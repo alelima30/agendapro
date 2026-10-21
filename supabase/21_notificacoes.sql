@@ -241,9 +241,25 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare
   a public.agendamentos%rowtype;
   v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
+  v_linhas int; v_soma numeric; v_total numeric; v_pacote boolean;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
   if a.id is null then return null; end if;
+
+  /* O VALOR, pela mesma conta que o painel faz (`totalDe()` no app.html): a
+     soma dos serviços, menos o desconto do cupom, e zero na sessão de
+     pacote. Sem linha de serviço ainda (o gatilho do agendamento dispara
+     antes delas), vale o `valor_previsto`; quando os serviços chegam, o 7b
+     refaz o texto e a conta fecha. Pacote e desconto por `to_jsonb`: as
+     colunas nascem depois deste módulo (27 e 34), e esta função roda nas
+     colagens de quem atualiza. */
+  select count(*), coalesce(sum(asv.preco), 0) into v_linhas, v_soma
+    from public.agendamento_servicos asv where asv.agendamento_id = a.id;
+  v_pacote := to_jsonb(a)->>'pacote_cliente_id' is not null;
+  v_total := case
+    when v_pacote then 0
+    when v_linhas = 0 then coalesce((to_jsonb(a)->>'valor_previsto')::numeric, 0)
+    else greatest(0, v_soma - coalesce((to_jsonb(a)->>'desconto')::numeric, 0)) end;
 
   select coalesce(s.fuso, 'America/Sao_Paulo'), s.nome
     into v_fuso, v_casa
@@ -267,17 +283,17 @@ begin
     'casa',     coalesce(v_casa, '—'),
     'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
     'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'),
-    /* Como a cliente vai pagar — "colocar o pagamento, Pix, cartão de
-       crédito, nos modelos, para o profissional e a cliente". Lido por
-       `to_jsonb`, e não `a.forma_pagamento`: a coluna do pacote nasce depois
-       deste módulo (27), e esta função roda nas colagens de quem atualiza. */
+    /* O valor e como a cliente vai pagar — "falta forma de pagamento e
+       valor" nos modelos, para o profissional e a cliente. Em reais, do
+       jeito brasileiro: R$ 1.250,00. */
+    'valor', 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,'),
     'pagamento', case
-      when to_jsonb(a)->>'pacote_cliente_id' is not null then 'Pacote (já pago)'
+      when v_pacote then 'Pacote (já pago)'
       when to_jsonb(a)->>'forma_pagamento' = 'pix'      then 'Pix'
       when to_jsonb(a)->>'forma_pagamento' = 'dinheiro' then 'Dinheiro'
       when to_jsonb(a)->>'forma_pagamento' = 'debito'   then 'Cartão de débito'
       when to_jsonb(a)->>'forma_pagamento' = 'credito'  then 'Cartão de crédito'
-      when coalesce((to_jsonb(a)->>'valor_previsto')::numeric, 0) <= 0 then 'Sem custo'
+      when v_total <= 0 then 'Sem custo'
       else 'A combinar no salão' end);
 end $$;
 
@@ -305,13 +321,15 @@ returns boolean language sql stable security definer set search_path = public as
                     where a.chave = 'mensagensComPagamento'), false)
 $$;
 
--- A linha do texto do histórico. Vazia enquanto os modelos com pagamento
--- estiverem desligados. (A variável que vai para a Meta, `variavel_pagamento`,
--- mora depois do `variavel_limpa()`, que ela usa.)
+-- As linhas do texto do histórico: o valor e a forma de pagamento. Vazias
+-- enquanto os modelos com pagamento estiverem desligados. (As variáveis que
+-- vão para a Meta, `variaveis_pagamento`, moram depois do `variavel_limpa()`,
+-- que elas usam.)
 create or replace function public.linha_pagamento(p_pecas jsonb)
 returns text language sql stable security definer set search_path = public as $$
   select case when public.mensagens_com_pagamento()
-              then E'\n💳 Pagamento: ' || coalesce(p_pecas->>'pagamento', 'A combinar no salão')
+              then E'\n💰 Valor: ' || coalesce(p_pecas->>'valor', '—')
+                || E'\n💳 Pagamento: ' || coalesce(p_pecas->>'pagamento', 'A combinar no salão')
               else '' end
 $$;
 
@@ -412,13 +430,16 @@ returns text language sql immutable set search_path = public as $$
   from (select btrim(regexp_replace(coalesce(p_texto, ''), '\s+', ' ', 'g')) as t) x
 $$;
 
-/* A forma de pagamento como ÚLTIMA variável, só nos modelos `*_pagamento`.
-   Desligados, devolve lista vazia e as variáveis ficam exatamente as de
-   antes — o modelo cadastrado hoje continua recebendo o número que espera. */
-create or replace function public.variavel_pagamento(p_pecas jsonb)
+/* O valor e a forma de pagamento como as DUAS ÚLTIMAS variáveis, nessa
+   ordem, só nos modelos `*_pagamento`. Desligados, devolve lista vazia e as
+   variáveis ficam exatamente as de antes — o modelo cadastrado hoje continua
+   recebendo o número que espera. */
+drop function if exists public.variavel_pagamento(jsonb);
+create or replace function public.variaveis_pagamento(p_pecas jsonb)
 returns jsonb language sql stable security definer set search_path = public as $$
   select case when public.mensagens_com_pagamento()
-              then jsonb_build_array(public.variavel_limpa(p_pecas->>'pagamento'))
+              then jsonb_build_array(public.variavel_limpa(p_pecas->>'valor'),
+                                     public.variavel_limpa(p_pecas->>'pagamento'))
               else '[]'::jsonb end
 $$;
 
@@ -502,12 +523,12 @@ begin
     -- confirmado" sem saber onde — e quem frequenta dois salões que usam o
     -- sistema não tem como distinguir um do outro. Por último para não mexer
     -- na posição das cinco que já existiam.
-    -- (+ {{7}} forma de pagamento, só no `*_pagamento` — `variavel_pagamento()`)
+    -- (+ {{7}} valor e {{8}} forma de pagamento, só no `*_pagamento` — `variaveis_pagamento()`)
     return jsonb_build_array(
       public.variavel_limpa(j->>'primeiro'), public.variavel_limpa(j->>'data'),
       public.variavel_limpa(j->>'hora'),     public.variavel_limpa(j->>'servico'),
       public.variavel_limpa(j->>'prof'),     public.variavel_limpa(j->>'casa'))
-      || public.variavel_pagamento(j);
+      || public.variaveis_pagamento(j);
 
   elsif p_tipo = 'novo' then
     -- {{1}} primeiro nome de quem atende  {{2}} cliente (nome INTEIRO)
@@ -516,13 +537,13 @@ begin
     -- O nome inteiro da cliente, e não só o primeiro: é ele que a
     -- profissional procura na agenda. E o salão, porque quem trabalha em duas
     -- casas que usam o sistema recebe os dois avisos do mesmo número.
-    -- (+ {{7}} forma de pagamento, só no `*_pagamento` — `variavel_pagamento()`)
+    -- (+ {{7}} valor e {{8}} forma de pagamento, só no `*_pagamento` — `variaveis_pagamento()`)
     return jsonb_build_array(
       public.variavel_limpa(split_part(j->>'prof', ' ', 1)),
       public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
       public.variavel_limpa(j->>'data'),    public.variavel_limpa(j->>'hora'),
       public.variavel_limpa(j->>'casa'))
-      || public.variavel_pagamento(j);
+      || public.variaveis_pagamento(j);
   end if;
   return null;
 end $$;
@@ -1081,7 +1102,7 @@ revoke all on function public.linha_pagamento(jsonb) from public, anon, authenti
 -- internet sem login (portas.test.sql). Quem monta mensagem é o banco.
 revoke all on function public.mensagens_com_pagamento() from public, anon;
 grant execute on function public.mensagens_com_pagamento() to authenticated;
-revoke all on function public.variavel_pagamento(jsonb) from public, anon, authenticated;
+revoke all on function public.variaveis_pagamento(jsonb) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 7c) O LEMBRETE PARA O SALÃO
@@ -1126,14 +1147,14 @@ begin
   if j is null then return null; end if;
   select coalesce(nullif(btrim(pr.apelido), ''), pr.nome) into v_quem
     from public.profissionais pr where pr.id = p_destinatario;
-  -- (+ {{8}} forma de pagamento, só no `*_pagamento` — `variavel_pagamento()`)
+  -- (+ {{8}} valor e {{9}} forma de pagamento, só no `*_pagamento` — `variaveis_pagamento()`)
   return jsonb_build_array(
     public.variavel_limpa(coalesce(nullif(split_part(btrim(coalesce(v_quem, '')), ' ', 1), ''),
                                    'equipe')),
     public.variavel_limpa(j->>'cliente'), public.variavel_limpa(j->>'servico'),
     public.variavel_limpa(j->>'prof'),    public.variavel_limpa(j->>'data'),
     public.variavel_limpa(j->>'hora'),    public.variavel_limpa(j->>'casa'))
-    || public.variavel_pagamento(j);
+    || public.variaveis_pagamento(j);
 end $$;
 
 /* O mesmo, por extenso, para o histórico do painel. */
@@ -1154,8 +1175,10 @@ begin
     || E'\n🏪 Local: %s%s'
     || E'\n\nAviso automático do sistema de agendamento.',
     v->>0, v->>1, v->>2, v->>3, v->>4, v->>5, v->>6,
-    -- A oitava só existe com os modelos de pagamento ligados.
-    case when jsonb_array_length(v) > 7 then E'\n💳 Pagamento: ' || (v->>7) else '' end);
+    -- A oitava e a nona (valor e pagamento) só existem com os modelos de
+    -- pagamento ligados.
+    case when jsonb_array_length(v) > 8
+         then E'\n💰 Valor: ' || (v->>7) || E'\n💳 Pagamento: ' || (v->>8) else '' end);
 end $$;
 
 /* Põe na fila o que deve existir para este agendamento, e cancela o que não
