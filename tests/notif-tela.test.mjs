@@ -254,6 +254,11 @@ verdade('com o estado pendente, e não "enviado"',
   (hist || '').slice(0, 300));
 verdade('e o tipo diz de quem é o lembrete',
   /Lembrete para o cliente/.test(hist || ''), (hist || '').slice(0, 300));
+/* "No meu negócio o lembrete para o cliente está dizendo pendente": era o
+   lembrete de um horário de amanhã, esperando a hora dele. Sem o porquê, o
+   dono lia "travou". */
+verdade('o lembrete de amanhã diz que espera a hora marcada, não só "pendente"',
+  /espera a hora marcada/.test(hist || ''), (hist || '').slice(0, 300));
 
 /* Saiu uma mensagem deste salão: o aviso de cima passa a dizer que está
    ligado. (A linha é marcada à mão aqui; quem marca de verdade é o worker.) */

@@ -2058,7 +2058,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.2cad5d';
+const VERSAO_APP = 'v9.c06d96';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -10112,14 +10112,20 @@ async function pintarHistoricoNotif(){
       <th>Quem</th><th>Tipo</th><th>Quando sai</th><th>Estado</th>
     </tr></thead><tbody>${linhas.map(n => {
       const e = ROTULO_ESTADO[n.status] || [n.status, 't-pend'];
+      /* "Pendente" sozinho assustava: o lembrete marcado para amanhã ficava
+         pendente até amanhã, e o dono lia "travou". O porquê vai embaixo —
+         esperando a hora dela, ou já na fila para sair. */
+      const nota = n.motivo || (n.status !== 'pendente' ? ''
+        : n.quando && new Date(n.quando) > new Date() ? 'espera a hora marcada'
+        : 'na fila para sair');
       return `<tr>
         <td>${escapar(n.clienteId ? nomeCliente(n.clienteId)
               : (acharProf(n.profissionalId) || {}).nome || 'o salão')}</td>
         <td>${escapar(ROTULO_NOTIF[n.tipo] || n.tipo)}</td>
         <td style="white-space:nowrap">${escapar(quandoSai(n.quando))}</td>
         <td><span class="tag ${e[1]}">${e[0]}</span>${
-          n.motivo ? `<div style="font-size:12px;color:var(--txt2)">${
-            escapar(n.motivo)}</div>` : ''}</td>
+          nota ? `<div style="font-size:12px;color:var(--txt2)">${
+            escapar(nota)}</div>` : ''}</td>
       </tr>`;
     }).join('')}</tbody></table>`;
   rotularTabelas(alvo);   // chega do banco depois da pintura da tela
