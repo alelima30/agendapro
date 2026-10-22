@@ -1320,6 +1320,107 @@ begin
   return n;
 end $$;
 
+/* ── O LEMBRETE DA CLIENTE ACOMPANHA O AJUSTE ────────────────────────────
+   "O lembrete chega uma hora antes" — com o salão em outro tempo. O lembrete
+   da cliente era calculado UMA vez, quando o horário era marcado (ou
+   remarcado): trocar "1 hora antes" por "24 horas antes" em Notificações não
+   mexia em nenhum horário já marcado, e eles continuavam saindo 1 hora antes.
+   Desligar também não tirava da fila o que já estava nela. O da equipe já
+   tinha esta varredura; o da cliente, não.
+
+   As regras, para um horário confirmado e ainda por vir:
+     · lembrete desligado → o pendente sai da fila;
+     · a hora nova ainda vem → o lembrete vai para ela (e o cancelado por
+       ajuste volta), com o texto e as variáveis refeitos;
+     · a hora nova já passou → o que estava marcado fica como está: tarde é
+       melhor que nunca, e um lembrete novo para agora não nasce (a mesma
+       regra de quem marca em cima da hora);
+     · o que já saiu (enviando, enviado, entregue, lido, falhou) não se mexe. */
+create or replace function public.refazer_lembrete_cliente(p_agendamento uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  a        public.agendamentos%rowtype;
+  v_min    int;
+  v_quando timestamptz;
+  v_tel    text;
+  v_corpo  text;
+begin
+  select * into a from public.agendamentos where id = p_agendamento;
+  if a.id is null then return; end if;
+  v_min := public.lembrete_minutos(a.salao_id);
+
+  if v_min <= 0 then
+    update public.notificacoes
+       set status = 'cancelado', motivo = 'o lembrete foi desligado no salão'
+     where agendamento_id = a.id and tipo = 'lembrete' and status = 'pendente';
+    return;
+  end if;
+  if a.status <> 'confirmado' or a.arquivado_em is not null or a.inicio <= now() then
+    return;
+  end if;
+
+  v_quando := a.inicio - make_interval(mins => v_min);
+  if v_quando <= now() then return; end if;
+
+  select public.so_digitos(c.telefone) into v_tel
+    from public.clientes c where c.id = a.cliente_id;
+  if v_tel is null then return; end if;
+  v_corpo := public.texto_agendamento(a.id, 'lembrete');
+  if v_corpo is null then return; end if;
+
+  insert into public.notificacoes
+    (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo,
+     chave, modelo, variaveis)
+  values (a.salao_id, 'lembrete', v_tel, a.cliente_id, a.id, v_quando, v_corpo,
+          'lembrete:' || a.id, public.modelo_de('lembrete'),
+          public.variaveis_agendamento(a.id, 'lembrete'))
+  on conflict (salao_id, chave) do update
+     set quando = excluded.quando, destino = excluded.destino,
+         status = 'pendente', motivo = null, tentativas = 0, proxima_em = null,
+         erro_codigo = null, erro_msg = null,
+         corpo = excluded.corpo, modelo = excluded.modelo, variaveis = excluded.variaveis
+   where public.notificacoes.status = 'cancelado'
+      or (public.notificacoes.status = 'pendente'
+          and public.notificacoes.quando is distinct from excluded.quando);
+end $$;
+
+/* A varredura, junto da da equipe (de carona no `gerar_resumos`). Olha as
+   próximas 25 horas — o ajuste vai até 24h antes, então todo horário entra
+   aqui pelo menos uma hora antes do seu lembrete — e só o que está fora do
+   lugar: desligado com pendente na fila, ou ligado com o lembrete longe da
+   hora que o ajuste manda (e essa hora ainda por vir). Devolve quantos
+   horários refez. */
+create or replace function public.gerar_lembretes_cliente()
+returns int language plpgsql security definer set search_path = public as $$
+declare r record; n int := 0;
+begin
+  for r in
+    select a.id
+      from public.agendamentos a
+      join public.clientes c on c.id = a.cliente_id
+      cross join lateral (select public.lembrete_minutos(a.salao_id) as m) l
+     where a.status = 'confirmado' and a.arquivado_em is null
+       and a.inicio > now() and a.inicio <= now() + interval '25 hours'
+       and public.so_digitos(c.telefone) is not null
+       and (
+         (l.m = 0 and exists (select 1 from public.notificacoes n
+                               where n.agendamento_id = a.id and n.tipo = 'lembrete'
+                                 and n.status = 'pendente'))
+         or
+         (l.m > 0 and a.inicio - make_interval(mins => l.m) > now()
+          and not exists (select 1 from public.notificacoes n
+                           where n.agendamento_id = a.id and n.tipo = 'lembrete'
+                             and (n.status not in ('pendente', 'cancelado')
+                                  or (n.status = 'pendente'
+                                      and n.quando = a.inicio - make_interval(mins => l.m)))))
+       )
+  loop
+    perform public.refazer_lembrete_cliente(r.id);
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+
 -- ---------------------------------------------------------------------------
 -- 8) O RESUMO ENTRA NA FILA
 --
@@ -1349,6 +1450,9 @@ begin
   -- O lembrete para o salão (7c), de carona no agendador que já passa aqui
   -- de minuto em minuto: liga e desliga valem sem esperar novo agendamento.
   perform public.gerar_lembretes_equipe();
+  -- E o da cliente: trocar "1 hora antes" por "24 horas antes" vale também
+  -- para quem já estava marcado.
+  perform public.gerar_lembretes_cliente();
 
   for s in select id, coalesce(fuso, 'America/Sao_Paulo') as fuso from public.saloes
             where status = 'ativo'
@@ -1464,6 +1568,10 @@ revoke all on function public.texto_lembrete_equipe(uuid, uuid)
 revoke all on function public.refazer_lembrete_equipe(uuid)
   from public, anon, authenticated;
 revoke all on function public.gerar_lembretes_equipe()
+  from public, anon, authenticated;
+revoke all on function public.refazer_lembrete_cliente(uuid)
+  from public, anon, authenticated;
+revoke all on function public.gerar_lembretes_cliente()
   from public, anon, authenticated;
 
 comment on table public.notificacoes is
