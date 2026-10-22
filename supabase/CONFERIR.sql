@@ -935,6 +935,22 @@ with conferencia(ordem, item, veredito, detalhe) as (
                            false, false, '')))[1]::text as s) x)
            end
   union all
+  /* O lembrete da cliente acompanha o tempo escolhido em Notificações: a
+     varredura que move os lembretes já na fila quando o ajuste muda. */
+  select 42, 'Lembrete da cliente segue o tempo de Notificações',
+         case
+           when to_regprocedure('public.gerar_lembretes_cliente()') is null
+             or not exists (select 1 from pg_proc where proname = 'gerar_resumos'
+                              and prosrc like '%gerar_lembretes_cliente%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.gerar_lembretes_cliente()') is null
+             or not exists (select 1 from pg_proc where proname = 'gerar_resumos'
+                              and prosrc like '%gerar_lembretes_cliente%')
+             then 'cole o 00_tudo.sql de novo (21_notificacoes)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um
