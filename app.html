@@ -1113,6 +1113,13 @@ function minDe(hhmm){
   const [h,m] = String(hhmm).split(':').map(Number);
   return (h||0)*60 + (m||0);
 }
+/* ⚠ O FIM DE UMA FAIXA ÀS 00:00 É MEIA-NOITE, o fim do dia (1440) — a mesma
+   regra do funcionamento.js. Lido como zero, "09:00 às 00:00" terminava
+   antes de começar, e a tela do profissional DESCARTAVA a faixa calada: o
+   dia virava folga e o link não mostrava horário nenhum ("alterei para hoje
+   até meia-noite, mas o horário não aparece"). O banco guarda '24:00:00'. */
+const fimDe = min => min === 0 ? 1440 : min;
+const hmFim = min => hm(min % 1440);
 /* ⚠ HORA DIGITADA, E NÃO O RELÓGIO DO CELULAR.
    Os campos `type="time"` abriam o relógio do sistema, e no Android, em
    alguns aparelhos, o botão de confirmar dele ficava fora da tela: a hora
@@ -2058,7 +2065,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.c06d96';
+const VERSAO_APP = 'v9.b9c2d1';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -8453,11 +8460,11 @@ function abrirProf(pid){
       <td style="font-size:13px;text-transform:capitalize">${DIAS[d]}</td>
       <td><input ${ATRIB_HORA} id="j${d}a" value="${w ? hm(w[0]) : ''}" placeholder="--:--"
              onchange="this.value = horaNormal(this.value)" style="padding:5px;width:76px"></td>
-      <td><input ${ATRIB_HORA} id="j${d}b" value="${w ? hm(w[1]) : ''}" placeholder="--:--"
+      <td><input ${ATRIB_HORA} id="j${d}b" value="${w ? hmFim(w[1]) : ''}" placeholder="--:--"
              onchange="this.value = horaNormal(this.value)" style="padding:5px;width:76px"></td>
       <td><input ${ATRIB_HORA} id="j${d}c" value="${w2 ? hm(w2[0]) : ''}" placeholder="--:--"
              onchange="this.value = horaNormal(this.value)" style="padding:5px;width:76px"></td>
-      <td><input ${ATRIB_HORA} id="j${d}d" value="${w2 ? hm(w2[1]) : ''}" placeholder="--:--"
+      <td><input ${ATRIB_HORA} id="j${d}d" value="${w2 ? hmFim(w2[1]) : ''}" placeholder="--:--"
              onchange="this.value = horaNormal(this.value)" style="padding:5px;width:76px"></td>
     </tr>`;
   }).join('');
@@ -8568,6 +8575,49 @@ async function salvarProf(pid){
   const nome = (document.getElementById('qNome').value || '').trim();
   if(nome.length < 2){ alert('Informe o nome.'); return; }
 
+  /* ⚠ HORÁRIO QUE NÃO SE ENTENDE SEGURA O SALVAR — NÃO SOME CALADO.
+     Faixa com a saída antes da entrada, ou com um campo só, era descartada
+     sem aviso: o dia virava folga e o link deixava de oferecer horário
+     ("mudei a quarta da Ju, salvei, e ficou sem horário"). Agora o salvar
+     para e diz o dia e o que acertar. O fim às 00:00 é meia-noite (`fimDe`). */
+  const jornada = {}, problemas = [];
+  for(const d of [0,1,2,3,4,5,6]){
+    const dia = DIAS[d].charAt(0).toUpperCase() + DIAS[d].slice(1);
+    const ler = x => {
+      const bruto = (document.getElementById('j' + d + x).value || '').trim();
+      if(!bruto) return { vazio: true };
+      const h = horaNormal(bruto), m = minutosDe(h);
+      return m == null ? { ruim: bruto } : { h, m };
+    };
+    const faixa = (ini, fim, qual) => {
+      if(ini.vazio && fim.vazio) return null;
+      if(ini.ruim || fim.ruim){
+        problemas.push(`${dia}: "${ini.ruim || fim.ruim}" não é uma hora.`); return null;
+      }
+      if(ini.vazio || fim.vazio){
+        problemas.push(`${dia}: falta o horário de ${ini.vazio ? 'entrada' : 'saída'}${qual}.`);
+        return null;
+      }
+      const f = fimDe(fim.m);
+      if(f <= ini.m){
+        problemas.push(`${dia}: a saída (${fim.h}) tem de ser depois da entrada (${ini.h})${qual}.`);
+        return null;
+      }
+      return [ini.m, f];
+    };
+    const p1 = faixa(ler('a'), ler('b'), '');
+    const p2 = faixa(ler('c'), ler('d'), ' do segundo horário');
+    if(p1 && p2 && p2[0] < p1[1])
+      problemas.push(`${dia}: o segundo horário começa antes de o primeiro terminar.`);
+    const janelas = [p1, p2].filter(Boolean);
+    if(janelas.length) jornada[d] = janelas;
+  }
+  if(problemas.length){
+    alert('Confira o horário de trabalho — nada foi salvo ainda:\n\n' + problemas.join('\n')
+        + '\n\nPara folga no dia, deixe os campos dele vazios.');
+    return;
+  }
+
   const alvoId = pid || id();
   let foto = document.getElementById('qFoto').value || null;
 
@@ -8586,17 +8636,6 @@ async function salvarProf(pid){
       return;
     }
     if(bt){ bt.disabled = false; bt.textContent = rotulo; }
-  }
-
-  const jornada = {};
-  for(const d of [0,1,2,3,4,5,6]){
-    const janelas = [];
-    const lerHora = x => minutosDe(horaNormal(document.getElementById('j'+d+x).value)) != null
-      ? horaNormal(document.getElementById('j'+d+x).value) : '';
-    const a = lerHora('a'), b = lerHora('b'), c = lerHora('c'), e = lerHora('d');
-    if(a && b && minDe(b) > minDe(a)) janelas.push([minDe(a), minDe(b)]);
-    if(c && e && minDe(e) > minDe(c)) janelas.push([minDe(c), minDe(e)]);
-    if(janelas.length) jornada[d] = janelas;
   }
 
   const dados = {
@@ -13608,6 +13647,41 @@ function instagramLimpo(txt){
     .replace(/^@+/, '').replace(/[/?#].*$/, '').replace(/[^A-Za-z0-9._]/g, '').slice(0, 30);
 }
 
+/* ⚠ O LINK MARCA PELO HORÁRIO DE CADA PROFISSIONAL, NÃO PELO DE FUNCIONAMENTO.
+   O funcionamento decide o "Aberto/Fechado" da página; os horários livres
+   saem da jornada de quem atende (`horarios_livres()` no 14_motor). Mudar
+   só o funcionamento não abria vaga nenhuma: "mudei quinta para as 7h e não
+   apareceu no link".
+
+   Quem seguia o horário da casa (jornada igual ao funcionamento de antes, ou
+   nenhuma) acompanha sozinho — a mesma regra do passo a passo. Quem tem
+   horário próprio, como a pessoa que sai mais cedo às sextas, só muda se o
+   dono disser que sim. */
+function levarHorarioParaEquipe(antes, novo){
+  if(!novo || restaurantePainel()) return;
+  const paraJornada = f => {
+    const j = {};
+    for(let d = 0; d <= 6; d++) if((f[d] || []).length) j[d] = f[d].map(p => [p.ini, p.fim]);
+    return j;
+  };
+  const jNovo = paraJornada(novo);
+  const jAntes = antes ? paraJornada(antes) : null;
+  if(jAntes && pdMesmaJornada(jAntes, jNovo)) return;   // o funcionamento não mudou
+  const equipe = doSalao(bd.profissionais).filter(p => p.ativo !== false
+                                                   && !pdMesmaJornada(p.jornada || {}, jNovo));
+  const seguiam = equipe.filter(p => !temJornadaAlguma(p)
+                                  || (jAntes && pdMesmaJornada(p.jornada, jAntes)));
+  const proprios = equipe.filter(p => !seguiam.includes(p));
+  for(const p of seguiam) p.jornada = _copia(jNovo);
+  if(proprios.length && confirm('Usar este horário também na agenda de '
+      + proprios.map(p => p.nome).join(', ') + '?\n\n'
+      + 'O link marca horário pelo horário de cada profissional (Equipe), e '
+      + (proprios.length > 1 ? 'eles têm' : 'esta pessoa tem') + ' um horário próprio.\n\n'
+      + 'OK: passa a ser o horário de funcionamento.\nCancelar: fica como está.')){
+    for(const p of proprios) p.jornada = _copia(jNovo);
+  }
+}
+
 function salvarCadastroSalao(){
   const v = id => (document.getElementById(id).value || '').trim();
   const nome = v('cNome');
@@ -13627,6 +13701,8 @@ function salvarCadastroSalao(){
   }
 
   const sl = acharSalao(salaoAtual);
+  const funcAntes = window.Funcionamento
+    ? Funcionamento.normalizar((sl.cfg || {}).funcionamento) : null;
   sl.nome     = nome;
   sl.tipo     = v('cTipo');
   sl.telefone = v('cTel');
@@ -13687,6 +13763,8 @@ function salvarCadastroSalao(){
     tetoOnlinePct:    aparar(v('cTetoPct'),    10, 100, 70),
     tetoOnlineRajada: aparar(v('cTetoRajada'),  1, 100, 10),
   });
+  if(window.Funcionamento)
+    levarHorarioParaEquipe(funcAntes, Funcionamento.normalizar(sl.cfg.funcionamento));
   salvar();
 
   // `iniciar()` ANTES da confirmação, não depois: ele redesenha o painel
@@ -16483,7 +16561,7 @@ function pdDesenhar2(){
                  aria-label="Abre" onchange="this.value = horaNormal(this.value); pdLer2()">
           <span class="pd-ate">às</span>
           <input ${ATRIB_HORA} id="pdH${d}b"
-                 value="${hm(almoco ? meio[0] : fecha)}"
+                 value="${almoco ? hm(meio[0]) : hmFim(fecha)}"
                  aria-label="${almoco ? 'Para o almoço' : 'Fecha'}"
                  onchange="this.value = horaNormal(this.value); pdLer2()">
           ${almoco ? `
@@ -16491,7 +16569,7 @@ function pdDesenhar2(){
             <input ${ATRIB_HORA} id="pdH${d}c" value="${hm(meio[1])}"
                    aria-label="Volta do almoço" onchange="this.value = horaNormal(this.value); pdLer2()">
             <span class="pd-ate">às</span>
-            <input ${ATRIB_HORA} id="pdH${d}d" value="${hm(fecha)}"
+            <input ${ATRIB_HORA} id="pdH${d}d" value="${hmFim(fecha)}"
                    aria-label="Fecha" onchange="this.value = horaNormal(this.value); pdLer2()">
             <button type="button" class="btn btn-peq"
                     onclick="pdAlmoco(${d}, false)">Sem intervalo</button>`
@@ -16521,7 +16599,11 @@ function pdLer2(){
       const el = document.getElementById('pdH' + d + s);
       return el && el.value ? minutosDe(horaNormal(el.value)) : null;
     };
-    const a = ler('a'), b = ler('b'), c = ler('c'), f = ler('d');
+    const a = ler('a'), c = ler('c');
+    // Fecha às 00:00 é meia-noite (`fimDe`) — no "b" só quando ele é o
+    // fechamento, e não a saída para o almoço.
+    const f = ler('d') == null ? null : fimDe(ler('d'));
+    const b = ler('b') == null ? null : (c == null && f == null ? fimDe(ler('b')) : ler('b'));
     const faixas = [];
     if(a != null && b != null && b > a) faixas.push([a, b]);
     if(c != null && f != null && f > c) faixas.push([c, f]);
