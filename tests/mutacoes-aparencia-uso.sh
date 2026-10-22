@@ -149,9 +149,9 @@ troca app.html \
 
 echo "16. o acento some"
 troca app.html \
-  "Modo de exibição</div>" \
-  "Modo de exibicao</div>" \
-  && rodar "exibicao"
+  "Como fica o topo da página</div>" \
+  "Como fica o topo da pagina</div>" \
+  && rodar "pagina"
 
 echo "17. o Ver prévia some do celular"
 troca estilo.css \

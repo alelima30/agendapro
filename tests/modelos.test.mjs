@@ -135,10 +135,15 @@ const { p, fechar } = await painel();
       frase: b.querySelector('small').textContent.trim(),
       mini: !!b.querySelector('.modelo-tela .modelo-botao') })),
     barra: getComputedStyle(document.getElementById('modeloBarra')).display,
-    indice: document.querySelector('.ap-indice button').textContent.trim(),
+    segunda: document.querySelectorAll('.ap-controles .ap-sec')[1].id,
+    titulo: document.querySelector('#apModelos .ap-sec-t').textContent.trim(),
+    aVista: !document.getElementById('apModelos').closest('details'),
   }));
-  igual('é a primeira seção da tela', t.primeira, 'apModelos');
-  verdade('e a primeira do índice do topo', /Modelos prontos/.test(t.indice), t.indice);
+  /* O passo 2 do essencial: logo depois das fotos (passo 1), e sempre à
+     vista — nunca dentro de "Personalizar mais". */
+  igual('é o passo 2, logo depois da identidade visual', [t.primeira, t.segunda], ['apIdentidade', 'apModelos']);
+  verdade('com o número e o nome do passo', /^2\s*Escolha um modelo pronto/.test(t.titulo), t.titulo);
+  verdade('e sempre à vista, fora de Personalizar mais', t.aVista);
   verdade('dez modelos ou mais — ' + t.cartoes.length, t.cartoes.length >= 10);
   igual('um cartão para cada modelo, na ordem', t.cartoes.map(c => c.id), MODELOS.map(x => x.id));
   igual('nenhum nome repetido', new Set(t.cartoes.map(c => c.nome)).size, t.cartoes.length);

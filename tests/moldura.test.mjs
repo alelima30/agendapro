@@ -463,6 +463,9 @@ await painel.waitForTimeout(1500);
    teste reprovou da primeira vez, com "element is not visible". */
 await painel.click('[data-sub="aparencia"]');
 await painel.waitForTimeout(1200);
+// A moldura mora em "Personalizar mais" → Bordas e molduras, recolhido.
+await painel.click('#apAvancado > summary');
+await painel.waitForTimeout(300);
 
 const regua = await painel.evaluate(() =>
   [...document.querySelectorAll('#reguaMoldura button')].map(b => b.textContent.trim()));

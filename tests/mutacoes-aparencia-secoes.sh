@@ -171,11 +171,11 @@ troca app.html \
   "" \
   && rodar "quadrado mentindo"
 
-echo "19. Gradientes sempre oferece usar"
+echo "19. Personalizar mais já abre aberto"
 troca app.html \
-  "  mostrar('gradUsar', !comGrad);" \
-  "  mostrar('gradUsar', true);" \
-  && rodar "botão para ligar o que já está ligado"
+  "\${apAvancadoAberto ? 'open' : ''}" \
+  "open" \
+  && rodar "o essencial afogado nos ajustes finos"
 
 echo "20. a prévia perde o pino"
 troca estilo.css \

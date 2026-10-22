@@ -138,6 +138,9 @@ secao('2. No painel: Aparência → Abertura');
   await p.evaluate(() => irPara('salao'));
   await p.waitForTimeout(400);
   await p.evaluate(() => trocarAbaSalao('aparencia'));
+  // Os ajustes finos moram em "Personalizar mais", recolhido: abre, como o
+  // dono faria para chegar neles.
+  await p.evaluate(() => { const d = document.getElementById('apAvancado'); if(d) d.open = true; });
   await p.waitForTimeout(800);
 
   const regua = () => p.evaluate(() => {
@@ -150,7 +153,7 @@ secao('2. No painel: Aparência → Abertura');
   });
   const r = await regua();
   igual('a seção, com os quatro efeitos, nascendo em "Sem abertura"', [r.titulo, r.efeito],
-    ['🎬Abertura', ['Sem abertura ●', 'Aparecer', 'Deslizar', 'Brilho']]);
+    ['🎬Animação de abertura', ['Sem abertura ●', 'Aparecer', 'Deslizar', 'Brilho']]);
   igual('sem efeito, tempo, fundo e nome ficam escondidos', r.opcoes, false);
 
   await p.click('#reguaIntroEfeito button:has-text("Deslizar")');

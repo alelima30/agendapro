@@ -94,6 +94,9 @@ async function painel(largura){
   await p.evaluate(() => irPara('salao'));
   await p.waitForTimeout(400);
   await p.evaluate(() => trocarAbaSalao('aparencia'));
+  // Os ajustes finos moram em "Personalizar mais", recolhido: abre, como o
+  // dono faria para chegar neles.
+  await p.evaluate(() => { const d = document.getElementById('apAvancado'); if(d) d.open = true; });
   await p.waitForTimeout(800);
   return { p, fechar: () => ctx.close() };
 }
@@ -220,19 +223,23 @@ await porCfg({ cor:'#1D4ED8', modo:'personalizado', cores:{ titulo:'#aa2244' } }
   const { p, fechar } = await painel(1280);
   const t = await p.evaluate(() => ({
     modos: [...document.querySelectorAll('#reguaModo button')].map(b => [b.textContent.trim(), b.classList.contains('on')]),
-    rotulos: [...document.querySelectorAll('#apMarca .rot')].map(r => r.textContent.trim()),
+    rotulos: [...document.querySelectorAll('#apBasico .rot')].map(r => r.textContent.trim()),
+    rotuloCores: (document.querySelector('#apModelos #temasProntos').previousElementSibling.previousElementSibling || {}).textContent,
     ultimoTema: [...document.querySelectorAll('#temasProntos button')].pop().textContent.trim(),
     texto: document.querySelector('.sub-tela[data-sub="aparencia"]').innerText,
   }));
-  igual('modo de exibição: dois, e o personalizado de antes aparece como Simples', t.modos,
-    [['Simples', true], ['Premium', false]]);
-  await p.locator('#reguaModo button', { hasText: 'Simples' }).click();
-  igual('tocar no Simples já aceso não vira mudança', [await p.evaluate(() => aparencia.modo), (await barra(p)).suja],
+  /* "Deixa numa forma que todos entendam": o que o botão FAZ, e não
+     "Simples" e "Premium" (Premium era também o nome de uma cor pronta). */
+  igual('o topo: dois, e o personalizado de antes aparece como "Só logo e nome"', t.modos,
+    [['Só logo e nome', true], ['Com foto grande', false]]);
+  await p.locator('#reguaModo button', { hasText: 'Só logo e nome' }).click();
+  igual('tocar no "Só logo e nome" já aceso não vira mudança', [await p.evaluate(() => aparencia.modo), (await barra(p)).suja],
     ['personalizado', false]);
-  igual('com acento, e "Só as cores prontas" no lugar de "Temas prontos"', t.rotulos,
-    ['Modo de exibição', 'Cor da marca', 'Só as cores prontas']);
+  igual('o passo 3 com nomes de gente, com acento', t.rotulos,
+    ['Como fica o topo da página', 'Cor da marca', 'Página clara ou escura', 'Tipo de letra do nome']);
+  igual('e as cores prontas junto dos modelos, dizendo o que fazem', (t.rotuloCores || '').trim(), 'Ou troque só as cores');
   igual('o botão que limpa as cores diz que limpa', t.ultimoTema, 'Limpar cores');
-  const semAcento = (t.texto.match(/\b(e'|so'|voce|exibicao|voc[eê]'|nao)\b/gi) || []);
+  const semAcento = (t.texto.match(/\b(e'|so'|voce|exibicao|pagina|voc[eê]'|nao)\b/gi) || []);
   igual('nenhum texto sem acento na tela', semAcento, []);
   await p.locator('#temasProntos button', { hasText: 'Limpar cores' }).click();
   igual('e Limpar cores limpa', await p.evaluate(() => aparencia.cores), {});

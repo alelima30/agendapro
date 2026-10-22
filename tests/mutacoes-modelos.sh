@@ -138,12 +138,11 @@ troca app.html \
   "class=\"modelo\"" \
   && rodar "qual está na prévia?"
 
-echo "15. sem entrada no índice"
+echo "15. os modelos vão parar dentro de Personalizar mais"
 troca app.html \
-  "        <button type=\"button\" onclick=\"irParaSecaoAp('apModelos')\">✨ Modelos prontos</button>
-" \
-  "" \
-  && rodar "o índice não leva aos modelos"
+  '<span class="ap-passo-n" aria-hidden="true">2</span>Escolha um modelo pronto' \
+  '<span class="ap-sec-ic" aria-hidden="true">✨</span>Modelos prontos' \
+  && rodar "o passo 2 perde o número e o nome"
 
 echo "16. os ícones da prévia somem a cada mudança"
 troca app.html \

@@ -95,6 +95,9 @@ async function painel(){
   await p.evaluate(() => irPara('salao'));
   await p.waitForTimeout(400);
   await p.evaluate(() => trocarAbaSalao('aparencia'));
+  // Os ajustes finos moram em "Personalizar mais", recolhido: abre, como o
+  // dono faria para chegar neles.
+  await p.evaluate(() => { const d = document.getElementById('apAvancado'); if(d) d.open = true; });
   await p.waitForTimeout(700);
   return { p, fechar: () => ctx.close() };
 }
@@ -164,13 +167,17 @@ secao('1 · O bloco do fundo, no celular');
     const tipo = document.getElementById('reguaFundoTipo');
     const letras = document.getElementById('reguaTema');
     return {
-      antes: !!(tipo.compareDocumentPosition(letras) & Node.DOCUMENT_POSITION_FOLLOWING),
+      // O claro/escuro mora no passo 3 do essencial, FORA do bloco do fundo —
+      // e logo abaixo dele, o atalho que abre o Fundo (cor, degradê, foto).
+      antes: !document.getElementById('apFundo').contains(letras)
+             && !!document.getElementById('apIrFundo')
+             && /outra cor de fundo/.test(document.getElementById('apIrFundo').parentElement.textContent),
       semBase: !/Base clara ou escura/i.test(aba.innerText),
       quadrado: document.querySelector('#corDoPapel input').value.toUpperCase(),
       frase: document.querySelector('#corDoPapel .cor-linha-txt span').textContent,
     };
   });
-  verdade('a primeira pergunta do fundo é o tipo, e as letras vêm depois', r.antes);
+  verdade('o claro/escuro não é pergunta do fundo, e ao lado dele há o atalho para escolher o fundo', r.antes);
   verdade('"Base clara ou escura" não existe mais na tela', r.semBase);
   /* ⚠ ERA AZUL NO PRINT. O quadrado mostrava a cor da marca para uma página
      bege — a única cor que ele estava tentando escolher, errada. */
@@ -290,9 +297,9 @@ secao('4 · A foto: quem nunca escolheu fica com ela, quem escolheu cor não');
   await porCfg({ fundo: FOTO });                       // sem fundoTipo
   verdade('foto antiga, sem escolha nenhuma: continua no link', (await pagina()).foto);
   let { p, fechar } = await painel();
-  igual('e o painel mostra "Imagem" aceso — o que a página faz',
+  igual('e o painel mostra "Foto" aceso — o que a página faz',
     await p.evaluate(() => document.querySelector('#reguaFundoTipo .on').textContent.trim()),
-    'Imagem');
+    'Foto');
   await fechar();
 
   /* Quem salvou com o painel anterior tem `cor` gravado junto com a foto: o

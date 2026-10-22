@@ -94,6 +94,9 @@ async function painel(){
   await p.evaluate(() => irPara('salao'));
   await p.waitForTimeout(400);
   await p.evaluate(() => trocarAbaSalao('aparencia'));
+  // Os ajustes finos moram em "Personalizar mais", recolhido: abre, como o
+  // dono faria para chegar neles.
+  await p.evaluate(() => { const d = document.getElementById('apAvancado'); if(d) d.open = true; });
   await p.waitForTimeout(700);
   return { p, fechar: () => ctx.close() };
 }
@@ -194,9 +197,9 @@ let antes, restoAntes;
   const { p, fechar } = await painel();
   const c = await controles(p);
   igual('o painel oferece os três estilos, com a borda marcada',
-    c.estilo, ['Com borda*', 'Sem moldura', 'Com assombreamento']);
+    c.estilo, ['Com contorno*', 'Sem contorno', 'Com sombra']);
   igual('e os controles da sombra ficam desligados', c.desligados, [true, true, true, true]);
-  verdade('dizendo como ligar', /Com assombreamento/.test(c.explica), c.explica);
+  verdade('dizendo como ligar', /Com sombra/.test(c.explica), c.explica);
   const prev = await naPrevia(p);
   verdade('a prévia mostra a borda também', prev.every(x => x.borda !== 'transparente'),
     JSON.stringify(prev));
@@ -209,7 +212,7 @@ let antes, restoAntes;
 secao('2. Sem moldura: só ícone e texto');
 {
   const { p, fechar } = await painel();
-  await tocar(p, 'reguaAtalhos', 'Sem moldura');
+  await tocar(p, 'reguaAtalhos', 'Sem contorno');
   const prev = await naPrevia(p);
   verdade('a prévia muda na hora, antes de salvar: sem fundo, sem borda, sem sombra',
     prev.every(x => x.fundo === 'transparente' && x.borda === 'transparente' && x.sombra === 'nenhuma'),
@@ -248,7 +251,7 @@ secao('3. Com assombreamento: sem borda, só a sombra');
 const K = 234 / 412;
 {
   const { p, fechar } = await painel();
-  await tocar(p, 'reguaAtalhos', 'Com assombreamento');
+  await tocar(p, 'reguaAtalhos', 'Com sombra');
   let c = await controles(p);
   igual('os controles da sombra ligam', c.desligados, [false, false, false, false]);
   igual('começando na intensidade Suave', c.intensidade, ['Nenhuma', 'Suave*', 'Média', 'Forte']);
@@ -318,7 +321,7 @@ const K = 234 / 412;
   const c = await controles(pn.p);
   igual('reabrindo o painel, tudo como foi salvo',
     [c.estilo[2], c.valores, c.cor, c.intensidade.some(x => x.endsWith('*'))],
-    ['Com assombreamento*', [20, 26, 12], '#7c3aed', false]);
+    ['Com sombra*', [20, 26, 12], '#7c3aed', false]);
   await tocar(pn.p, 'reguaSombra', 'Nenhuma');
   await salvar(pn.p);
   await pn.fechar();
@@ -380,7 +383,7 @@ secao('5. Voltar para "Com borda" devolve o desenho de antes');
 await porCfg({ atalhos:{ estilo:'limpo' } });
 {
   const { p, fechar } = await painel();
-  await tocar(p, 'reguaAtalhos', 'Com borda');
+  await tocar(p, 'reguaAtalhos', 'Com contorno');
   await salvar(p);
   await fechar();
   const pg = await pagina();
@@ -532,7 +535,7 @@ await porCfg({ atalhos:{ estilo:'limpo', moldura: MOLDURA } });
   const c = await pn.p.evaluate(() => ({ desligado: document.getElementById('atMoldura').disabled,
     ajuda: document.getElementById('atMolduraAjuda').textContent }));
   igual('e o painel desliga a cor da moldura, dizendo por quê',
-    c, { desligado: true, ajuda: 'só no estilo “Com borda”' });
+    c, { desligado: true, ajuda: 'só no estilo “Com contorno”' });
   await pn.fechar();
 }
 await porCfg({ atalhos:{ estilo:'borda', moldura:'url(x)' } });

@@ -175,6 +175,7 @@ const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 
     indice: [...document.querySelectorAll('.ap-indice button')].map(b => b.textContent.trim().replace(/^[^\p{L}]+/u, '')),
     chaves: Object.fromEntries([...document.querySelectorAll('.ap-sec')].map(s =>
       [s.id, [...s.querySelectorAll('.cor-linha[data-chave]')].map(x => x.dataset.chave)])),
+    avancadoFechado: !document.getElementById('apAvancado').open,
     quadrados: document.querySelectorAll('.ap-controles input[type="color"]').length,
     comHex: [...document.querySelectorAll('.ap-controles input[type="color"]')].filter(c => c._hex && c._hex.isConnected).length,
     hexIgual: [...document.querySelectorAll('.ap-controles input[type="color"]')]
@@ -186,33 +187,45 @@ const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 
       'reguaSlideForma', 'reguaSlide', 'reguaPreco']
       .map(id => [id, (document.getElementById(id) || {}).closest?.('.ap-sec')?.id || '(sumiu)'])),
   }));
-  // Os modelos prontos vêm primeiro: são o ponto de partida, o resto é ajuste.
-  // A nona, "Abertura", veio depois: o logo ao abrir o link (intro-link.test).
-  igual('as oito seções, na ordem, depois dos modelos prontos — e a Abertura no fim', t.secoes,
-    ['apModelos', 'apMarca', 'apFundo', 'apTextos', 'apIcones', 'apBordas', 'apGradientes', 'apBotoes', 'apCapa',
+  /* "Não está confuso na hora de personalizar?" O essencial em três passos
+     no topo — fotos, modelo, estilo/cor/letra —, e o resto por peça da
+     página, em "Personalizar mais", recolhido. */
+  igual('os três passos do essencial, e depois as seções de Personalizar mais', t.secoes,
+    ['apIdentidade', 'apModelos', 'apBasico', 'apCapa', 'apFundo', 'apTextos', 'apBotoes', 'apIcones', 'apBordas',
      'apAbertura']);
-  igual('com os nomes do pedido', t.titulos,
-    ['Modelos prontos', 'Marca', 'Fundo', 'Textos', 'Ícones', 'Bordas', 'Gradientes', 'Botões e atalhos', 'Capa e fotos',
-     'Abertura']);
-  igual('e o índice do topo leva a cada uma', t.indice, t.titulos);
+  igual('com nomes de gente', t.titulos,
+    ['Identidade visual: logo e fotos', 'Escolha um modelo pronto', 'Estilo, cor e letra', 'Topo e capa', 'Fundo',
+     'Cores das letras', 'Botões e atalhos', 'Ícones', 'Bordas e molduras', 'Animação de abertura']);
+  igual('o índice de Personalizar mais leva a cada seção dele', t.indice, t.titulos.slice(3));
+  verdade('Personalizar mais começa FECHADO', t.avancadoFechado);
   for(const [sec, chaves] of Object.entries(ESPERADO))
     igual(`${sec}: só as cores dela`, t.chaves[sec], chaves);
-  igual('Modelos, Marca, Gradientes e Capa não têm cor solta misturada',
-    [t.chaves.apModelos, t.chaves.apMarca, t.chaves.apGradientes, t.chaves.apCapa], [[], [], [], []]);
+  igual('Modelos, o passo de estilo e o Topo não têm cor solta misturada',
+    [t.chaves.apModelos, t.chaves.apBasico, t.chaves.apCapa], [[], [], []]);
   verdade('todo quadrado de cor da tela tem o campo HEX, com o código dele',
     t.quadrados >= 20 && t.comHex === t.quadrados && t.hexIgual, JSON.stringify([t.quadrados, t.comHex, t.hexIgual]));
   igual('nada sumiu: cada controle de antes, na seção dele', t.onde, {
-    reguaModo:'apMarca', paletaCores:'apMarca', temasProntos:'apMarca', reguaFundoTipo:'apFundo', fxVeu:'apFundo',
-    reguaTema:'apTextos', reguaLetra:'apTextos', reguaLogoBorda:'apBordas', reguaMoldura:'apBordas',
+    // O modo, a cor, o claro/escuro e a letra: o passo 3. As cores prontas,
+    // junto dos modelos — um lugar só para "trocar tudo de uma vez".
+    reguaModo:'apBasico', paletaCores:'apBasico', temasProntos:'apModelos', reguaFundoTipo:'apFundo', fxVeu:'apFundo',
+    reguaTema:'apBasico', reguaLetra:'apBasico', reguaLogoBorda:'apBordas', reguaMoldura:'apBordas',
     // As cores do gradiente do fundo moram em Fundo, ao lado do tipo de fundo
     // (pedido: "o fundo gradiente tem que estar perto do fundo normal").
-    gradA:'apFundo', gradB:'apFundo', reguaBrilho:'apGradientes', reguaFitaMetal:'apGradientes',
-    fitaCor:'apGradientes', reguaAtalhos:'apBotoes', atCor:'apBotoes', fxFoco:'apCapa', reguaCapaForma:'apCapa',
+    // O brilho do Agendar e a fita do carrinho, junto da cor do botão (eram
+    // em Gradientes, longe dela).
+    gradA:'apFundo', gradB:'apFundo', reguaBrilho:'apBotoes', reguaFitaMetal:'apBotoes',
+    fitaCor:'apBotoes', reguaAtalhos:'apBotoes', atCor:'apBotoes', fxFoco:'apCapa', reguaCapaForma:'apCapa',
     reguaLogoForma:'apCapa', reguaSlideForma:'apCapa', reguaSlide:'apCapa', reguaPreco:'apCapa' });
+  // Como o dono faria: abre "Personalizar mais" e toca no índice dele.
+  await p.click('#apAvancado > summary');
+  await p.waitForTimeout(300);
+  verdade('tocar em "Personalizar mais" abre o bloco, com o índice à vista',
+    await p.evaluate(() => document.getElementById('apAvancado').open) && await p.isVisible('.ap-indice'));
   await p.locator('.ap-indice button', { hasText: 'Bordas' }).click();
   await p.waitForTimeout(900);
   const topo = await p.evaluate(() => Math.round(document.getElementById('apBordas').getBoundingClientRect().top));
-  verdade('tocar em "Bordas" no índice leva à seção', topo >= 0 && topo < 160, 'topo em ' + topo);
+  verdade('e tocar em "Bordas" no índice leva à seção',
+    topo >= 0 && topo < 160 && await p.evaluate(() => document.getElementById('apAvancado').open), 'topo em ' + topo);
 
   /* ══════════════════════════════════════════════════════════════════════
      2 — O CAMPO HEX
@@ -403,23 +416,22 @@ await porCfg({ tema:'claro', fundoTipo:'solida', cores: VELHAS, gradiente:'#1111
 /* ══════════════════════════════════════════════════════════════════════════
    6 — O GRADIENTE
    ══════════════════════════════════════════════════════════════════════════ */
-secao('6. O gradiente continua funcionando, e diz onde está aplicado');
+secao('6. O gradiente continua funcionando, pela régua do Fundo');
+/* A seção Gradientes saiu na reorganização: o brilho e a fita foram para
+   Botões, e o degradê do fundo sempre se escolheu na régua do Fundo — que é
+   o que este bloco usa agora, como o dono faria. */
 await porCfg({ tema:'claro', fundoTipo:'solida' });
 {
   const { p, fechar } = await painel();
-  let g = await p.evaluate(() => ({ txt: document.getElementById('gradAplicado').textContent,
-    usar: getComputedStyle(document.getElementById('gradUsar')).display }));
-  verdade('com cor sólida, Gradientes diz que não está em uso e oferece usar',
-    /Não está em uso/.test(g.txt) && g.usar !== 'none', JSON.stringify(g));
-  await p.locator('#gradUsar').click();
+  await p.click('#apAvancado > summary');
   await p.waitForTimeout(300);
-  g = await p.evaluate(() => ({ txt: document.getElementById('gradAplicado').textContent,
-    usar: getComputedStyle(document.getElementById('gradUsar')).display, tipo: aparencia.fundoTipo,
+  await p.locator('#reguaFundoTipo button', { hasText: 'Degradê' }).click();
+  await p.waitForTimeout(300);
+  const g = await p.evaluate(() => ({ tipo: aparencia.fundoTipo,
     campos: getComputedStyle(document.getElementById('gradienteCampos')).display,
     fundoRegua: [...document.querySelectorAll('#reguaFundoTipo button.on')].map(b => b.textContent.trim()) }));
-  verdade('"Usar" liga o gradiente no fundo — a mesma escolha da régua do Fundo, e não uma segunda',
-    g.tipo === 'gradiente' && /fundo da página/.test(g.txt) && g.usar === 'none' && g.campos !== 'none'
-      && g.fundoRegua[0] === 'Gradiente', JSON.stringify(g));
+  verdade('"Degradê" na régua do Fundo liga o degradê e mostra as cores dele ali mesmo',
+    g.tipo === 'gradiente' && g.campos !== 'none' && g.fundoRegua[0] === 'Degradê', JSON.stringify(g));
   const a = await p.evaluateHandle(() => document.getElementById('gradA')._hex);
   await a.asElement().fill(''); await a.asElement().type('#0f172a');
   const b = await p.evaluateHandle(() => document.getElementById('gradB')._hex);

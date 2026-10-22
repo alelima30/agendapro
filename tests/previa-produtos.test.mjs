@@ -110,6 +110,9 @@ async function painel(){
   await p.evaluate(() => irPara('salao'));
   await p.waitForTimeout(400);
   await p.evaluate(() => trocarAbaSalao('aparencia'));
+  // Os ajustes finos moram em "Personalizar mais", recolhido: abre, como o
+  // dono faria para chegar neles.
+  await p.evaluate(() => { const d = document.getElementById('apAvancado'); if(d) d.open = true; });
   await p.waitForTimeout(800);
   return { p, fechar: () => ctx.close() };
 }
