@@ -222,7 +222,8 @@ duas linhas a mais no fim: **💰 Valor** e **💳 Pagamento** — sempre as **d
 >
 > O `agendapro_confirmacao_pagamento` foi passado pela Meta para Marketing
 > (os outros três entraram como Utilidade e ficam como estão). Por isso a
-> confirmação com valor é a **`agendapro_confirmacao_valor`**, com o texto
+> confirmação com valor é a **`agendapro_confirmacao_valor1`** (com o "1":
+> é o nome com que ela foi aprovada na Meta), com o texto
 > no formato dos que passaram — sem "!" e fechando com "Aviso automático do
 > sistema de agendamento." O `agendapro_confirmacao_pagamento` pode ser
 > apagado na Meta: o sistema não o usa.
@@ -245,7 +246,7 @@ duas linhas a mais no fim: **💰 Valor** e **💳 Pagamento** — sempre as **d
 > modelo que não existe (erro 132001), e não chegar. Os de cima podem ficar
 > cadastrados: desligando, o sistema volta para eles na hora.
 
-## 1b. `agendapro_confirmacao_valor`
+## 1b. `agendapro_confirmacao_valor1`
 
 ```
 Olá, {{1}}. Seu agendamento está confirmado.

@@ -2525,7 +2525,7 @@ returns text language sql stable set search_path = public as $$
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
                and public.mensagens_com_pagamento()
-          then case when p_tipo = 'confirmacao' then '_valor' else '_pagamento' end
+          then case when p_tipo = 'confirmacao' then '_valor1' else '_pagamento' end
           else '' end
 $$;
 create or replace function public.variaveis_agendamento(
@@ -5515,7 +5515,7 @@ returns text language sql stable set search_path = public as $$
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
                and public.mensagens_com_pagamento()
-          then case when p_tipo = 'confirmacao' then '_valor' else '_pagamento' end
+          then case when p_tipo = 'confirmacao' then '_valor1' else '_pagamento' end
           else '' end
 $$;
 create or replace function public.pode_enviar_tipo(p_salao uuid, p_tipo text)

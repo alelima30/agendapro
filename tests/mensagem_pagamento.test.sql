@@ -87,7 +87,7 @@ select set_config('request.jwt.claim.sub', '', false);
 \echo ''
 \echo 'Ligado'
 select t_verdade('3. a confirmação que já estava na fila passa ao modelo com pagamento',
-  (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).modelo = 'agendapro_confirmacao_valor');
+  (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).modelo = 'agendapro_confirmacao_valor1');
 select t_verdade('   com 8 variáveis: as 6 de sempre, o valor (R$ 60,00) e a forma (Pix)',
   jsonb_array_length((linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis) = 8
   and (linha('6e500000-0000-0000-0000-000000000001', 'confirmacao')).variaveis->>6 = 'R$ 60,00'

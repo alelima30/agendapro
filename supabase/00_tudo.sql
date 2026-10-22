@@ -9272,9 +9272,10 @@ returns text language sql stable set search_path = public as $$
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
                and public.mensagens_com_pagamento()
-          -- A confirmação se chama _valor: o _pagamento dela a Meta passou
-          -- para Marketing, e categoria não se troca depois (MODELOS.md).
-          then case when p_tipo = 'confirmacao' then '_valor' else '_pagamento' end
+          -- A confirmação se chama _valor1: o _pagamento dela a Meta passou
+          -- para Marketing, e categoria não se troca depois (MODELOS.md). O
+          -- "1" é o nome com que ela foi aprovada na Meta.
+          then case when p_tipo = 'confirmacao' then '_valor1' else '_pagamento' end
           else '' end
 $$;
 
@@ -15449,9 +15450,10 @@ returns text language sql stable set search_path = public as $$
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
                and public.mensagens_com_pagamento()
-          -- A confirmação se chama _valor: o _pagamento dela a Meta passou
-          -- para Marketing, e categoria não se troca depois (MODELOS.md).
-          then case when p_tipo = 'confirmacao' then '_valor' else '_pagamento' end
+          -- A confirmação se chama _valor1: o _pagamento dela a Meta passou
+          -- para Marketing, e categoria não se troca depois (MODELOS.md). O
+          -- "1" é o nome com que ela foi aprovada na Meta.
+          then case when p_tipo = 'confirmacao' then '_valor1' else '_pagamento' end
           else '' end
 $$;
 

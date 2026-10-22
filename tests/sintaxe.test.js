@@ -443,8 +443,8 @@ console.log('\nOs modelos do WhatsApp combinam com o que o banco preenche');
     'o lembrete para o salão acrescenta o valor e a forma de pagamento no fim');
   for(const { tipo, modelo } of nomes.filter(x =>
         ['confirmacao', 'lembrete', 'novo', 'lembrete_equipe'].includes(x.tipo))){
-    // A confirmação é _valor (o _pagamento dela entrou como Marketing na Meta).
-    const sufixo = tipo === 'confirmacao' ? '_valor' : '_pagamento';
+    // A confirmação é _valor1 (o _pagamento dela entrou como Marketing na Meta).
+    const sufixo = tipo === 'confirmacao' ? '_valor1' : '_pagamento';
     const corpo = blocoDe(modelo + sufixo);
     if(!corpo){ dizer(false, `${modelo}${sufixo}: tem seção no MODELOS.md`); continue; }
     const distintos = [...new Set([...corpo.matchAll(/\{\{(\d+)\}\}/g)].map(m => +m[1]))]
