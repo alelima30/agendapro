@@ -26,7 +26,7 @@
    verdade e é o que o painel mostra.
 
    ── QUEM CHAMA ────────────────────────────────────────────────────────────
-   O `pg_cron`, de minuto em minuto, pela SQL do README ao lado. Não há laço
+   O `pg_cron`, a cada 15 segundos, pela SQL do README ao lado. Não há laço
    infinito aqui: função de borda que roda para sempre é função que morre no
    meio e leva a fila junto.
 
@@ -46,7 +46,10 @@ const SEGREDO      = Deno.env.get('CRON_SEGREDO');
 
 // Teto de tempo por chamada, abaixo do limite da plataforma: parar sozinho
 // antes de ser derrubado deixa a fila num estado que a próxima volta entende.
-const TETO_MS = 40_000;
+// E abaixo dos 15 segundos entre uma volta e outra: duas voltas ao mesmo
+// tempo mandariam o dobro por segundo, e a cadência de baixo deixaria de
+// valer justamente no lote grande dos lembretes da manhã.
+const TETO_MS = 12_000;
 const ENTRE_MS = 900;
 
 type Alvo = { id: string; salao_id: string; destino: string;

@@ -56,7 +56,9 @@ dentro — e sem `CRON_SEGREDO` configurado a função recusa todo mundo.
 
 ## 3. O agendador
 
-O worker não tem laço infinito: alguém precisa acordá-lo de minuto em minuto.
+O worker não tem laço infinito: alguém precisa acordá-lo a cada 15 segundos
+(era de minuto em minuto, e a confirmação chegava a esperar um minuto inteiro
+na fila antes de sair).
 É o `pg_cron`, que vem com o Supabase e precisa ser **ligado uma vez**:
 
 **Database → Extensions → `pg_cron`** (e `pg_net`, para a chamada HTTP).
@@ -66,7 +68,7 @@ Depois, no SQL Editor, uma vez:
 ```sql
 select cron.schedule(
   'agendapro-notificacoes',
-  '* * * * *',
+  '15 seconds',
   $$
   select net.http_post(
     url     := 'https://SEU-PROJETO.supabase.co/functions/v1/enviar-notificacoes',

@@ -3411,6 +3411,10 @@ begin
        and n.quando <= now()
        and (n.proxima_em is null or n.proxima_em <= now())
        and public.pode_enviar_tipo(n.salao_id, n.tipo)
+       and not (n.agendamento_id is not null
+                and n.quando > now() - interval '1 minute'
+                and not exists (select 1 from public.agendamento_servicos s
+                                 where s.agendamento_id = n.agendamento_id))
      order by n.quando
      limit greatest(1, p_lote)
      for update skip locked)
