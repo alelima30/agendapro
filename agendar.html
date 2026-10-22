@@ -3848,6 +3848,7 @@ function desenharFormaPagamento(){
                 onclick="escolherFormaPagamento('${k}')">
           <span data-ico="${ico}"></span><span>${rot}</span></button>`).join('')}</div>
       ${pag && pag.obs ? `<p class="cf-pag-obs">${escapar(pag.obs)}</p>` : ''}
+      ${escolha.formaPagamento === 'pix' ? linhaDaChavePix(pag) : ''}
     </div>`;
   if(window.aplicarIcones) aplicarIcones(alvo);
 }
@@ -4979,6 +4980,7 @@ function folhaPagamentos(){
     + (lista.length ? `<div class="folha-lista">${lista.map(([, rot, ico]) => `
         <div class="folha-item"><span class="folha-item-ic" data-ico="${ico}"></span>
           <b>${rot}</b></div>`).join('')}</div>` : '')
+    + linhaDaChavePix(pag)
     + (pag.obs ? `<div class="folha-nota"><span data-ico="info"></span>
          <p>${escapar(pag.obs)}</p></div>` : '');
 }
@@ -7218,6 +7220,23 @@ async function instalarSalao(){
 
 /* Para colar no Chrome, quando o navegador de dentro do WhatsApp não deixa
    abrir fora. */
+/* A chave Pix do salão, com o botão de copiar: na janela de Pagamentos e
+   quando a cliente escolhe Pix ao marcar. Sem chave cadastrada, nada. */
+function linhaDaChavePix(pag){
+  if(!pag || !pag.pix || !(pag.formas || []).includes('pix')) return '';
+  return `<div class="folha-lista folha-pix"><div class="folha-item">
+      <span class="folha-item-ic" data-ico="pix"></span>
+      <span class="folha-item-txt"><b>Chave Pix</b><span>${escapar(pag.pix)}</span></span>
+      <button type="button" class="folha-item-acao folha-copiar" onclick="copiarPix(this)">Copiar</button>
+    </div></div>`;
+}
+async function copiarPix(bt){
+  const chave = (pagamentosDoSalao() || {}).pix || '';
+  if(!chave) return;
+  try{ await navigator.clipboard.writeText(chave); bt.textContent = 'Copiada'; }
+  catch(e){ prompt('Copie a chave Pix:', chave); }
+}
+
 async function copiarLinkDoSalao(bt){
   const url = linkDoSalao();
   try{ await navigator.clipboard.writeText(url); bt.textContent = 'Link copiado'; }

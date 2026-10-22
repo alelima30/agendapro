@@ -77,7 +77,8 @@ async function montarSalao(nome, cfgExtra){
     confirmaAuto:true, usaComanda:true }, cfgExtra) });
   return { dona, SALAO, SLUG, prof, corte };
 }
-const A = await montarSalao('pix', { pagamentos: { formas: ['pix', 'credito'], obs: 'Parcelamos em até 3x' } });
+const A = await montarSalao('pix', { pagamentos: { formas: ['pix', 'credito'], obs: 'Parcelamos em até 3x',
+                                                      pix: 'pix@studiopix.com.br' } });
 const B = await montarSalao('livre', {});
 
 const nav = await chromium.launch({ executablePath: CHROMIUM });
@@ -119,6 +120,17 @@ const TEL_ANA = tel('71');
 let AG_ANA = null;
 {
   const { ctx, p } = await abrirLink(A.SLUG);
+  await p.click('#capaInfo .recurso[data-recurso="pagamentos"]');
+  await p.waitForTimeout(600);
+  const folha = await p.evaluate(() => {
+    const f = document.querySelector('.folha-pix');
+    return f ? f.innerText.replace(/\s+/g, ' ').trim() : '';
+  });
+  verdade('a janela "Formas de pagamento" da capa mostra a chave Pix, para copiar',
+    /Chave Pix/.test(folha) && /pix@studiopix\.com\.br/.test(folha) && /Copiar/.test(folha), folha);
+  await p.reload();
+  await p.waitForFunction(() => typeof tela !== 'undefined' && tela === 'capa', null, { timeout: 15000 });
+  await p.waitForTimeout(700);
   await ateConfirmar(p, 'Ana Lima', TEL_ANA, 3);
   igual('a confirmação pergunta "Como você vai pagar?" só com as formas do salão, e a observação dele',
     await caixa(p), { titulo: 'Como você vai pagar?', sub: 'O pagamento é feito no salão, no dia.',
@@ -131,7 +143,19 @@ let AG_ANA = null;
     r.tela === 'confirmar' && /Escolha como você vai pagar/.test(r.aviso), JSON.stringify(r));
   igual('e nada foi para o banco', (await A.dona.lista('agendamentos', { salaoId: A.SALAO })).length, antes);
 
+  verdade('antes de escolher Pix, a chave não aparece na confirmação',
+    !(await p.evaluate(() => !!document.querySelector('#cfPagamento .folha-pix'))));
   await p.click('#cfPagamento .cf-pag-op[data-forma="pix"]'); await p.waitForTimeout(300);
+  /* "A cliente escolhe Pix e não tem onde ver a chave": escolheu, a chave do
+     salão aparece ali mesmo, com o botão de copiar. */
+  const chave = await p.evaluate(() => {
+    const c = document.querySelector('#cfPagamento .folha-pix');
+    return c ? { texto: c.innerText.replace(/\s+/g, ' ').trim(),
+                 copiar: !!c.querySelector('button.folha-copiar') } : null;
+  });
+  verdade('escolheu Pix: a chave do salão aparece, com o botão Copiar',
+    chave && /Chave Pix/.test(chave.texto) && /pix@studiopix\.com\.br/.test(chave.texto) && chave.copiar,
+    JSON.stringify(chave));
   const escolhida = await p.evaluate(() => ({
     on: [...document.querySelectorAll('#cfPagamento .cf-pag-op.on')].map(b => b.dataset.forma),
     aviso: document.getElementById('avisoConfirmar').innerText.trim(),

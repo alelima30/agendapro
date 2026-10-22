@@ -2065,7 +2065,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.b68219';
+const VERSAO_APP = 'v9.ccf805';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -9009,6 +9009,17 @@ function pintarSalao(){
         <input id="cPagObs" maxlength="200"
                value="${escapar(((sl.cfg || {}).pagamentos || {}).obs || '')}"
                placeholder="Ex.: parcelamos em até 3x no cartão"></div>
+      <!-- A CHAVE PIX. Aparece com Pix marcado; no link vai com um botao
+           Copiar. Fica a mostra para quem abrir a pagina, dai o conselho de
+           nao usar o CPF. (Sem crase: template literal.) -->
+      <div class="campo" id="campoPagPix" style="margin-top:10px"><label for="cPagPix">Chave Pix
+          <span class="opcional">opcional</span></label>
+        <input id="cPagPix" maxlength="77" autocomplete="off"
+               value="${escapar(((sl.cfg || {}).pagamentos || {}).pix || '')}"
+               placeholder="CNPJ, e-mail, telefone ou chave aleatória">
+        <p class="ajuda" style="margin-top:5px">Aparece no link, com um botão para a
+          cliente copiar. Ela fica à mostra para quem abrir a página: prefira o
+          CNPJ, o e-mail ou a chave aleatória, e não o seu CPF.</p></div>
 
       <div class="linha-fina" style="margin:18px 0"></div>
       <h3 class="secao">Sobre o estabelecimento</h3>
@@ -13648,6 +13659,9 @@ function pintarPagamentosEditor(){
             aria-pressed="${pagEscolhidas.includes(k)}" onclick="alternarPagamento('${k}')">
       <span data-ico="${ico}" class="ic-pequeno"></span>${rot}</button>`).join('');
   if(window.aplicarIcones) aplicarIcones(alvo);
+  // A chave Pix só faz sentido com Pix marcado.
+  const campoPix = document.getElementById('campoPagPix');
+  if(campoPix) campoPix.style.display = pagEscolhidas.includes('pix') ? '' : 'none';
 }
 function alternarPagamento(k){
   pagEscolhidas = pagEscolhidas.includes(k)
@@ -13768,7 +13782,7 @@ function salvarCadastroSalao(){
        o que sai quando todos os dias estão fechados. */
     ...(funcParaGravar() !== undefined ? { funcionamento: funcParaGravar() } : {}),
     pagamentos: window.Funcionamento && pagEscolhidas !== null
-      ? Funcionamento.pagamentos({ formas: pagEscolhidas, obs: v('cPagObs') })
+      ? Funcionamento.pagamentos({ formas: pagEscolhidas, obs: v('cPagObs'), pix: v('cPagPix') })
       : (sl.cfg || {}).pagamentos || null,
     sobre: v('cSobre').slice(0, 600) || null,
     instagram: instagramLimpo(v('cInsta')) || null,
@@ -16293,7 +16307,7 @@ const PD_PASSOS = [
   { titulo:'Sua equipe',
     sub:'Quem atende no salão. Cada pessoa ganha uma coluna na agenda, e '
       + 'começa com o horário que você acabou de definir.',
-    desenhar: pdDesenhar5 },
+    desenhar: pdDesenhar5, guardar: pdGuardar5 },
   { titulo:'Você vende produtos?',
     sub:'Shampoo, pomada, esmalte — o que sai na comanda junto com o '
       + 'serviço. Se não vende, é só dizer que não.',
@@ -16980,7 +16994,9 @@ async function pdEquipeAMao(){
     id: id(), salaoId: salaoAtual, nome,
     comissaoPct: 0, comissaoFixa: null,
     cor: CORES_EQUIPE[eq.length % CORES_EQUIPE.length],
-    ativo: true, telefone: null, notifNovo: true, notifResumo: false,
+    ativo: true, notifNovo: true, notifResumo: false,
+    telefone: (document.getElementById('pdEqZap') || {}).value
+      ? document.getElementById('pdEqZap').value.trim() : null,
     foto: null,
     // Nasce com o horário do salão, do passo 2. Profissional sem jornada não
     // tem coluna na agenda — seria um cadastro que não atende ninguém.
@@ -17007,9 +17023,15 @@ async function pdTirarDaEquipe(pid){
 function pdDesenhar5(){
   const eq = doSalao(bd.profissionais);
   const quantos = d => (d ? d.length : 0);
+  /* ⚠ O WHATSAPP DE CADA UM. Sem número, a pessoa não recebe o aviso de
+     horário novo nem o lembrete do salão — e o passo pedia só o nome: num
+     salão recém-criado, essas mensagens não saíam para ninguém. O do dono
+     já vem com o número do cadastro dele; os outros, em branco. Opcional. */
   const linhas = eq.map(p => {
     const dias = PD_ORDEM_DIAS.filter(d => quantos((p.jornada || {})[d]));
+    const zap = p.telefone || pdZapDoDono(p);
     return `
+      <div class="pd-membro">
       <div class="pd-sug on" style="cursor:default">
         <span class="pd-mais" style="color:${escapar(p.cor || '#2563EB')}">●</span>
         <span class="pd-nome">${escapar(p.nome)}</span>
@@ -17018,6 +17040,11 @@ function pdDesenhar5(){
           : 'sem horário'}</span>
         <button type="button" class="btn btn-peq"
                 onclick="pdTirarDaEquipe('${p.id}')">Tirar</button>
+      </div>
+      <input class="pd-zap" data-prof="${p.id}" inputmode="tel" autocomplete="off"
+             value="${escapar(zap ? telefoneNaTela(zap) : '')}"
+             placeholder="WhatsApp de ${escapar(p.nome.split(' ')[0])} (opcional)"
+             aria-label="WhatsApp de ${escapar(p.nome)}">
       </div>`;
   }).join('');
 
@@ -17033,12 +17060,43 @@ function pdDesenhar5(){
     <div class="pd-faixa">
       <input id="pdEqNome" placeholder="Nome de quem atende"
              style="flex:1;min-width:170px" aria-label="Nome de quem atende">
+      <input id="pdEqZap" placeholder="WhatsApp (opcional)" inputmode="tel" autocomplete="off"
+             style="flex:1;min-width:150px" aria-label="WhatsApp de quem atende">
       <button type="button" class="btn btn-peq" onclick="pdEquipeAMao()"
         >Adicionar</button>
     </div>
-    <p class="ajuda" style="margin-top:12px">Se você atende sozinho, cadastre
-      só o seu nome — a agenda fica com uma coluna só. Foto, comissão e
+    <p class="ajuda" style="margin-top:12px">O WhatsApp é para cada pessoa
+      receber o aviso de horário novo e o lembrete. Se você atende sozinho,
+      cadastre só o seu nome — a agenda fica com uma coluna só. Foto, comissão e
       horário próprio ficam na aba Equipe.</p>`;
+}
+
+/* O número que o dono deu no cadastro, para sugerir na linha DELE. */
+function pdZapDoDono(p){
+  const eu = (window.Dados && Dados.sessao && Dados.sessao()) || {};
+  if(!p || !eu.usuarioId || p.perfilId !== eu.usuarioId) return '';
+  const perfil = (bd.perfis || []).find(x => x.id === eu.usuarioId);
+  return (perfil && perfil.telefone) || '';
+}
+
+/* Grava o WhatsApp de cada um ao seguir. Número curto demais segura o passo
+   com o nome de quem acertar; em branco é "sem aviso", e vale. */
+function pdGuardar5(){
+  let mudou = false;
+  for(const el of document.querySelectorAll('.pd-zap')){
+    const p = acharProf(el.dataset.prof);
+    if(!p) continue;
+    const digitos = String(el.value || '').replace(/\D/g, '');
+    if(digitos && digitos.length < 10){
+      alert('Confira o WhatsApp de ' + p.nome + ': precisa do DDD e do número.');
+      el.focus();
+      return false;
+    }
+    const novo = digitos ? el.value.trim() : null;
+    if(String(p.telefone || '').replace(/\D/g, '') !== digitos){ p.telefone = novo; mudou = true; }
+  }
+  if(mudou) salvar();
+  return true;
 }
 
 /* ── Passo 6 · os produtos ───────────────────────────────────────────────── */
@@ -17236,6 +17294,13 @@ function pdDesenharPagamento(){
       <input id="pdPagObs" maxlength="200" value="${escapar(pag.obs || '')}"
              placeholder="Parcelamos em até 3x no crédito">
     </div>
+    <div class="campo" id="pdCampoPix" style="${formas.includes('pix') ? '' : 'display:none'}">
+      <label for="pdPagPix">Chave Pix <span class="opcional">opcional</span></label>
+      <input id="pdPagPix" maxlength="77" autocomplete="off" value="${escapar(pag.pix || '')}"
+             placeholder="CNPJ, e-mail, telefone ou chave aleatória">
+      <span class="ajuda">A cliente vê e copia no link. Prefira o CNPJ, o e-mail
+        ou a chave aleatória, e não o seu CPF.</span>
+    </div>
     <p class="ajuda">O pagamento continua sendo no salão, no dia — isto é só
       para a cliente dizer como vai pagar, e você se preparar. Sem nenhuma
       marcada, o link mostra as quatro e a escolha fica opcional.</p>`;
@@ -17251,12 +17316,15 @@ function pdVirarPagamento(k, bt){
     const marca = bt.querySelector('.pd-marca');
     if(marca) marca.textContent = on ? '✓' : '';
   }
+  const campoPix = document.getElementById('pdCampoPix');
+  if(campoPix) campoPix.style.display = pdPagamentos.includes('pix') ? '' : 'none';
 }
 function pdGuardarPagamento(){
   const sl = acharSalao(salaoAtual);
   const obs = (document.getElementById('pdPagObs') || {}).value || '';
+  const pix = (document.getElementById('pdPagPix') || {}).value || '';
   sl.cfg = Object.assign({}, sl.cfg, {
-    pagamentos: Funcionamento.pagamentos({ formas: pdFormasAtuais(), obs }),
+    pagamentos: Funcionamento.pagamentos({ formas: pdFormasAtuais(), obs, pix }),
   });
   // Meu negócio relê do salão na próxima vez, em vez de mostrar o rascunho dele.
   pagEscolhidas = null;

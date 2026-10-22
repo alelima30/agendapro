@@ -3931,6 +3931,10 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .pd-sug .pd-det{ font-size:13px; color:var(--txt2); white-space:nowrap }
 .pd-sug .pd-mais{ font-size:19px; line-height:1; color:var(--marca) }
 .pd-sug.on .pd-mais{ color:var(--ok) }
+/* A equipe no passo a passo: o nome em cima, o WhatsApp de cada um logo embaixo. */
+.pd-membro{ margin-bottom:12px }
+.pd-membro .pd-sug{ margin-bottom:6px }
+.pd-zap{ width:100% }
 
 /* ── Horário de atendimento ─────────────────────────────────────────────── */
 .pd-dia{
@@ -4326,6 +4330,11 @@ body.com-folha{ overflow:hidden }
 .folha-item-txt{ flex:1; min-width:0; display:flex; flex-direction:column }
 .folha-item-txt span{ font-size:13px; color:var(--txt3); overflow-wrap:anywhere }
 .folha-item-acao{ font-size:13px; font-weight:700; color:var(--ac-600); flex:none }
+/* A chave Pix no link: a mesma linha das outras, com um botão de copiar. */
+.folha-pix{ margin-top:12px }
+.folha-copiar{ background:none; border:0; padding:6px 2px; cursor:pointer; font:inherit;
+  font-size:13px; font-weight:700; color:var(--ac-600) }
+.cf-pag .folha-pix{ margin-top:10px }
 
 @media (prefers-reduced-motion: reduce){
   .recurso, .status-casa, .folha, .folha-fundo{ transition:none }

@@ -231,7 +231,12 @@ function pagamentos(cru){
   const formas = (Array.isArray(cru.formas) ? cru.formas : [])
     .map(String).filter((f, i, a) => validas.includes(f) && a.indexOf(f) === i);
   const obs = String(cru.obs || '').trim().slice(0, 200);
-  return (formas.length || obs) ? { formas, obs } : null;
+  /* A chave Pix do salão, para a cliente copiar no link. Só com Pix marcado,
+     e curta: a aleatória tem 36 caracteres, e telefone, e-mail, CPF e CNPJ
+     cabem em 77 (o teto do Banco Central). Sem chave, o formato é o de
+     sempre — quem já gravou não vê diferença. */
+  const pix = formas.includes('pix') ? String(cru.pix || '').trim().slice(0, 77) : '';
+  return (formas.length || obs) ? Object.assign({ formas, obs }, pix ? { pix } : {}) : null;
 }
 
 global.Funcionamento = { ORDEM, NOMES, NA_FRASE, PAGAMENTOS, minutos, hhmm,

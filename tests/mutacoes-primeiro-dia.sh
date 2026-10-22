@@ -71,7 +71,7 @@ troca app.html \
 
 echo "3. pagamento: as formas não são gravadas"
 troca app.html \
-  "    pagamentos: Funcionamento.pagamentos({ formas: pdFormasAtuais(), obs })," \
+  "    pagamentos: Funcionamento.pagamentos({ formas: pdFormasAtuais(), obs, pix })," \
   "    pagamentos: null," \
   && rodar "o link não pergunta como ela vai pagar"
 
