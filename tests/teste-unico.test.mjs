@@ -62,7 +62,11 @@ const a = await cadastrar({ nome: 'Rita Moraes', email: EMAIL, salao: 'Studio Ri
 verdade('o quadro diz Teste grátis, 7 dias, até quando — e sem cobrança',
   /Teste grátis/.test(a.quadro) && /7 dias/.test(a.quadro) && /\d{2}\/\d{2}\/\d{4}/.test(a.quadro) && /sem cobrança/i.test(a.quadro),
   a.quadro);
-const esperado = new Date(Date.now() + 7 * 864e5).toLocaleDateString('pt-BR');
+/* No dia do SALÃO, como o criar_salao() grava (03_onboarding). Com o dia do
+   servidor (UTC), o teste reprovava das 21h à meia-noite de Brasília: o
+   banco dizia 28/10 — certo para quem está no Brasil — e o teste esperava 29. */
+const esperado = new Date(Date.now() + 7 * 864e5)
+  .toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 verdade('com a data que o banco gravou (hoje + 7)', a.quadro.includes(esperado), a.quadro);
 verdade('sem erro de JavaScript', a.p.erros.length === 0, a.p.erros.join(' | '));
 await a.ctx.close();

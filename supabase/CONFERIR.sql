@@ -905,6 +905,36 @@ with conferencia(ordem, item, veredito, detalhe) as (
            when public.mensagens_com_pagamento() then 'ligado'
            else 'desligado — ligue no admin depois de aprovar os 4 modelos com valor' end
   union all
+  /* A fila do WhatsApp: espera o serviço chegar antes de mandar a confirmação
+     (22_cotas) e passa a cada 15 segundos (LIGAR-WHATSAPP.sql). O despertador
+     mora no `cron`, que só existe com o pg_cron ligado: lido por
+     `query_to_xml`, esta conferência não quebra num banco sem ele. */
+  select 41, 'Fila do WhatsApp: a cada 15 segundos, esperando o serviço',
+         case
+           when not exists (select 1 from pg_proc where proname = 'notificacao_proxima'
+                              and prosrc like '%agendamento_servicos%')
+             then 'FALTA'
+           when to_regclass('cron.job') is not null
+                and coalesce((xpath('/table/row/schedule/text()', query_to_xml(
+                      'select schedule from cron.job where jobname = ''agendapro-notificacoes''',
+                      false, false, '')))[1]::text, '') <> '15 seconds'
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from pg_proc where proname = 'notificacao_proxima'
+                              and prosrc like '%agendamento_servicos%')
+             then 'cole o 00_tudo.sql de novo (22_cotas)'
+           when to_regclass('cron.job') is null then ''
+           else (select case
+                   when x.s is null then 'o despertador não está ligado — rode o LIGAR-WHATSAPP.sql'
+                   when x.s = '15 seconds' then 'despertador a cada 15 segundos'
+                   else 'o despertador está em "' || x.s
+                        || '" — rode o cron.alter_job do LIGAR-WHATSAPP.sql' end
+                   from (select (xpath('/table/row/schedule/text()', query_to_xml(
+                           'select schedule from cron.job where jobname = ''agendapro-notificacoes''',
+                           false, false, '')))[1]::text as s) x)
+           end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um
