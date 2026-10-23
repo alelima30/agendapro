@@ -17,6 +17,9 @@
      4. ACOMPANHA O HORÁRIO: remarcou, trocou de profissional, cancelou,
         confirmou depois — a fila diz a verdade sobre o que vai sair.
      5. AJUSTE MUDADO DEPOIS vale para o que já estava marcado (a varredura).
+     6. NA HORA DE SAIR, ELE SAI. "Não chegou o lembrete do horário das 9h,
+        só o resumo": a varredura, que roda antes de cada envio, cancelava o
+        lembrete exatamente na hora dele.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -289,7 +292,96 @@ verdade('dizendo por quê', (await doAg(a0)).every(x => x.status !== 'pendente'
   && /mudou/.test(x.motivo || '')), JSON.stringify((await doAg(a0)).map(x => x.motivo)));
 
 /* ══════════════════════════════════════════════════════════════════════════
-   8 — NINGUÉM DE FORA CHAMA ISTO
+   8 — A HORA DO LEMBRETE CHEGOU
+   O defeito: chegada a hora, quem recebe não era mais montado ("a hora já
+   passou"), e a varredura — que o agendador roda ANTES de cada envio —
+   cancelava o lembrete que ia sair, com "o horário, quem atende ou o ajuste
+   do lembrete mudou". Sempre, em todo salão.
+
+   A hora chega sem esperar uma hora: o horário vai para daqui a 30 minutos
+   por baixo (sem os gatilhos, como se o relógio tivesse andado), e o
+   lembrete fica como a marcação o deixou — 1h antes, a mesma chave.
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('A hora do lembrete chegou');
+
+const porBaixo = async (q, args) => {
+  await banco.query(`set session_replication_role = replica`);
+  try{ await banco.query(q, args); }
+  finally{ await banco.query(`set session_replication_role = origin`); }
+};
+const daquiA30 = ag => porBaixo(
+  `update public.agendamentos set inicio = now() + interval '30 minutes',
+          fim = now() + interval '90 minutes' where id=$1`, [ag.id]);
+const chegarAHora = async ag => {
+  await daquiA30(ag);
+  await porBaixo(
+    `update public.notificacoes n
+        set quando = a.inicio - interval '60 minutes',
+            chave = 'lembrete_equipe:' || a.id || ':' || n.destino || ':'
+                    || to_char((a.inicio - interval '60 minutes') at time zone 'UTC', 'YYYYMMDDHH24MI')
+       from public.agendamentos a
+      where a.id = n.agendamento_id and n.agendamento_id=$1 and n.tipo='lembrete_equipe'`, [ag.id]);
+};
+const agora = async () => new Date((await banco.query(`select now() as t`)).rows[0].t);
+
+await cfg(L.salao, { notifLembreteEquipe: true, notifLembreteEquipeMin: 60,
+                     notifLembreteEquipePara: 'atende' });
+const aH = await marcar(L, L.equipe[1], daqui(0), 'Hana Souza');
+igual('marcado: um lembrete na fila', (await doAg(aH, 'pendente')).length, 1);
+await chegarAHora(aH);
+await varrer();
+r = await doAg(aH);
+igual('chegou a hora: a varredura NÃO cancela o lembrete que vai sair',
+  r.map(x => x.status + (x.motivo ? ' (' + x.motivo + ')' : '')), ['pendente']);
+verdade('e ele está na vez de sair', r[0] && new Date(r[0].quando) <= await agora(),
+  r[0] && String(r[0].quando));
+await varrer();
+igual('varrer de novo, na hora, também não', (await doAg(aH)).map(x => x.status), ['pendente']);
+
+await banco.query(`update public.notificacoes
+    set status='cancelado', motivo='o horário, quem atende ou o ajuste do lembrete mudou'
+  where agendamento_id=$1 and tipo='lembrete_equipe'`, [aH.id]);
+await varrer();
+igual('o que o defeito cancelou na hora de sair volta para a fila (o horário ainda vem)',
+  (await doAg(aH)).map(x => x.status), ['pendente']);
+
+await porBaixo(`update public.agendamentos set profissional_id=$2 where id=$1`,
+  [aH.id, L.equipe[0].id]);
+await varrer();
+r = await doAg(aH);
+igual('trocou de profissional na hora: o da Bia sai da fila',
+  r.filter(x => x.destino === TEL_PROF).map(x => x.status), ['cancelado']);
+igual('e o da nova não nasce em cima da hora (a regra de quem marca em cima)',
+  r.filter(x => x.status === 'pendente').length, 0);
+await porBaixo(`update public.agendamentos set profissional_id=$2 where id=$1`,
+  [aH.id, L.equipe[1].id]);
+await varrer();
+igual('voltou para a Bia: o dela volta', (await doAg(aH, 'pendente')).map(x => x.destino), [TEL_PROF]);
+
+await cfg(L.salao, { notifLembreteEquipe: false });
+await varrer();
+igual('desligou na hora: sai da fila do mesmo jeito', (await doAg(aH, 'pendente')).length, 0);
+await cfg(L.salao, { notifLembreteEquipe: true });
+
+/* Remarcado para daqui a pouco: o lembrete da hora velha ficaria para
+   DEPOIS do atendimento. Sai agora, com a hora nova escrita. */
+const aR = await marcar(L, L.equipe[0], daqui(2), 'Iris Nunes');
+const antes = await doAg(aR, 'pendente');
+igual('marcado para mais tarde: um lembrete, 1h antes', antes.length, 1);
+await daquiA30(aR);
+await varrer();
+r = await doAg(aR);
+igual('remarcou para daqui a pouco: o lembrete fica', r.map(x => x.status), ['pendente']);
+verdade('e sai agora, não depois do atendimento', r[0] && new Date(r[0].quando) <= await agora(),
+  r[0] && String(r[0].quando));
+const iniR = new Date((await banco.query(`select inicio from public.agendamentos where id=$1`,
+  [aR.id])).rows[0].inicio);
+igual('com a hora nova escrita dentro', r[0] && r[0].variaveis[5],
+  new Intl.DateTimeFormat('pt-BR', { hour:'2-digit', minute:'2-digit',
+    timeZone:'America/Sao_Paulo' }).format(iniR));
+
+/* ══════════════════════════════════════════════════════════════════════════
+   9 — NINGUÉM DE FORA CHAMA ISTO
    ══════════════════════════════════════════════════════════════════════════ */
 secao('As funções são internas');
 for(const f of ['public.refazer_lembrete_equipe(uuid)', 'public.gerar_lembretes_equipe()',

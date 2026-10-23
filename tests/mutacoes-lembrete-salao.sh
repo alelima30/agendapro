@@ -104,9 +104,8 @@ troca $F \
 echo "7. a varredura sai do agendador"
 troca $F \
   "  perform public.gerar_lembretes_equipe();
-
-  for s in" \
-  "  for s in" \
+  -- E o da cliente" \
+  "  -- E o da cliente" \
   && rodar "ligar e desligar não valem para o que já estava marcado"
 
 echo "8. horário pendente também ganha lembrete"
@@ -132,7 +131,8 @@ troca $F \
 
 echo "11. o que não vale mais fica na fila"
 troca $F \
-  "     and not (n.chave = any(v_chaves));" \
+  "     and not (n.chave = any(v_chaves))
+     and not (v_chegou and n.destino = any(v_tels));" \
   "     and false;" \
   && rodar "dois lembretes, um na hora velha"
 
@@ -141,6 +141,42 @@ troca $F \
   "      if v_para not in ('atende', 'dono', 'ambos') then v_para := 'atende'; end if;" \
   "      v_para := 'atende';" \
   && rodar "o dono escolhe e nada muda"
+
+echo "13. chegada a hora, ninguém recebe (o defeito do lembrete das 9h)"
+troca $F \
+  "    if v_min > 0 then
+      select coalesce(cfg->>'notifLembreteEquipePara', 'atende') into v_para" \
+  "    if v_min > 0 and v_quando > now() then
+      select coalesce(cfg->>'notifLembreteEquipePara', 'atende') into v_para" \
+  && rodar "o lembrete do salão é cancelado na hora de sair"
+
+echo "14. com a hora chegada, o pendente de outra chave é cancelado"
+troca $F \
+  "     and not (v_chegou and n.destino = any(v_tels));" \
+  "     ;" \
+  && rodar "remarcou para daqui a pouco e o lembrete some"
+
+echo "15. o cancelado na hora de sair não volta"
+troca $F \
+  "       and n.status = 'cancelado' and n.chave = any(v_chaves)" \
+  "       and false" \
+  && rodar "o lembrete que o defeito cancelou fica perdido"
+
+echo "16. o lembrete da hora velha fica para depois do atendimento"
+troca $F \
+  "       set quando = now(),
+           corpo = coalesce(public.texto_lembrete_equipe(a.id, n.profissional_id), n.corpo)," \
+  "       set corpo = coalesce(public.texto_lembrete_equipe(a.id, n.profissional_id), n.corpo)," \
+  && rodar "remarcou para mais cedo e o lembrete sai depois"
+
+echo "17. com a hora chegada, nasce lembrete novo em cima da hora"
+troca $F \
+  "       and n.status = 'pendente' and n.destino = any(v_tels) and n.quando > now();
+    return;
+  end if;" \
+  "       and n.status = 'pendente' and n.destino = any(v_tels) and n.quando > now();
+  end if;" \
+  && rodar "quem passa a atender na hora recebe lembrete atrasado"
 
 echo
 echo "mortas: $morta · sobreviveram: $viva · não rodaram: $perdida"

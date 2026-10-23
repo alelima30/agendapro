@@ -951,6 +951,21 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (21_notificacoes)'
            else '' end
   union all
+  /* O lembrete para o salão SAI na hora dele: antes da correção, a varredura
+     que roda antes de cada envio o cancelava exatamente na hora de sair
+     ("o horário, quem atende ou o ajuste do lembrete mudou"). */
+  select 43, 'Lembrete para o salão sai na hora dele',
+         case
+           when not exists (select 1 from pg_proc where proname = 'refazer_lembrete_equipe'
+                              and prosrc like '%v_chegou%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from pg_proc where proname = 'refazer_lembrete_equipe'
+                              and prosrc like '%v_chegou%')
+             then 'cole o 00_tudo.sql de novo (21_notificacoes)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

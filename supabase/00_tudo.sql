@@ -9981,6 +9981,7 @@ declare
   v_chaves text[] := '{}';
   v_id     uuid;
   v_tel    text;
+  v_chegou boolean := false;
   i        int;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
@@ -9994,8 +9995,19 @@ begin
     v_min    := greatest(0, least(1440,
                   public.notif_num(a.salao_id, 'notifLembreteEquipeMin', 60)));
     v_quando := a.inicio - make_interval(mins => v_min);
+    /* ⚠ A HORA DO LEMBRETE CHEGOU NÃO QUER DIZER "NÃO DEVE EXISTIR".
+       Aqui estava `v_min > 0 and v_quando > now()`: na hora de sair, nenhum
+       destinatário era montado, e o cancelamento logo abaixo tirava da fila
+       o lembrete que ia sair. E a varredura (gerar_lembretes_equipe) roda
+       ANTES de cada envio, para todo pendente — então o lembrete do salão
+       era cancelado exatamente na hora dele, sempre. "Não chegou o lembrete
+       do horário das 9h, só o resumo": o de 08:00 estava lá, cancelado.
 
-    if v_min > 0 and v_quando > now() then
+       Agora quem recebe é montado com a hora chegada ou não; só o que é NOVO
+       espera a hora ainda por vir. */
+    v_chegou := v_quando <= now();
+
+    if v_min > 0 then
       select coalesce(cfg->>'notifLembreteEquipePara', 'atende') into v_para
         from public.saloes where id = a.salao_id;
       if v_para not in ('atende', 'dono', 'ambos') then v_para := 'atende'; end if;
@@ -10036,12 +10048,40 @@ begin
     end if;
   end if;
 
+  /* Sai da fila o que não vale mais: desligado, horário cancelado ou
+     passado, outra pessoa recebendo, ou outra hora AINDA POR VIR. Com a hora
+     do ajuste já chegada, o pendente de quem continua recebendo FICA — é o
+     lembrete que vai sair agora, ou o de antes de o tempo mudar (tarde é
+     melhor que nunca, a mesma regra do lembrete da cliente). */
   update public.notificacoes n
      set status = 'cancelado',
          motivo = 'o horário, quem atende ou o ajuste do lembrete mudou'
    where n.agendamento_id = a.id and n.tipo = 'lembrete_equipe'
      and n.status = 'pendente'
-     and not (n.chave = any(v_chaves));
+     and not (n.chave = any(v_chaves))
+     and not (v_chegou and n.destino = any(v_tels));
+
+  if v_chegou then
+    /* O que o defeito acima cancelou na hora de sair, num horário que ainda
+       vem: volta, e sai agora. Só a linha da hora e de quem recebe de hoje
+       (a mesma chave) — a cancelada por outro motivo tem outra chave. */
+    update public.notificacoes n
+       set status = 'pendente', motivo = null, tentativas = 0, proxima_em = null,
+           erro_codigo = null, erro_msg = null
+     where n.agendamento_id = a.id and n.tipo = 'lembrete_equipe'
+       and n.status = 'cancelado' and n.chave = any(v_chaves)
+       and n.motivo = 'o horário, quem atende ou o ajuste do lembrete mudou';
+    -- O de antes de o tempo mudar, ainda marcado para depois: sai agora, com
+    -- o texto do horário de agora.
+    update public.notificacoes n
+       set quando = now(),
+           corpo = coalesce(public.texto_lembrete_equipe(a.id, n.profissional_id), n.corpo),
+           variaveis = coalesce(public.variaveis_lembrete_equipe(a.id, n.profissional_id), n.variaveis),
+           modelo = public.modelo_de('lembrete_equipe')
+     where n.agendamento_id = a.id and n.tipo = 'lembrete_equipe'
+       and n.status = 'pendente' and n.destino = any(v_tels) and n.quando > now();
+    return;
+  end if;
 
   for i in 1 .. coalesce(array_length(v_tels, 1), 0) loop
     insert into public.notificacoes

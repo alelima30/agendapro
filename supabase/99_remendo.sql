@@ -2515,6 +2515,7 @@ declare
   v_chaves text[] := '{}';
   v_id     uuid;
   v_tel    text;
+  v_chegou boolean := false;
   i        int;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
@@ -2524,7 +2525,8 @@ begin
     v_min    := greatest(0, least(1440,
                   public.notif_num(a.salao_id, 'notifLembreteEquipeMin', 60)));
     v_quando := a.inicio - make_interval(mins => v_min);
-    if v_min > 0 and v_quando > now() then
+    v_chegou := v_quando <= now();
+    if v_min > 0 then
       select coalesce(cfg->>'notifLembreteEquipePara', 'atende') into v_para
         from public.saloes where id = a.salao_id;
       if v_para not in ('atende', 'dono', 'ambos') then v_para := 'atende'; end if;
@@ -2562,7 +2564,24 @@ begin
          motivo = 'o horário, quem atende ou o ajuste do lembrete mudou'
    where n.agendamento_id = a.id and n.tipo = 'lembrete_equipe'
      and n.status = 'pendente'
-     and not (n.chave = any(v_chaves));
+     and not (n.chave = any(v_chaves))
+     and not (v_chegou and n.destino = any(v_tels));
+  if v_chegou then
+    update public.notificacoes n
+       set status = 'pendente', motivo = null, tentativas = 0, proxima_em = null,
+           erro_codigo = null, erro_msg = null
+     where n.agendamento_id = a.id and n.tipo = 'lembrete_equipe'
+       and n.status = 'cancelado' and n.chave = any(v_chaves)
+       and n.motivo = 'o horário, quem atende ou o ajuste do lembrete mudou';
+    update public.notificacoes n
+       set quando = now(),
+           corpo = coalesce(public.texto_lembrete_equipe(a.id, n.profissional_id), n.corpo),
+           variaveis = coalesce(public.variaveis_lembrete_equipe(a.id, n.profissional_id), n.variaveis),
+           modelo = public.modelo_de('lembrete_equipe')
+     where n.agendamento_id = a.id and n.tipo = 'lembrete_equipe'
+       and n.status = 'pendente' and n.destino = any(v_tels) and n.quando > now();
+    return;
+  end if;
   for i in 1 .. coalesce(array_length(v_tels, 1), 0) loop
     insert into public.notificacoes
       (salao_id, tipo, destino, profissional_id, agendamento_id, quando, corpo,
