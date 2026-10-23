@@ -616,6 +616,9 @@ with conferencia(ordem, item, veredito, detalhe) as (
      'agendapro_aviso_profissional' (o de utilidade; o 'agendapro_novo1' virou
      marketing e não chegava), e o resumo do dia é 'agendapro_agenda_hoje' (o curto,
      com botão). Nome que não existe lá volta 132001. */
+  /* Com "mensagens com valor" ligado no admin, o aviso e o lembrete do
+     salão vão pelos modelos `_pagamento` (item 40): o sufixo é tirado antes
+     de comparar, senão estas duas linhas acusavam FALTA num banco certo. */
   select 28, 'mensagens do WhatsApp: salão no texto e os modelos certos',
          case
            when to_regprocedure('public.variaveis_agendamento(uuid,text)') is null
@@ -623,7 +626,8 @@ with conferencia(ordem, item, veredito, detalhe) as (
                   not like '%''casa''%'
              or to_regprocedure('public.variaveis_resumo(uuid,uuid,date,text,text)') is null
              or to_regprocedure('public.modelo_de(text)') is null
-             or public.modelo_de('novo')   is distinct from 'agendapro_aviso_profissional'
+             or regexp_replace(public.modelo_de('novo'), '_pagamento$', '')
+                  is distinct from 'agendapro_aviso_profissional'
              or public.modelo_de('resumo') is distinct from 'agendapro_agenda_hoje'
              then 'FALTA'
            else 'certo' end,
@@ -633,7 +637,8 @@ with conferencia(ordem, item, veredito, detalhe) as (
                   not like '%''casa''%'
              or to_regprocedure('public.variaveis_resumo(uuid,uuid,date,text,text)') is null
              or to_regprocedure('public.modelo_de(text)') is null
-             or public.modelo_de('novo')   is distinct from 'agendapro_aviso_profissional'
+             or regexp_replace(public.modelo_de('novo'), '_pagamento$', '')
+                  is distinct from 'agendapro_aviso_profissional'
              or public.modelo_de('resumo') is distinct from 'agendapro_agenda_hoje'
              then 'cole o 00_tudo.sql de novo (21_notificacoes): as mensagens saem '
                || 'sem o nome do salão ou com nome de modelo que a Meta não tem'
@@ -652,7 +657,8 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or not exists (select 1 from pg_constraint
                              where conname = 'notificacoes_tipo_check'
                                and pg_get_constraintdef(oid) like '%lembrete_equipe%')
-             or public.modelo_de('lembrete_equipe') is distinct from 'agendapro_lembrete_equipe'
+             or regexp_replace(public.modelo_de('lembrete_equipe'), '_pagamento$', '')
+                  is distinct from 'agendapro_lembrete_equipe'
              or pg_get_functiondef(to_regprocedure('public.gerar_resumos(timestamptz)'))
                   not like '%gerar_lembretes_equipe%'
              then 'FALTA'
@@ -666,7 +672,8 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or not exists (select 1 from pg_constraint
                              where conname = 'notificacoes_tipo_check'
                                and pg_get_constraintdef(oid) like '%lembrete_equipe%')
-             or public.modelo_de('lembrete_equipe') is distinct from 'agendapro_lembrete_equipe'
+             or regexp_replace(public.modelo_de('lembrete_equipe'), '_pagamento$', '')
+                  is distinct from 'agendapro_lembrete_equipe'
              or pg_get_functiondef(to_regprocedure('public.gerar_resumos(timestamptz)'))
                   not like '%gerar_lembretes_equipe%'
              then 'cole o 00_tudo.sql de novo (21_notificacoes): o lembrete para '
