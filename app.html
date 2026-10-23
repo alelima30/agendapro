@@ -2065,7 +2065,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.3603f9';
+const VERSAO_APP = 'v9.9dfe94';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -14366,7 +14366,8 @@ function pintarMedidoresDoPlano(){
   const m = u.mensagens;
   const restam = (m && m.teto != null && Number(m.teto) > 0)
     ? `<div style="font-size:12.5px;color:var(--txt2);margin-top:5px" id="restamMensagens">Restam
-        <b>${Math.max(Number(m.teto) - Number(m.usado || 0), 0)}</b> mensagens neste mês.</div>` : '';
+        <b>${Math.max(Number(m.teto) - Number(m.usado || 0), 0)}</b> mensagens neste mês.${
+        diaQueRenova(m) ? ` Renova em <b>${diaQueRenova(m)}</b>.` : ''}</div>` : '';
   alvo.innerHTML = linha('Clientes na ficha', u.clientes)
                  + linha('Serviços no cardápio', u.servicos)
                  // O banco já cobra o teto de produtos (`tg_limite_produtos`);
@@ -14396,19 +14397,27 @@ function botoesMaisMensagens(){
     ${OFERTA_DE_PLANO && souGestor() ? `<button class="btn btn-peq" onclick="irPara('plano')">Ver os planos</button>` : ''}
   </div>`;
 }
+/* O mês da franquia conta do dia da assinatura (22, `ciclo_mensagens`), não
+   do dia 1º: "até virar o mês" mandaria o dono esperar o dia errado. Banco
+   antigo, sem `renovaEm`, fica com o texto de antes. */
+function diaQueRenova(m){
+  const d = /^(\d{4})-(\d{2})-(\d{2})/.exec(String((m && m.renovaEm) || ''));
+  return d ? d[3] + '/' + d[2] : '';
+}
 function avisoDeMensagens(m){
   if(!m || m.teto == null || Number(m.teto) === 0) return '';
+  const quando = diaQueRenova(m);
   const usado = Number(m.usado || 0), teto = Number(m.teto);
   const reserva = m.tetoSalao != null ? Number(m.tetoSalao) : null;
   const pct = teto ? usado / teto : 0;
   if(pct >= 1) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
     <b>As mensagens deste mês acabaram.</b><br>
-    Nenhuma mensagem automática sai até virar o mês, nem para o cliente. A
+    Nenhuma mensagem automática sai ${quando ? 'até ' + quando + ', quando a franquia renova' : 'até virar o mês'}, nem para o cliente. A
     agenda continua funcionando normalmente.${botoesMaisMensagens()}</div>`;
   if(reserva != null && usado >= reserva) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
     <b>As mensagens para o salão pararam.</b><br>
-    Aviso de horário novo, lembrete para o salão e resumo do dia voltam quando
-    virar o mês. As ${teto - usado} que faltam ficam para a confirmação e o
+    Aviso de horário novo, lembrete para o salão e resumo do dia voltam ${quando
+      ? 'em ' + quando + ', quando a franquia renova' : 'quando virar o mês'}. As ${teto - usado} que faltam ficam para a confirmação e o
     lembrete do cliente.${botoesMaisMensagens()}</div>`;
   if(pct >= 0.9) return `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
     <b>Atenção: você já usou ${Math.round(pct * 100)}% das mensagens do mês.</b><br>
@@ -14439,6 +14448,10 @@ function pintarConsumoMensagens(){
   }
   const reserva = m.tetoSalao != null ? Number(m.tetoSalao) : null;
   alvo.innerHTML = medidor('Mensagens deste mês', usado, teto)
+    + (diaQueRenova(m)
+        ? `<div style="font-size:12px;color:var(--txt2);margin-top:6px">
+             O mês das mensagens conta do dia da assinatura: renova em
+             <b>${diaQueRenova(m)}</b>.</div>` : '')
     + (reserva != null && reserva < teto
         ? `<div style="font-size:12px;color:var(--txt2);margin-top:6px">
              As mensagens para o salão usam até ${reserva}; as últimas

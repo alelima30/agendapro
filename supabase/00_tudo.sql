@@ -10670,13 +10670,69 @@ update public.planos set preco_mes = 497.00, max_profissionais = 12
    número e é paga do mesmo jeito; uma franquia que não a contasse seria uma
    franquia com porta dos fundos. Hoje nenhuma sai (nenhum plano libera),
    então o número não muda — mas no dia em que liberar, já conta. */
+/* ── O MÊS DA FRANQUIA É O DA ASSINATURA ──────────────────────────────────
+   "Conta a partir do dia da assinatura." Antes o contador zerava todo dia 1º:
+   quem assinava no dia 20 tinha as 500 por dez dias, e outras 500 no dia 1º.
+   Agora o mês vai do dia da assinatura ao mesmo dia do mês seguinte.
+
+   A âncora é o `vence_em`: o pagamento o leva para o mesmo dia do mês
+   seguinte (13_cobranca), então o dia dele É o dia da assinatura. Pagar
+   adiantado não zera nada — o vencimento só anda um mês, e o dia fica.
+   Pagar atrasado recomeça de hoje, e a franquia também.
+
+     · assinatura ativa com vencimento → do dia do vencimento, mês a mês;
+     · teste grátis → o teste inteiro num ciclo só, até o dia seguinte ao
+       fim dele (as 100 são do teste, e o último dia não ganha outras 100);
+     · o resto (Grátis, sem vencimento) → o mês do calendário, como antes.
+
+   Dia 31 em mês curto vira o último dia do mês: os dois limites saem da
+   MESMA âncora (âncora menos k meses), então um ciclo termina exatamente
+   onde o seguinte começa. Devolve o começo e o fim, no fuso do salão.
+   `p_hoje` existe para o teste poder fixar o dia. */
+create or replace function public.ciclo_mensagens(p_salao uuid, p_hoje date default null)
+returns table (ini timestamptz, fim timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_fuso   text;
+  v_hoje   date;
+  v_ancora date;
+  v_ini    date;
+  v_fim    date;
+  k        int;
+begin
+  select coalesce(s.fuso, 'America/Sao_Paulo') into v_fuso
+    from public.saloes s where s.id = p_salao;
+  v_fuso := coalesce(v_fuso, 'America/Sao_Paulo');
+  v_hoje := coalesce(p_hoje, (now() at time zone v_fuso)::date);
+
+  select case when a.status = 'ativa' then a.vence_em
+              when a.status = 'trial' then a.trial_ate + 1 end
+    into v_ancora
+    from public.assinaturas a where a.salao_id = p_salao;
+
+  if v_ancora is null then
+    v_ini := date_trunc('month', v_hoje)::date;
+    v_fim := (v_ini + interval '1 month')::date;
+  else
+    k := (extract(year from v_ancora)::int - extract(year from v_hoje)::int) * 12
+       + extract(month from v_ancora)::int - extract(month from v_hoje)::int;
+    v_ini := (v_ancora - make_interval(months => k))::date;
+    if v_ini > v_hoje then
+      k := k + 1;
+      v_ini := (v_ancora - make_interval(months => k))::date;
+    end if;
+    v_fim := (v_ancora - make_interval(months => k - 1))::date;
+  end if;
+
+  return query select v_ini::timestamp at time zone v_fuso,
+                      v_fim::timestamp at time zone v_fuso;
+end $$;
+
+revoke all on function public.ciclo_mensagens(uuid, date) from public, anon, authenticated;
+
 create or replace function public.mensagens_no_mes(p_salao uuid)
 returns int language sql stable security definer set search_path = public as $$
-  with mes as (
-    select (date_trunc('month',
-              now() at time zone coalesce(s.fuso, 'America/Sao_Paulo')))
-              at time zone coalesce(s.fuso, 'America/Sao_Paulo') as ini
-      from public.saloes s where s.id = p_salao)
+  with mes as (select c.ini from public.ciclo_mensagens(p_salao) c)
   select ((select count(*)
              from public.notificacoes n, mes
             where n.salao_id = p_salao
@@ -11809,7 +11865,15 @@ begin
       'usado', public.mensagens_no_mes(p_salao),
       'teto',  public.teto_mensagens(p_salao),
       -- até onde vão as do salão; o resto é a reserva da cliente (22, 2b)
-      'tetoSalao', public.teto_mensagens_salao(p_salao)));
+      'tetoSalao', public.teto_mensagens_salao(p_salao),
+      -- o dia em que a franquia renova: o mês conta da assinatura (22). No
+      -- teste grátis não renova nada (vira o Grátis, sem mensagem), e
+      -- "renova em" seria promessa.
+      'renovaEm', (select (c.fim at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date
+                     from public.ciclo_mensagens(p_salao) c, public.saloes s
+                    where s.id = p_salao
+                      and not exists (select 1 from public.assinaturas a
+                                       where a.salao_id = p_salao and a.status = 'trial'))));
 end $$;
 
 revoke all on function public.uso_do_plano(uuid) from public, anon;

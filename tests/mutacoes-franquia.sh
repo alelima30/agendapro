@@ -113,8 +113,8 @@ troca $F \
 
 echo "9. a tela não recebe até onde vão as do salão"
 troca supabase/24_produtos.sql \
-  "      'tetoSalao', public.teto_mensagens_salao(p_salao)));" \
-  "      'tetoSalao', null));" \
+  "      'tetoSalao', public.teto_mensagens_salao(p_salao)," \
+  "      'tetoSalao', null," \
   && rodar "a tela promete o aviso antigo"
 
 echo "10. a regra da reserva aberta para qualquer um"

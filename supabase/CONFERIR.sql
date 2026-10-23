@@ -966,6 +966,21 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (21_notificacoes)'
            else '' end
   union all
+  /* O mês das mensagens conta do dia da assinatura, e não do dia 1º. */
+  select 44, 'Mensagens contam do dia da assinatura',
+         case
+           when to_regprocedure('public.ciclo_mensagens(uuid,date)') is null
+             or not exists (select 1 from pg_proc where proname = 'mensagens_no_mes'
+                              and prosrc like '%ciclo_mensagens%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.ciclo_mensagens(uuid,date)') is null
+             or not exists (select 1 from pg_proc where proname = 'mensagens_no_mes'
+                              and prosrc like '%ciclo_mensagens%')
+             then 'cole o 00_tudo.sql de novo (22_cotas)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

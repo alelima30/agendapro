@@ -161,7 +161,15 @@ begin
       'usado', public.mensagens_no_mes(p_salao),
       'teto',  public.teto_mensagens(p_salao),
       -- até onde vão as do salão; o resto é a reserva da cliente (22, 2b)
-      'tetoSalao', public.teto_mensagens_salao(p_salao)));
+      'tetoSalao', public.teto_mensagens_salao(p_salao),
+      -- o dia em que a franquia renova: o mês conta da assinatura (22). No
+      -- teste grátis não renova nada (vira o Grátis, sem mensagem), e
+      -- "renova em" seria promessa.
+      'renovaEm', (select (c.fim at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date
+                     from public.ciclo_mensagens(p_salao) c, public.saloes s
+                    where s.id = p_salao
+                      and not exists (select 1 from public.assinaturas a
+                                       where a.salao_id = p_salao and a.status = 'trial'))));
 end $$;
 
 revoke all on function public.uso_do_plano(uuid) from public, anon;

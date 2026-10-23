@@ -346,7 +346,17 @@ const gastarTela = (n, de) => banco.query(
    select $1, 'lembrete', '11999', now(), 'x', 'tela-gasto:' || g, 'enviado', now()
      from generate_series($2::int + 1, $2::int + $3::int) g`, [SALAO, de, n]);
 
+/* O mês das mensagens conta do dia da assinatura (22, `ciclo_mensagens`):
+   vencendo daqui a 10 dias, a franquia renova nesse dia — e é ele que a tela
+   tem de dizer, e não "quando virar o mês". */
+const RENOVA = (await banco.query(
+  `update public.assinaturas
+      set vence_em = (now() at time zone 'America/Sao_Paulo')::date + 10
+    where salao_id=$1
+   returning to_char(vence_em, 'DD/MM') as d`, [SALAO])).rows[0].d;
 let c = await consumo();
+verdade('diz o dia em que a franquia renova: o do vencimento da assinatura',
+  new RegExp('renova em\\s+' + RENOVA).test(c), c.slice(0, 300));
 verdade('mostra o que já saiu no mês, com o número do banco (1 de 3600)',
   /Mensagens deste mês/.test(c) && /1 de 3600/.test(c), c.slice(0, 200));
 verdade('e explica que as últimas ficam para o cliente',
@@ -358,11 +368,15 @@ c = await consumo();
 verdade('aos 90%, diz que as do salão pararam',
   /As mensagens para o salão pararam/.test(c), c.slice(0, 300));
 verdade('e quantas sobram para o cliente', /360 que faltam/.test(c), c.slice(0, 300));
+verdade('e que voltam no dia da renovação, não "quando virar o mês"',
+  new RegExp('voltam em ' + RENOVA).test(c) && !/virar o mês/.test(c), c.slice(0, 400));
 
 await gastarTela(360, 3239);                     // 3600, o teto
 c = await consumo();
 verdade('no teto, diz que acabaram — inclusive para o cliente',
   /acabaram/.test(c) && /nem para o cliente/.test(c), c.slice(0, 300));
+verdade('até o dia da renovação',
+  new RegExp('até ' + RENOVA + ', quando a franquia renova').test(c), c.slice(0, 400));
 
 await p.click('#abas .aba[data-chave="plano"]');
 await p.waitForTimeout(2500);

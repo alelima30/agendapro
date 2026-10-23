@@ -3355,13 +3355,45 @@ update public.planos set preco_mes = 297.00, max_profissionais = 6
  where codigo = 'equipe' and preco_mes = 187.00;
 update public.planos set preco_mes = 497.00, max_profissionais = 12
  where codigo = 'salao' and preco_mes = 297.00;
+create or replace function public.ciclo_mensagens(p_salao uuid, p_hoje date default null)
+returns table (ini timestamptz, fim timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+declare
+  v_fuso   text;
+  v_hoje   date;
+  v_ancora date;
+  v_ini    date;
+  v_fim    date;
+  k        int;
+begin
+  select coalesce(s.fuso, 'America/Sao_Paulo') into v_fuso
+    from public.saloes s where s.id = p_salao;
+  v_fuso := coalesce(v_fuso, 'America/Sao_Paulo');
+  v_hoje := coalesce(p_hoje, (now() at time zone v_fuso)::date);
+  select case when a.status = 'ativa' then a.vence_em
+              when a.status = 'trial' then a.trial_ate + 1 end
+    into v_ancora
+    from public.assinaturas a where a.salao_id = p_salao;
+  if v_ancora is null then
+    v_ini := date_trunc('month', v_hoje)::date;
+    v_fim := (v_ini + interval '1 month')::date;
+  else
+    k := (extract(year from v_ancora)::int - extract(year from v_hoje)::int) * 12
+       + extract(month from v_ancora)::int - extract(month from v_hoje)::int;
+    v_ini := (v_ancora - make_interval(months => k))::date;
+    if v_ini > v_hoje then
+      k := k + 1;
+      v_ini := (v_ancora - make_interval(months => k))::date;
+    end if;
+    v_fim := (v_ancora - make_interval(months => k - 1))::date;
+  end if;
+  return query select v_ini::timestamp at time zone v_fuso,
+                      v_fim::timestamp at time zone v_fuso;
+end $$;
+revoke all on function public.ciclo_mensagens(uuid, date) from public, anon, authenticated;
 create or replace function public.mensagens_no_mes(p_salao uuid)
 returns int language sql stable security definer set search_path = public as $$
-  with mes as (
-    select (date_trunc('month',
-              now() at time zone coalesce(s.fuso, 'America/Sao_Paulo')))
-              at time zone coalesce(s.fuso, 'America/Sao_Paulo') as ini
-      from public.saloes s where s.id = p_salao)
+  with mes as (select c.ini from public.ciclo_mensagens(p_salao) c)
   select ((select count(*)
              from public.notificacoes n, mes
             where n.salao_id = p_salao
@@ -3929,7 +3961,12 @@ begin
     'mensagens', jsonb_build_object(
       'usado', public.mensagens_no_mes(p_salao),
       'teto',  public.teto_mensagens(p_salao),
-      'tetoSalao', public.teto_mensagens_salao(p_salao)));
+      'tetoSalao', public.teto_mensagens_salao(p_salao),
+      'renovaEm', (select (c.fim at time zone coalesce(s.fuso, 'America/Sao_Paulo'))::date
+                     from public.ciclo_mensagens(p_salao) c, public.saloes s
+                    where s.id = p_salao
+                      and not exists (select 1 from public.assinaturas a
+                                       where a.salao_id = p_salao and a.status = 'trial'))));
 end $$;
 revoke all on function public.uso_do_plano(uuid) from public, anon;
 grant execute on function public.uso_do_plano(uuid) to authenticated;
