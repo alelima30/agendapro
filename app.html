@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AgendaPro — Agenda do salão</title>
-<meta name="description" content="Agenda, clientes, comanda e comissão para salão de beleza, barbearia e estética." />
+<meta name="description" content="Agenda, clientes, comissão e relatórios para salão de beleza, barbearia e estética." />
 <meta name="theme-color" content="#FFFFFF" />
 <!-- PWA: instalável no celular e no computador -->
 <link rel="manifest" href="manifest.webmanifest" />
@@ -2065,7 +2065,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.5fc63c';
+const VERSAO_APP = 'v9.3603f9';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2592,7 +2592,8 @@ function pintarAgenda(){
     : vistaAgenda === '3dias'  ? 'Hoje e os dois dias seguintes. Clique no dia '
                                + 'para abri-lo na grade de horários.'
     : 'Clique num espaço vazio da coluna para marcar naquele horário. '
-      + 'Clique num atendimento para mudar o status ou abrir a comanda.';
+      + 'Clique num atendimento para mudar o status'
+      + (usaComanda() ? ' ou abrir a comanda.' : '.');
 
   /* ⚠ A GRADE DE HORAS SAI DA TELA NO MÊS, e volta nas outras duas.
 
@@ -3949,7 +3950,8 @@ function pintarProdutos(){
     alvo.innerHTML = `<div class="vazio"><b>Nenhum produto cadastrado</b>
       ${souGestor()
         ? 'Cadastre o que o salão vende — shampoo, pomada, esmalte. '
-          + 'Eles aparecem na comanda na hora de fechar a conta.'
+          + (usaComanda() ? 'Eles aparecem na comanda na hora de fechar a conta.'
+                          : 'Eles podem aparecer no seu link, para a cliente ver.')
         : 'Peça a quem responde pelo salão para cadastrar.'}</div>`;
     return;
   }
@@ -4049,7 +4051,8 @@ async function tirarProduto(pid){
     if(!confirm('Tirar ' + p.nome + ' da lista?\n\n'
       + 'Ele já aparece em ' + n + (n === 1 ? ' venda' : ' vendas')
       + ', e isso precisa continuar fazendo sentido — então ele sai da lista '
-      + 'em vez de ser apagado.\n\nO que muda: some da comanda e da loja do '
+      + 'em vez de ser apagado.\n\nO que muda: some '
+      + (usaComanda() ? 'da comanda e ' : '') + 'da loja do '
       + 'link. O que já foi vendido continua no histórico e nos relatórios.'
       + '\n\nPara trazer de volta, é só editar e marcar "à venda".')) return;
     p.ativo = false;
@@ -4291,7 +4294,9 @@ function abrirConvite(){
           <input type="radio" name="vPapel" value="${k}"${i === 0 ? ' checked' : ''}
                  onchange="trocarPapelConvite()">
           <span class="i"><span class="n">${escapar(nome)}</span>
-            <span class="d">${escapar(o)}</span></span>
+            <span class="d">${escapar(k === 'recepcao' && !COMANDA_NA_PLATAFORMA
+              ? 'Marca, desmarca e confirma horários. Não mexe em preço, serviço nem equipe.'
+              : o)}</span></span>
         </label>`).join('')}</div></div>
 
     <!-- DE QUEM E A AGENDA, e por que isto e obrigatorio.
@@ -5947,7 +5952,7 @@ function desenharRelatorio(r){
       : '<div class="vazio">Nenhum item lançado no período.</div>'}
 
     <h2 class="rel-secao">Quem passou pela casa
-      <small>Conta pela comanda fechada, igual ao faturamento. Cliente nova é
+      <small>Conta ${comanda ? 'pela comanda fechada' : 'pelo atendimento concluído'}, igual ao faturamento. Cliente nova é
              a que não tinha nenhum atendimento pago aqui antes deste
              período.</small></h2>
     <div class="kpis">

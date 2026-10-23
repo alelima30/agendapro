@@ -1,7 +1,7 @@
 {
   "name": "AgendaPro — Agenda para salão e barbearia",
   "short_name": "AgendaPro",
-  "description": "Agenda, clientes, comanda e comissão para salão de beleza, barbearia e estética.",
+  "description": "Agenda, clientes, comissão e relatórios para salão de beleza, barbearia e estética.",
   "start_url": "./app.html",
   "scope": "./",
   "display": "standalone",
