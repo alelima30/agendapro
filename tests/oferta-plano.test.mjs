@@ -40,8 +40,11 @@ const { chromium } = exigir(process.env.PLAYWRIGHT || 'playwright');
 const CHROMIUM = process.env.CHROMIUM || '/opt/pw-browsers/chromium';
 const RAIZ = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const BASE = process.env.BANCADA || 'http://127.0.0.1:8123';
-const sql = q => execFileSync('psql', ['-d','app','-qtAc',q],
-  { env:{ ...process.env, PGHOST:'/tmp', PGPORT:'5444', PGUSER:'postgres' },
+/* O banco vem do ambiente — no CI é um contêiner em localhost:5432, e o
+   endereço desta máquina escrito aqui fazia a suíte nem rodar lá. */
+const sql = q => execFileSync('psql', ['-d', process.env.PGBANCO || 'app', '-qtAc', q],
+  { env:{ ...process.env, PGHOST: process.env.PGHOST || '/tmp',
+          PGPORT: process.env.PGPORT || '5444', PGUSER: process.env.PGUSER || 'postgres' },
     encoding:'utf8' }).trim();
 
 let ok = 0, ruim = 0;

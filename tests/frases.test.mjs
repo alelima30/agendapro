@@ -281,7 +281,11 @@ await porCores({});
   for(const [k, sel] of Object.entries(TOQUES)){
     await p.evaluate(() => { document.querySelectorAll('.ap-alvo').forEach(e => e.classList.remove('ap-alvo')); window.scrollTo(0, 0); });
     await p.locator(`#previaFone [data-cfg="${k}"]`).first().click({ force: true });
-    await p.waitForTimeout(800);
+    // Até a linha acender e a rolagem chegar nela (no CI, 800 ms fixos não bastavam).
+    await p.waitForFunction(c => { const l = document.querySelector(`.ap-controles .cor-linha[data-chave="${c}"]`);
+      const b = l && l.getBoundingClientRect();
+      return !!l && l.classList.contains('ap-alvo') && b.top >= 0 && b.bottom <= innerHeight; },
+      sel, { timeout: 5000 }).catch(() => {});
     const r = await p.evaluate(c => { const l = document.querySelector(`.ap-controles .cor-linha[data-chave="${c}"]`);
       const b = l.getBoundingClientRect();
       return { aceso: l.classList.contains('ap-alvo'), naTela: b.top >= 0 && b.bottom <= innerHeight }; }, sel);

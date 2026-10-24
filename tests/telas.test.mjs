@@ -30,7 +30,8 @@ const exigir = createRequire(import.meta.url);
 const { chromium } = exigir(process.env.PLAYWRIGHT || 'playwright');
 const BASE = 'http://127.0.0.1:8099/';
 
-const nav = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium' });
+// O navegador vem do ambiente (o tudo.sh acha o do CI); esta máquina é só o padrão.
+const nav = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' });
 const ctx = await nav.newContext({ viewport:{ width:1360, height:900 } });
 const p = await ctx.newPage();
 let erros = [];

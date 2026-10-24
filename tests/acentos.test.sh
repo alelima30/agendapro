@@ -18,7 +18,8 @@
 # ===========================================================================
 set -u
 cd "$(dirname "$0")/.."
-P="psql -h ${PGHOST_BANCADA:-/tmp} -p ${PGPORT_BANCADA:-5444} -U postgres"
+# O banco vem do ambiente (no CI, localhost:5432); esta máquina é só o padrão.
+P="psql -h ${PGHOST_BANCADA:-${PGHOST:-/tmp}} -p ${PGPORT_BANCADA:-${PGPORT:-5444}} -U ${PGUSER:-postgres}"
 DB=acentos_teste
 TROCADO=$(mktemp --suffix=.sql)
 trap 'rm -f "$TROCADO"; $P -d postgres -qc "drop database if exists $DB;" >/dev/null 2>&1' EXIT

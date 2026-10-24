@@ -311,7 +311,12 @@ await porCfg({});
     await p.evaluate(() => { document.querySelectorAll('.ap-alvo').forEach(e => e.classList.remove('ap-alvo'));
       window.scrollTo(0, 0); });
     await p.locator('#previaFone ' + sel).first().click();
-    await p.waitForTimeout(900);
+    // Até a linha acender e a rolagem chegar nela — e não 900 ms fixos, que
+    // no CI (máquina mais lenta) não bastavam.
+    await p.waitForFunction(sel => { const el = document.querySelector('.ap-controles ' + sel);
+      const alvo = el && (el.closest('.cor-linha') || el); const r = alvo && alvo.getBoundingClientRect();
+      return !!alvo && alvo.classList.contains('ap-alvo') && r.top >= 0 && r.bottom <= innerHeight; },
+      esperado, { timeout: 5000 }).catch(() => {});
     return p.evaluate(sel => { const el = document.querySelector('.ap-controles ' + sel);
       const alvo = el && (el.closest('.cor-linha') || el);
       const r = alvo && alvo.getBoundingClientRect();

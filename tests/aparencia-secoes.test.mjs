@@ -222,7 +222,11 @@ const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 
   verdade('tocar em "Personalizar mais" abre o bloco, com o índice à vista',
     await p.evaluate(() => document.getElementById('apAvancado').open) && await p.isVisible('.ap-indice'));
   await p.locator('.ap-indice button', { hasText: 'Bordas' }).click();
-  await p.waitForTimeout(900);
+  /* Espera a rolagem TERMINAR, e não um tempo fixo: no CI a máquina é mais
+     lenta, a rolagem suave passava dos 900 ms e o teste reprovava com a tela
+     certa. */
+  await p.waitForFunction(() => { const t = document.getElementById('apBordas').getBoundingClientRect().top;
+    return t >= 0 && t < 160; }, null, { timeout: 5000 }).catch(() => {});
   const topo = await p.evaluate(() => Math.round(document.getElementById('apBordas').getBoundingClientRect().top));
   verdade('e tocar em "Bordas" no índice leva à seção',
     topo >= 0 && topo < 160 && await p.evaluate(() => document.getElementById('apAvancado').open), 'topo em ' + topo);
