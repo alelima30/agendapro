@@ -142,6 +142,9 @@ a.acao{text-decoration:none;display:inline-block}
 .saude-linha .etq{min-width:74px;text-align:center;margin-top:2px}
 .saude-linha .faz{font-size:13px;color:rgba(237,244,243,.6);margin-top:2px}
 .saude-pe{font-size:12.5px;color:rgba(237,244,243,.5);margin-top:10px;line-height:1.7}
+/* O endereço do monitor é uma palavra só: sem quebrar, passava da borda do
+   cartão no celular. */
+.saude-pe code{overflow-wrap:anywhere;word-break:break-all}
 
 @media (max-width:700px){
   body{padding:18px 13px 50px}

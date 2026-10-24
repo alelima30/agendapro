@@ -49,8 +49,8 @@ select t_verdade('ligado e nunca rodou: problema',
   item('despertador')->>'nivel' = 'problema' and item('despertador')->>'detalhe' like '%nunca rodou%');
 insert into cron.job_run_details (jobid, start_time, status, return_message)
   select 1, now() - make_interval(secs => 15 * g), 'succeeded', '1 row' from generate_series(60, 1, -1) g;
-select t_verdade('rodando a cada 15 segundos: ok',
-  item('despertador')->>'nivel' = 'ok' and item('despertador')->>'detalhe' like '%15 seconds%');
+select t_verdade('rodando a cada 15 segundos: ok, em português',
+  item('despertador')->>'nivel' = 'ok' and item('despertador')->>'detalhe' like '%a cada 15 segundos%');
 insert into cron.job_run_details (jobid, start_time, status, return_message)
   values (1, now(), 'failed', 'schema "net" does not exist');
 select t_verdade('falhou agora: problema, com a mensagem do pg_cron',

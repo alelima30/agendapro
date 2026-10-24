@@ -6500,6 +6500,7 @@ declare
   v_negocio   jsonb := '[]'::jsonb;
   v_jobid     bigint;
   v_schedule  text;
+  v_cada      text;
   v_ativo     boolean;
   v_ultima    timestamptz;
   v_falhas_c  int;
@@ -6534,6 +6535,10 @@ begin
   else
     select j.jobid, j.schedule, j.active into v_jobid, v_schedule, v_ativo
       from cron.job j where j.jobname = 'agendapro-notificacoes';
+    v_cada := case when v_schedule ~ '^[0-9]+ seconds?$'
+                     then 'a cada ' || split_part(v_schedule, ' ', 1) || ' segundos'
+                   when v_schedule = '* * * * *' then 'a cada minuto'
+                   else 'no horário ' || v_schedule end;
     if v_jobid is null then
       v_itens := v_itens || public.saude_item('despertador', 'problema', 'Despertador da fila',
         'o despertador agendapro-notificacoes não existe: as mensagens não saem.',
@@ -6544,7 +6549,7 @@ begin
         'Rode o LIGAR-WHATSAPP.sql de novo, ou religue o agendapro-notificacoes no Supabase (Integrations, Cron).');
     elsif to_regclass('cron.job_run_details') is null then
       v_itens := v_itens || public.saude_item('despertador', 'ok', 'Despertador da fila',
-        'ligado, a cada ' || v_schedule || '.');
+        'ligado, ' || v_cada || '.');
     else
       select max(d.start_time),
              count(*) filter (where d.status = 'failed'
@@ -6569,7 +6574,7 @@ begin
           'Rode o LIGAR-WHATSAPP.sql de novo (ele também liga o pg_net).');
       else
         v_itens := v_itens || public.saude_item('despertador', 'ok', 'Despertador da fila',
-          'rodando a cada ' || v_schedule || ' (última volta às '
+          'rodando ' || v_cada || ' (última volta às '
           || to_char(v_ultima at time zone 'America/Sao_Paulo', 'HH24:MI:SS') || ').');
       end if;
     end if;
