@@ -135,6 +135,13 @@ a.acao{text-decoration:none;display:inline-block}
   border:1px solid rgba(37,99,235,.2);
 }
 .vazio{padding:22px;text-align:center;color:rgba(237,244,243,.42);font-size:14px}
+/* ── Saúde do sistema (40_saude.sql) ────────────────────────────────────── */
+.saude-linha{display:flex;gap:11px;align-items:flex-start;padding:9px 0;
+  border-top:1px solid rgba(37,99,235,.15)}
+.saude-linha:first-of-type{border-top:none}
+.saude-linha .etq{min-width:74px;text-align:center;margin-top:2px}
+.saude-linha .faz{font-size:13px;color:rgba(237,244,243,.6);margin-top:2px}
+.saude-pe{font-size:12.5px;color:rgba(237,244,243,.5);margin-top:10px;line-height:1.7}
 
 @media (max-width:700px){
   body{padding:18px 13px 50px}
@@ -167,6 +174,7 @@ a.acao{text-decoration:none;display:inline-block}
 'use strict';
 
 let painel = null;
+let painelSaude = null;
 
 const real = v => (Number(v) || 0)
   .toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
@@ -233,6 +241,11 @@ async function carregar(){
       Dados.chamar('ajustes_da_plataforma')
         .catch(e => { console.info('[plataforma] ajustes:', e.message); return null; }),
     ]);
+    /* O check-up vem à parte e não derruba o painel: banco sem o 40_saude.sql
+       responde que a função não existe, e a tela diz isso no lugar dele. */
+    painelSaude = await Dados.chamar('saude_plataforma')
+      .then(x => Array.isArray(x) ? x[0] : x)
+      .catch(e => { console.info('[plataforma] saúde:', e.message); return { erro: e.message }; });
     painel = Array.isArray(p) ? p[0] : p;
     painel.acessos = Array.isArray(acessos) ? acessos : null;
     painel.ajustes = (Array.isArray(ajustes) ? ajustes[0] : ajustes) || null;
@@ -292,6 +305,8 @@ function desenhar(){
       <div class="pe">cobrar ou suspender</div>
     </div>` : ''}
   </div>`;
+
+  h += blocoSaude();
 
   // O teste que vence é a única hora em que uma ligação muda o resultado.
   // Depois de vencido, já virou "aquele sistema que eu testei uma vez".
@@ -370,6 +385,62 @@ function desenhar(){
   }
 
   document.getElementById('corpo').innerHTML = h;
+}
+
+/* ── Saúde do sistema ─────────────────────────────────────────────────────
+   O que o 40_saude.sql confere: despertador da fila, função de envio, fila
+   atrasada e falhas na Meta — com o que fazer em cada problema. Logo abaixo
+   do placar, porque um sistema parado vale mais que qualquer número. */
+const ROT_SAUDE = { ok:['ok','pago'], atencao:['atenção','teste'], problema:['problema','ruim'] };
+function linhaSaude(i){
+  const [rot, etq] = ROT_SAUDE[i.nivel] || ROT_SAUDE.atencao;
+  return `<div class="saude-linha">
+    <span class="etq ${etq}">${rot}</span>
+    <div><b style="display:inline">${escapar(i.titulo)}</b> — ${escapar(i.detalhe)}
+      ${i.acao ? `<div class="faz">O que fazer: ${escapar(i.acao)}</div>` : ''}</div>
+  </div>`;
+}
+function blocoSaude(){
+  const s = painelSaude;
+  if(!s) return '';
+  let h = `<h2>Saúde do sistema</h2>`;
+  if(s.erro){
+    return h + `<div class="recado erro" id="saude"><b>O check-up não está instalado.</b>
+      Cole o <code>00_tudo.sql</code> de novo no SQL Editor do Supabase (40_saude).</div>`;
+  }
+  const n = s.numeros || {};
+  const titulo = s.nivel === 'problema' ? 'Problema no sistema'
+               : s.nivel === 'atencao'  ? 'Funcionando, com pontos de atenção'
+               : 'Tudo funcionando';
+  const monitor = ((window.AGENDAPRO || {}).url || '').replace(/\/$/, '') + '/functions/v1/saude';
+  h += `<div class="recado ${s.nivel === 'problema' ? 'erro' : ''}" id="saude">
+    <b>${titulo}</b>
+    ${(s.itens || []).map(linhaSaude).join('')}
+    ${(s.negocio || []).length ? `<div style="margin-top:12px;font-weight:600">No negócio</div>
+      ${s.negocio.map(linhaSaude).join('')}` : ''}
+    <div class="saude-pe">
+      ${Number(n.enviadas24h) || 0} mensagem(ns) enviada(s) nas últimas 24h ·
+      ${Number(n.falhas24h) || 0} falha(s) · ${Number(n.pendentes) || 0} na fila
+      ${n.ultimoEnvio ? '· último envio ' + quando(n.ultimoEnvio) : ''}
+      · verificado ${quando(s.verificadoEm)}<br>
+      Endereço para o UptimeRobot avisar você: <code>${escapar(monitor)}</code>
+    </div>
+    <div style="margin-top:10px">
+      <button class="acao" onclick="verificarSaude(this)">Verificar de novo</button>
+    </div>
+  </div>`;
+  return h;
+}
+async function verificarSaude(bt){
+  bt.disabled = true;
+  try{
+    const x = await Dados.chamar('saude_plataforma');
+    painelSaude = Array.isArray(x) ? x[0] : x;
+    desenhar();
+  }catch(e){
+    alert('Não consegui verificar agora: ' + e.message);
+    bt.disabled = false;
+  }
 }
 
 const quando = d => d ? new Date(d).toLocaleString('pt-BR',

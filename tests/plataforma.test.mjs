@@ -121,6 +121,22 @@ console.log('\nQuem é');
   // O selo existe para você saber, de relance, que esta aba enxerga tudo.
   diz((await p.textContent('.selo')).includes('PLATAFORMA'),
     'a tela se identifica como a que enxerga todos os salões');
+  /* O check-up do sistema (40_saude.sql), logo abaixo do placar. A bancada
+     não tem pg_cron: o despertador aparece como problema, com o que fazer —
+     é exatamente o que a tela tem de mostrar num banco assim. */
+  const saude = (await p.textContent('#saude').catch(() => '')) || '';
+  diz(/Saúde do sistema/.test(txt) && /Fila de mensagens/.test(saude)
+      && /Envio pelo WhatsApp/.test(saude),
+    'o cartão "Saúde do sistema" aparece, com a fila e o envio', saude.slice(0, 200));
+  diz(/Despertador da fila/.test(saude) && /LIGAR-WHATSAPP\.sql/.test(saude)
+      && /Problema no sistema/.test(saude),
+    'sem pg_cron, diz que há problema e o que rodar', saude.slice(0, 300));
+  diz(/functions\/v1\/saude/.test(saude),
+    'e mostra o endereço para o UptimeRobot', saude.slice(-200));
+  await p.click('#saude button.acao');
+  await p.waitForTimeout(800);
+  diz(/Tudo funcionando|Problema no sistema|atenção/.test(await p.textContent('#saude')),
+    '"Verificar de novo" redesenha o cartão');
   await p.context().close();
 
   /* ── O PAINEL DO SALÃO NÃO BAIXA O SALÃO DOS OUTROS ────────────────────

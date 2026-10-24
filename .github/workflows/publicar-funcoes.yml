@@ -36,6 +36,7 @@ on:
       - 'supabase/functions/webhook-mp/**'
       - 'supabase/functions/assinar-cartao/**'
       - 'supabase/functions/cancelar-cartao/**'
+      - 'supabase/functions/saude/**'
       # Texto de ajuda (MODELOS.md, README.md) não é código: mudar não publica.
       - '!supabase/functions/**/*.md'
 
@@ -96,3 +97,10 @@ jobs:
       # tudo se o segredo não estiver configurado. Só ESTA das quatro.
       - name: webhook-mp
         run: supabase functions deploy webhook-mp --project-ref "$PROJETO" --no-verify-jwt
+
+      # O check-up do sistema (saude/README.md), que o UptimeRobot visita. SEM
+      # verificação de JWT, de propósito: o monitor não tem token do Supabase.
+      # A resposta não leva dado de ninguém — só "ok" ou "problema" e as chaves
+      # do que está errado —, e o banco só deixa o service_role perguntar.
+      - name: saude
+        run: supabase functions deploy saude --project-ref "$PROJETO" --no-verify-jwt

@@ -988,6 +988,20 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (22_cotas)'
            else '' end
   union all
+  /* O check-up do sistema: o cartão "Saúde do sistema" do admin e o endereço
+     que o UptimeRobot visita (função de borda `saude`). */
+  select 45, 'Check-up do sistema (Saúde do sistema no admin)',
+         case
+           when to_regprocedure('public.saude_plataforma()') is null
+             or to_regprocedure('public.saude_publica()') is null
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.saude_plataforma()') is null
+             or to_regprocedure('public.saude_publica()') is null
+             then 'cole o 00_tudo.sql de novo (40_saude)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um
