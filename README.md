@@ -375,7 +375,8 @@ for conferir e desmoraliza a lista toda.
    visitam o link antes dela, e ela chega em "link inválido ou vencido". A
    `nova-senha.html` aceita um link que só leva o código e o gasta quando a
    pessoa toca em Salvar. Para ligar, em Authentication → Emails → Templates
-   → **Reset password**, troque o corpo por:
+   → **Reset password**, troque o assunto por **Trocar sua senha — AgendaPro**
+   (o padrão do Supabase vem em inglês, "Reset Your Password") e o corpo por:
 
    ```html
    <h2>Trocar sua senha</h2>
@@ -388,6 +389,16 @@ for conferir e desmoraliza a lista toda.
    quando a cliente pediu pelo link). O código vai depois do `#`, que não
    sai do navegador. Sem esta troca o link padrão continua funcionando —
    só sem a proteção.
+
+   Os outros dois que o sistema manda também nascem em inglês. Em
+   **Confirm signup**: assunto **Confirme seu cadastro — AgendaPro**, e no
+   corpo `<h2>Confirme seu cadastro</h2><p>Toque no link para confirmar o seu
+   e-mail e entrar no AgendaPro.</p><p><a href="{{ .ConfirmationURL }}">Confirmar
+   meu e-mail</a></p>`. Em **Change email address**: assunto **Confirme o seu
+   novo e-mail — AgendaPro**, e no corpo `<h2>Confirme o novo e-mail</h2><p>Recebemos
+   um pedido para trocar o e-mail da sua conta para {{ .NewEmail }}.</p><p><a
+   href="{{ .ConfirmationURL }}">Confirmar a troca</a></p><p>Se não foi você,
+   ignore este e-mail.</p>`.
 
    E-mail para qualquer cliente exige **SMTP próprio** (Authentication →
    Emails → SMTP Settings): sem ele, o Supabase só entrega para os e-mails
