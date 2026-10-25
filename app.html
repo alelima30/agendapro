@@ -571,6 +571,11 @@ span.ajuda{display:block;margin-top:5px}
         <small id="latQuemPapel"></small>
       </span>
     </div>
+    <!-- O manual do dono, antes do WhatsApp: a dúvida de "onde fica isso?"
+         se resolve sozinha lendo, e o suporte fica para o que o manual não
+         cobre. Aba nova, para não perder a tela em que a pessoa estava. -->
+    <a class="lat-acao" id="latManual" href="manual.html" target="_blank" rel="noopener">
+      <span data-ico="documento"></span>Manual do AgendaPro</a>
     <a class="lat-acao" id="latAjuda" href="#" target="_blank" rel="noopener"
        onclick="return abrirAjuda(this)">
       <span data-ico="whatsapp"></span>Precisa de ajuda? Fale no WhatsApp</a>
@@ -2065,7 +2070,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.9dfe94';
+const VERSAO_APP = 'v9.fcabaf';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o

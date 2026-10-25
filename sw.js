@@ -16,7 +16,7 @@
 /* Sobe a cada correção publicada, e tem que andar junto com o VERSAO_APP do
    app.html: o carimbo na lateral mostra aquele, e dois números divergentes
    fariam a tela afirmar uma versão que não é a que está servindo. */
-const VERSAO = 'agendapro-v9.9dfe94';
+const VERSAO = 'agendapro-v9.fcabaf';
 
 const ESSENCIAIS = [
   './',
@@ -39,6 +39,8 @@ const ESSENCIAIS = [
   // que chama um arquivo que não está lá — e o cartão do link fica sem o
   // quadradinho que o texto ao lado promete.
   './qr.js',
+  // O manual do dono: aberto do menu, inclusive sem rede no salão.
+  './manual.html',
   './config.js',
   './dados.js',
   './manifest.webmanifest',

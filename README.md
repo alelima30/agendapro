@@ -28,6 +28,8 @@ verificados de ponta a ponta.
 | `icones.js` | 30 ícones em SVG traçado, no lugar de emoji |
 | `demo.js` | a semente da demonstração, compartilhada pelas duas telas |
 | `criar.html` | o cadastro do dono: plano, dados e link pronto |
+| `manual.html` | o manual do dono, aberto pelo botão "Manual do AgendaPro" no menu do painel |
+| `manual-agendapro.pdf` | o mesmo manual em PDF — gerado com `node gerar-manual-pdf.mjs`, nunca à mão |
 | `tests/` | 274 verificações: banco, colunas, camada de dados, cota do plano e imagens |
 
 > **Para instalar e testar de ponta a ponta, siga o
