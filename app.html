@@ -610,9 +610,22 @@ span.ajuda{display:block;margin-top:5px}
     </div>
     <span class="espaco"></span>
     <span class="tb-data" id="tbData"></span>
-    <a class="tb-ajuda" id="btAjuda" href="#" target="_blank" rel="noopener"
-       onclick="return abrirAjuda(this)" aria-label="Precisa de ajuda? Fale no WhatsApp">
-      <span data-ico="whatsapp"></span><span>Ajuda</span></a>
+    <!-- AJUDA É UM MENU DE DUAS PORTAS. O manual responde sozinho o "onde
+         fica isso?", que é a maior parte das dúvidas; o WhatsApp fica para o
+         que o manual não cobre. Os dois a um toque, no mesmo lugar. -->
+    <div class="tb-ajuda-caixa">
+      <button class="tb-ajuda" id="btAjuda" type="button" onclick="alternarMenuAjuda()"
+              aria-haspopup="true" aria-expanded="false" aria-controls="menuAjuda">
+        <span data-ico="info"></span><span>Ajuda</span></button>
+      <div class="tb-ajuda-menu" id="menuAjuda" role="menu" hidden>
+        <a role="menuitem" id="ajudaManual" href="manual.html" target="_blank" rel="noopener"
+           onclick="fecharMenuAjuda()">
+          <span data-ico="documento"></span>Manual do AgendaPro</a>
+        <a role="menuitem" id="ajudaWhats" href="#" target="_blank" rel="noopener"
+           onclick="fecharMenuAjuda(); return abrirAjuda(this)">
+          <span data-ico="whatsapp"></span>Falar no WhatsApp</a>
+      </div>
+    </div>
   </header>
   <!-- O MODO SUPORTE: a conta da plataforma dentro do painel de um cliente.
        Fica colada embaixo do topo, em toda tela, enquanto durar. -->
@@ -2070,7 +2083,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.fcabaf';
+const VERSAO_APP = 'v9.8bc3c1';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2162,10 +2175,30 @@ function abrirAjuda(a){
   a.href = linkDeAjuda();
   return true;
 }
-document.querySelectorAll('#btAjuda, #latAjuda').forEach(a => {
+document.querySelectorAll('#ajudaWhats, #latAjuda').forEach(a => {
   if(SUPORTE_WHATSAPP) a.href = 'https://wa.me/' + SUPORTE_WHATSAPP;
   else a.style.display = 'none';
 });
+
+/* O menu do "Ajuda", no topo. Fecha ao escolher, ao tocar fora e no Esc —
+   aberto por cima da agenda, ele não pode ficar esquecido ali. */
+function alternarMenuAjuda(){
+  const m = document.getElementById('menuAjuda');
+  if(m.hidden){
+    m.hidden = false;
+    document.getElementById('btAjuda').setAttribute('aria-expanded', 'true');
+  }else fecharMenuAjuda();
+}
+function fecharMenuAjuda(){
+  const m = document.getElementById('menuAjuda');
+  if(!m || m.hidden) return;
+  m.hidden = true;
+  document.getElementById('btAjuda').setAttribute('aria-expanded', 'false');
+}
+document.addEventListener('click', ev => {
+  if(!ev.target.closest('.tb-ajuda-caixa')) fecharMenuAjuda();
+});
+document.addEventListener('keydown', ev => { if(ev.key === 'Escape') fecharMenuAjuda(); });
 
 function trocarTema(){
   const atual = document.documentElement.getAttribute('data-tema');

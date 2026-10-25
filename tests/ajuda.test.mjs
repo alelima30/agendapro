@@ -8,11 +8,15 @@
    Quem trava e não tem a quem perguntar, desiste. Um botão que abre o
    WhatsApp do suporte do AgendaPro — (11) 96365-9620.
 
+   Depois veio o manual do dono, e ele foi pedido NO AJUDA: o botão do topo
+   virou um menu com duas portas, o manual e o WhatsApp.
+
    ── O QUE ESTE ARQUIVO PROTEGE ─────────────────────────────────────────────
      1. O botão está no topo, à vista no celular, e com tamanho de dedo.
      2. Abre o número certo, já dizendo o salão e a tela em que a pessoa está
         — e a tela é a de AGORA, não a de quando o painel abriu.
      3. Também está no menu, e não cobre nada da agenda.
+     4. O Ajuda abre o manual, e o menu fecha ao tocar fora.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -86,12 +90,17 @@ verdade('mora no topo da tela (não flutua por cima da agenda)', bt && bt.noTopo
 verdade('com tamanho de dedo (44px)', bt && bt.alto >= 44, JSON.stringify(bt));
 
 secao('2) Abre o WhatsApp do suporte, dizendo o salão e a tela');
-let u = await abrir('#btAjuda');
+// O Ajuda agora é um menu: o primeiro toque abre, o segundo escolhe.
+const abrirPeloAjuda = async (item) => {
+  await p.click('#btAjuda'); await p.waitForTimeout(200);
+  return abrir(item);
+};
+let u = await abrirPeloAjuda('#ajudaWhats');
 verdade('abre o número do suporte', u.startsWith('https://wa.me/' + NUMERO), u);
 verdade('a conversa já diz o salão', texto(u).includes(NOME), texto(u));
 verdade('e a tela em que a pessoa está', /Tela: Agenda/.test(texto(u)), texto(u));
 await p.evaluate(() => irPara('clientes')); await p.waitForTimeout(900);
-u = await abrir('#btAjuda');
+u = await abrirPeloAjuda('#ajudaWhats');
 verdade('trocou de tela, a conversa acompanha (Clientes)', /Tela: Clientes/.test(texto(u)), texto(u));
 
 secao('3) Também no menu');
@@ -103,6 +112,25 @@ const lat = await p.evaluate(() => {
 verdade('"Precisa de ajuda? Fale no WhatsApp" no menu', lat && lat.visivel && /ajuda/i.test(lat.txt), JSON.stringify(lat));
 u = await abrir('#latAjuda');
 verdade('e abre o mesmo número, com o salão', u.startsWith('https://wa.me/' + NUMERO) && texto(u).includes(NOME), u);
+
+secao('4) O manual, pelo mesmo Ajuda');
+await p.evaluate(() => fecharLateral()); await p.waitForTimeout(400);
+await p.click('#btAjuda'); await p.waitForTimeout(200);
+const menu = await p.evaluate(() => {
+  const m = document.getElementById('menuAjuda');
+  const r = m.getBoundingClientRect();
+  return { aberto: !m.hidden, dentro: r.left >= 0 && r.right <= innerWidth,
+           itens: [...m.querySelectorAll('a')].map(a => a.textContent.trim()),
+           alto: Math.min(...[...m.querySelectorAll('a')].map(a => a.getBoundingClientRect().height)) };
+});
+verdade('o toque abre o menu com o manual e o WhatsApp',
+  menu.aberto && /Manual/.test(menu.itens.join()) && /WhatsApp/.test(menu.itens.join()), JSON.stringify(menu));
+verdade('o menu cabe na tela do celular', menu.dentro, JSON.stringify(menu));
+verdade('cada opção com tamanho de dedo (44px)', menu.alto >= 44, JSON.stringify(menu));
+await p.mouse.click(30, 400); await p.waitForTimeout(200);
+verdade('tocar fora fecha o menu', await p.evaluate(() => document.getElementById('menuAjuda').hidden));
+u = await abrirPeloAjuda('#ajudaManual');
+verdade('"Manual do AgendaPro" abre o manual', /\/manual\.html$/.test(u), u);
 
 verdade('sem erro de JavaScript', erros.length === 0, erros.slice(0, 3).join(' | '));
 await nav.close();
