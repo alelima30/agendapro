@@ -2083,7 +2083,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.8bc3c1';
+const VERSAO_APP = 'v9.4c2f44';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -17997,7 +17997,33 @@ function iniciar(){
      atrás. Fechado, ele já revela o painel montado. No suporte, nunca: o
      assistente é para o dono, e preenchê-lo gravaria no salão dele. */
   if(!emSuporte()) talvezOferecerPrimeiroDia();
+  abrirTelaDoEndereco();
 }
+
+/* ── O LINK QUE ABRE NUMA TELA ───────────────────────────────────────────
+   `app.html#tela=servicos` (e `#tela=salao&sub=aparencia`) abre direto ali.
+   É o "Abrir no painel" do manual: ler "Serviços → + Serviço" e cair na
+   Agenda obrigaria a pessoa a procurar o que o manual acabou de mostrar.
+   Uma vez por carga — o `iniciar()` roda de novo quando o salão muda, e não
+   pode arrancar a pessoa da tela em que ela está. Tela que o papel não
+   alcança cai na Agenda pelo próprio `irPara`. */
+let telaDoEnderecoAberta = false;
+function abrirTelaDoEndereco(){
+  if(telaDoEnderecoAberta) return;
+  telaDoEnderecoAberta = true;
+  const f = new URLSearchParams((location.hash || '').slice(1));
+  const k = f.get('tela');
+  if(!k || !TELAS.some(t => t[0] === k)) return;
+  irPara(k);
+  const sub = f.get('sub');
+  if(k === 'salao' && sub && ['dados','aparencia','notificacoes'].includes(sub)) trocarAbaSalao(sub);
+}
+// Com o painel já aberto, um link que só troca o `#` não recarrega a página:
+// sem isto, o segundo "Abrir no painel" do manual não saía do lugar.
+window.addEventListener('hashchange', () => {
+  telaDoEnderecoAberta = false;
+  abrirTelaDoEndereco();
+});
 
 /* ── QUEM ESTÁ USANDO O SISTEMA AGORA ─────────────────────────────────────
    O papel sai do VÍNCULO, não de um palpite: `vinculos.papel` é o que o RLS

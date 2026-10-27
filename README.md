@@ -30,6 +30,7 @@ verificados de ponta a ponta.
 | `criar.html` | o cadastro do dono: plano, dados e link pronto |
 | `manual.html` | o manual do dono, aberto pelo botão "Manual do AgendaPro" no menu do painel |
 | `manual-agendapro.pdf` | o mesmo manual em PDF — gerado com `node gerar-manual-pdf.mjs`, nunca à mão |
+| `manual/` | os prints do manual, com os números nos botões — gerados com `node gerar-manual-imagens.mjs` a partir da demonstração |
 | `tests/` | 274 verificações: banco, colunas, camada de dados, cota do plano e imagens |
 
 > **Para instalar e testar de ponta a ponta, siga o

@@ -107,6 +107,40 @@ kbd,.botao{
 }
 .rodape{text-align:center;color:var(--txt3);font-size:12px;margin-top:26px}
 
+.busca{margin:0 0 18px}
+.busca input{
+  width:100%;min-height:46px;padding:10px 14px;border:1px solid var(--borda);border-radius:12px;
+  background:var(--painel);color:var(--txt);font:inherit;
+}
+.busca-nada{color:var(--txt2);margin:10px 2px 0}
+section[hidden],.indice[hidden]{display:none}
+.abrir-painel{margin:2px 0 10px}
+.btn-peq{min-height:36px;padding:7px 12px;font-size:13px}
+
+figure{margin:14px 0 18px}
+figure img{
+  display:block;width:100%;height:auto;border:1px solid var(--borda);border-radius:10px;
+  cursor:zoom-in;background:var(--fundo);
+}
+figure img:focus-visible{outline:3px solid var(--acao);outline-offset:2px}
+figcaption{font-size:14px;color:var(--txt2);margin-top:7px}
+/* A legenda numerada: o mesmo círculo vermelho desenhado no print. */
+ol.legenda{list-style:none;counter-reset:n;margin:6px 0 0;padding:0}
+ol.legenda li{counter-increment:n;position:relative;padding-left:30px;margin:5px 0;color:var(--txt)}
+ol.legenda li::before{
+  content:counter(n);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;
+  background:#E11D48;color:#fff;font:800 12px/22px system-ui,sans-serif;text-align:center;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;
+}
+.fig-cel{max-width:280px}
+.par-cel{display:flex;flex-wrap:wrap;gap:0 20px}
+.par-cel .fig-cel{flex:1 1 220px}
+
+.zoom{border:none;padding:0;background:transparent;max-width:96vw;max-height:94vh}
+.zoom::backdrop{background:rgba(15,23,42,.82)}
+.zoom img{display:block;max-width:96vw;max-height:86vh;border-radius:10px;margin:0 auto}
+.zoom p{color:#fff;text-align:center;font-size:14px;margin:8px 0 0}
+
 /* Para imprimir e para o PDF: sem botões, sem caixas de cartão, e cada
    seção começando inteira quando der. */
 @media print{
@@ -115,7 +149,11 @@ kbd,.botao{
     --link:#1D4ED8; --info:#F3F7FF; --dica:#F7F5FF; --cuidado:#FFF9F2;
   }
   body{font-size:12pt}
-  .acoes,.nao-imprime{display:none !important}
+  .acoes,.nao-imprime,.abrir-painel,.zoom{display:none !important}
+  section[hidden]{display:block !important}
+  figure{break-inside:avoid;margin:8px 0 12px}
+  figure img{max-height:110mm;width:auto;max-width:100%;border-color:#ccc}
+  .fig-cel{max-width:62mm}
   .pagina{max-width:none;padding:0}
   section{border:none;padding:0;margin:0 0 10px}
   section h2{break-after:avoid;border-bottom:2px solid var(--txt);padding-bottom:4px}
@@ -135,11 +173,20 @@ kbd,.botao{
   </div>
   <p class="subtitulo">Para o dono do salão, da barbearia ou do estúdio. Do primeiro
     acesso ao fechamento do mês, passo a passo.</p>
+  <p class="subtitulo nao-imprime">Os <b>números vermelhos</b> nos prints apontam os botões citados
+    na legenda. Toque numa imagem para ampliar, e em <b>Abrir no painel</b> para ir direto à tela.</p>
 
   <div class="acoes">
     <a class="btn btn-p" href="manual-agendapro.pdf" download>Baixar em PDF</a>
     <button class="btn" type="button" onclick="window.print()">Imprimir</button>
     <a class="btn" href="app.html">Voltar para o painel</a>
+  </div>
+
+  <div class="busca nao-imprime">
+    <input type="search" id="busca" placeholder="Buscar no manual: bloquear, link, senha…"
+           aria-label="Buscar no manual" autocomplete="off" />
+    <p id="buscaNada" class="busca-nada" hidden>Nada encontrado. Tente outra palavra, ou toque em
+      <a href="#suporte">Falar com o suporte</a>.</p>
   </div>
 
   <nav class="indice" aria-label="Sumário">
@@ -188,6 +235,12 @@ kbd,.botao{
   <!-- ═══════════ 2 ═══════════ -->
   <section id="painel">
     <h2>2. Conhecendo o painel</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=agenda">Abrir no painel →</a></p>
+    <figure>
+      <img src="manual/agenda.jpg" alt="O painel aberto na Agenda, no computador." loading="lazy" />
+      <figcaption>O painel aberto na Agenda, no computador.
+      <ol class="legenda"><li>O menu, com todas as abas.</li><li>Dia, 3 dias, Semana ou Mês.</li><li><b>+ Agendamento</b>, para marcar um horário.</li><li><b>Ajuda</b>: o manual e o WhatsApp do suporte.</li><li>Um atendimento. Toque nele para abrir.</li></ol></figcaption>
+    </figure>
     <p>À esquerda fica o menu, dividido em três grupos. No celular ele se esconde:
       toque no botão de menu (as três linhas) no canto de cima.</p>
     <div class="tabela-rola"><table>
@@ -200,6 +253,11 @@ kbd,.botao{
     </table></div>
     <p>No alto da tela, o botão <b>Ajuda</b> abre duas opções: este <b>manual</b> e o
       <b>WhatsApp do suporte</b>.</p>
+    <figure>
+      <img src="manual/ajuda.jpg" alt="O botão Ajuda aberto." loading="lazy" />
+      <figcaption>O botão Ajuda aberto.
+      <ol class="legenda"><li><b>Manual do AgendaPro</b>: abre esta página.</li><li><b>Falar no WhatsApp</b>: abre a conversa com o suporte.</li></ol></figcaption>
+    </figure>
     <p>No pé do menu ficam: <b>Manual do AgendaPro</b> (esta página), <b>Precisa de ajuda?</b>
       (WhatsApp do suporte), <b>Instalar aplicativo</b>, <b>Tema escuro/claro</b>,
       <b>Sair</b> e o número da <b>versão</b>.</p>
@@ -212,7 +270,13 @@ kbd,.botao{
   <!-- ═══════════ 3 ═══════════ -->
   <section id="negocio">
     <h2>3. Meu negócio</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=salao">Abrir no painel →</a></p>
     <p class="onde">Menu → Cadastros → <b>Meu negócio</b>. Tem três partes no alto da tela.</p>
+    <figure>
+      <img src="manual/negocio-dados.jpg" alt="Meu negócio, na parte Dados." loading="lazy" />
+      <figcaption>Meu negócio, na parte Dados.
+      <ol class="legenda"><li>As três partes: <b>Dados</b>, <b>Aparência do link</b> e <b>Notificações</b>.</li></ol></figcaption>
+    </figure>
 
     <h3>Dados</h3>
     <ul class="lista">
@@ -228,19 +292,33 @@ kbd,.botao{
     </ul>
 
     <h3>Aparência do link</h3>
+    <figure>
+      <img src="manual/negocio-aparencia.jpg" alt="Meu negócio, na parte Aparência do link." loading="lazy" />
+      <figcaption>Meu negócio, na parte Aparência do link.</figcaption>
+    </figure>
     <p>Logo, foto do salão, cores e o visual da página que a cliente abre. As fotos
       podem vir direto do celular: o sistema diminui o tamanho sozinho.</p>
     <div class="caixa dica">Se a cor escolhida deixar o texto difícil de ler, a tela avisa
       o contraste. O aviso é só um conselho: a decisão é sua.</div>
 
     <h3>Notificações</h3>
+    <figure>
+      <img src="manual/negocio-notificacoes.jpg" alt="Meu negócio, na parte Notificações." loading="lazy" />
+      <figcaption>Meu negócio, na parte Notificações.</figcaption>
+    </figure>
     <p>As mensagens de WhatsApp do salão. Veja <a href="#mensagens">Mensagens no WhatsApp</a>.</p>
   </section>
 
   <!-- ═══════════ 4 ═══════════ -->
   <section id="servicos">
     <h2>4. Serviços</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=servicos">Abrir no painel →</a></p>
     <p class="onde">Menu → Cadastros → <b>Serviços</b> → <span class="botao">+ Serviço</span></p>
+    <figure>
+      <img src="manual/servicos.jpg" alt="A lista de serviços." loading="lazy" />
+      <figcaption>A lista de serviços.
+      <ol class="legenda"><li><b>+ Serviço</b>, para cadastrar um novo.</li></ol></figcaption>
+    </figure>
     <ol class="passos">
       <li>Dê o nome que a cliente entende ("Corte feminino", "Pé e mão").</li>
       <li>Informe o <b>preço</b> e a <b>duração</b>. A duração é o que a agenda reserva:
@@ -255,6 +333,11 @@ kbd,.botao{
     <div class="caixa dica"><b>Só em certos dias da semana:</b> marque os dias em que o
       serviço é feito e o link só oferece esses dias. Você, pelo painel, continua
       podendo marcar em qualquer dia.</div>
+    <figure>
+      <img src="manual/servico-form.jpg" alt="A ficha de um serviço." loading="lazy" />
+      <figcaption>A ficha de um serviço.
+      <ol class="legenda"><li><b>Ativo</b>: desmarcado, o serviço sai da agenda e do link.</li></ol></figcaption>
+    </figure>
     <div class="caixa info">Serviço que você parou de oferecer: desmarque <b>Ativo</b> em vez
       de apagar. Ele some da agenda e do link, e o histórico de quem já fez continua guardado.</div>
   </section>
@@ -262,7 +345,13 @@ kbd,.botao{
   <!-- ═══════════ 5 ═══════════ -->
   <section id="equipe">
     <h2>5. Equipe e acessos</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=equipe">Abrir no painel →</a></p>
     <p class="onde">Menu → Cadastros → <b>Equipe</b></p>
+    <figure>
+      <img src="manual/equipe.jpg" alt="A tela Equipe." loading="lazy" />
+      <figcaption>A tela Equipe.
+      <ol class="legenda"><li><b>+ Profissional</b>, para pôr alguém na agenda.</li><li><b>Bloquear horário</b> de uma profissional.</li><li><b>Quem entra no sistema</b>: os acessos (convites funcionam com o sistema ligado no servidor).</li></ol></figcaption>
+    </figure>
     <p>A tela tem duas partes, e elas são coisas diferentes:</p>
     <ul class="lista">
       <li><b>Profissionais</b> (em cima): quem <b>atende</b>. Cada um ganha uma coluna
@@ -292,6 +381,7 @@ kbd,.botao{
   <!-- ═══════════ 6 ═══════════ -->
   <section id="agenda">
     <h2>6. Agenda</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=agenda">Abrir no painel →</a></p>
     <p class="onde">Menu → Dia a dia → <b>Agenda</b></p>
     <p>Cada profissional é uma coluna, e cada linha é um horário. O listrado é fora
       da jornada; o hachurado é almoço ou bloqueio.</p>
@@ -303,6 +393,11 @@ kbd,.botao{
     </ul>
 
     <h3>Marcar um horário</h3>
+    <figure>
+      <img src="manual/novo-agendamento.jpg" alt="A janela de um agendamento novo." loading="lazy" />
+      <figcaption>A janela de um agendamento novo.
+      <ol class="legenda"><li><b>Salvar</b> grava o horário.</li></ol></figcaption>
+    </figure>
     <ol class="passos">
       <li>Toque num espaço vazio da coluna da profissional (ou em
         <span class="botao">+ Agendamento</span>).</li>
@@ -314,6 +409,11 @@ kbd,.botao{
       pergunta se é encaixe antes de marcar. Confirmou, marca.</div>
 
     <h3>Mexer num horário marcado</h3>
+    <figure>
+      <img src="manual/detalhe.jpg" alt="Um atendimento aberto." loading="lazy" />
+      <figcaption>Um atendimento aberto.
+      <ol class="legenda"><li><b>Confirmar horário</b> (aparece quando ele está pendente).</li><li><b>Falar no WhatsApp</b> com a cliente.</li><li><b>Salvar</b> depois de mudar o status.</li></ol></figcaption>
+    </figure>
     <p>Toque no atendimento. Ali você pode:</p>
     <ul class="lista">
       <li><b>Confirmar horário</b> quando a cliente responder que vem.</li>
@@ -337,7 +437,13 @@ kbd,.botao{
   <!-- ═══════════ 7 ═══════════ -->
   <section id="link">
     <h2>7. Seu link de agendamento</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=publico">Abrir no painel →</a></p>
     <p class="onde">Menu → A conta → <b>Ver como cliente</b></p>
+    <figure>
+      <img src="manual/link.jpg" alt="A tela Ver como cliente." loading="lazy" />
+      <figcaption>A tela Ver como cliente.
+      <ol class="legenda"><li>O seu link.</li><li><b>Copiar</b>, para colar no WhatsApp ou no Instagram.</li><li>O QR Code. <b>Baixar para imprimir</b> fica ao lado.</li><li><b>Abrir o app do cliente</b>: a página que ela vê.</li></ol></figcaption>
+    </figure>
     <p>É o endereço que a cliente abre para marcar sozinha, a qualquer hora. Ali você encontra:</p>
     <ul class="lista">
       <li>O link pronto, com <span class="botao">Copiar</span>, para mandar no WhatsApp
@@ -346,6 +452,10 @@ kbd,.botao{
       <li><span class="botao">Abrir o app do cliente</span>, para ver exatamente o que ela vê.</li>
     </ul>
     <h3>Como a cliente marca</h3>
+    <figure class="fig-cel">
+      <img src="manual/cliente-link.jpg" alt="O link aberto no celular da cliente." loading="lazy" />
+      <figcaption>O link aberto no celular da cliente.</figcaption>
+    </figure>
     <ol class="passos">
       <li>Abre o link e escolhe o serviço.</li>
       <li>Escolhe quem atende (ou "tanto faz") e um dos horários livres.</li>
@@ -359,7 +469,13 @@ kbd,.botao{
   <!-- ═══════════ 8 ═══════════ -->
   <section id="clientes">
     <h2>8. Clientes e aniversariantes</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=clientes">Abrir no painel →</a></p>
     <p class="onde">Menu → Cadastros → <b>Clientes</b></p>
+    <figure>
+      <img src="manual/clientes.jpg" alt="A lista de clientes." loading="lazy" />
+      <figcaption>A lista de clientes.
+      <ol class="legenda"><li>A busca, por nome ou telefone.</li><li><b>+ Cliente</b>, para cadastrar na mão.</li></ol></figcaption>
+    </figure>
     <ul class="lista">
       <li>Busque por <b>nome ou telefone</b> no campo do alto.</li>
       <li><span class="botao">+ Cliente</span> cadastra na mão. Quem marca pelo link
@@ -368,6 +484,10 @@ kbd,.botao{
         anotações da equipe.</li>
     </ul>
     <p class="onde">Menu → Dia a dia → <b>Aniversariantes</b></p>
+    <figure>
+      <img src="manual/aniversariantes.jpg" alt="A tela Aniversariantes." loading="lazy" />
+      <figcaption>A tela Aniversariantes.</figcaption>
+    </figure>
     <p>A lista de quem faz aniversário no período ou no mês escolhido, para mandar
       um parabéns ou um mimo. Para aparecer aqui, a ficha precisa ter a data de nascimento.</p>
   </section>
@@ -375,6 +495,7 @@ kbd,.botao{
   <!-- ═══════════ 9 ═══════════ -->
   <section id="fechar">
     <h2>9. Fechar o atendimento</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=agenda">Abrir no painel →</a></p>
     <p>Quando a cliente for embora, toque no atendimento e marque <b>Concluído</b>. É
       isso que conta o atendimento no faturamento e na comissão da profissional. Não
       precisa lançar valor em outro lugar.</p>
@@ -390,6 +511,7 @@ kbd,.botao{
   <!-- ═══════════ 10 ═══════════ -->
   <section id="numeros">
     <h2>10. Hoje, Dashboard e Relatórios</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=hoje">Abrir no painel →</a></p>
     <p>Três telas, três perguntas diferentes. Só o dono e o administrador veem.</p>
     <div class="tabela-rola"><table>
       <thead><tr><th>Tela</th><th>Responde</th><th>Quando abrir</th></tr></thead>
@@ -401,11 +523,25 @@ kbd,.botao{
     </table></div>
     <p>Nos Relatórios, use os atalhos de período no alto ou escolha as datas em
       <b>De</b> e <b>até</b>.</p>
+    <figure>
+      <img src="manual/hoje.jpg" alt="A tela Hoje." loading="lazy" />
+      <figcaption>A tela Hoje.</figcaption>
+    </figure>
+    <figure>
+      <img src="manual/dashboard.jpg" alt="O Dashboard." loading="lazy" />
+      <figcaption>O Dashboard.</figcaption>
+    </figure>
+    <figure>
+      <img src="manual/relatorios.jpg" alt="Os Relatórios." loading="lazy" />
+      <figcaption>Os Relatórios.
+      <ol class="legenda"><li>Os atalhos de período.</li><li>As datas <b>De</b> e <b>até</b>.</li></ol></figcaption>
+    </figure>
   </section>
 
   <!-- ═══════════ 11 ═══════════ -->
   <section id="vendas">
     <h2>11. Produtos, Pacotes e Cupons</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=produtos">Abrir no painel →</a></p>
     <p>Fazem parte dos planos pagos (a aba mostra um cadeado no plano Grátis).</p>
     <ul class="lista">
       <li><b>Produtos</b>: o que você vende no balcão, com custo, estoque e comissão.
@@ -420,6 +556,7 @@ kbd,.botao{
   <!-- ═══════════ 12 ═══════════ -->
   <section id="mensagens">
     <h2>12. Mensagens no WhatsApp</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=salao&amp;sub=notificacoes">Abrir no painel →</a></p>
     <p class="onde">Menu → Cadastros → <b>Meu negócio → Notificações</b></p>
     <p>Aqui você escolhe quais mensagens o salão usa e escreve o texto de cada uma:</p>
     <ul class="lista">
@@ -437,7 +574,12 @@ kbd,.botao{
   <!-- ═══════════ 13 ═══════════ -->
   <section id="plano">
     <h2>13. Seu plano</h2>
+    <p class="abrir-painel"><a class="btn btn-peq" href="app.html#tela=plano">Abrir no painel →</a></p>
     <p class="onde">Menu → A conta → <b>Plano</b></p>
+    <figure>
+      <img src="manual/plano.jpg" alt="A tela Plano." loading="lazy" />
+      <figcaption>A tela Plano.</figcaption>
+    </figure>
     <p>Mostra o plano de hoje, até quando ele vale e quanto você já usou: quantos
       profissionais estão na agenda e quantos horários foram marcados no mês.</p>
     <ul class="lista">
@@ -462,6 +604,18 @@ kbd,.botao{
       <li><b>Android (Chrome)</b>: no menu do painel, toque em <span class="botao">Instalar aplicativo</span>.</li>
       <li><b>iPhone (Safari)</b>: toque em Compartilhar → <b>Adicionar à Tela de Início</b>.</li>
     </ul>
+    <div class="par-cel">
+      <figure class="fig-cel">
+        <img src="manual/celular-agenda.jpg" alt="A agenda no celular." loading="lazy" />
+        <figcaption>A agenda no celular.
+        <ol class="legenda"><li>O botão do menu.</li><li><b>Ajuda</b>.</li></ol></figcaption>
+      </figure>
+      <figure class="fig-cel">
+        <img src="manual/celular-menu.jpg" alt="O pé do menu no celular." loading="lazy" />
+        <figcaption>O pé do menu no celular.
+        <ol class="legenda"><li><b>Manual do AgendaPro</b>.</li><li><b>Instalar aplicativo</b>.</li></ol></figcaption>
+      </figure>
+    </div>
     <p>Sem internet, a agenda já baixada continua abrindo, mas para marcar e salvar é preciso estar conectado.</p>
   </section>
 
@@ -500,5 +654,48 @@ kbd,.botao{
 
   <p class="rodape">AgendaPro · Todos os direitos reservados. Software protegido por direitos autorais (Lei 9.610/98 e Lei 9.609/98). Reprodução, distribuição ou uso não autorizado são proibidos.</p>
 </main>
+
+<!-- O ZOOM: print de tela no celular é pequeno demais para ler o botão.
+     Tocar na imagem abre ela inteira; tocar de novo (ou Esc) fecha. -->
+<dialog id="zoom" class="zoom" aria-label="Imagem ampliada">
+  <img id="zoomImg" alt="" />
+  <p id="zoomTxt"></p>
+</dialog>
+<script>
+(function(){
+  var dlg = document.getElementById('zoom');
+  document.querySelectorAll('figure img').forEach(function(img){
+    img.tabIndex = 0;
+    img.setAttribute('role', 'button');
+    var abrir = function(){
+      document.getElementById('zoomImg').src = img.src;
+      document.getElementById('zoomImg').alt = img.alt;
+      document.getElementById('zoomTxt').textContent = img.alt + ' Toque para fechar.';
+      if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    };
+    img.addEventListener('click', abrir);
+    img.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); abrir(); } });
+  });
+  dlg.addEventListener('click', function(){ dlg.close ? dlg.close() : dlg.removeAttribute('open'); });
+
+  /* A BUSCA: esconde as seções que não falam da palavra. Sem acento dos dois
+     lados — quem digita "servico" no celular tem que achar "Serviços". */
+  var semAcento = function(t){ return t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); };
+  var secoes = [].slice.call(document.querySelectorAll('main > section'));
+  var textos = secoes.map(function(s){ return semAcento(s.textContent); });
+  var indice = document.querySelector('.indice');
+  document.getElementById('busca').addEventListener('input', function(){
+    var q = semAcento(this.value.trim());
+    var achou = 0;
+    secoes.forEach(function(s, i){
+      var bate = !q || textos[i].indexOf(q) >= 0;
+      s.hidden = !bate;
+      if(bate) achou++;
+    });
+    indice.hidden = !!q;
+    document.getElementById('buscaNada').hidden = !q || achou > 0;
+  });
+})();
+</script>
 </body>
 </html>
