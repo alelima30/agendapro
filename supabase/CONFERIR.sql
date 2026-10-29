@@ -1004,9 +1004,9 @@ with conferencia(ordem, item, veredito, detalhe) as (
   union all
   /* O sinal por Pix para garantir o horário (09_cliente, 1e): o agendar()
      calcula e segura o horário, e o agendador libera o vencido. */
-  select 46, 'Sinal por Pix para garantir o horário',
+  select 46, 'Sinal por Pix para garantir o horário (também por serviço)',
          case
-           when to_regprocedure('public.sinal_do_salao(uuid,numeric)') is null
+           when to_regprocedure('public.sinal_do_salao(uuid,numeric,uuid[],uuid,timestamptz)') is null
              or to_regprocedure('public.liberar_sinais_vencidos()') is null
              or not exists (select 1 from information_schema.columns
                              where table_schema = 'public' and table_name = 'agendamentos'
@@ -1016,7 +1016,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'FALTA'
            else 'certo' end,
          case
-           when to_regprocedure('public.sinal_do_salao(uuid,numeric)') is null
+           when to_regprocedure('public.sinal_do_salao(uuid,numeric,uuid[],uuid,timestamptz)') is null
              or to_regprocedure('public.liberar_sinais_vencidos()') is null
              or not exists (select 1 from information_schema.columns
                              where table_schema = 'public' and table_name = 'agendamentos'

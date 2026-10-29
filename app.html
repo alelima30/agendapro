@@ -2065,7 +2065,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.26b3b3';
+const VERSAO_APP = 'v9.902ba0';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -9074,11 +9074,16 @@ function pintarSalao(){
         <div class="regua" id="reguaSinal" style="justify-content:flex-start"></div>
         <div id="sinalCampos" style="margin-top:10px">
           <div class="dupla">
-            <div class="campo"><label for="cSinalValor" id="rotSinalValor">Quanto</label>
+            <div class="campo" id="campoSinalValor"><label for="cSinalValor" id="rotSinalValor">Quanto</label>
               <input id="cSinalValor" type="number" min="1" step="1" inputmode="decimal"
                      oninput="explicarSinal()"></div>
             <div class="campo"><label for="cSinalPrazo">Prazo para pagar</label>
               <select id="cSinalPrazo"></select></div>
+          </div>
+          <div id="sinalPorServico" style="display:none;margin-bottom:14px">
+            <p class="ajuda" style="margin:0 0 8px">Ponha a porcentagem do sinal nos
+              serviços que pedem. <b>Em branco, o serviço não pede sinal.</b></p>
+            <div id="sinalServicos" class="sinal-servicos"></div>
           </div>
           <div class="campo"><label for="cSinalTitular">Nome de quem recebe o Pix
               <span class="opcional">opcional</span></label>
@@ -13589,7 +13594,7 @@ function escolherJanelaOutro(){
    próprio dono acabou de digitar, e é quase sempre o que ele digitaria de
    novo. Sem nenhum dia aberto ainda, os campos nascem vazios.
    ═══════════════════════════════════════════════════════════════════════════ */
-let funcEscolhido = null, funcDoSalao = null, pagEscolhidas = null, sinalTipo = null;
+let funcEscolhido = null, funcDoSalao = null, pagEscolhidas = null, sinalTipo = null, sinalPcts = {};
 
 function funcDoBanco(){
   const cru = ((acharSalao(salaoAtual) || {}).cfg || {}).funcionamento;
@@ -13751,7 +13756,8 @@ function pintarSinal(){
   const gravado = sinalDoBanco();
   if(sinalTipo === null){
     sinalTipo = gravado ? gravado.tipo : '';
-    document.getElementById('cSinalValor').value = gravado ? gravado.valor : '';
+    sinalPcts = Object.assign({}, (gravado && gravado.servicos) || {});
+    document.getElementById('cSinalValor').value = gravado && gravado.valor != null ? gravado.valor : '';
     document.getElementById('cSinalTitular').value = (gravado && gravado.titular) || '';
     document.getElementById('cSinalRegra').value = (gravado && gravado.regra) || '';
     document.getElementById('cSinalPrazo').innerHTML = Funcionamento.PRAZOS_SINAL
@@ -13759,20 +13765,53 @@ function pintarSinal(){
         ? ' selected' : ''}>${rot}</option>`).join('');
   }
   document.getElementById('reguaSinal').innerHTML =
-    [['', 'Não cobrar'], ['pct', 'Porcentagem'], ['fixo', 'Valor fixo']]
+    [['', 'Não cobrar'], ['pct', 'Porcentagem'], ['fixo', 'Valor fixo'], ['servicos', 'Por serviço']]
       .map(([v, rot]) => `<button type="button" class="${v === sinalTipo ? 'on' : ''}"
           onclick="escolherSinal('${v}')">${rot}</button>`).join('');
   document.getElementById('sinalCampos').style.display = sinalTipo ? '' : 'none';
+  const porServico = sinalTipo === 'servicos';
+  document.getElementById('campoSinalValor').style.display = porServico ? 'none' : '';
+  document.getElementById('sinalPorServico').style.display = porServico ? '' : 'none';
+  if(porServico) pintarSinalServicos();
   document.getElementById('rotSinalValor').textContent =
     sinalTipo === 'pct' ? 'Porcentagem do valor (%)' : 'Valor do sinal (R$)';
   explicarSinal();
 }
 function escolherSinal(v){ sinalTipo = v; pintarSinal(); }
+/* POR SERVIÇO: cada serviço ativo com a sua porcentagem. O que é digitado
+   fica em `sinalPcts` (pelo id) até salvar; o banco calcula o valor de cada
+   horário com o preço do serviço naquele horário (sinal_do_salao). */
+function pintarSinalServicos(){
+  const lista = servsAtivos();
+  document.getElementById('sinalServicos').innerHTML = !lista.length
+    ? '<p class="ajuda">Cadastre os seus serviços primeiro, em <b>Serviços</b>.</p>'
+    : lista.map(s => `<label class="sinal-servico">
+        <span class="sinal-servico-nome">${escapar(s.nome)}
+          <small>${Number(s.preco) > 0 ? real(s.preco) : 'sem preço'}</small></span>
+        <span class="sinal-servico-pct"><input type="number" min="1" max="100" step="1"
+          inputmode="decimal" data-servico="${s.id}" value="${sinalPcts[s.id] != null ? sinalPcts[s.id] : ''}"
+          aria-label="Sinal de ${escapar(s.nome)} em porcentagem"
+          oninput="mudarSinalServico(this)"> %</span></label>`).join('');
+}
+function mudarSinalServico(el){
+  const v = String(el.value || '').trim();
+  if(v) sinalPcts[el.dataset.servico] = v; else delete sinalPcts[el.dataset.servico];
+  explicarSinal();
+}
 function explicarSinal(){
   const alvo = document.getElementById('explicaSinal');
   if(!alvo) return;
   const n = Number(String(document.getElementById('cSinalValor').value).replace(',', '.'));
   const temChave = !!(document.getElementById('cPagPix').value || '').trim();
+  if(temChave && sinalTipo === 'servicos'){
+    const ativos = new Set(servsAtivos().map(s => s.id));
+    const com = Object.keys(sinalPcts).filter(id => ativos.has(id)
+      && Number(String(sinalPcts[id]).replace(',', '.')) > 0);
+    alvo.innerHTML = !com.length
+      ? 'Ponha a porcentagem em pelo menos um serviço.'
+      : `${com.length === 1 ? '1 serviço pede' : com.length + ' serviços pedem'} sinal. Quem marca vários serviços paga o sinal só dos que pedem; os outros confirmam como sempre.`;
+    return;
+  }
   alvo.innerHTML = !temChave
     ? '<b>Preencha a chave Pix acima</b>: é para ela que a cliente manda o sinal. Sem a chave, o link não cobra.'
     : !(n > 0) ? 'Digite quanto cobrar.'
@@ -13783,8 +13822,16 @@ function explicarSinal(){
 function sinalParaGravar(){
   if(!sinalTipo) return null;
   const v = id => (document.getElementById(id).value || '').trim();
-  return { tipo: sinalTipo, valor: v('cSinalValor'), prazoMin: Number(v('cSinalPrazo')) || 60,
-           titular: v('cSinalTitular'), regra: v('cSinalRegra') };
+  const comum = { prazoMin: Number(v('cSinalPrazo')) || 60,
+                  titular: v('cSinalTitular'), regra: v('cSinalRegra') };
+  if(sinalTipo === 'servicos'){
+    /* Só os serviços que ainda existem: um apagado não fica preso na config. */
+    const existem = new Set(doSalao(bd.servicos).map(s => s.id));
+    const servicos = {};
+    for(const id of Object.keys(sinalPcts)) if(existem.has(id)) servicos[id] = sinalPcts[id];
+    return Object.assign({ tipo: 'servicos', servicos }, comum);
+  }
+  return Object.assign({ tipo: sinalTipo, valor: v('cSinalValor') }, comum);
 }
 function alternarPagamento(k){
   pagEscolhidas = pagEscolhidas.includes(k)

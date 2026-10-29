@@ -3831,6 +3831,16 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .dia-cartao .dc-pag{ font-size:12px; font-weight:600; color:var(--txt2); white-space:nowrap }
 /* O sinal do horário (09_cliente.sql, 1e): na lista "A confirmar". */
 .sinal-linha{ font-size:13px; font-weight:600; color:var(--alerta); margin-top:3px }
+/* Sinal POR SERVIÇO, em Meu negócio: cada serviço com a sua porcentagem. */
+.sinal-servicos{ display:flex; flex-direction:column; gap:6px }
+.sinal-servico{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:8px 10px; border:1px solid var(--borda); border-radius:10px; background:var(--painel);
+}
+.sinal-servico-nome{ flex:1; min-width:0; font-weight:600; font-size:14px; overflow-wrap:anywhere }
+.sinal-servico-nome small{ display:block; font-weight:500; font-size:12.5px; color:var(--txt2) }
+.sinal-servico-pct{ display:flex; align-items:center; gap:4px; font-weight:600; white-space:nowrap }
+.sinal-servico-pct input{ width:72px; text-align:right }
 .dia-cartao .dc-nome .tag{ margin-left:6px; vertical-align:2px }
 .dia-cartao .dc-lado{ display:flex; flex-direction:column; align-items:flex-end; gap:6px }
 /* O que espera confirmação fica com a tarja âmbar, e não a azul de sempre. */

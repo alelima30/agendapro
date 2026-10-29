@@ -150,9 +150,50 @@ select t_texto('remarcou: o sinal pago vai junto', (ag((select id from a8))).sin
 select t_texto('e o novo fica confirmado, sem pagar duas vezes', (ag((select id from a8))).status, 'confirmado');
 
 \echo ''
+\echo '7b. Por serviço: sinal só na mecha (30%), no corte não'
+insert into public.saloes (id, slug, nome, tipo, status, fuso, cfg) values
+  ('51000000-1111-0000-0000-000000000009', 'sinal-por-servico', 'Studio Mecha', 'salao', 'ativo',
+   'America/Sao_Paulo',
+   '{"diasLiberados": 30, "pagamentos": {"formas": ["pix"], "pix": "pix@mecha.com",
+     "sinal": {"tipo": "servicos", "servicos": {"51000000-3333-0000-0000-0000000000a1": 30}}}}');
+insert into public.assinaturas (salao_id, plano, status)
+  values ('51000000-1111-0000-0000-000000000009', 'time', 'ativa');
+insert into public.profissionais (id, salao_id, nome, ativo, aceita_online)
+  values ('51000000-2222-0000-0000-000000000009', '51000000-1111-0000-0000-000000000009', 'Bia', true, true);
+insert into public.servicos (id, salao_id, nome, duracao_min, intervalo_min, preco, ativo, aceita_online) values
+  ('51000000-3333-0000-0000-0000000000a1', '51000000-1111-0000-0000-000000000009', 'Mecha', 60, 0, 200, true, true),
+  ('51000000-3333-0000-0000-0000000000a2', '51000000-1111-0000-0000-000000000009', 'Corte', 30, 0, 50, true, true);
+insert into public.jornadas (profissional_id, dia_semana, inicio, fim)
+  select '51000000-2222-0000-0000-000000000009', d, '08:00', '20:00' from generate_series(0, 6) d;
+create or replace function vaga_m(p_servs uuid[], p_n int) returns timestamptz
+language sql stable as $f$
+  select h from public.horarios_livres('51000000-2222-0000-0000-000000000009',
+           (now() at time zone 'America/Sao_Paulo')::date + 4, p_servs) h
+   order by h offset p_n - 1 limit 1
+$f$;
+create temporary table m1 as select * from public.agendar('51000000-2222-0000-0000-000000000009',
+  vaga_m(array['51000000-3333-0000-0000-0000000000a1'::uuid], 1),
+  array['51000000-3333-0000-0000-0000000000a1'::uuid], 'Isa Moraes', '11911110021');
+select t_texto('a mecha (R$ 200, 30%) pede R$ 60 de sinal', (ag((select id from m1))).sinal_exigido::text, '60.00');
+select t_texto('e fica pendente até o sinal', (ag((select id from m1))).status, 'pendente');
+create temporary table m2 as select * from public.agendar('51000000-2222-0000-0000-000000000009',
+  vaga_m(array['51000000-3333-0000-0000-0000000000a2'::uuid], 3),
+  array['51000000-3333-0000-0000-0000000000a2'::uuid], 'Juca Lima', '11911110022');
+select t_verdade('o corte (sem porcentagem) não pede sinal: confirmado na hora',
+  (ag((select id from m2))).sinal_exigido = 0 and (ag((select id from m2))).status = 'confirmado');
+create temporary table m3 as select * from public.agendar('51000000-2222-0000-0000-000000000009',
+  vaga_m(array['51000000-3333-0000-0000-0000000000a1'::uuid, '51000000-3333-0000-0000-0000000000a2'::uuid], 6),
+  array['51000000-3333-0000-0000-0000000000a1'::uuid, '51000000-3333-0000-0000-0000000000a2'::uuid],
+  'Lia Rocha', '11911110023');
+select t_texto('mecha + corte (R$ 250): o sinal é só o da mecha, R$ 60',
+  (ag((select id from m3))).sinal_exigido::text, '60.00');
+select t_texto('sem os serviços, "por serviço" não tem como calcular: zero',
+  public.sinal_do_salao('51000000-1111-0000-0000-000000000009', 200)::text, '0');
+
+\echo ''
 \echo '8. Internas'
 select t_falso('nem anon nem logado executam as funções do sinal',
   has_function_privilege('anon', 'public.liberar_sinais_vencidos()', 'execute')
   or has_function_privilege('authenticated', 'public.liberar_sinais_vencidos()', 'execute')
-  or has_function_privilege('anon', 'public.sinal_do_salao(uuid, numeric)', 'execute')
+  or has_function_privilege('anon', 'public.sinal_do_salao(uuid, numeric, uuid[], uuid, timestamptz)', 'execute')
   or has_function_privilege('anon', 'public.sinal_prazo(uuid)', 'execute'));

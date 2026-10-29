@@ -7292,10 +7292,20 @@ async function copiarPix(bt){
    ═══════════════════════════════════════════════════════════════════════════ */
 let sinalDaMarcacao = null, sinalNaFolha = null;
 function sinalDoLink(){ const p = pagamentosDoSalao(); return (p && p.sinal) || null; }
-function sinalSobre(valor){
+function sinalSobre(valor, inicio){
   const s = sinalDoLink();
   if(!s || !(valor > 0)) return 0;
-  return s.tipo === 'pct' ? Math.round(valor * s.valor) / 100 : Math.min(valor, s.valor);
+  if(s.tipo === 'pct') return Math.round(valor * s.valor) / 100;
+  if(s.tipo === 'fixo') return Math.min(valor, s.valor);
+  /* Por serviço: a parte de cada um sobre o preço dele no horário, na
+     proporção do que ela paga — a mesma conta do `sinal_do_salao()`. */
+  let bruto = 0, parte = 0;
+  for(const id of escolha.servicos){
+    const p = precoDoServico(acharServico(id), escolha.profissionalId, escolha.data, inicio);
+    bruto += p;
+    parte += p * Math.min(100, Number((s.servicos || {})[id]) || 0) / 100;
+  }
+  return bruto > 0 && parte > 0 ? Math.round(parte * Math.min(1, valor / bruto) * 100) / 100 : 0;
 }
 // O mesmo total do resumo, um horário de cada vez ("eu e mais alguém" são dois).
 function previaDoSinal(){
@@ -7305,8 +7315,9 @@ function previaDoSinal(){
   const levado = escolha.remarcar && escolha.descontoAntigo > 0;
   const desc = coberto ? 0 : levado ? Math.min(escolha.descontoAntigo, precoDela)
                                     : descontoDoCupomAgenda();
-  const outra = escolha.para === 'ambos' ? precoNoHorario(escolha.inicio + duracaoEscolhida()) : 0;
-  return sinalSobre(coberto ? 0 : precoDela - desc) + sinalSobre(outra);
+  const segundo = escolha.inicio + duracaoEscolhida();
+  const outra = escolha.para === 'ambos' ? precoNoHorario(segundo) : 0;
+  return sinalSobre(coberto ? 0 : precoDela - desc, escolha.inicio) + sinalSobre(outra, segundo);
 }
 function zapDoNumero(cru){
   const so = String(cru || '').replace(/\D/g, '');

@@ -14,7 +14,9 @@
         WhatsApp — e o horário fica pendente;
      4. "Meus horários" mostra o que falta e "Como pagar o sinal";
      5. o painel mostra o sinal em "A confirmar", e "Recebi o sinal" confirma
-        e marca o sinal como pago.
+        e marca o sinal como pago;
+     6. POR SERVIÇO: o dono põe a porcentagem em cada procedimento; no link,
+        a Mecha pede o sinal dela e o Corte, sem porcentagem, confirma direto.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -65,6 +67,9 @@ for(let i = 0; i <= 6; i++)
   await dona.inserir('jornadas', { profissionalId: prof.id, diaSemana:i, inicio:'08:00', fim:'19:00' });
 await dona.inserir('servicos', { salaoId: SALAO, nome:'Corte', duracaoMin:30, intervaloMin:0,
   preco:80, ativo:true, aceitaOnline:true, categoria:'Cabelo' });
+await dona.inserir('servicos', { salaoId: SALAO, nome:'Mecha', duracaoMin:60, intervaloMin:0,
+  preco:200, ativo:true, aceitaOnline:true, categoria:'Cabelo' });
+const servicoId = nome => sql(`select id from public.servicos where salao_id='${SALAO}' and nome='${nome}'`);
 await dona.atualizar('saloes', SALAO, { cfg: { diasLiberados:30, cor:'#B8356B', confirmaAuto:true,
   pagamentos: { formas: ['pix'], obs: '', pix: 'pix@studiosinal.com.br' } } });
 const cfgPag = () => JSON.parse(sql(`select coalesce(cfg->'pagamentos','null'::jsonb)::text
@@ -75,6 +80,9 @@ const doBanco = () => {
   const [status, exigido, pago] = l.split('|');
   return { status, exigido: Number(exigido), pago: Number(pago) };
 };
+
+// O jsonb guarda as chaves noutra ordem: compara pelo conteúdo.
+const emOrdem = o => Object.fromEntries(Object.entries(o || {}).sort());
 
 const nav = await chromium.launch({ executablePath: CHROMIUM });
 const erros = [];
@@ -114,8 +122,6 @@ secao('1. Meu negócio: o sinal, junto da chave Pix');
     /R\$\s?10,00/.test(await p.textContent('#explicaSinal')), await p.textContent('#explicaSinal'));
   await p.evaluate(() => salvarCadastroSalao());
   await p.waitForTimeout(2200);
-  // O jsonb guarda as chaves noutra ordem: compara pelo conteúdo.
-  const emOrdem = o => Object.fromEntries(Object.entries(o || {}).sort());
   igual('salvar grava o sinal junto da chave',
     emOrdem((cfgPag() || {}).sinal), emOrdem({ tipo:'pct', valor:10, prazoMin:60, titular:'Ju Barbosa',
                               regra:'Devolvo o sinal se cancelar até 24 horas antes.' }));
@@ -207,6 +213,93 @@ secao('5. O painel: "Recebi o sinal"');
   await p.waitForTimeout(2500);
   igual('confirmou: no banco, confirmado e o sinal pago', doBanco(), { status:'confirmado', exigido:8, pago:8 });
   await ctx.close();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   6 — POR SERVIÇO
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('6. Por serviço: cada procedimento com a sua porcentagem');
+const MECHA = servicoId('Mecha');
+const REGRA = 'Devolvo o sinal se cancelar até 24 horas antes.';
+{
+  const { ctx, p } = await abrirPainel();
+  await p.evaluate(() => { irPara('salao'); trocarAbaSalao('dados'); });
+  await p.waitForTimeout(800);
+  await p.click('#reguaSinal button:has-text("Por serviço")');
+  const t = await p.evaluate(() => ({
+    valor: getComputedStyle(document.getElementById('campoSinalValor')).display,
+    nomes: [...document.querySelectorAll('#sinalServicos .sinal-servico-nome')]
+      .map(e => e.firstChild.textContent.trim()),
+    explica: document.getElementById('explicaSinal').textContent }));
+  verdade('"Por serviço" troca o valor único pela lista dos serviços',
+    t.valor === 'none' && t.nomes.includes('Corte') && t.nomes.includes('Mecha'), JSON.stringify(t));
+  verdade('sem nenhuma porcentagem, pede ao menos uma', /pelo menos um serviço/.test(t.explica), t.explica);
+  await p.fill(`#sinalServicos input[data-servico="${MECHA}"]`, '30');
+  const explica = await p.textContent('#explicaSinal');
+  verdade('com a Mecha em 30%, explica que 1 serviço pede sinal', /1 serviço pede sinal/.test(explica), explica);
+  await p.evaluate(() => salvarCadastroSalao());
+  await p.waitForTimeout(2200);
+  igual('salvar grava só a Mecha, e mantém o prazo, quem recebe e a regra',
+    emOrdem((cfgPag() || {}).sinal), emOrdem({ tipo:'servicos', servicos:{ [MECHA]:30 }, prazoMin:60,
+                                               titular:'Ju Barbosa', regra:REGRA }));
+  await ctx.close();
+}
+{
+  const { ctx, p } = await abrirPainel();
+  await p.evaluate(() => { irPara('salao'); trocarAbaSalao('dados'); });
+  await p.waitForTimeout(800);
+  const volta = await p.evaluate(m => ({
+    on: document.querySelector('#reguaSinal button.on').textContent.trim(),
+    mecha: document.querySelector(`#sinalServicos input[data-servico="${m}"]`).value,
+    corte: [...document.querySelectorAll('#sinalServicos input')].filter(i => i.dataset.servico !== m)
+      .map(i => i.value) }), MECHA);
+  igual('ao voltar, vem "Por serviço", a Mecha com 30 e o Corte em branco',
+    volta, { on:'Por serviço', mecha:'30', corte:[''] });
+  await ctx.close();
+}
+async function marcarNoLink(servico, dia, nome, tel){
+  const ctx = await nav.newContext({ viewport:{ width:390, height:880 }, isMobile:true, hasTouch:true });
+  const p = await ctx.newPage();
+  p.on('pageerror', e => erros.push('link: ' + e.message));
+  await p.goto(BASE + '/agendar.html?salao=' + SLUG);
+  await p.waitForFunction(() => typeof tela !== 'undefined' && tela === 'capa', null, { timeout: 15000 });
+  await p.waitForTimeout(700);
+  await p.click('.boas-cta'); await p.waitForTimeout(300);
+  await p.click(`#listaServicos .sv-cartao:has-text("${servico}")`); await p.click('#btPrincipal'); await p.waitForTimeout(300);
+  if(await p.evaluate(() => tela === 'quem')){ await p.click('#quemMim'); await p.waitForTimeout(500); }
+  if(await p.evaluate(() => tela === 'prof')) await p.click('#btPrincipal');
+  await p.waitForTimeout(1800);
+  await p.locator('#listaDias .dia:not(.sem)').nth(dia).click();
+  await p.waitForFunction(() => document.querySelectorAll('#listaHoras .hora').length > 0, null, { timeout: 10000 });
+  await p.click('#listaHoras .hora'); await p.click('#btPrincipal'); await p.waitForTimeout(800);
+  if(await p.isVisible('#dNome')) await p.fill('#dNome', nome);
+  if(await p.isVisible('#dTel')) await p.fill('#dTel', masc(tel));
+  if(await p.isVisible('#dNasc')) await p.fill('#dNasc', '1991-02-02');
+  if(await p.isVisible('#dEmail')) await p.fill('#dEmail', `y-${tel}@t.com`);
+  if(await p.evaluate(() => tela === 'dados')){ await p.click('#btPrincipal'); await p.waitForTimeout(1200); }
+  const antes = (await p.textContent('#cfStatus').catch(() => '')).replace(/\s+/g, ' ');
+  if(await p.isVisible('#cfPagamento .cf-pag-op[data-forma="pix"]')){
+    await p.click('#cfPagamento .cf-pag-op[data-forma="pix"]'); await p.waitForTimeout(300);
+  }
+  await p.click('#btPrincipal'); await p.waitForTimeout(3500);
+  const r = { tela: await p.evaluate(() => tela), antes,
+              titulo: (await p.textContent('#p-pronto h2').catch(() => '')).trim() };
+  await ctx.close();
+  return r;
+}
+const TEL2 = '51' + '8' + n7.slice(0, 8).padEnd(8, '2');
+{
+  const r = await marcarNoLink('Mecha', 4, 'Carla Mecha', TEL2);
+  verdade('Mecha (R$ 200, 30%): antes de marcar, avisa o sinal de R$ 60,00',
+    /Sinal de R\$\s?60,00 para garantir o horário/.test(r.antes), r.antes);
+  igual('marcou, e a tela diz que falta o sinal', [r.tela, r.titulo], ['pronto', 'Falta só o sinal!']);
+  igual('no banco: pendente, sinal de 60', doBanco(), { status:'pendente', exigido:60, pago:0 });
+}
+{
+  const r = await marcarNoLink('Corte', 5, 'Carla Mecha', TEL2);
+  verdade('Corte (sem porcentagem): não fala em sinal', !/Sinal de/.test(r.antes), r.antes);
+  verdade('e marca sem pedir sinal', r.tela === 'pronto' && r.titulo !== 'Falta só o sinal!', JSON.stringify(r));
+  igual('no banco: confirmado direto, sem sinal', doBanco(), { status:'confirmado', exigido:0, pago:0 });
 }
 
 verdade('sem erro de JavaScript', erros.length === 0, erros.join(' | '));

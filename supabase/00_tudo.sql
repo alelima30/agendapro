@@ -3698,6 +3698,7 @@ create trigger tg_notif_pagamento
 --
 -- Mora em `cfg.pagamentos.sinal`, junto da chave Pix (funcionamento.js):
 --     { tipo: 'pct' | 'fixo', valor: 10, prazoMin: 60, titular, regra }
+--     { tipo: 'servicos', servicos: { "<id do serviço>": 30, ... }, prazoMin, ... }
 --
 -- As colunas `sinal_exigido` e `sinal_pago` existem desde o 01_schema,
 -- vazias, esperando por isto. Falta só o prazo.
@@ -3715,23 +3716,65 @@ create trigger tg_notif_pagamento
 -- ---------------------------------------------------------------------------
 alter table public.agendamentos add column if not exists sinal_ate timestamptz;
 
-create or replace function public.sinal_do_salao(p_salao uuid, p_valor numeric)
-returns numeric language sql stable security definer set search_path = public as $$
-  select coalesce((
-    select case
-      when coalesce(p_valor, 0) <= 0 then 0
-      when jsonb_typeof(p.pag) <> 'object' then 0
-      when not coalesce(p.pag->'formas', '[]'::jsonb) ? 'pix' then 0
-      when nullif(btrim(coalesce(p.pag->>'pix', '')), '') is null then 0
-      when coalesce(p.pag->'sinal'->>'valor', '') !~ '^[0-9]+([.][0-9]+)?$' then 0
-      when p.pag->'sinal'->>'tipo' = 'pct'
-        then round(p_valor * least(100, (p.pag->'sinal'->>'valor')::numeric) / 100, 2)
-      when p.pag->'sinal'->>'tipo' = 'fixo'
-        then least(p_valor, round((p.pag->'sinal'->>'valor')::numeric, 2))
-      else 0 end
-      from (select s.cfg->'pagamentos' as pag from public.saloes s where s.id = p_salao) p
-  ), 0)
-$$;
+/* ⚠ A ASSINATURA MUDOU (entrou o "por serviço"): a de dois argumentos cai,
+   senão ficariam duas vivas. Quem chama com dois continua chamando — os três
+   novos têm padrão. */
+drop function if exists public.sinal_do_salao(uuid, numeric);
+/* Três jeitos, escolhidos em Meu negócio:
+     · pct      uma porcentagem do que ela paga;
+     · fixo     um valor, nunca maior que o do atendimento;
+     · servicos a porcentagem de CADA serviço ("quero sinal só na mecha, 30%,
+                e no corte não") — a parte de cada um sobre o preço dele no
+                horário, na proporção do que ela paga de fato (cupom e pacote
+                entram). Serviço sem porcentagem não pede sinal. */
+create or replace function public.sinal_do_salao(
+  p_salao uuid, p_valor numeric,
+  p_servicos uuid[] default null, p_profissional uuid default null,
+  p_quando timestamptz default null)
+returns numeric language plpgsql stable security definer set search_path = public as $$
+declare
+  pag     jsonb;
+  s       jsonb;
+  sv      uuid;
+  v_preco numeric;
+  v_pct   text;
+  v_bruto numeric := 0;
+  v_parte numeric := 0;
+begin
+  if coalesce(p_valor, 0) <= 0 then return 0; end if;
+  select sa.cfg->'pagamentos' into pag from public.saloes sa where sa.id = p_salao;
+  if pag is null or jsonb_typeof(pag) <> 'object'
+     or not coalesce(pag->'formas', '[]'::jsonb) ? 'pix'
+     or nullif(btrim(coalesce(pag->>'pix', '')), '') is null then
+    return 0;
+  end if;
+  s := pag->'sinal';
+  if s is null or jsonb_typeof(s) <> 'object' then return 0; end if;
+
+  if s->>'tipo' in ('pct', 'fixo') then
+    if coalesce(s->>'valor', '') !~ '^[0-9]+([.][0-9]+)?$' then return 0; end if;
+    if s->>'tipo' = 'pct' then
+      return round(p_valor * least(100, (s->>'valor')::numeric) / 100, 2);
+    end if;
+    return least(p_valor, round((s->>'valor')::numeric, 2));
+  end if;
+
+  if s->>'tipo' = 'servicos' and jsonb_typeof(s->'servicos') = 'object'
+     and p_servicos is not null then
+    foreach sv in array p_servicos loop
+      v_preco := coalesce(public.preco_do_servico(sv, p_profissional, coalesce(p_quando, now())), 0);
+      v_bruto := v_bruto + v_preco;
+      v_pct := s->'servicos'->>sv::text;
+      if coalesce(v_pct, '') ~ '^[0-9]+([.][0-9]+)?$' then
+        v_parte := v_parte + v_preco * least(100, v_pct::numeric) / 100;
+      end if;
+    end loop;
+    if v_bruto <= 0 or v_parte <= 0 then return 0; end if;
+    return round(v_parte * least(1, p_valor / v_bruto), 2);
+  end if;
+
+  return 0;
+end $$;
 
 -- O prazo para pagar: de 10 minutos a 24 horas; sem ajuste, 1 hora.
 create or replace function public.sinal_prazo(p_salao uuid)
@@ -3782,7 +3825,7 @@ begin
   return n;
 end $$;
 
-revoke all on function public.sinal_do_salao(uuid, numeric) from public, anon, authenticated;
+revoke all on function public.sinal_do_salao(uuid, numeric, uuid[], uuid, timestamptz) from public, anon, authenticated;
 revoke all on function public.sinal_prazo(uuid)             from public, anon, authenticated;
 revoke all on function public.liberar_sinais_vencidos()     from public, anon, authenticated;
 
@@ -4102,7 +4145,7 @@ begin
   /* O SINAL (1e): sobre o que ela vai pagar de fato, já com pacote e cupom.
      Com sinal, o horário entra pendente, mesmo no salão que confirma sozinho:
      quem confirma é o dono, quando o comprovante chega. */
-  v_sinal := public.sinal_do_salao(v_salao, v_valor);
+  v_sinal := public.sinal_do_salao(v_salao, v_valor, p_servicos, p_profissional, p_inicio);
 
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
@@ -15357,7 +15400,11 @@ begin
         update public.agendamentos
            set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc,
                sinal_exigido = case when coalesce(sinal_exigido, 0) > 0
-                                    then public.sinal_do_salao(salao_id, valor_previsto - v_desc)
+                                    then public.sinal_do_salao(salao_id, valor_previsto - v_desc,
+                                           (select array_agg(x.servico_id order by x.ordem)
+                                              from public.agendamento_servicos x
+                                             where x.agendamento_id = n.id),
+                                           profissional_id, inicio)
                                     else sinal_exigido end
          where id = n.id;
         update public.cupom_usos

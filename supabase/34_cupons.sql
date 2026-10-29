@@ -476,7 +476,11 @@ begin
         update public.agendamentos
            set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc,
                sinal_exigido = case when coalesce(sinal_exigido, 0) > 0
-                                    then public.sinal_do_salao(salao_id, valor_previsto - v_desc)
+                                    then public.sinal_do_salao(salao_id, valor_previsto - v_desc,
+                                           (select array_agg(x.servico_id order by x.ordem)
+                                              from public.agendamento_servicos x
+                                             where x.agendamento_id = n.id),
+                                           profissional_id, inicio)
                                     else sinal_exigido end
          where id = n.id;
         update public.cupom_usos

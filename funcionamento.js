@@ -247,16 +247,31 @@ function pagamentos(cru){
    o ajuste, para o painel gravar e o link avisar antes de marcar. */
 const PRAZOS_SINAL = [[30, '30 minutos'], [60, '1 hora'], [120, '2 horas'],
                       [360, '6 horas'], [720, '12 horas'], [1440, '24 horas']];
+const numeroDoSinal = v => Math.round(Number(String(v).replace(',', '.')) * 100) / 100;
 function sinalDoPix(cru){
-  if(!cru || typeof cru !== 'object' || !['pct', 'fixo'].includes(cru.tipo)) return null;
-  let valor = Math.round(Number(String(cru.valor).replace(',', '.')) * 100) / 100;
-  if(!(valor > 0)) return null;
-  if(cru.tipo === 'pct') valor = Math.min(100, valor);
+  if(!cru || typeof cru !== 'object' || !['pct', 'fixo', 'servicos'].includes(cru.tipo)) return null;
+  let base;
+  if(cru.tipo === 'servicos'){
+    /* POR SERVIÇO: a porcentagem de cada um, pelo id. Em branco ou zero, o
+       serviço não pede sinal — e sem nenhum, não há sinal. */
+    const servicos = {};
+    const cruS = cru.servicos && typeof cru.servicos === 'object' ? cru.servicos : {};
+    for(const id of Object.keys(cruS)){
+      const pct = Math.min(100, numeroDoSinal(cruS[id]));
+      if(pct > 0 && /^[0-9a-f-]{36}$/i.test(id)) servicos[id] = pct;
+    }
+    if(!Object.keys(servicos).length) return null;
+    base = { tipo: 'servicos', servicos };
+  } else {
+    let valor = numeroDoSinal(cru.valor);
+    if(!(valor > 0)) return null;
+    if(cru.tipo === 'pct') valor = Math.min(100, valor);
+    base = { tipo: cru.tipo, valor };
+  }
   const prazoMin = PRAZOS_SINAL.some(p => p[0] === Number(cru.prazoMin)) ? Number(cru.prazoMin) : 60;
   const titular = String(cru.titular || '').trim().slice(0, 60);
   const regra = String(cru.regra || '').trim().slice(0, 300);
-  return Object.assign({ tipo: cru.tipo, valor, prazoMin },
-                       titular ? { titular } : {}, regra ? { regra } : {});
+  return Object.assign(base, { prazoMin }, titular ? { titular } : {}, regra ? { regra } : {});
 }
 
 global.Funcionamento = { ORDEM, NOMES, NA_FRASE, PAGAMENTOS, minutos, hhmm,
