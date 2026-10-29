@@ -3829,6 +3829,8 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .dia-cartao .dc-vlr{ font-weight:800; white-space:nowrap }
 /* Como a cliente vai pagar, embaixo do valor: "Pix", "Cartão de crédito". */
 .dia-cartao .dc-pag{ font-size:12px; font-weight:600; color:var(--txt2); white-space:nowrap }
+/* O sinal do horário (09_cliente.sql, 1e): na lista "A confirmar". */
+.sinal-linha{ font-size:13px; font-weight:600; color:var(--alerta); margin-top:3px }
 .dia-cartao .dc-nome .tag{ margin-left:6px; vertical-align:2px }
 .dia-cartao .dc-lado{ display:flex; flex-direction:column; align-items:flex-end; gap:6px }
 /* O que espera confirmação fica com a tarja âmbar, e não a azul de sempre. */
@@ -4849,6 +4851,19 @@ body[data-passo="confirmar"] #btSecundario .ic-svg{ width:18px; height:18px; col
 .cf-chip-espera{ background:var(--wa-soft); color:var(--alerta) }
 .cf-chip-ok{ background:var(--su-soft); color:var(--ok) }
 .cf-nota{ text-align:center; font-size:14px; line-height:1.45; color:var(--txt2); margin:2px 8px 16px }
+/* O sinal por Pix (09_cliente.sql, 1e): quanto, a chave, o prazo e o
+   comprovante — na tela de pronto e na folha de "Meus horários". As cores são
+   as do tema do salão. */
+.sinal-pagar{ text-align:left; margin:2px 0 14px }
+.sinal-valor{ display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+  padding:14px 16px; border-radius:var(--r-lg); background:var(--ac-soft); border:1px solid var(--ac-line) }
+.sinal-valor span{ font-size:14px; color:var(--txt2) }
+.sinal-valor b{ font-size:22px; font-weight:800; letter-spacing:-.01em; color:var(--ac-600); white-space:nowrap }
+.sinal-pagar .folha-item-txt span + span{ font-size:12.5px; color:var(--txt2) }
+.sinal-prazo, .sinal-regra{ font-size:14px; line-height:1.45; color:var(--txt2); margin-top:10px }
+.sinal-zap{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+  margin-top:12px; text-decoration:none }
+.sinal-q{ color:var(--alerta); font-weight:600 }
 
 /* Os botões do pé no fim: "Ver meus horários" cheio, e "Voltar para a home"
    embaixo, como um link na cor da marca — a saída que não compete com ele. */

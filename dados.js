@@ -101,7 +101,7 @@ const COLUNAS = {
                    sinalRef:'sinal_ref', criadoPor:'criado_por', criadoEm:'criado_em',
                    encaixePor:'encaixe_por', cupomId:'cupom_id',
                    pacoteClienteId:'pacote_cliente_id', formaPagamento:'forma_pagamento',
-                   arquivadoEm:'arquivado_em' },
+                   sinalAte:'sinal_ate', arquivadoEm:'arquivado_em' },
   agendamento_servicos: { agendamentoId:'agendamento_id', servicoId:'servico_id',
                    duracaoMin:'duracao_min', comissaoPct:'comissao_pct' },
   lista_espera:  { salaoId:'salao_id', clienteId:'cliente_id',
@@ -202,7 +202,7 @@ const VAZIO_E_NULO = new Set([
   'agendamento_id', 'criado_por', 'aberta_por', 'fechada_em', 'avisado_em',
   'comissao_pct', 'comissao_valor', 'total', 'duracao_min', 'preco',
   'trial_ate', 'vence_em', 'indicado_por', 'cliente_id', 'sinal_exigido',
-  'sinal_pago', 'nascimento_dia', 'arquivado_em',
+  'sinal_pago', 'sinal_ate', 'nascimento_dia', 'arquivado_em',
   /* Os quatro recortes da regra de preço. Todos opcionais na tela: campo em
      branco quer dizer "não recorta", e tem que chegar no banco como NULL.
      Vazio como texto num `date` ou num `int` derruba a gravação inteira da

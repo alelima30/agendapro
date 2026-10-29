@@ -105,9 +105,9 @@ troca agendar.html \
 echo "8. banco: remarcar não leva o desconto"
 troca supabase/34_cupons.sql \
   "      if v_desc > 0 then
-        update public.agendamentos" \
+        -- O sinal (09, 1e)" \
   "      if false then
-        update public.agendamentos" \
+        -- O sinal (09, 1e)" \
   && rodar "a tela promete e o banco cobra cheio"
 
 echo "9. link: sair deixa o cadastro na tela"

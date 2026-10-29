@@ -1493,6 +1493,8 @@ begin
   -- E o da cliente: trocar "1 hora antes" por "24 horas antes" vale também
   -- para quem já estava marcado.
   perform public.gerar_lembretes_cliente();
+  -- E o horário cujo sinal não chegou no prazo volta a ficar livre (09, 1e).
+  perform public.liberar_sinais_vencidos();
 
   for s in select id, coalesce(fuso, 'America/Sao_Paulo') as fuso from public.saloes
             where status = 'ativo'

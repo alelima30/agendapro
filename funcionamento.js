@@ -236,10 +236,30 @@ function pagamentos(cru){
      cabem em 77 (o teto do Banco Central). Sem chave, o formato é o de
      sempre — quem já gravou não vê diferença. */
   const pix = formas.includes('pix') ? String(cru.pix || '').trim().slice(0, 77) : '';
-  return (formas.length || obs) ? Object.assign({ formas, obs }, pix ? { pix } : {}) : null;
+  const sinal = pix ? sinalDoPix(cru.sinal) : null;
+  return (formas.length || obs)
+    ? Object.assign({ formas, obs }, pix ? { pix } : {}, sinal ? { sinal } : {}) : null;
+}
+
+/* O SINAL PARA GARANTIR O HORÁRIO (09_cliente.sql, 1e). Só existe com a chave
+   Pix — é para ela que a cliente manda. Percentual ou valor fixo; o prazo é
+   um dos da lista. Quem calcula o valor de cada horário é o banco: aqui é só
+   o ajuste, para o painel gravar e o link avisar antes de marcar. */
+const PRAZOS_SINAL = [[30, '30 minutos'], [60, '1 hora'], [120, '2 horas'],
+                      [360, '6 horas'], [720, '12 horas'], [1440, '24 horas']];
+function sinalDoPix(cru){
+  if(!cru || typeof cru !== 'object' || !['pct', 'fixo'].includes(cru.tipo)) return null;
+  let valor = Math.round(Number(String(cru.valor).replace(',', '.')) * 100) / 100;
+  if(!(valor > 0)) return null;
+  if(cru.tipo === 'pct') valor = Math.min(100, valor);
+  const prazoMin = PRAZOS_SINAL.some(p => p[0] === Number(cru.prazoMin)) ? Number(cru.prazoMin) : 60;
+  const titular = String(cru.titular || '').trim().slice(0, 60);
+  const regra = String(cru.regra || '').trim().slice(0, 300);
+  return Object.assign({ tipo: cru.tipo, valor, prazoMin },
+                       titular ? { titular } : {}, regra ? { regra } : {});
 }
 
 global.Funcionamento = { ORDEM, NOMES, NA_FRASE, PAGAMENTOS, minutos, hhmm,
-  normalizar, validar, agora, estado, periodosDoDia, pagamentos };
+  normalizar, validar, agora, estado, periodosDoDia, pagamentos, PRAZOS_SINAL };
 
 })(typeof window !== 'undefined' ? window : globalThis);

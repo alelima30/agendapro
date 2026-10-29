@@ -62,8 +62,8 @@ troca app.html \
 
 echo "3. Confirmar abre a ficha por cima"
 troca app.html \
-  "            onclick=\"event.stopPropagation();confirmarHorario('\${a.id}')\">Confirmar</button>\` : ''}" \
-  "            onclick=\"confirmarHorario('\${a.id}')\">Confirmar</button>\` : ''}" \
+  "            onclick=\"event.stopPropagation();confirmarHorario('\${a.id}')\">\${" \
+  "            onclick=\"confirmarHorario('\${a.id}')\">\${" \
   && rodar "confirma e a ficha pula na tela"
 
 echo "4. o mês não marca o dia com pendente"

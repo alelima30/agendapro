@@ -59,8 +59,8 @@ PY
 
 echo "1. banco: o agendar() não grava a forma"
 troca supabase/09_cliente.sql \
-  "       (v_cupom->>'cupom_id')::uuid, v_desconto, v_forma)" \
-  "       (v_cupom->>'cupom_id')::uuid, v_desconto, null)" \
+  "       (v_cupom->>'cupom_id')::uuid, v_desconto, v_forma," \
+  "       (v_cupom->>'cupom_id')::uuid, v_desconto, null," \
   && rodar "a escolha da cliente se perde"
 
 echo "2. banco: grava forma que o salão não aceita"
@@ -102,8 +102,8 @@ troca agendar.html \
 
 echo "8. link: Meus horários não mostra a forma"
 troca agendar.html \
-  "            nomeDaForma(a.forma_pagamento) ? ' · ' + escapar(nomeDaForma(a.forma_pagamento)) : ''}</div></div>" \
-  "            ''}</div></div>" \
+  "            nomeDaForma(a.forma_pagamento) ? ' · ' + escapar(nomeDaForma(a.forma_pagamento)) : ''}</div>\${" \
+  "            ''}</div>\${" \
   && rodar "ela não lembra o que disse"
 
 echo "9. painel: o cartão do dia não mostra a forma"

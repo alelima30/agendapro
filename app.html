@@ -2065,7 +2065,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.9dfe94';
+const VERSAO_APP = 'v9.26b3b3';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2446,6 +2446,29 @@ function esperandoResposta(){
       .localeCompare(b.data + String(b.inicio).padStart(6, '0')));
 }
 
+/* O SINAL DO HORÁRIO (09_cliente.sql, 1e). Quem marcou pelo link num salão
+   que cobra sinal entra pendente até o Pix chegar; confirmar é dizer que
+   chegou (o banco marca o sinal como pago junto). */
+function sinalDoHorario(a){
+  const valor = Number(a && a.sinalExigido) || 0;
+  if(valor <= 0) return null;
+  const pago = (Number(a.sinalPago) || 0) >= valor;
+  const ate = a.sinalAte ? new Date(a.sinalAte) : null;
+  return { valor, pago, ate, vencido: !pago && !!ate && ate < new Date() };
+}
+function horaDoSinal(d){
+  const h = d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  return d.toDateString() === new Date().toDateString() ? h
+    : d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) + ' ' + h;
+}
+function textoDoSinal(a){
+  const s = sinalDoHorario(a);
+  if(!s) return '';
+  if(s.pago) return 'Sinal de ' + real(s.valor) + ' recebido';
+  return 'Aguardando o sinal de ' + real(s.valor) + (s.ate
+    ? (s.vencido ? ' · o prazo venceu às ' : ' · até ') + horaDoSinal(s.ate) : '');
+}
+
 function pintarAConfirmar(){
   const alvo = document.getElementById('aConfirmar');
   if(!alvo) return;
@@ -2478,10 +2501,12 @@ function pintarAConfirmar(){
             <div style="font-size:13px;color:var(--txt2)">${
               escapar(rotuloServicos(a))} · ${
               escapar((acharProf(a.profissionalId) || {}).nome || '—')}</div>
+            ${textoDoSinal(a) ? `<div class="sinal-linha">${escapar(textoDoSinal(a))}</div>` : ''}
           </td>
           <td style="text-align:right;white-space:nowrap">
             <button class="btn btn-primario btn-peq"
-                    onclick="confirmarHorario('${a.id}')">Confirmar</button>
+                    onclick="confirmarHorario('${a.id}')">${
+                      sinalDoHorario(a) && !sinalDoHorario(a).pago ? 'Recebi o sinal' : 'Confirmar'}</button>
             <button class="btn btn-peq" style="margin-left:6px"
                     onclick="recusarHorario('${a.id}')">Recusar</button>
           </td>
@@ -2496,6 +2521,9 @@ function confirmarHorario(agId){
   const a = bd.agendamentos.find(x => x.id === agId);
   if(!a) return;
   a.status = 'confirmado';
+  // O banco faz o mesmo (tg_sinal_confirmado); aqui é para a tela já dizer.
+  const s = sinalDoHorario(a);
+  if(s && !s.pago) a.sinalPago = s.valor;
   salvar(); pintar();
 }
 
@@ -2932,8 +2960,11 @@ function cartaoDoDia(a){
           <span class="dc-vlr">${real(totalDe(a))}</span>
           ${nomeDaFormaPagamento(a.formaPagamento)
             ? `<span class="dc-pag">${escapar(nomeDaFormaPagamento(a.formaPagamento))}</span>` : ''}
+          ${sinalDoHorario(a) ? `<span class="dc-pag">${sinalDoHorario(a).pago
+            ? 'Sinal pago' : 'Aguardando sinal'}</span>` : ''}
           ${a.status === 'pendente' ? `<button type="button" class="btn btn-primario btn-peq dc-confirmar"
-            onclick="event.stopPropagation();confirmarHorario('${a.id}')">Confirmar</button>` : ''}
+            onclick="event.stopPropagation();confirmarHorario('${a.id}')">${
+              sinalDoHorario(a) && !sinalDoHorario(a).pago ? 'Recebi o sinal' : 'Confirmar'}</button>` : ''}
         </span>
       </div>`;
 }
@@ -6637,6 +6668,12 @@ function abrirDetalhe(agId){
         <span style="font-size:12px;color:var(--txt2)">o valor acima já está com
         o desconto</span></td></tr>` : ''}
       ${a.obs ? `<tr><td style="color:var(--txt2)">Obs.</td><td>${escapar(a.obs)}</td></tr>` : ''}
+      ${sinalDoHorario(a) ? `<tr><td style="color:var(--txt2)">Sinal</td>
+        <td><b>${escapar(textoDoSinal(a))}</b><br>
+        <span style="font-size:12px;color:var(--txt2)">${sinalDoHorario(a).pago
+          ? 'pago por Pix, direto para a sua chave — no atendimento, falta '
+            + real(Math.max(0, totalDe(a) - sinalDoHorario(a).valor))
+          : 'por Pix, para a sua chave. Viu o comprovante? Confirme o horário: o sinal fica como recebido.'}</span></td></tr>` : ''}
       ${nomeDaFormaPagamento(a.formaPagamento) ? `<tr><td style="color:var(--txt2)">Pagamento</td>
         <td><b>${escapar(nomeDaFormaPagamento(a.formaPagamento))}</b><br>
         <span style="font-size:12px;color:var(--txt2)">${a.origem === 'online'
@@ -9019,12 +9056,40 @@ function pintarSalao(){
            nao usar o CPF. (Sem crase: template literal.) -->
       <div class="campo" id="campoPagPix" style="margin-top:10px"><label for="cPagPix">Chave Pix
           <span class="opcional">opcional</span></label>
-        <input id="cPagPix" maxlength="77" autocomplete="off"
+        <input id="cPagPix" maxlength="77" autocomplete="off" oninput="explicarSinal()"
                value="${escapar(((sl.cfg || {}).pagamentos || {}).pix || '')}"
                placeholder="CNPJ, e-mail, telefone ou chave aleatória">
         <p class="ajuda" style="margin-top:5px">Aparece no link, com um botão para a
           cliente copiar. Ela fica à mostra para quem abrir a página: prefira o
           CNPJ, o e-mail ou a chave aleatória, e não o seu CPF.</p></div>
+      <!-- O SINAL PARA GARANTIR O HORARIO (09_cliente.sql, 1e). Aparece com
+           Pix marcado: e para a chave acima que a cliente manda. Quem calcula
+           o valor de cada horario e o banco. (Sem crase: template literal.) -->
+      <div id="campoSinal" style="margin-top:16px">
+        <h3 class="secao" style="font-size:14.5px">Sinal para garantir o horário</h3>
+        <p class="secao-sub">Quem marca pelo link paga uma parte por Pix, para a
+          chave acima. O horário fica reservado e só é confirmado quando você vê
+          o comprovante e toca em <b>Confirmar</b>. Se não pagar no prazo, o
+          horário volta a ficar livre sozinho.</p>
+        <div class="regua" id="reguaSinal" style="justify-content:flex-start"></div>
+        <div id="sinalCampos" style="margin-top:10px">
+          <div class="dupla">
+            <div class="campo"><label for="cSinalValor" id="rotSinalValor">Quanto</label>
+              <input id="cSinalValor" type="number" min="1" step="1" inputmode="decimal"
+                     oninput="explicarSinal()"></div>
+            <div class="campo"><label for="cSinalPrazo">Prazo para pagar</label>
+              <select id="cSinalPrazo"></select></div>
+          </div>
+          <div class="campo"><label for="cSinalTitular">Nome de quem recebe o Pix
+              <span class="opcional">opcional</span></label>
+            <input id="cSinalTitular" maxlength="60" placeholder="Ex.: Ju Barbosa"></div>
+          <div class="campo"><label for="cSinalRegra">Regra de cancelamento
+              <span class="opcional">opcional</span></label>
+            <textarea id="cSinalRegra" maxlength="300" rows="2"
+              placeholder="Ex.: se você cancelar com até 24 horas de antecedência, devolvemos o sinal."></textarea></div>
+          <p class="ajuda" id="explicaSinal"></p>
+        </div>
+      </div>
 
       <div class="linha-fina" style="margin:18px 0"></div>
       <h3 class="secao">Sobre o estabelecimento</h3>
@@ -13524,7 +13589,7 @@ function escolherJanelaOutro(){
    próprio dono acabou de digitar, e é quase sempre o que ele digitaria de
    novo. Sem nenhum dia aberto ainda, os campos nascem vazios.
    ═══════════════════════════════════════════════════════════════════════════ */
-let funcEscolhido = null, funcDoSalao = null, pagEscolhidas = null;
+let funcEscolhido = null, funcDoSalao = null, pagEscolhidas = null, sinalTipo = null;
 
 function funcDoBanco(){
   const cru = ((acharSalao(salaoAtual) || {}).cfg || {}).funcionamento;
@@ -13543,6 +13608,7 @@ function pintarFuncionamento(){
     funcEscolhido = funcDoBanco();
     funcDoSalao = salaoAtual;
     pagEscolhidas = null;
+    sinalTipo = null;
   }
   const F = Funcionamento;
   alvo.innerHTML = F.ORDEM.map(d => {
@@ -13667,6 +13733,58 @@ function pintarPagamentosEditor(){
   // A chave Pix só faz sentido com Pix marcado.
   const campoPix = document.getElementById('campoPagPix');
   if(campoPix) campoPix.style.display = pagEscolhidas.includes('pix') ? '' : 'none';
+  pintarSinal();
+}
+
+/* ── O SINAL (09_cliente.sql, 1e) ──────────────────────────────────────────
+   Na mesma tela da chave Pix, e só com Pix marcado. Os campos vêm do que está
+   gravado na primeira pintura; depois, o que o dono digita fica nos campos
+   até ele salvar. */
+function sinalDoBanco(){
+  const p = Funcionamento.pagamentos(((acharSalao(salaoAtual) || {}).cfg || {}).pagamentos);
+  return (p && p.sinal) || null;
+}
+function pintarSinal(){
+  const bloco = document.getElementById('campoSinal');
+  if(!bloco || !window.Funcionamento) return;
+  bloco.style.display = (pagEscolhidas || []).includes('pix') ? '' : 'none';
+  const gravado = sinalDoBanco();
+  if(sinalTipo === null){
+    sinalTipo = gravado ? gravado.tipo : '';
+    document.getElementById('cSinalValor').value = gravado ? gravado.valor : '';
+    document.getElementById('cSinalTitular').value = (gravado && gravado.titular) || '';
+    document.getElementById('cSinalRegra').value = (gravado && gravado.regra) || '';
+    document.getElementById('cSinalPrazo').innerHTML = Funcionamento.PRAZOS_SINAL
+      .map(([m, rot]) => `<option value="${m}"${m === ((gravado && gravado.prazoMin) || 60)
+        ? ' selected' : ''}>${rot}</option>`).join('');
+  }
+  document.getElementById('reguaSinal').innerHTML =
+    [['', 'Não cobrar'], ['pct', 'Porcentagem'], ['fixo', 'Valor fixo']]
+      .map(([v, rot]) => `<button type="button" class="${v === sinalTipo ? 'on' : ''}"
+          onclick="escolherSinal('${v}')">${rot}</button>`).join('');
+  document.getElementById('sinalCampos').style.display = sinalTipo ? '' : 'none';
+  document.getElementById('rotSinalValor').textContent =
+    sinalTipo === 'pct' ? 'Porcentagem do valor (%)' : 'Valor do sinal (R$)';
+  explicarSinal();
+}
+function escolherSinal(v){ sinalTipo = v; pintarSinal(); }
+function explicarSinal(){
+  const alvo = document.getElementById('explicaSinal');
+  if(!alvo) return;
+  const n = Number(String(document.getElementById('cSinalValor').value).replace(',', '.'));
+  const temChave = !!(document.getElementById('cPagPix').value || '').trim();
+  alvo.innerHTML = !temChave
+    ? '<b>Preencha a chave Pix acima</b>: é para ela que a cliente manda o sinal. Sem a chave, o link não cobra.'
+    : !(n > 0) ? 'Digite quanto cobrar.'
+    : sinalTipo === 'pct'
+      ? `Num atendimento de ${real(100)}, o sinal é ${real(Math.min(100, n))}. Atendimento que sai de graça (pacote) não paga sinal.`
+      : `Cada horário marcado pelo link pede ${real(n)} de sinal (ou o valor do atendimento, se for menor).`;
+}
+function sinalParaGravar(){
+  if(!sinalTipo) return null;
+  const v = id => (document.getElementById(id).value || '').trim();
+  return { tipo: sinalTipo, valor: v('cSinalValor'), prazoMin: Number(v('cSinalPrazo')) || 60,
+           titular: v('cSinalTitular'), regra: v('cSinalRegra') };
 }
 function alternarPagamento(k){
   pagEscolhidas = pagEscolhidas.includes(k)
@@ -13787,7 +13905,8 @@ function salvarCadastroSalao(){
        o que sai quando todos os dias estão fechados. */
     ...(funcParaGravar() !== undefined ? { funcionamento: funcParaGravar() } : {}),
     pagamentos: window.Funcionamento && pagEscolhidas !== null
-      ? Funcionamento.pagamentos({ formas: pagEscolhidas, obs: v('cPagObs'), pix: v('cPagPix') })
+      ? Funcionamento.pagamentos({ formas: pagEscolhidas, obs: v('cPagObs'), pix: v('cPagPix'),
+                                   sinal: sinalParaGravar() })
       : (sl.cfg || {}).pagamentos || null,
     sobre: v('cSobre').slice(0, 600) || null,
     instagram: instagramLimpo(v('cInsta')) || null,
@@ -17342,7 +17461,10 @@ function pdGuardarPagamento(){
   const obs = (document.getElementById('pdPagObs') || {}).value || '';
   const pix = (document.getElementById('pdPagPix') || {}).value || '';
   sl.cfg = Object.assign({}, sl.cfg, {
-    pagamentos: Funcionamento.pagamentos({ formas: pdFormasAtuais(), obs, pix }),
+    /* O sinal (Meu negócio) não é deste passo: passa adiante como estava —
+       sem isto, refazer o passo a passo apagava o sinal que o dono ligou. */
+    pagamentos: Funcionamento.pagamentos({ formas: pdFormasAtuais(), obs, pix,
+                                           sinal: ((sl.cfg || {}).pagamentos || {}).sinal }),
   });
   // Meu negócio relê do salão na próxima vez, em vez de mostrar o rascunho dele.
   pagEscolhidas = null;

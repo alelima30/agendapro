@@ -1310,13 +1310,24 @@ begin
       v_desc := least(v_desc, n.valor_previsto);
       if v_desc > 0 then
         update public.agendamentos
-           set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc
+           set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc,
+               sinal_exigido = case when coalesce(sinal_exigido, 0) > 0
+                                    then public.sinal_do_salao(salao_id, valor_previsto - v_desc)
+                                    else sinal_exigido end
          where id = n.id;
         update public.cupom_usos
            set agendamento_id = n.id, desconto = v_desc
          where agendamento_id = a.id;
       end if;
     end if;
+  end if;
+  if coalesce(a.sinal_pago, 0) > 0 and n.status in ('pendente', 'confirmado') then
+    update public.agendamentos set sinal_pago = a.sinal_pago where id = n.id;
+    update public.agendamentos x set status = 'confirmado'
+     where x.id = n.id and x.status = 'pendente'
+       and coalesce(x.sinal_exigido, 0) > 0 and x.sinal_pago >= x.sinal_exigido
+       and public.confirma_automatico(x.salao_id)
+       and not public.cliente_exige_confirmacao(x.salao_id, x.cliente_id, null);
   end if;
   return jsonb_build_object('ok', true, 'desconto', v_desc);
 end $$;
@@ -1391,6 +1402,64 @@ drop trigger if exists tg_notif_pagamento on public.agendamentos;
 create trigger tg_notif_pagamento
   after update of forma_pagamento on public.agendamentos
   for each row execute function public.tg_notificacao_pagamento_mudou();
+alter table public.agendamentos add column if not exists sinal_ate timestamptz;
+create or replace function public.sinal_do_salao(p_salao uuid, p_valor numeric)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce((
+    select case
+      when coalesce(p_valor, 0) <= 0 then 0
+      when jsonb_typeof(p.pag) <> 'object' then 0
+      when not coalesce(p.pag->'formas', '[]'::jsonb) ? 'pix' then 0
+      when nullif(btrim(coalesce(p.pag->>'pix', '')), '') is null then 0
+      when coalesce(p.pag->'sinal'->>'valor', '') !~ '^[0-9]+([.][0-9]+)?$' then 0
+      when p.pag->'sinal'->>'tipo' = 'pct'
+        then round(p_valor * least(100, (p.pag->'sinal'->>'valor')::numeric) / 100, 2)
+      when p.pag->'sinal'->>'tipo' = 'fixo'
+        then least(p_valor, round((p.pag->'sinal'->>'valor')::numeric, 2))
+      else 0 end
+      from (select s.cfg->'pagamentos' as pag from public.saloes s where s.id = p_salao) p
+  ), 0)
+$$;
+create or replace function public.sinal_prazo(p_salao uuid)
+returns interval language sql stable security definer set search_path = public as $$
+  select make_interval(mins => coalesce((
+    select greatest(10, least(1440, (s.cfg->'pagamentos'->'sinal'->>'prazoMin')::int))
+      from public.saloes s
+     where s.id = p_salao
+       and coalesce(s.cfg->'pagamentos'->'sinal'->>'prazoMin', '') ~ '^[0-9]{1,5}$'), 60))
+$$;
+create or replace function public.tg_sinal_confirmado()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.status = 'confirmado' and old.status = 'pendente'
+     and coalesce(new.sinal_exigido, 0) > 0
+     and coalesce(new.sinal_pago, 0) < new.sinal_exigido then
+    new.sinal_pago := new.sinal_exigido;
+  end if;
+  return new;
+end $$;
+revoke all on function public.tg_sinal_confirmado() from public, anon, authenticated;
+drop trigger if exists tg_sinal_confirmado on public.agendamentos;
+create trigger tg_sinal_confirmado
+  before update of status on public.agendamentos
+  for each row execute function public.tg_sinal_confirmado();
+create or replace function public.liberar_sinais_vencidos()
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  update public.agendamentos a
+     set status = 'cancelado', cancelado_motivo = 'sinal não pago no prazo'
+   where a.status = 'pendente'
+     and coalesce(a.sinal_exigido, 0) > 0
+     and coalesce(a.sinal_pago, 0) < a.sinal_exigido
+     and a.sinal_ate is not null and a.sinal_ate < now()
+     and a.arquivado_em is null;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+revoke all on function public.sinal_do_salao(uuid, numeric) from public, anon, authenticated;
+revoke all on function public.sinal_prazo(uuid)             from public, anon, authenticated;
+revoke all on function public.liberar_sinais_vencidos()     from public, anon, authenticated;
 alter table public.clientes
   add column if not exists exige_confirmacao boolean not null default false;
 create or replace function public.cliente_exige_confirmacao(
@@ -1455,6 +1524,7 @@ declare
   v_desconto numeric(10,2) := 0;
   v_forma    text;
   v_aceitas  jsonb;
+  v_sinal    numeric(10,2) := 0;
   s          record;
 begin
   v_nome := nullif(btrim(coalesce(p_nome, '')), '');
@@ -1531,6 +1601,7 @@ begin
     v_desconto := least((v_cupom->>'desconto')::numeric, v_valor);
     v_valor    := v_valor - v_desconto;
   end if;
+  v_sinal := public.sinal_do_salao(v_salao, v_valor);
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
      and a.status in ('pendente','confirmado')
@@ -1552,15 +1623,17 @@ begin
     insert into public.agendamentos
       (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
        valor_previsto, atendido_nome, obs, criado_por, pacote_cliente_id,
-       cupom_id, desconto, forma_pagamento)
+       cupom_id, desconto, forma_pagamento, sinal_exigido, sinal_ate)
     values
       (v_salao, v_cliente, p_profissional, p_inicio, v_fim,
-       case when public.confirma_automatico(v_salao)
+       case when v_sinal <= 0 and public.confirma_automatico(v_salao)
              and not public.cliente_exige_confirmacao(v_salao, v_cliente, v_tel)
             then 'confirmado' else 'pendente' end, 'online',
        v_valor, v_quem,
        nullif(btrim(coalesce(p_obs, '')), ''), v_perfil, v_pacote,
-       (v_cupom->>'cupom_id')::uuid, v_desconto, v_forma)
+       (v_cupom->>'cupom_id')::uuid, v_desconto, v_forma,
+       v_sinal,
+       case when v_sinal > 0 then least(now() + public.sinal_prazo(v_salao), p_inicio) end)
     returning agendamentos.id, agendamentos.gerenciar_token into v_agend, v_token;
   exception
     when exclusion_violation then
@@ -1604,6 +1677,16 @@ language sql stable security definer set search_path = public as $$
       'valor',     a.valor_previsto,
       'desconto',  coalesce((to_jsonb(a)->>'desconto')::numeric, 0),
       'forma_pagamento', a.forma_pagamento,
+      'sinal', case when coalesce(a.sinal_exigido, 0) > 0 then jsonb_build_object(
+          'valor',    a.sinal_exigido,
+          'pago',     coalesce(a.sinal_pago, 0) >= a.sinal_exigido,
+          'ate',      a.sinal_ate,
+          'chave',    sa.cfg->'pagamentos'->>'pix',
+          'titular',  nullif(btrim(coalesce(sa.cfg->'pagamentos'->'sinal'->>'titular', '')), ''),
+          'regra',    nullif(btrim(coalesce(sa.cfg->'pagamentos'->'sinal'->>'regra', '')), ''),
+          'whatsapp', coalesce(nullif(btrim(coalesce(sa.whatsapp, '')), ''), sa.telefone)) end,
+      'sinalVencido', a.status = 'cancelado'
+                      and coalesce(a.cancelado_motivo, '') = 'sinal não pago no prazo',
       'salao',     sa.nome,
       'slug',      sa.slug,
       'fuso',      sa.fuso,

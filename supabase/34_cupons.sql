@@ -472,14 +472,32 @@ begin
                      else least(c.valor, v_base) end;
       v_desc := least(v_desc, n.valor_previsto);
       if v_desc > 0 then
+        -- O sinal (09, 1e) é sobre o que ela paga: com o desconto, refeito.
         update public.agendamentos
-           set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc
+           set cupom_id = c.id, desconto = v_desc, valor_previsto = valor_previsto - v_desc,
+               sinal_exigido = case when coalesce(sinal_exigido, 0) > 0
+                                    then public.sinal_do_salao(salao_id, valor_previsto - v_desc)
+                                    else sinal_exigido end
          where id = n.id;
         update public.cupom_usos
            set agendamento_id = n.id, desconto = v_desc
          where agendamento_id = a.id;
       end if;
     end if;
+  end if;
+
+  /* ⚠ O SINAL PAGO VAI JUNTO (09, 1e). Ela pagou o sinal do horário de
+     terça e trocou para quinta: o horário novo nasceu pedindo sinal de novo,
+     e ela pagaria duas vezes. O que já foi pago passa para o novo — e, se
+     cobre o que ele pede, o novo é confirmado como o antigo seria (no salão
+     que confirma sozinho, para a cliente que não precisa de confirmação). */
+  if coalesce(a.sinal_pago, 0) > 0 and n.status in ('pendente', 'confirmado') then
+    update public.agendamentos set sinal_pago = a.sinal_pago where id = n.id;
+    update public.agendamentos x set status = 'confirmado'
+     where x.id = n.id and x.status = 'pendente'
+       and coalesce(x.sinal_exigido, 0) > 0 and x.sinal_pago >= x.sinal_exigido
+       and public.confirma_automatico(x.salao_id)
+       and not public.cliente_exige_confirmacao(x.salao_id, x.cliente_id, null);
   end if;
 
   return jsonb_build_object('ok', true, 'desconto', v_desc);

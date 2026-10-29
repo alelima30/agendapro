@@ -1002,6 +1002,30 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (40_saude)'
            else '' end
   union all
+  /* O sinal por Pix para garantir o horário (09_cliente, 1e): o agendar()
+     calcula e segura o horário, e o agendador libera o vencido. */
+  select 46, 'Sinal por Pix para garantir o horário',
+         case
+           when to_regprocedure('public.sinal_do_salao(uuid,numeric)') is null
+             or to_regprocedure('public.liberar_sinais_vencidos()') is null
+             or not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'agendamentos'
+                               and column_name = 'sinal_ate')
+             or not exists (select 1 from pg_proc where proname = 'gerar_resumos'
+                              and prosrc like '%liberar_sinais_vencidos%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.sinal_do_salao(uuid,numeric)') is null
+             or to_regprocedure('public.liberar_sinais_vencidos()') is null
+             or not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'agendamentos'
+                               and column_name = 'sinal_ate')
+             or not exists (select 1 from pg_proc where proname = 'gerar_resumos'
+                              and prosrc like '%liberar_sinais_vencidos%')
+             then 'cole o 00_tudo.sql de novo (09_cliente e 21_notificacoes)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

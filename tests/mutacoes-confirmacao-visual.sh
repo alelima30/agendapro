@@ -60,14 +60,16 @@ troca agendar.html \
 
 echo "2. o título do fim sempre \"enviado\""
 troca agendar.html \
-  "    pendente ? 'Agendamento enviado!' : 'Agendamento confirmado!';" \
-  "    'Agendamento enviado!';" \
+  "    : pendente ? 'Agendamento enviado!' : 'Agendamento confirmado!';" \
+  "    : 'Agendamento enviado!';" \
   && rodar "confirmado dito como enviado"
 
 echo "3. o selo sempre de espera"
 troca agendar.html \
-  "    + \`<div class=\"cf-chip-linha\">\${pendente" \
-  "    + \`<div class=\"cf-chip-linha\">\${true" \
+  "        : pendente
+        ? '<span class=\"cf-chip cf-chip-espera\"><span data-ico=\"relogio\">" \
+  "        : true
+        ? '<span class=\"cf-chip cf-chip-espera\"><span data-ico=\"relogio\">" \
   && rodar "espera que não existe"
 
 echo "4. o dia no alto sem \"-feira\""

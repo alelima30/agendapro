@@ -4136,6 +4136,18 @@ function tirarCupomLoja(){
 }
 
 function statusDoPedido(){
+  const sinal = previaDoSinal();
+  if(sinal > 0){
+    const s = sinalDoLink();
+    const prazo = (Funcionamento.PRAZOS_SINAL.find(p => p[0] === s.prazoMin) || [0, '1 hora'])[1];
+    return `<div class="cf-status">
+        <span class="cf-ic" data-ico="pix"></span>
+        <div><b>Sinal de ${real(sinal)} para garantir o horário</b>
+          <p>${s.tipo === 'pct' ? String(s.valor).replace('.', ',') + '% do valor, pago' : 'Pago'}
+            por Pix depois que você confirmar. O horário fica reservado por ${prazo},
+            e é confirmado quando ${escapar(salao.nome)} receber o comprovante.</p></div>
+      </div>`;
+  }
   return salaoConfirmaSozinho
     ? `<div class="cf-status cf-status-ok">
         <span class="cf-ic" data-ico="ok"></span>
@@ -4175,16 +4187,24 @@ function desenharConfirmar(){
    confirmado. Sem bolha de WhatsApp desenhada: mostrar uma mensagem que a
    tela não enviou seria simular um envio. */
 function desenharPronto(pendente, prof){
-  document.querySelector('#p-pronto h2').textContent =
-    pendente ? 'Agendamento enviado!' : 'Agendamento confirmado!';
-  document.getElementById('prontoTexto').textContent = pendente
-    ? 'Seu horário foi encaminhado para o salão.'
+  const sinal = pendente && sinalDaMarcacao;
+  document.querySelector('#p-pronto h2').textContent = sinal ? 'Falta só o sinal!'
+    : pendente ? 'Agendamento enviado!' : 'Agendamento confirmado!';
+  document.getElementById('prontoTexto').textContent = sinal
+    ? 'Pague o sinal por Pix para garantir o seu horário.'
+    : pendente ? 'Seu horário foi encaminhado para o salão.'
     : 'Seu horário está marcado.';
   document.getElementById('resumoPronto').innerHTML = resumoDoAgendamento(prof, true)
-    + `<div class="cf-chip-linha">${pendente
+    + `<div class="cf-chip-linha">${sinal
+        ? '<span class="cf-chip cf-chip-espera"><span data-ico="pix"></span>Aguardando o sinal</span>'
+        : pendente
         ? '<span class="cf-chip cf-chip-espera"><span data-ico="relogio"></span>Aguardando confirmação do salão</span>'
         : '<span class="cf-chip cf-chip-ok"><span data-ico="ok"></span>Confirmado</span>'}</div>`;
-  document.getElementById('bolhaConfirmacao').innerHTML = pendente
+  document.getElementById('bolhaConfirmacao').innerHTML = sinal
+    ? blocoDoSinal(sinal, diaCompleto(escolha.data) + ' às ' + hm(escolha.inicio))
+      + `<p class="cf-nota">Assim que ${escapar(salao.nome)} conferir o comprovante, você
+        recebe a confirmação pelo WhatsApp. O horário fica reservado até lá.</p>`
+    : pendente
     ? `<p class="cf-nota">Você receberá uma mensagem pelo WhatsApp assim que o
         salão confirmar. Até lá, o horário fica reservado para você e não pode
         ser agendado por outra pessoa.</p>`
@@ -4316,15 +4336,22 @@ async function desenharMeusDaNuvem(alvo){
           a.atendido ? ` <span class="selo-combo">${escapar(a.atendido)}</span>` : ''}</h3>
           <div class="q">${quando(a.inicio)}</div>
           <div class="q">com ${escapar(a.profissional)} · ${real(Number(a.valor) || 0)}${
-            nomeDaForma(a.forma_pagamento) ? ' · ' + escapar(nomeDaForma(a.forma_pagamento)) : ''}</div></div>
+            nomeDaForma(a.forma_pagamento) ? ' · ' + escapar(nomeDaForma(a.forma_pagamento)) : ''}</div>${
+          esperaSinal(a) ? `<div class="q sinal-q">Aguardando o sinal de ${real(Number(a.sinal.valor))}${
+            a.sinal.ate ? ' · até ' + prazoDoSinal(a.sinal.ate) : ''}</div>` : ''}${
+          a.sinal && a.sinal.pago ? `<div class="q">Sinal de ${real(Number(a.sinal.valor))} pago</div>` : ''}${
+          a.sinalVencido ? '<div class="q">O sinal não foi pago no prazo, e o horário foi liberado.</div>' : ''}</div>
         <span class="selo-st ${a.remarcado ? 'st-conc' : (classe[a.status] || '')}">${
           a.remarcado ? 'Remarcado' : (rotulo[a.status] || a.status)}</span>
       </div>
-      ${a.podeMexer ? `<div class="acoes">
-        <button class="bp" onclick="remarcarNaNuvem('${a.token}')">Remarcar</button>
-        <button class="bp perigo" onclick="cancelarNaNuvem('${a.token}')">Cancelar</button>
+      ${a.podeMexer || esperaSinal(a) ? `<div class="acoes">
+        ${esperaSinal(a) ? `<button class="bp" onclick="verSinal('${a.token}')">Como pagar o sinal</button>` : ''}
+        ${a.podeMexer ? `<button class="bp" onclick="remarcarNaNuvem('${a.token}')">Remarcar</button>
+        <button class="bp perigo" onclick="cancelarNaNuvem('${a.token}')">Cancelar</button>` : ''}
       </div>` : ''}
     </div>`;
+  function esperaSinal(a){ return a.status === 'pendente' && a.sinal && !a.sinal.pago
+                                  && new Date(a.inicio) > new Date(); }
 
   const futuros = ags.filter(a => a.podeMexer);
   const resto   = ags.filter(a => !a.podeMexer);
@@ -4905,6 +4932,7 @@ function abrirFolha(qual, origem){
   }
   const miolo = qual === 'horarios'   ? folhaHorarios()
               : qual === 'pagamentos' ? folhaPagamentos()
+              : qual === 'sinal'      ? folhaSinal()
               : folhaInformacoes();
   if(!miolo) return;
   const f = document.createElement('div');
@@ -6104,6 +6132,7 @@ async function confirmarNaNuvem(profId, prof){
   bp.disabled = true; bp.textContent = 'Marcando…';
   aviso.innerHTML = '';
   statusDaMarcacao = null;
+  sinalDaMarcacao = null;
   /* Só o CÓDIGO sobe, e só no primeiro horário ("eu e mais alguém" são dois
      agendamentos; o cupom é de um). O `agendar()` refaz a conta e recusa o
      que não valer — a prévia desta tela não decide nada. */
@@ -6167,6 +6196,11 @@ async function confirmarNaNuvem(profId, prof){
         const l = await Dados.meusAgendamentos([feito.token]);
         const st = Array.isArray(l) && l[0] && l[0].status;
         if(st && (statusDaMarcacao === null || st === 'pendente')) statusDaMarcacao = st;
+        // O sinal deste horário, do banco ("eu e mais alguém": os dois somados).
+        const sn = Array.isArray(l) && l[0] && l[0].sinal;
+        if(sn && !sn.pago) sinalDaMarcacao = sinalDaMarcacao
+          ? Object.assign({}, sinalDaMarcacao, { valor: Number(sinalDaMarcacao.valor) + Number(sn.valor) })
+          : sn;
       }catch(e){ console.info('[AgendaPro] status da marcação:', e.message); }
     }
     return feito;
@@ -6268,6 +6302,15 @@ async function confirmarNaNuvem(profId, prof){
       return;
     }
     meusDaNuvem = null;          // a lista mudou dos dois lados
+    /* O sinal pago do antigo veio para o novo (remarcar_agendamento): o
+       status e o sinal que valem são os de agora, e não os de antes. */
+    if(novoToken && sinalDaMarcacao){
+      try{
+        const l = await Dados.meusAgendamentos([novoToken]);
+        const x = Array.isArray(l) && l[0];
+        if(x){ statusDaMarcacao = x.status; sinalDaMarcacao = x.sinal && !x.sinal.pago ? x.sinal : null; }
+      }catch(e){ console.info('[AgendaPro] sinal depois de remarcar:', e.message); }
+    }
   }
 
   bp.disabled = false; bp.textContent = rotulo;
@@ -7235,6 +7278,87 @@ async function copiarPix(bt){
   if(!chave) return;
   try{ await navigator.clipboard.writeText(chave); bt.textContent = 'Copiada'; }
   catch(e){ prompt('Copie a chave Pix:', chave); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O SINAL PARA GARANTIR O HORÁRIO (09_cliente.sql, 1e)
+
+   O salão que cobra sinal pede uma parte por Pix, para a chave dele. A
+   cliente marca, paga, manda o comprovante pelo WhatsApp, e o dono confirma.
+
+   ⚠ QUEM DECIDE O VALOR É O BANCO. A prévia daqui (antes de marcar) só
+   avisa; o que ela paga é o que `meus_agendamentos()` devolve para AQUELE
+   horário, calculado pelo `agendar()`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let sinalDaMarcacao = null, sinalNaFolha = null;
+function sinalDoLink(){ const p = pagamentosDoSalao(); return (p && p.sinal) || null; }
+function sinalSobre(valor){
+  const s = sinalDoLink();
+  if(!s || !(valor > 0)) return 0;
+  return s.tipo === 'pct' ? Math.round(valor * s.valor) / 100 : Math.min(valor, s.valor);
+}
+// O mesmo total do resumo, um horário de cada vez ("eu e mais alguém" são dois).
+function previaDoSinal(){
+  if(!sinalDoLink() || !escolha || escolha.inicio == null) return 0;
+  const coberto = pacoteCobre(escolha.servicos, escolha.data);
+  const precoDela = precoEscolhido();
+  const levado = escolha.remarcar && escolha.descontoAntigo > 0;
+  const desc = coberto ? 0 : levado ? Math.min(escolha.descontoAntigo, precoDela)
+                                    : descontoDoCupomAgenda();
+  const outra = escolha.para === 'ambos' ? precoNoHorario(escolha.inicio + duracaoEscolhida()) : 0;
+  return sinalSobre(coberto ? 0 : precoDela - desc) + sinalSobre(outra);
+}
+function zapDoNumero(cru){
+  const so = String(cru || '').replace(/\D/g, '');
+  if(so.length === 10 || so.length === 11) return '55' + so;
+  if(so.length >= 12 && so.startsWith('55')) return so;
+  return '';
+}
+// "14:30", ou "29/10 às 14:30" quando o prazo não é hoje — no fuso do salão.
+function prazoDoSinal(iso){
+  const p = noFuso(iso), hoje = noFuso(new Date().toISOString());
+  return p.data === hoje.data ? hm(p.min) : dataCurta(p.data) + ' às ' + hm(p.min);
+}
+function blocoDoSinal(s, sobre){
+  const valor = real(Number(s.valor) || 0);
+  const zap = zapDoNumero(s.whatsapp);
+  const msg = 'Olá! Paguei o sinal de ' + valor + (sobre ? ' do meu horário de ' + sobre : '')
+            + '. Segue o comprovante.';
+  return `<div class="sinal-pagar">
+    <div class="sinal-valor"><span>Sinal para garantir o horário</span><b>${valor}</b></div>
+    <div class="folha-lista folha-pix"><div class="folha-item">
+      <span class="folha-item-ic" data-ico="pix"></span>
+      <span class="folha-item-txt"><b>Chave Pix</b><span>${escapar(s.chave || '')}</span>${
+        s.titular ? `<span>em nome de ${escapar(s.titular)}</span>` : ''}</span>
+      <button type="button" class="folha-item-acao folha-copiar" data-chave="${escapar(s.chave || '')}"
+              onclick="copiarChaveDoSinal(this)">Copiar</button>
+    </div></div>
+    ${s.ate ? `<p class="sinal-prazo">Pague até <b>${prazoDoSinal(s.ate)}</b>. Depois disso, o
+      horário volta a ficar livre.</p>` : ''}
+    ${zap ? `<a class="bp sinal-zap" target="_blank" rel="noopener"
+       href="https://wa.me/${zap}?text=${encodeURIComponent(msg)}"><span data-ico="whatsapp"></span>Enviar
+       o comprovante pelo WhatsApp</a>` : ''}
+    ${s.regra ? `<p class="sinal-regra"><b>Cancelamento:</b> ${escapar(s.regra)}</p>` : ''}
+  </div>`;
+}
+async function copiarChaveDoSinal(bt){
+  const chave = bt.dataset.chave || '';
+  if(!chave) return;
+  try{ await navigator.clipboard.writeText(chave); bt.textContent = 'Copiada'; }
+  catch(e){ prompt('Copie a chave Pix:', chave); }
+}
+// "Como pagar o sinal", de "Meus horários".
+function verSinal(token){
+  const a = (((meusDaNuvem || {}).ags) || []).find(x => x.token === token);
+  if(!a || !a.sinal) return;
+  const { data, min } = noFuso(a.inicio);
+  sinalNaFolha = { s: a.sinal, sobre: dataLonga(data) + ' às ' + hm(min) };
+  abrirFolha('sinal');
+}
+function folhaSinal(){
+  if(!sinalNaFolha) return '';
+  return cabecaDaFolha('pix', 'Pagar o sinal', 'Para garantir o seu horário')
+    + blocoDoSinal(sinalNaFolha.s, sinalNaFolha.sobre);
 }
 
 async function copiarLinkDoSalao(bt){
