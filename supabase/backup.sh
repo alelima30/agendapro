@@ -37,6 +37,23 @@ if [ "${#BACKUP_SENHA}" -lt 16 ]; then
   exit 1
 fi
 
+# Os dois erros de quem cola o endereço pela primeira vez, ditos com o que
+# fazer (o pg_dump responderia "missing key/value separator", que não ajuda):
+#   · a senha do banco com ? # / @ — dentro do endereço, eles cortam a senha;
+#   · o "Direct connection", que as máquinas do GitHub não alcançam no grátis.
+credenciais="${SUPABASE_DB_URL#*://}"; credenciais="${credenciais%@*}"
+servidor="${SUPABASE_DB_URL##*@}"
+case "$credenciais" in
+  *[?#/@]*)
+    echo "::error::A senha do banco tem um caractere especial (? # / ou @), que quebra o endereço. Troque a senha do banco por uma só com letras e números (supabase/BACKUP.md) e atualize o SUPABASE_DB_URL." >&2
+    exit 1 ;;
+esac
+case "$servidor" in
+  db.*.supabase.co*)
+    echo "::error::Este é o endereço \"Direct connection\", que o GitHub não alcança no plano grátis. No Supabase, em Connect, escolha \"Session pooler\" (termina em pooler.supabase.com) e atualize o SUPABASE_DB_URL." >&2
+    exit 1 ;;
+esac
+
 SAIDA="${1:-saida}"
 DIA="${DIA:-$(TZ=America/Sao_Paulo date +%Y-%m-%d)}"
 mkdir -p "$SAIDA"

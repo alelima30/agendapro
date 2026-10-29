@@ -16,8 +16,11 @@ não entram nesta cópia.
    **Connection String** → escolha **Session pooler** → copie o endereço.
    Ele termina em `pooler.supabase.com:5432/postgres` e tem `[YOUR-PASSWORD]`
    no meio: troque pela senha do banco.
-   - Não lembra a senha? **Project Settings → Database → Reset database
-     password**. O site e o link não usam essa senha; trocar não derruba nada.
+   - Não lembra a senha, ou ela tem `?`, `#`, `/` ou `@`? Troque em
+     **Database → Settings → Reset database password** (link direto:
+     `supabase.com/dashboard/project/SEU-PROJETO/database/settings`). Use **só
+     letras e números**: esses caracteres quebram o endereço. O site e o link
+     não usam essa senha; trocar não derruba nada.
    - ⚠ Use o **Session pooler**, não o *Direct connection*: no plano grátis, o
      direto não é alcançado pelas máquinas do GitHub.
 2. **No GitHub**, no repositório `agendapro`: **Settings → Secrets and

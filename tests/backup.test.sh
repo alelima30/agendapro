@@ -59,6 +59,11 @@ e "sem o endereço do banco, para dizendo o que falta" "$([ $r -ne 0 ] && echo "
 s=$(SUPABASE_DB_URL="$URL" BACKUP_SENHA="curta" bash supabase/backup.sh "$TMP/a" 2>&1); r=$?
 e "senha curta não serve (16 caracteres ou mais)" "$([ $r -ne 0 ] && echo "$s" | grep -q '16 caracteres' && echo 1)" "$s"
 
+s=$(SUPABASE_DB_URL="postgresql://postgres:abc?def@db.xyz.supabase.co:5432/postgres" BACKUP_SENHA="$SENHA" bash supabase/backup.sh "$TMP/a" 2>&1); r=$?
+e "senha do banco com ? no endereço: diz para trocar a senha" "$([ $r -ne 0 ] && echo "$s" | grep -q 'caractere especial' && echo 1)" "$s"
+s=$(SUPABASE_DB_URL="postgresql://postgres:abcdef@db.xyz.supabase.co:5432/postgres" BACKUP_SENHA="$SENHA" bash supabase/backup.sh "$TMP/a" 2>&1); r=$?
+e "endereço Direct connection: diz para usar o Session pooler" "$([ $r -ne 0 ] && echo "$s" | grep -q 'Session pooler' && echo 1)" "$s"
+
 echo ""
 echo "2. A cópia"
 s=$(SUPABASE_DB_URL="$URL" BACKUP_SENHA="$SENHA" DIA=teste bash supabase/backup.sh "$TMP/b" 2>&1); r=$?
