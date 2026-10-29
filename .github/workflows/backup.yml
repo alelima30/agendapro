@@ -1,0 +1,80 @@
+# ===========================================================================
+# AgendaPro — a cópia do banco, todo dia de madrugada
+#
+# Roda o supabase/backup.sh às 03:17 de Brasília e guarda a cópia TRANCADA
+# por 30 dias (Actions → esta corrida → Artifacts). Restaurar: supabase/BACKUP.md.
+# Também roda no botão: Actions → "Backup do banco" → Run workflow.
+#
+# O QUE PRECISA, UMA VEZ (Settings → Secrets and variables → Actions):
+#   SUPABASE_DB_URL  o endereço do banco: Supabase → Connect → "Session
+#                    pooler", com a senha do banco no lugar de [YOUR-PASSWORD]
+#   BACKUP_SENHA     uma frase sua, com 16 caracteres ou mais, que tranca as
+#                    cópias. Guarde: sem ela, nenhuma cópia abre.
+# Sem os dois, a corrida para no primeiro passo e diz isso.
+#
+# ⚠ O "Session pooler", e não o "Direct connection": o direto do plano grátis
+# só fala IPv6, e as máquinas do GitHub não alcançam — a cópia falharia toda
+# noite com "Network is unreachable".
+#
+# Se uma corrida falhar, o GitHub manda e-mail para você.
+# ===========================================================================
+name: Backup do banco
+
+on:
+  schedule:
+    - cron: '17 6 * * *'        # 06:17 UTC = 03:17 em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-do-banco
+  cancel-in-progress: false
+
+jobs:
+  copiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_SENHA: ${{ secrets.BACKUP_SENHA }}
+    steps:
+      - name: Os segredos estão guardados?
+        run: |
+          faltam=""
+          [ -n "$SUPABASE_DB_URL" ] || faltam="$faltam SUPABASE_DB_URL"
+          [ -n "$BACKUP_SENHA" ]    || faltam="$faltam BACKUP_SENHA"
+          if [ -n "$faltam" ]; then
+            echo "::error::Faltam os segredos:$faltam (Settings → Secrets and variables → Actions). Nada foi copiado."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      # O pg_dump tem de ser da versão do banco ou mais novo: o 17 copia os
+      # bancos 15, 16 e 17 que o Supabase usa.
+      - name: Cliente do Postgres 17
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Copiar e trancar
+        run: |
+          # O mesmo dia no nome do arquivo e no do artefato, mesmo à meia-noite.
+          export DIA="$(TZ=America/Sao_Paulo date +%Y-%m-%d)"
+          echo "DIA=$DIA" >> "$GITHUB_ENV"
+          bash supabase/backup.sh saida
+
+      - name: Guardar por 30 dias
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-${{ env.DIA }}
+          path: saida/agendapro-${{ env.DIA }}.dump.gpg
+          retention-days: 30
+          if-no-files-found: error
+          # Já vai trancado (e cifrado não comprime): zipar de novo é tempo à toa.
+          compression-level: 0

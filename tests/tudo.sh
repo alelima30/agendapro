@@ -125,6 +125,7 @@ rodar "banco (SQL)"        bash "$AQUI/rodar.sh"
 # atualiza. Este confere que os dois caminhos terminam no mesmo banco.
 rodar "atualizar o banco"  bash "$AQUI/atualizar.test.sh"
 rodar "acentos do SQL"     bash "$AQUI/acentos.test.sh"
+rodar "backup do banco"    bash "$AQUI/backup.test.sh"
 rodar "colunas"            node "$AQUI/colunas.test.js"
 rodar "nuvem"              node "$AQUI/nuvem.test.mjs"
 rodar "cota"               node "$AQUI/cota.test.mjs"
