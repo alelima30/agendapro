@@ -6778,6 +6778,60 @@ revoke all on function public.saude_plataforma()     from public, anon;
 grant execute on function public.saude_plataforma() to authenticated;
 grant execute on function public.saude_publica() to service_role;
 
+alter table public.servicos add column if not exists procedimento text;
+do $$ begin
+  alter table public.servicos add constraint servicos_procedimento_tamanho
+    check (procedimento is null or length(procedimento) <= 4000);
+exception when duplicate_object then null; end $$;
+create table if not exists public.clientes_lembretes (
+  id            uuid primary key default gen_random_uuid(),
+  salao_id      uuid not null references public.saloes(id) on delete cascade,
+  cliente_id    uuid not null references public.clientes(id) on delete cascade,
+  marcas        text[] not null default '{}',
+  texto         text,
+  atualizado_em timestamptz not null default now(),
+  check (cardinality(marcas) <= 12),
+  check (texto is null or length(texto) <= 1000)
+);
+create unique index if not exists ux_lembrete_cliente on public.clientes_lembretes(cliente_id);
+create index if not exists ix_lembrete_salao on public.clientes_lembretes(salao_id);
+create or replace function public.tg_lembrete_cliente()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.clientes c
+                  where c.id = new.cliente_id and c.salao_id = new.salao_id) then
+    raise exception 'Esta cliente não é deste salão.' using errcode = 'check_violation';
+  end if;
+  new.marcas := coalesce(array(
+    select m from (select left(btrim(x), 40) as m, min(o) as o
+                     from unnest(new.marcas) with ordinality as t(x, o)
+                    where btrim(coalesce(x, '')) <> ''
+                    group by left(btrim(x), 40)) s
+     order by o), '{}');
+  new.texto := nullif(btrim(coalesce(new.texto, '')), '');
+  if tg_op = 'UPDATE' then new.atualizado_em := now(); end if;
+  return new;
+end $$;
+drop trigger if exists tg_lembrete_cliente on public.clientes_lembretes;
+create trigger tg_lembrete_cliente
+  before insert or update on public.clientes_lembretes
+  for each row execute function public.tg_lembrete_cliente();
+alter table public.clientes_lembretes enable row level security;
+drop policy if exists lembretes_equipe on public.clientes_lembretes;
+create policy lembretes_equipe on public.clientes_lembretes
+  for all to authenticated
+  using (public.e_equipe(salao_id)) with check (public.e_equipe(salao_id));
+grant select, insert, update, delete on public.clientes_lembretes to authenticated;
+revoke all on public.clientes_lembretes from anon;
+revoke all on function public.tg_lembrete_cliente() from public, anon, authenticated;
+do $$ begin
+  if to_regprocedure('public.tg_suporte()') is not null then
+    drop trigger if exists zz_suporte on public.clientes_lembretes;
+    create trigger zz_suporte after insert or update or delete on public.clientes_lembretes
+      for each row execute function public.tg_suporte();
+  end if;
+end $$;
+
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();
 alter table public.lista_espera

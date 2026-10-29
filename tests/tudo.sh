@@ -255,6 +255,8 @@ rodar "o que o caça-bug achou, na tela" node "$AQUI/caca-bug.test.mjs"
 rodar "caça-bug, segunda varredura" node "$AQUI/caca-bug-2.test.mjs"
 rodar "como a cliente vai pagar" node "$AQUI/forma-pagamento.test.mjs"
 rodar "sinal por Pix" node "$AQUI/sinal.test.mjs"
+# O como fazer do serviço e os lembretes da cliente: só a equipe vê.
+rodar "ficha da equipe" node "$AQUI/ficha-equipe.test.mjs"
 rodar "o horário do + Agendamento" node "$AQUI/horario-form.test.mjs"
 
 echo ""

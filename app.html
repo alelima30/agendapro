@@ -2065,7 +2065,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.902ba0';
+const VERSAO_APP = 'v9.278421';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2955,6 +2955,8 @@ function cartaoDoDia(a){
           <span class="dc-sub">${hm(a.inicio)}–${hm(a.fim)} · ${
             escapar(rotuloServicos(a))} · ${
             escapar((acharProf(a.profissionalId) || {}).nome || '—')}</span>
+          ${marcasDe(a.clienteId).length ? `<span class="dc-lembrete">${
+            escapar(marcasDe(a.clienteId).join(' · '))}</span>` : ''}
         </span>
         <span class="dc-lado">
           <span class="dc-vlr">${real(totalDe(a))}</span>
@@ -3236,7 +3238,8 @@ function pintarClientes(){
       return `<tr>
         <td><b>${escapar(c.nome)}</b>${c.exigeConfirmacao
           ? ' <span class="tag t-pend" title="O que ela marcar pelo link espera sua confirmação">confirma antes</span>' : ''}${
-          c.obs ? `<br><span style="font-size:12px;color:var(--txt2)">${escapar(c.obs)}</span>` : ''}</td>
+          c.obs ? `<br><span style="font-size:12px;color:var(--txt2)">${escapar(c.obs)}</span>` : ''}${
+          marcasDe(c.id).length ? `<br><span class="lembrete-na-lista">${escapar(marcasDe(c.id).join(' · '))}</span>` : ''}</td>
         <td>${escapar(c.telefone || '—')}</td><td>${ult}</td><td>${dele.length}</td>
         <td>${f ? `<span class="tag ${f >= 2 ? 't-canc' : ''}">${f}</span>`
                 : '<span style="color:var(--txt3)">—</span>'}</td>
@@ -6646,6 +6649,7 @@ function abrirDetalhe(agId){
       ${escapar(acharProf(a.profissionalId)?.nome || 'quem atende')}, e alguém
       do salão confirmou isso na hora de marcar.</div>` : ''}
     ${avisoDeFaltas(a.clienteId)}
+    ${avisoDeLembrete(a.clienteId)}
     <table class="tabela" style="box-shadow:none"><tbody>
       <tr><td style="color:var(--txt2);width:110px">Cliente</td><td><b>${escapar(c ? c.nome : '—')}</b>
         ${c && c.telefone ? `<br><span style="font-size:13px;color:var(--txt2)">${escapar(c.telefone)}</span>` : ''}</td></tr>
@@ -6679,6 +6683,7 @@ function abrirDetalhe(agId){
         <span style="font-size:12px;color:var(--txt2)">${a.origem === 'online'
           ? 'como a cliente disse que vai pagar' : 'como a cliente vai pagar'}</span></td></tr>` : ''}
     </tbody></table>
+    ${comoFazerDoHorario(a)}
     <div class="dupla" style="margin-top:14px">
       <div class="campo">
         <label>Mudar status</label>
@@ -7437,6 +7442,17 @@ function abrirCliente(cid){
     </div>
     <div class="campo"><label>Observações e alergias</label>
       <textarea id="kObs" rows="3" placeholder="Fórmula da cor, preferências, alergias">${escapar(c ? (c.obs||'') : '')}</textarea></div>
+    <!-- OS LEMBRETES DA EQUIPE (41_ficha_equipe.sql). Outra tabela, e nao o
+         campo de cima: a cliente com conta le a propria ficha, e estes ela
+         nao le. (Sem crase: template literal.) -->
+    <div class="campo"><label>Lembretes da equipe
+        <span class="opcional">· a cliente não vê</span></label>
+      <div class="regua lembrete-marcas" id="kMarcas">${marcasParaEscolher(c ? c.id : null)}</div>
+      <textarea id="kLembrete" rows="2" maxlength="1000" style="margin-top:8px"
+        placeholder="Outro lembrete. Ex.: prefere pagar no Pix; gosta de café sem açúcar">${
+        escapar(((c && lembreteDe(c.id)) || {}).texto || '')}</textarea>
+      <p class="ajuda" style="margin-top:5px">Aparece para a equipe no horário dela.
+        Diferente das observações acima, a cliente nunca vê, nem pelo link.</p></div>
     <!-- A CLIENTE QUE PRECISA DE CONFIRMACAO. Mesmo com o salao confirmando
          sozinho, o horario que ela marca pelo link nasce pendente e espera o
          seu sim. Quem decide e o agendar() no banco (09_cliente.sql, 1c).
@@ -7505,9 +7521,73 @@ function salvarCliente(cid){
     obs: document.getElementById('kObs').value || '',
     exigeConfirmacao: !!(document.getElementById('kExigeConf') || {}).checked,
   };
+  const alvoId = cid || id();
   if(cid) Object.assign(acharCliente(cid), dados);
-  else bd.clientes.push({id:id(), salaoId:salaoAtual, criadoEm:new Date().toISOString(), ...dados});
+  else bd.clientes.push({id:alvoId, salaoId:salaoAtual, criadoEm:new Date().toISOString(), ...dados});
+  // O lembrete DEPOIS da ficha, para subir na mesma gravação (a ficha nova
+  // vai antes pela ordem do TABELAS_SINCRONIZADAS).
+  guardarLembrete(alvoId,
+    [...document.querySelectorAll('#kMarcas button.on')].map(b => b.dataset.marca),
+    (document.getElementById('kLembrete').value || '').trim());
   salvar(); fecharModal(); pintar();
+}
+
+/* ── O QUE SÓ A EQUIPE SABE SOBRE A CLIENTE (41_ficha_equipe.sql) ─────────
+   "Essa não gosta de conversar", "dá problema na hora do pagamento". Mora em
+   `clientes_lembretes`, que a cliente não lê — nem logada, nem pelo link.
+   As marcas são as frases mesmo (e não códigos): uma que um dia sair desta
+   lista continua aparecendo para quem a marcou. */
+const MARCAS_CLIENTE = ['Prefere não conversar', 'Gosta de conversar',
+  'Atenção no pagamento', 'Costuma atrasar', 'Exigente com o resultado'];
+function lembreteDe(cid){
+  return (bd.clientes_lembretes || []).find(l => l.clienteId === cid) || null;
+}
+function marcasDe(cid){
+  const l = lembreteDe(cid);
+  return l && Array.isArray(l.marcas) ? l.marcas : [];
+}
+function marcasParaEscolher(cid){
+  const tem = marcasDe(cid);
+  return MARCAS_CLIENTE.concat(tem.filter(m => !MARCAS_CLIENTE.includes(m)))
+    .map(m => `<button type="button" class="${tem.includes(m) ? 'on' : ''}"
+        aria-pressed="${tem.includes(m)}" data-marca="${escapar(m)}"
+        onclick="this.classList.toggle('on');this.setAttribute('aria-pressed',this.classList.contains('on'))"
+        >${escapar(m)}</button>`).join('');
+}
+function guardarLembrete(cid, marcas, texto){
+  if(!Array.isArray(bd.clientes_lembretes)) bd.clientes_lembretes = [];
+  const l = lembreteDe(cid);
+  // Nada marcado e nada escrito: a linha sai, em vez de ficar vazia.
+  if(!marcas.length && !texto){
+    if(l) bd.clientes_lembretes = bd.clientes_lembretes.filter(x => x !== l);
+    return;
+  }
+  if(l){ l.marcas = marcas; l.texto = texto || null; }
+  else bd.clientes_lembretes.push({ id:id(), salaoId:salaoAtual, clienteId:cid,
+                                     marcas, texto: texto || null });
+}
+function avisoDeLembrete(cid){
+  const l = lembreteDe(cid);
+  const marcas = marcasDe(cid);
+  if(!l || (!marcas.length && !l.texto)) return '';
+  return `<div class="aviso neutro lembrete-aviso">
+      <b>Lembrete sobre ${escapar(nomeCliente(cid))}</b>
+      <span class="lembrete-so">só a equipe vê</span>
+      ${marcas.length ? `<div class="lembrete-marcas-lista">${marcas.map(m =>
+        `<span class="lembrete-marca">${escapar(m)}</span>`).join('')}</div>` : ''}
+      ${l.texto ? `<p class="lembrete-texto">${escapar(l.texto)}</p>` : ''}</div>`;
+}
+
+/* ── O COMO FAZER DO SERVIÇO, NO HORÁRIO (41_ficha_equipe.sql) ──────────────
+   As tintas, os tempos, a lavagem: quem vai atender abre o horário e está
+   ali. Um serviço só já vem aberto; com vários, cada um se abre ao toque. */
+function comoFazerDoHorario(a){
+  const vistos = new Set();
+  const com = (a.servicos || []).map(x => acharServico(x.servicoId))
+    .filter(s => s && String(s.procedimento || '').trim() && !vistos.has(s.id) && vistos.add(s.id));
+  return com.map(s => `<details class="como-fazer"${com.length === 1 ? ' open' : ''}>
+      <summary>Como fazer · ${escapar(s.nome)}</summary>
+      <div class="como-fazer-txt">${escapar(s.procedimento)}</div></details>`).join('');
 }
 
 function abrirServico(sid){
@@ -7591,6 +7671,17 @@ function abrirServico(sid){
         Desmarcado, o serviço é oferecido em todo dia de expediente — que é
         como ele funciona hoje.</p>
     </div>
+
+    <!-- O COMO FAZER (41_ficha_equipe.sql): as tintas, os tempos, a lavagem.
+         Aparece para quem atende, no horario. O link da cliente nao leva.
+         (Sem crase: template literal.) -->
+    <div class="campo"><label for="sProc">Como fazer
+        <span class="opcional">· só a equipe vê</span></label>
+      <textarea id="sProc" rows="4" maxlength="4000"
+        placeholder="Ex.: Tinta 9.1 + 0.11 com ox 20 volumes, 35 minutos. Lavar com shampoo sem sulfato e finalizar com máscara matizadora.">${
+        escapar(s ? (s.procedimento || '') : '')}</textarea>
+      <span style="font-size:12px;color:var(--txt2)">Produtos, tempos, passo a
+        passo. Quem atende vê ao abrir o horário; a cliente não vê.</span></div>
 
     <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px">
       <input type="checkbox" id="sAtivo" ${!s || s.ativo ? 'checked' : ''}>
@@ -8099,6 +8190,11 @@ async function salvarServico(sid){
     dias: diasDoServico(),
     ativo: document.getElementById('sAtivo').checked,
   };
+  /* Só vai quando há o que gravar (ou o que apagar): sem isto, todo serviço
+     salvo mandaria `procedimento: null`, e no banco que ainda não recebeu o
+     41_ficha_equipe.sql a gravação inteira cairia por uma coluna vazia. */
+  const proc = (document.getElementById('sProc').value || '').trim();
+  if(proc || (sid && (acharServico(sid) || {}).procedimento)) dados.procedimento = proc || null;
   if(sid) Object.assign(acharServico(sid), dados);
   else bd.servicos.push({id:alvoId, salaoId:salaoAtual, ...dados});
 

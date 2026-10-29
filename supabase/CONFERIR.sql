@@ -1026,6 +1026,32 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (09_cliente e 21_notificacoes)'
            else '' end
   union all
+  /* O que só a equipe sabe (41_ficha_equipe): o como fazer de cada serviço e
+     os lembretes sobre a cliente, numa tabela que a cliente não lê. */
+  select 47, 'Como fazer do serviço e lembretes da cliente (só a equipe)',
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'servicos'
+                               and column_name = 'procedimento')
+             or to_regclass('public.clientes_lembretes') is null
+             or not exists (select 1 from pg_policies where schemaname = 'public'
+                              and tablename = 'clientes_lembretes' and policyname = 'lembretes_equipe')
+             or not coalesce((select relrowsecurity from pg_class
+                               where oid = to_regclass('public.clientes_lembretes')), false)
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'servicos'
+                               and column_name = 'procedimento')
+             or to_regclass('public.clientes_lembretes') is null
+             or not exists (select 1 from pg_policies where schemaname = 'public'
+                              and tablename = 'clientes_lembretes' and policyname = 'lembretes_equipe')
+             or not coalesce((select relrowsecurity from pg_class
+                               where oid = to_regclass('public.clientes_lembretes')), false)
+             then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

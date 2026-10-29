@@ -3826,6 +3826,26 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .dia-cartao .dc-txt{ flex:1; min-width:0 }
 .dia-cartao .dc-nome{ font-weight:700; font-size:14.5px }
 .dia-cartao .dc-sub{ font-size:13px; color:var(--txt2); margin-top:2px }
+/* As marcas da cliente (41_ficha_equipe.sql), embaixo do horário. */
+.dia-cartao .dc-lembrete{ display:block; font-size:12.5px; font-weight:600; color:var(--txt); margin-top:3px }
+.lembrete-na-lista{ font-size:12px; font-weight:600; color:var(--txt) }
+
+/* ── O QUE SÓ A EQUIPE SABE (41_ficha_equipe.sql) ───────────────────────── */
+.lembrete-marcas button{ height:auto; min-height:38px; padding:6px 12px; font-size:13.5px; text-align:left }
+.lembrete-aviso .lembrete-so{ font-size:12px; color:var(--txt2); margin-left:6px }
+.lembrete-marcas-lista{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px }
+.lembrete-marca{
+  display:inline-block; padding:3px 10px; border-radius:999px; font-size:13px; font-weight:600;
+  background:var(--painel); border:1px solid var(--borda); color:var(--txt);
+}
+.lembrete-texto{ margin:8px 0 0; white-space:pre-wrap; overflow-wrap:anywhere }
+.como-fazer{
+  margin-top:12px; border:1px solid var(--borda); border-radius:var(--r-sm); background:var(--painel2);
+}
+.como-fazer summary{ cursor:pointer; padding:10px 12px; font-weight:700; font-size:14px; min-height:40px; box-sizing:border-box }
+.como-fazer-txt{
+  padding:0 12px 12px; font-size:14px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere;
+}
 .dia-cartao .dc-vlr{ font-weight:800; white-space:nowrap }
 /* Como a cliente vai pagar, embaixo do valor: "Pix", "Cartão de crédito". */
 .dia-cartao .dc-pag{ font-size:12px; font-weight:600; color:var(--txt2); white-space:nowrap }

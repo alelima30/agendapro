@@ -94,6 +94,10 @@ const COLUNAS = {
                    criadoEm:'criado_em' },
   clientes:      { salaoId:'salao_id', perfilId:'perfil_id', criadoEm:'criado_em',
                    exigeConfirmacao:'exige_confirmacao' },
+  /* Os lembretes da equipe sobre a cliente (41_ficha_equipe.sql): tabela à
+     parte porque a cliente logada lê a própria ficha, e estes ela não lê. */
+  clientes_lembretes: { salaoId:'salao_id', clienteId:'cliente_id',
+                   atualizadoEm:'atualizado_em' },
   agendamentos:  { salaoId:'salao_id', clienteId:'cliente_id',
                    profissionalId:'profissional_id', valorPrevisto:'valor_previsto',
                    canceladoMotivo:'cancelado_motivo', atendidoNome:'atendido_nome',
@@ -1152,7 +1156,11 @@ const TABELAS_SINCRONIZADAS = [
      logo depois do agendamento. */
   'precos_regras',
   'jornadas',
-  'bloqueios','clientes','agendamentos',
+  'bloqueios','clientes',
+  /* Logo depois de `clientes`, pela chave estrangeira: o lembrete aponta para
+     a ficha, e a ficha nova tem de chegar primeiro. */
+  'clientes_lembretes',
+  'agendamentos',
   // Logo depois do pai, e não em qualquer lugar: a chave estrangeira exige
   // que o agendamento exista antes das linhas de serviço dele.
   'agendamento_servicos',
