@@ -2090,7 +2090,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.428e0c';
+const VERSAO_APP = 'v9.ec9433';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -9352,9 +9352,9 @@ function pintarSalao(){
           <div class="dupla">
             <div class="campo" id="campoSinalValor"><label for="cSinalValor" id="rotSinalValor">Quanto</label>
               <input id="cSinalValor" type="number" min="1" step="1" inputmode="decimal"
-                     oninput="explicarSinal()"></div>
+                     oninput="guardarCampoSinal()"></div>
             <div class="campo"><label for="cSinalPrazo">Prazo para pagar</label>
-              <select id="cSinalPrazo"></select></div>
+              <select id="cSinalPrazo" onchange="guardarCampoSinal()"></select></div>
           </div>
           <div id="sinalPorServico" style="display:none;margin-bottom:14px">
             <p class="ajuda" style="margin:0 0 8px">Ponha a porcentagem do sinal nos
@@ -9363,10 +9363,11 @@ function pintarSalao(){
           </div>
           <div class="campo"><label for="cSinalTitular">Nome de quem recebe o Pix
               <span class="opcional">opcional</span></label>
-            <input id="cSinalTitular" maxlength="60" placeholder="Ex.: Ju Barbosa"></div>
+            <input id="cSinalTitular" maxlength="60" placeholder="Ex.: Ju Barbosa"
+                   oninput="guardarCampoSinal()"></div>
           <div class="campo"><label for="cSinalRegra">Regra de cancelamento
               <span class="opcional">opcional</span></label>
-            <textarea id="cSinalRegra" maxlength="300" rows="2"
+            <textarea id="cSinalRegra" maxlength="300" rows="2" oninput="guardarCampoSinal()"
               placeholder="Ex.: se você cancelar com até 24 horas de antecedência, devolvemos o sinal."></textarea></div>
           <p class="ajuda" id="explicaSinal"></p>
         </div>
@@ -13870,7 +13871,8 @@ function escolherJanelaOutro(){
    próprio dono acabou de digitar, e é quase sempre o que ele digitaria de
    novo. Sem nenhum dia aberto ainda, os campos nascem vazios.
    ═══════════════════════════════════════════════════════════════════════════ */
-let funcEscolhido = null, funcDoSalao = null, pagEscolhidas = null, sinalTipo = null, sinalPcts = {};
+let funcEscolhido = null, funcDoSalao = null, pagEscolhidas = null, sinalTipo = null, sinalPcts = {},
+    sinalCampos = null;
 
 function funcDoBanco(){
   const cru = ((acharSalao(salaoAtual) || {}).cfg || {}).funcionamento;
@@ -13890,6 +13892,7 @@ function pintarFuncionamento(){
     funcDoSalao = salaoAtual;
     pagEscolhidas = null;
     sinalTipo = null;
+    sinalCampos = null;
   }
   const F = Funcionamento;
   alvo.innerHTML = F.ORDEM.map(d => {
@@ -14030,15 +14033,30 @@ function pintarSinal(){
   if(!bloco || !window.Funcionamento) return;
   bloco.style.display = (pagEscolhidas || []).includes('pix') ? '' : 'none';
   const gravado = sinalDoBanco();
-  if(sinalTipo === null){
+  if(sinalTipo === null || !sinalCampos){
     sinalTipo = gravado ? gravado.tipo : '';
     sinalPcts = Object.assign({}, (gravado && gravado.servicos) || {});
-    document.getElementById('cSinalValor').value = gravado && gravado.valor != null ? gravado.valor : '';
-    document.getElementById('cSinalTitular').value = (gravado && gravado.titular) || '';
-    document.getElementById('cSinalRegra').value = (gravado && gravado.regra) || '';
+    sinalCampos = { valor: gravado && gravado.valor != null ? String(gravado.valor) : '',
+                    prazoMin: (gravado && gravado.prazoMin) || 60,
+                    titular: (gravado && gravado.titular) || '',
+                    regra: (gravado && gravado.regra) || '' };
+    bloco.dataset.preenchido = '';
+  }
+  /* ⚠ OS CAMPOS VÊM DO ESTADO TODA VEZ QUE A TELA É REDESENHADA.
+     Eles eram preenchidos só na primeira pintura. Meu negócio é redesenhada
+     ao salvar e ao trocar de aba — e aí o prazo voltava sem opção nenhuma,
+     o valor, o nome e a regra em branco ("prazo pra pagar não está aparecendo
+     nada"). Salvar de novo gravava o vazio: o nome e a regra sumiam, e na
+     porcentagem o sinal era DESLIGADO sem aviso. O bloco novo não tem a marca
+     `preenchido`, e é por ela que se sabe que os campos precisam do estado. */
+  if(bloco.dataset.preenchido !== '1'){
+    document.getElementById('cSinalValor').value = sinalCampos.valor;
+    document.getElementById('cSinalTitular').value = sinalCampos.titular;
+    document.getElementById('cSinalRegra').value = sinalCampos.regra;
     document.getElementById('cSinalPrazo').innerHTML = Funcionamento.PRAZOS_SINAL
-      .map(([m, rot]) => `<option value="${m}"${m === ((gravado && gravado.prazoMin) || 60)
+      .map(([m, rot]) => `<option value="${m}"${m === Number(sinalCampos.prazoMin)
         ? ' selected' : ''}>${rot}</option>`).join('');
+    bloco.dataset.preenchido = '1';
   }
   document.getElementById('reguaSinal').innerHTML =
     [['', 'Não cobrar'], ['pct', 'Porcentagem'], ['fixo', 'Valor fixo'], ['servicos', 'Por serviço']]
@@ -14054,6 +14072,14 @@ function pintarSinal(){
   explicarSinal();
 }
 function escolherSinal(v){ sinalTipo = v; pintarSinal(); }
+// O que o dono digita fica no estado na hora: é dele que a tela redesenhada
+// e a gravação leem, e não do campo, que some a cada redesenho.
+function guardarCampoSinal(){
+  const v = id => (document.getElementById(id) || {}).value || '';
+  sinalCampos = { valor: v('cSinalValor'), prazoMin: Number(v('cSinalPrazo')) || 60,
+                  titular: v('cSinalTitular'), regra: v('cSinalRegra') };
+  explicarSinal();
+}
 /* POR SERVIÇO: cada serviço ativo com a sua porcentagem. O que é digitado
    fica em `sinalPcts` (pelo id) até salvar; o banco calcula o valor de cada
    horário com o preço do serviço naquele horário (sinal_do_salao). */
@@ -14077,7 +14103,7 @@ function mudarSinalServico(el){
 function explicarSinal(){
   const alvo = document.getElementById('explicaSinal');
   if(!alvo) return;
-  const n = Number(String(document.getElementById('cSinalValor').value).replace(',', '.'));
+  const n = Number(String((sinalCampos || {}).valor || '').replace(',', '.'));
   const temChave = !!(document.getElementById('cPagPix').value || '').trim();
   if(temChave && sinalTipo === 'servicos'){
     const ativos = new Set(servsAtivos().map(s => s.id));
@@ -14097,9 +14123,9 @@ function explicarSinal(){
 }
 function sinalParaGravar(){
   if(!sinalTipo) return null;
-  const v = id => (document.getElementById(id).value || '').trim();
-  const comum = { prazoMin: Number(v('cSinalPrazo')) || 60,
-                  titular: v('cSinalTitular'), regra: v('cSinalRegra') };
+  const c = sinalCampos || {};
+  const comum = { prazoMin: Number(c.prazoMin) || 60,
+                  titular: String(c.titular || '').trim(), regra: String(c.regra || '').trim() };
   if(sinalTipo === 'servicos'){
     /* Só os serviços que ainda existem: um apagado não fica preso na config. */
     const existem = new Set(doSalao(bd.servicos).map(s => s.id));
@@ -14107,7 +14133,7 @@ function sinalParaGravar(){
     for(const id of Object.keys(sinalPcts)) if(existem.has(id)) servicos[id] = sinalPcts[id];
     return Object.assign({ tipo: 'servicos', servicos }, comum);
   }
-  return Object.assign({ tipo: sinalTipo, valor: v('cSinalValor') }, comum);
+  return Object.assign({ tipo: sinalTipo, valor: String(c.valor || '').trim() }, comum);
 }
 function alternarPagamento(k){
   pagEscolhidas = pagEscolhidas.includes(k)

@@ -125,6 +125,26 @@ secao('1. Meu negócio: o sinal, junto da chave Pix');
   igual('salvar grava o sinal junto da chave',
     emOrdem((cfgPag() || {}).sinal), emOrdem({ tipo:'pct', valor:10, prazoMin:60, titular:'Ju Barbosa',
                               regra:'Devolvo o sinal se cancelar até 24 horas antes.' }));
+  /* "Prazo pra pagar não está aparecendo nada": Meu negócio é redesenhada ao
+     salvar e ao trocar de aba, e os campos do sinal voltavam vazios — salvar
+     de novo apagava o nome e a regra, e desligava o sinal da porcentagem. */
+  await p.selectOption('#cSinalPrazo', '120');
+  await p.evaluate(() => { trocarAbaSalao('aparencia'); trocarAbaSalao('dados'); });
+  await p.waitForTimeout(500);
+  igual('redesenhada a tela, o sinal volta inteiro (o prazo com as opções e o escolhido)',
+    await p.evaluate(() => ({ opcoes: document.getElementById('cSinalPrazo').options.length,
+      prazo: document.getElementById('cSinalPrazo').value, valor: document.getElementById('cSinalValor').value,
+      titular: document.getElementById('cSinalTitular').value, regra: document.getElementById('cSinalRegra').value })),
+    { opcoes: 6, prazo: '120', valor: '10', titular: 'Ju Barbosa',
+      regra: 'Devolvo o sinal se cancelar até 24 horas antes.' });
+  await p.evaluate(() => salvarCadastroSalao());
+  await p.waitForTimeout(2200);
+  igual('e salvar de novo não apaga nada (só muda o prazo escolhido)',
+    emOrdem((cfgPag() || {}).sinal), emOrdem({ tipo:'pct', valor:10, prazoMin:120, titular:'Ju Barbosa',
+                              regra:'Devolvo o sinal se cancelar até 24 horas antes.' }));
+  await p.selectOption('#cSinalPrazo', '60');
+  await p.evaluate(() => salvarCadastroSalao());
+  await p.waitForTimeout(2200);
   await p.evaluate(() => alternarPagamento('pix'));
   await p.waitForTimeout(200);
   verdade('desmarcar Pix esconde o sinal (sem chave não há para onde mandar)',
