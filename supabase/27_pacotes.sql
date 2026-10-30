@@ -450,6 +450,15 @@ begin
      salão diria que aquele atendimento foi de graça sem dizer por quê. */
   update public.pacote_clientes set cancelado_em = now()
    where id = p_id and cancelado_em is null;
+  /* As sessões que ainda VÃO acontecer saem da agenda (43_pacote_agenda.sql:
+     com a agenda fixa, o pacote já nasce com as terças marcadas). Ficando,
+     a agenda mostraria "pacote (já pago)" para quem saiu do pacote, e o
+     horário continuaria ocupado. O que já aconteceu fica, como sempre. */
+  update public.agendamentos
+     set status = 'cancelado', cancelado_motivo = 'pacote cancelado'
+   where pacote_cliente_id = p_id
+     and status in ('pendente', 'confirmado')
+     and inicio > now();
 end $$;
 
 -- ---------------------------------------------------------------------------

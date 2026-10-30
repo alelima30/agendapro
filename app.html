@@ -1485,7 +1485,8 @@ function falarNoWhatsapp(agId){
    pacote, ou "a combinar" quando ninguém informou — nunca vazio, para o
    "Pagamento:" do recado nunca ficar pendurado. */
 function pagamentoDoRecado(a){
-  if(a.pacoteClienteId) return 'pacote (já pago)';
+  if(a.pacoteClienteId) return pacoteAReceber(vendaDoAgendamento(a))
+    ? 'pacote (pagamento a combinar)' : 'pacote (já pago)';
   return nomeDaFormaPagamento(a.formaPagamento) || 'a combinar';
 }
 
@@ -1861,9 +1862,12 @@ const TELAS = [
      para acabar. */
   ['produtos', 'Produtos',         'presente',   'Cadastros', EQUIPE],
   /* Pacotes fica em Cadastros, junto de Serviços e Produtos: é catálogo do
-     que o salão vende. Só GESTÃO — um pacote é preço e política comercial, e
-     quem atende não decide isso. */
-  ['pacotes',  'Pacotes',          'etiqueta',   'Cadastros', GESTAO],
+     que o salão vende. CRIAR e EDITAR o pacote é da gestão (preço e política
+     comercial: os botões seguem `souGestor()`). Mas é o BALCÃO que vincula a
+     cliente, deixa as terças marcadas e recebe o pagamento (43_pacote_agenda:
+     `montar_pacote` e `receber_pacote` pedem `ve_agenda_toda`) — então a
+     recepção vê a aba. Quem atende não: é dinheiro e venda. */
+  ['pacotes',  'Pacotes',          'etiqueta',   'Cadastros', BALCAO],
   /* Cupons, logo depois de Pacotes e pelo mesmo motivo: é política comercial,
      e só GESTÃO cria. O banco diz o mesmo (`cupons_escrever` no 34). */
   ['cupons',   'Cupons',           'cupom',      'Cadastros', GESTAO],
@@ -2090,7 +2094,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.ec9433';
+const VERSAO_APP = 'v9.d466fd';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3414,7 +3418,21 @@ function pintarPacotes(){
     return;
   }
 
-  alvo.innerHTML = lista.map(p => {
+  /* O que falta receber, de todos os pacotes, em cima: é a pergunta que o
+     balcão faz primeiro ("quem ainda não pagou?"). */
+  const aReceber = (bd.pacote_clientes || []).filter(pacoteAReceber)
+    .filter(v => lista.some(p => p.id === v.pacoteId));
+  const topo = aReceber.length ? `<div class="card pk-receber" style="margin-bottom:12px">
+      <h3 style="font-size:16px">A receber dos pacotes ·
+        ${real(aReceber.reduce((t, v) => t + Number(v.valor || 0), 0))}</h3>
+      ${aReceber.map(v => `<div class="pk-receber-linha">
+        <span><b>${escapar(nomeCliente(v.clienteId))}</b> ·
+          ${escapar((lista.find(p => p.id === v.pacoteId) || {}).nome || '')} ·
+          ${real(Number(v.valor))}</span>
+        <button class="btn btn-peq btn-p" onclick="abrirReceberPacote('${v.id}')">Recebi</button>
+      </div>`).join('')}</div>` : '';
+
+  alvo.innerHTML = topo + lista.map(p => {
     const svs = servicosDoPacote(p.id);
     const vendas = vendasDoPacote(p.id);
     // Pelo dia de HOJE, e não pelo dia aberto na agenda: com a agenda em
@@ -3440,8 +3458,8 @@ function pintarPacotes(){
         </div>
         <div class="ao-lado">
           <div style="font-size:19px;font-weight:800">${real(p.preco)}</div>
-          <button class="btn btn-peq" style="margin-top:6px"
-                  onclick="abrirPacote('${p.id}')">Editar</button>
+          ${souGestor() ? `<button class="btn btn-peq" style="margin-top:6px"
+                  onclick="abrirPacote('${p.id}')">Editar</button>` : ''}
         </div>
       </div>
       <p style="font-size:13px;color:var(--txt2);margin-top:10px">
@@ -3456,18 +3474,30 @@ function pintarPacotes(){
             const c = (bd.clientes || []).find(x => x.id === v.clienteId) || {};
             /* Com conta ou não: sem conta no link, o pacote não dá o
                desconto — e o dono precisa ver isso antes da cliente chegar. */
+            const ss = sessoesDaVenda(v.id);
+            const prox = ss.find(a => a.data >= hoje());
             return `<tr><td>${escapar(c.nome || '—')} ${c.perfilId
                 ? '<span class="tag t-ok">com conta</span>'
-                : '<span class="tag t-pend" title="Peça para ela entrar no link do salão e criar a conta com este WhatsApp">sem conta ainda</span>'}</td>
-              <td style="color:var(--txt2)">vence ${porExtenso(v.venceEm)}</td>
-              <td style="text-align:right">${souGestor()
+                : '<span class="tag t-pend" title="Peça para ela entrar no link do salão e criar a conta com este WhatsApp">sem conta ainda</span>'}
+                ${v.pagoEm ? `<span class="tag t-ok">pago · ${escapar(nomeFormaDoPacote(v.formaPagamento))}</span>`
+                  : pacoteAReceber(v) ? `<span class="tag t-pend">a receber ${real(Number(v.valor))}</span>` : ''}
+                <br><span class="pk-fixa">vence ${porExtenso(v.venceEm)}</span>
+                ${ss.length ? `<br><span class="pk-fixa">agenda fixa · ${ss.length} ${ss.length === 1 ? 'horário' : 'horários'}${
+                  prox ? ' · próximo ' + diaDoPacote(prox.data) + ' ' + hm(prox.inicio) : ''}</span>` : ''}</td>
+              <td class="pk-acoes">${vejoTudo() && pacoteAReceber(v)
+                ? `<button class="btn btn-peq btn-p" onclick="abrirReceberPacote('${v.id}')">Recebi</button>` : ''}${
+                vejoTudo() && ss.length
+                ? `<button class="btn btn-peq" onclick="abrirVenderPacote('${p.id}', '${v.id}')">Renovar</button>` : ''}${
+                souGestor() && v.pagoEm && v.comandaId
+                ? `<button class="btn btn-peq" onclick="desfazerRecebimento('${v.id}')">Desfazer pagamento</button>` : ''}${
+                souGestor()
                 ? `<button class="btn btn-peq" data-quem="${escapar(c.nome || '')}"
                      onclick="tirarDoPacote('${v.id}', this.dataset.quem)"
                    >Tirar</button>` : ''}</td></tr>`;
           }).join('')}</tbody></table>`
           : '<p style="font-size:13px;color:var(--txt3);margin-top:5px">'
             + 'Ninguém ainda.</p>'}
-        ${souGestor() ? `<button class="btn btn-peq" style="margin-top:9px"
+        ${vejoTudo() ? `<button class="btn btn-peq" style="margin-top:9px"
              onclick="abrirVenderPacote('${p.id}')">+ Vincular cliente</button>` : ''}
       </div>
     </div>`;
@@ -3894,63 +3924,334 @@ function excluirCupom(cid){
   pintarCupons();
 }
 
-function abrirVenderPacote(pid){
-  if(!souGestor()) return;
+/* ═══════════════════════════════════════════════════════════════════════════
+   VINCULAR A CLIENTE AO PACOTE — E JÁ DEIXAR AS SEMANAS MARCADAS
+   (43_pacote_agenda.sql)
+
+   "Ela paga mensal e vai toda terça às 14h: na primeira faz mão, na segunda
+   mão e pé..." A janela de vincular ganha a AGENDA FIXA: quem atende, a
+   primeira data, o horário e quantas semanas; e, semana a semana, o que ela
+   faz — tocando nos serviços do pacote. E o PAGAMENTO: já pagou (como) ou
+   fica a receber.
+
+   Quem confere e grava é o `montar_pacote()`, no banco, tudo ou nada: se uma
+   semana não cabe, nada é marcado, e o motivo aparece embaixo daquela semana
+   para trocar só ela. O "Renovar" abre esta mesma janela com as próximas
+   semanas, no mesmo esquema.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const FORMAS_DO_PACOTE = [['pix', 'Pix'], ['dinheiro', 'Dinheiro'], ['credito', 'Cartão de crédito'],
+                          ['debito', 'Cartão de débito'], ['transferencia', 'Transferência']];
+const nomeFormaDoPacote = k => (FORMAS_DO_PACOTE.find(f => f[0] === k) || [k, k || ''])[1];
+const vendaDoAgendamento = a => a && a.pacoteClienteId
+  ? (bd.pacote_clientes || []).find(v => v.id === a.pacoteClienteId) || null : null;
+// "A receber": valor combinado, sem pagamento, e o pacote ainda vivo.
+const pacoteAReceber = v => !!v && Number(v.valor) > 0 && !v.pagoEm && !v.canceladoEm;
+const sessoesDaVenda = vid => agendaDoSalao()
+  .filter(a => a.pacoteClienteId === vid && a.status !== 'cancelado')
+  .sort((x, y) => x.data.localeCompare(y.data) || x.inicio - y.inicio);
+const diaDoPacote = d => DIAS_CURTOS[new Date(d + 'T12:00').getDay()] + ' ' + d.slice(8, 10) + '/' + d.slice(5, 7);
+
+let montagem = null;
+
+function abrirVenderPacote(pid, renovarDe){
+  if(!vejoTudo()) return;
   const p = pacotesDoSalao().find(x => x.id === pid);
   if(!p) return;
-  const jaTem = new Set(vendasDoPacote(pid).map(v => v.clienteId));
+  const svsPac = servicosDoPacote(pid);
+  const maxSemanas = Math.min(p.sessoes, 12);
+  montagem = { pid, clienteFixo: null, prof: '', semanas: [], valor: Number(p.preco) || 0,
+               qtd: Math.min(maxSemanas, 4), data: '', hora: '14:00' };
+  /* RENOVAR: as mesmas semanas, uma semana depois da última, no mesmo
+     horário e com os mesmos serviços de cada uma. */
+  if(renovarDe){
+    const v = (bd.pacote_clientes || []).find(x => x.id === renovarDe);
+    const ss = sessoesDaVenda(renovarDe);
+    if(v){
+      montagem.clienteFixo = v.clienteId;
+      if(Number(v.valor) > 0) montagem.valor = Number(v.valor);
+    }
+    if(ss.length){
+      const ult = ss[ss.length - 1];
+      montagem.prof = ss[0].profissionalId;
+      montagem.qtd = Math.min(ss.length, maxSemanas);
+      montagem.data = somarDias(ult.data, 7);
+      montagem.hora = hm(ss[0].inicio);
+      montagem.semanas = ss.slice(0, montagem.qtd).map((a, i) => ({
+        data: somarDias(ult.data, 7 * (i + 1)), hora: hm(a.inicio),
+        dataPropria: false, horaPropria: hm(a.inicio) !== montagem.hora,
+        servicos: (a.servicos || []).map(x => x.servicoId).filter(id => svsPac.includes(id)),
+        motivo: null }));
+    }
+  }
+  const jaTem = new Set(vendasDoPacote(pid).filter(v => v.venceEm >= hoje()).map(v => v.clienteId));
   const livres = clientesDo().filter(c => !jaTem.has(c.id));
-  abrirModal('Vincular cliente a ' + p.nome, `
-    ${livres.length ? `
-    <div class="campo"><label>Cliente</label>
+  const fixa = !!montagem.semanas.length;
+  const profs = doSalao(bd.profissionais).filter(x => x.ativo);
+  const semCliente = !montagem.clienteFixo && !livres.length;
+  abrirModal((renovarDe ? 'Renovar ' : 'Vincular cliente a ') + p.nome, semCliente
+    ? `<p>Todas as clientes já estão neste pacote — ou você ainda não tem clientes cadastradas.</p>`
+    : `
+    ${montagem.clienteFixo
+      ? `<p style="margin:0 0 12px"><b>Cliente:</b> ${escapar(nomeCliente(montagem.clienteFixo))}</p>`
+      : `<div class="campo"><label for="pkCliente">Cliente</label>
       <select id="pkCliente">${livres
         .slice().sort((a,b) => (a.nome||'').localeCompare(b.nome||''))
         .map(c => `<option value="${c.id}">${escapar(c.nome)}${
           c.telefone ? ' · ' + escapar(c.telefone) : ''}${
           c.perfilId ? ' · com conta' : ' · sem conta'}</option>`).join('')}
-      </select></div>
-    <div class="aviso" style="margin-top:12px">
-      <b>Ela precisa ter conta no link para o pacote valer.</b><br>
-      Sem conta, o sistema só reconhece a cliente pelo telefone — e telefone
-      qualquer um digita. Com conta e senha, é ela mesma. Se ela ainda não tem:
-      no link do salão, <b>Entrar → Criar conta</b>, com o <b>mesmo WhatsApp</b>
-      desta ficha e o mesmo primeiro nome. Ao entrar, a ficha se liga sozinha
-      e o pacote aparece para ela.
+      </select></div>`}
+    <div class="dupla">
+      <div class="campo"><label for="pkValor">Valor do pacote (R$)</label>
+        <input id="pkValor" type="number" min="0" step="0.01" inputmode="decimal"
+               value="${montagem.valor || ''}"></div>
+      <div class="campo"><label for="pkForma">Pagamento</label>
+        <select id="pkForma"><option value="">Vai pagar depois (a receber)</option>${
+          FORMAS_DO_PACOTE.map(([k, rot]) => `<option value="${k}">Já pagou · ${rot}</option>`).join('')}
+        </select></div>
     </div>
-    <p style="font-size:13px;color:var(--txt2);margin-top:10px">
-      ${p.sessoes} sessão(ões), válidas por ${p.validadeDias} dias a partir de
-      hoje. Cobre: ${servicosDoPacote(p.id)
-        .map(id => escapar((acharServico(id)||{}).nome || '?')).join(', ')}.</p>
-    ` : `<p>Todas as clientes já estão neste pacote — ou você ainda não tem
-         clientes cadastradas.</p>`}`,
-    livres.length
-      ? [['Cancelar','fecharModal()'], ['Vincular', `venderPacote('${pid}')`, 'btn-p']]
-      : [['Fechar','fecharModal()']]);
+    <p class="ajuda" style="margin:-4px 0 12px">Pago, entra no faturamento hoje. A receber,
+      aparece no topo de Pacotes até você tocar em <b>Recebi</b>.</p>
+    <label class="check pk-fixa-chave"><input type="checkbox" id="pkFixa"${fixa ? ' checked' : ''}
+           onchange="alternarAgendaFixa()">
+      <span><b>Já deixar agendado (agenda fixa)</b><br>
+        <span style="font-size:13px;color:var(--txt2)">Uma vez por semana, no mesmo horário —
+        e você escolhe o que ela faz em cada semana.</span></span></label>
+    <div id="pkFixaCampos" style="display:${fixa ? '' : 'none'};margin-top:12px">
+      <div class="campo"><label for="pkProf">Quem atende</label>
+        <select id="pkProf">${profs.map(x => `<option value="${x.id}"${x.id === montagem.prof ? ' selected' : ''}>${
+          escapar(x.nome)}</option>`).join('')}</select></div>
+      <div class="dupla">
+        <div class="campo"><label for="pkData">Primeira data</label>
+          <input id="pkData" type="date" value="${montagem.data}" onchange="semanasDaMontagem()"></div>
+        <div class="campo"><label for="pkHora">Horário</label>
+          <input id="pkHora" type="time" step="300" value="${montagem.hora}" onchange="semanasDaMontagem()"></div>
+      </div>
+      <div class="campo"><label for="pkQtd">Quantas semanas</label>
+        <select id="pkQtd" onchange="semanasDaMontagem()">${
+          Array.from({ length: maxSemanas }, (_, i) => i + 1).map(n =>
+            `<option value="${n}"${n === montagem.qtd ? ' selected' : ''}>${n} ${n === 1 ? 'semana' : 'semanas'}</option>`).join('')}
+        </select></div>
+      <p class="ajuda" style="margin:0 0 8px">Toque nos serviços de cada semana — ex.: semana 1
+        só Mão, semana 2 Mão e Pé. Cada semana usa uma sessão do pacote.</p>
+      <div id="pkSemanas" class="pk-semanas"></div>
+    </div>
+    <p class="pk-erro" id="pkErro" style="display:none"></p>
+    <div class="aviso" style="margin-top:12px">
+      Com a agenda fixa, os horários já ficam marcados: a cliente <b>não precisa de conta</b>.
+      Para ela marcar sozinha pelo link usando o pacote — e ver os horários em
+      <b>Meus horários</b> —, ela cria a conta no link do salão, em <b>Entrar → Criar conta</b>,
+      com o mesmo WhatsApp desta ficha.
+    </div>`,
+    semCliente ? [['Fechar', 'fecharModal()']]
+      : [['Cancelar', 'fecharModal()'],
+         [fixa ? 'Agendar e vincular' : 'Vincular', 'montarPacote()', 'btn-p']]);
+  if(fixa) pintarSemanasDaMontagem();
 }
 
-async function venderPacote(pid){
-  const sel = document.getElementById('pkCliente');
-  if(!sel) return;
-  try{
-    /* A venda é uma FUNÇÃO do banco, não um insert desta tela: as sessões e a
-       validade são copiadas lá dentro, do pacote, no momento da venda. Se a
-       tela mandasse esses números, quem abrisse o console daria a si mesmo um
-       pacote de mil sessões. */
-    await Dados.chamar('vender_pacote',
-      { p_pacote: pid, p_cliente: sel.value });
-    fecharModal();
-    /* ⚠ `carregarTudo()` DEVOLVE o `bd` novo; NÃO o atribui. Escrevi
-       `await carregarTudo();` sem o `bd =` — e o projeto já tinha caído nisto
-       antes, com o caixa: o banco fechava e a tela continuava dizendo aberto.
+function alternarAgendaFixa(){
+  const on = document.getElementById('pkFixa').checked;
+  document.getElementById('pkFixaCampos').style.display = on ? '' : 'none';
+  const bt = [...document.querySelectorAll('.modal .btn-p')].pop();
+  if(bt) bt.textContent = on ? 'Agendar e vincular' : 'Vincular';
+  if(on) semanasDaMontagem();
+}
 
-       Aqui o sintoma era o mesmo tipo: o vínculo era criado no banco, a janela
-       fechava, e a lista continuava dizendo "Ninguém ainda". A dona clicaria
-       de novo, e de novo, achando que o botão não funciona. */
+/* As semanas a partir da primeira data e do horário. O que a pessoa já
+   escolheu em cada semana (serviços, outra data, outro horário) fica. */
+function semanasDaMontagem(){
+  const svsPac = servicosDoPacote(montagem.pid);
+  const d0 = (document.getElementById('pkData') || {}).value || '';
+  const h0 = (document.getElementById('pkHora') || {}).value || '';
+  const n = Number((document.getElementById('pkQtd') || {}).value) || 1;
+  const antes = montagem.semanas;
+  montagem.semanas = Array.from({ length: n }, (_, i) => {
+    const a = antes[i] || {};
+    return { data: a.dataPropria ? a.data : (d0 ? somarDias(d0, 7 * i) : ''),
+             hora: a.horaPropria ? a.hora : h0,
+             dataPropria: !!a.dataPropria, horaPropria: !!a.horaPropria,
+             servicos: a.servicos ? a.servicos.slice() : svsPac.slice(), motivo: null };
+  });
+  pintarSemanasDaMontagem();
+}
+
+function pintarSemanasDaMontagem(){
+  const alvo = document.getElementById('pkSemanas');
+  if(!alvo || !montagem) return;
+  const svsPac = servicosDoPacote(montagem.pid);
+  alvo.innerHTML = montagem.semanas.map((s, i) => {
+    const classe = s.motivo ? 'pk-semana pk-problema' : 'pk-semana';
+    return `<div class="${classe}">
+      <div class="pk-semana-topo"><b>Semana ${i + 1}</b>
+        <span>${s.data ? diaDoPacote(s.data) : 'escolha a primeira data'}</span></div>
+      <div class="dupla">
+        <div class="campo"><input type="date" value="${s.data}" aria-label="Data da semana ${i + 1}"
+             onchange="mudarSemana(${i}, 'data', this.value)"></div>
+        <div class="campo"><input type="time" step="300" value="${s.hora}" aria-label="Horário da semana ${i + 1}"
+             onchange="mudarSemana(${i}, 'hora', this.value)"></div>
+      </div>
+      <div class="regua pk-servicos">${svsPac.map(id => `<button type="button"
+          class="${s.servicos.includes(id) ? 'on' : ''}" aria-pressed="${s.servicos.includes(id)}"
+          onclick="alternarServicoDaSemana(${i}, '${id}')">${escapar((acharServico(id) || {}).nome || '?')}</button>`).join('')}</div>
+      ${s.motivo ? `<p class="pk-motivo">${escapar(s.motivo)}</p>` : ''}
+    </div>`;
+  }).join('');
+}
+function mudarSemana(i, campo, valor){
+  const s = montagem.semanas[i];
+  s[campo] = valor;
+  if(campo === 'data') s.dataPropria = true; else s.horaPropria = true;
+  s.motivo = null;
+  pintarSemanasDaMontagem();
+}
+function alternarServicoDaSemana(i, id){
+  const s = montagem.semanas[i];
+  s.servicos = s.servicos.includes(id) ? s.servicos.filter(x => x !== id) : s.servicos.concat(id);
+  s.motivo = null;
+  pintarSemanasDaMontagem();
+}
+
+async function montarPacote(){
+  if(!NA_NUVEM){
+    alert('Na demonstração o pacote não é gravado: ele precisa do banco para '
+        + 'conferir a agenda de cada semana. No seu salão, funciona.');
+    return;
+  }
+  const v = id => ((document.getElementById(id) || {}).value || '').trim();
+  const cliente = montagem.clienteFixo || v('pkCliente');
+  if(!cliente){ alert('Escolha a cliente.'); return; }
+  const valor = Math.round(Number(v('pkValor').replace(',', '.')) * 100) / 100 || 0;
+  const forma = v('pkForma') || null;
+  if(forma && !(valor > 0)){ alert('Diga quanto ela pagou.'); return; }
+  const fixa = !!(document.getElementById('pkFixa') || {}).checked;
+  let semanas = [], prof = null;
+  if(fixa){
+    prof = v('pkProf');
+    if(!prof){ alert('Escolha quem vai atender.'); return; }
+    for(let i = 0; i < montagem.semanas.length; i++){
+      const s = montagem.semanas[i];
+      if(!s.data || !s.hora){ alert('Escolha a data e o horário da semana ' + (i + 1) + '.'); return; }
+      if(!s.servicos.length){ alert('Escolha o que ela faz na semana ' + (i + 1) + '.'); return; }
+    }
+    semanas = montagem.semanas.map(s => ({
+      inicio: telaParaInstante(s.data, minDe(s.hora), fusoDoSalaoAtual()), servicos: s.servicos }));
+  }
+  const erro = document.getElementById('pkErro');
+  const bt = [...document.querySelectorAll('.modal .btn-p')].pop();
+  const rotulo = bt && bt.textContent;
+  if(bt){ bt.disabled = true; bt.textContent = fixa ? 'Conferindo a agenda…' : 'Vinculando…'; }
+  try{
+    const r = await Dados.chamar('montar_pacote', { p_pacote: montagem.pid, p_cliente: cliente,
+      p_valor: valor || null, p_forma: forma, p_profissional: prof,
+      /* Sem agenda fixa, NULO, e não `[]`: a lista vazia pode chegar ao
+         banco como `{}` no caminho, e era recusada como formato errado. */
+      p_semanas: semanas.length ? semanas : null });
+    const res = Array.isArray(r) ? r[0] : r;
+    if(res && res.ok === false){
+      (res.semanas || []).forEach((x, i) => { if(montagem.semanas[i]) montagem.semanas[i].motivo = x.motivo || null; });
+      pintarSemanasDaMontagem();
+      if(erro){
+        erro.textContent = 'Nada foi marcado ainda: troque a data ou o horário das semanas em vermelho e toque de novo.';
+        erro.style.display = '';
+      }
+      return;
+    }
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+    pintarPacotes();
+    mostrarPacoteMontado(res && res.pacoteCliente);
+  }catch(e){
+    alert('Não consegui montar o pacote.\n\n' + (e.message || e));
+  }finally{
+    if(bt && document.body.contains(bt)){ bt.disabled = false; bt.textContent = rotulo; }
+  }
+}
+
+/* Pronto: o que ficou marcado, e o recado para a cliente pelo WhatsApp DO
+   SALÃO — com as datas, o valor e, se falta pagar, a chave Pix. Não gasta a
+   franquia de mensagens: quem manda é o dono, do celular dele. */
+function mostrarPacoteMontado(vid){
+  const venda = (bd.pacote_clientes || []).find(x => x.id === vid);
+  const ss = venda ? sessoesDaVenda(vid) : [];
+  // Só vincular (sem agenda fixa): fecha, como sempre fechou — não há o que
+  // mostrar, e a lista de Pacotes já diz o resto.
+  if(!venda || !ss.length){ fecharModal(); return; }
+  const num = zapDoCliente(venda.clienteId);
+  abrirModal('Pacote montado', `
+    <p style="margin-top:0"><b>${escapar(nomeCliente(venda.clienteId))}</b> está no pacote.
+      ${venda.pagoEm ? 'Pagamento registrado: já entrou no faturamento.'
+        : pacoteAReceber(venda) ? 'O pagamento ficou a receber, no topo de Pacotes.' : ''}</p>
+    ${ss.length ? `<ul class="pk-lista">${ss.map(a => `<li><b>${diaDoPacote(a.data)} às ${hm(a.inicio)}</b> ·
+        ${escapar(rotuloServicos(a))}</li>`).join('')}</ul>
+      <p class="ajuda">Já estão na agenda. A cliente recebe uma confirmação com todas as
+        datas e o lembrete na véspera de cada uma.</p>` : ''}`,
+    [['Fechar', 'fecharModal()'],
+     ...(num ? [['Mandar no WhatsApp', `mandarPacoteNoZap('${vid}')`, 'btn-zap']] : [])]);
+}
+
+function mandarPacoteNoZap(vid){
+  const venda = (bd.pacote_clientes || []).find(x => x.id === vid);
+  if(!venda) return;
+  const num = zapDoCliente(venda.clienteId);
+  if(!num){ alert('Esta ficha não tem telefone.'); return; }
+  const pac = pacotesDoSalao().find(x => x.id === venda.pacoteId) || {};
+  const sl = acharSalao(salaoAtual) || {};
+  const pix = String(((sl.cfg || {}).pagamentos || {}).pix || '').trim();
+  const ss = sessoesDaVenda(vid);
+  /* Sem `escapar()`: o texto vai para dentro de um endereço, e de lá para a
+     caixa do WhatsApp (mesmo motivo do `falarNoWhatsapp`). */
+  const linhas = ['Oi ' + String(nomeCliente(venda.clienteId)).split(' ')[0] + '! Seu pacote '
+    + (pac.nome || '') + (sl.nome ? ' no ' + sl.nome : '') + ':'];
+  for(const a of ss) linhas.push('• ' + diaDoPacote(a.data) + ' às ' + hm(a.inicio) + ' — ' + rotuloServicos(a));
+  if(Number(venda.valor) > 0){
+    linhas.push('', 'Valor: ' + real(Number(venda.valor)) + (venda.pagoEm ? ' (pago, obrigada!)' : ''));
+    if(!venda.pagoEm && pix) linhas.push('Para pagar no Pix: ' + pix);
+  }
+  fecharModal();
+  window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener');
+}
+
+function abrirReceberPacote(vid){
+  if(!vejoTudo()) return;
+  const venda = (bd.pacote_clientes || []).find(x => x.id === vid);
+  if(!venda) return;
+  const pac = pacotesDoSalao().find(x => x.id === venda.pacoteId) || {};
+  abrirModal('Receber o pacote', `
+    <p style="margin-top:0"><b>${escapar(nomeCliente(venda.clienteId))}</b> · ${escapar(pac.nome || '')}</p>
+    <div class="dupla">
+      <div class="campo"><label for="rpValor">Valor recebido (R$)</label>
+        <input id="rpValor" type="number" min="0.01" step="0.01" inputmode="decimal"
+               value="${Number(venda.valor) || ''}"></div>
+      <div class="campo"><label for="rpForma">Como pagou</label>
+        <select id="rpForma">${FORMAS_DO_PACOTE.map(([k, rot]) => `<option value="${k}">${rot}</option>`).join('')}</select></div>
+    </div>
+    <p class="ajuda">Entra no faturamento de hoje.</p>`,
+    [['Cancelar', 'fecharModal()'], ['Receber', `receberPacote('${vid}')`, 'btn-p']]);
+}
+async function receberPacote(vid){
+  const valor = Math.round(Number(String(document.getElementById('rpValor').value).replace(',', '.')) * 100) / 100;
+  if(!(valor > 0)){ alert('Diga quanto ela pagou.'); return; }
+  try{
+    await Dados.chamar('receber_pacote', { p_pacote_cliente: vid,
+      p_forma: document.getElementById('rpForma').value, p_valor: valor });
+    fecharModal();
     const novo = await carregarTudo();
     if(novo) bd = novo;
     pintarPacotes();
   }catch(e){
-    alert('Não consegui vincular.\n\n' + (e.message || e));
+    alert('Não consegui registrar o pagamento.\n\n' + (e.message || e));
+  }
+}
+async function desfazerRecebimento(vid){
+  if(!souGestor()) return;
+  if(!confirm('Desfazer o pagamento deste pacote?\n\nO valor sai do faturamento e o pacote '
+            + 'volta a ficar a receber.')) return;
+  try{
+    await Dados.chamar('desfazer_recebimento_pacote', { p_pacote_cliente: vid });
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+    pintarPacotes();
+  }catch(e){
+    alert('Não consegui desfazer.\n\n' + (e.message || e));
   }
 }
 
@@ -6690,8 +6991,10 @@ function abrirDetalhe(agId){
         <b>${real(totalDe(a))}</b></td></tr>
       ${a.pacoteClienteId ? `<tr><td style="color:var(--txt2)">Pacote</td>
         <td><b>Coberto pelo pacote da cliente</b><br>
-        <span style="font-size:12px;color:var(--txt2)">esta sessão já foi paga —
-        não cobre de novo</span></td></tr>` : ''}
+        <span style="font-size:12px;color:var(--txt2)">${pacoteAReceber(vendaDoAgendamento(a))
+          ? 'o pacote ainda não foi pago: ' + real(Number(vendaDoAgendamento(a).valor))
+            + ' a receber, em Pacotes'
+          : 'esta sessão já foi paga — não cobre de novo'}</span></td></tr>` : ''}
       ${Number(a.desconto) > 0 ? `<tr><td style="color:var(--txt2)">Cupom</td>
         <td><b>${escapar(codigoDoCupom(a.cupomId) || 'Desconto')}</b> · − ${real(Number(a.desconto))}<br>
         <span style="font-size:12px;color:var(--txt2)">o valor acima já está com

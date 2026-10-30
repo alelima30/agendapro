@@ -1052,6 +1052,28 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
            else '' end
   union all
+  /* O pacote com agenda fixa e o pagamento do pacote (43_pacote_agenda): as
+     semanas já marcadas, uma mensagem só, e o pagamento virando comanda. */
+  select 50, 'Pacote com agenda fixa e pagamento do pacote',
+         case
+           when to_regprocedure('public.montar_pacote(uuid,uuid,numeric,text,uuid,jsonb)') is null
+             or to_regprocedure('public.receber_pacote(uuid,text,numeric)') is null
+             or not exists (select 1 from information_schema.columns where table_schema = 'public'
+                              and table_name = 'pacote_clientes' and column_name = 'pago_em')
+             or not exists (select 1 from pg_proc where proname = 'cancelar_pacote_cliente'
+                              and prosrc like '%pacote cancelado%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.montar_pacote(uuid,uuid,numeric,text,uuid,jsonb)') is null
+             or to_regprocedure('public.receber_pacote(uuid,text,numeric)') is null
+             or not exists (select 1 from information_schema.columns where table_schema = 'public'
+                              and table_name = 'pacote_clientes' and column_name = 'pago_em')
+             or not exists (select 1 from pg_proc where proname = 'cancelar_pacote_cliente'
+                              and prosrc like '%pacote cancelado%')
+             then 'cole o 00_tudo.sql de novo (43_pacote_agenda e 27_pacotes)'
+           else '' end
+  union all
   /* As travas da auditoria de segurança (42_travas e 14_motor): o status do
      salão é da plataforma, a linha do salão é da equipe, e o porquê de um
      horário não caber (com nome de cliente) só a equipe lê. */

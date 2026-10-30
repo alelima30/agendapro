@@ -763,6 +763,11 @@ begin
   end if;
   update public.pacote_clientes set cancelado_em = now()
    where id = p_id and cancelado_em is null;
+  update public.agendamentos
+     set status = 'cancelado', cancelado_motivo = 'pacote cancelado'
+   where pacote_cliente_id = p_id
+     and status in ('pendente', 'confirmado')
+     and inicio > now();
 end $$;
 alter table public.pacotes          enable row level security;
 alter table public.pacote_servicos  enable row level security;
@@ -2433,12 +2438,21 @@ declare
   a public.agendamentos%rowtype;
   v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
   v_linhas int; v_soma numeric; v_total numeric; v_pacote boolean;
+  v_pacote_a_pagar boolean := false;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
   if a.id is null then return null; end if;
   select count(*), coalesce(sum(asv.preco), 0) into v_linhas, v_soma
     from public.agendamento_servicos asv where asv.agendamento_id = a.id;
   v_pacote := to_jsonb(a)->>'pacote_cliente_id' is not null;
+  if v_pacote then
+    select coalesce((to_jsonb(pc)->>'valor')::numeric, 0) > 0
+           and to_jsonb(pc)->>'pago_em' is null
+      into v_pacote_a_pagar
+      from public.pacote_clientes pc
+     where pc.id = (to_jsonb(a)->>'pacote_cliente_id')::uuid;
+    v_pacote_a_pagar := coalesce(v_pacote_a_pagar, false);
+  end if;
   v_total := case
     when v_pacote then 0
     when v_linhas = 0 then coalesce((to_jsonb(a)->>'valor_previsto')::numeric, 0)
@@ -2464,6 +2478,7 @@ begin
     'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'),
     'valor', 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,'),
     'pagamento', case
+      when v_pacote and v_pacote_a_pagar then 'Pacote (pagamento a combinar com o salão)'
       when v_pacote then 'Pacote (já pago)'
       when to_jsonb(a)->>'forma_pagamento' = 'pix'      then 'Pix'
       when to_jsonb(a)->>'forma_pagamento' = 'dinheiro' then 'Dinheiro'

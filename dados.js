@@ -126,7 +126,10 @@ const COLUNAS = {
                    umPorCliente:'um_por_cliente', criadoEm:'criado_em' },
   pacote_clientes: { pacoteId:'pacote_id', clienteId:'cliente_id',
                    venceEm:'vence_em', criadoEm:'criado_em',
-                   canceladoEm:'cancelado_em' },
+                   canceladoEm:'cancelado_em',
+                   // O pagamento do pacote (43_pacote_agenda.sql).
+                   pagoEm:'pago_em', formaPagamento:'forma_pagamento',
+                   comandaId:'comanda_id' },
   comandas:      { salaoId:'salao_id', agendamentoId:'agendamento_id',
                    clienteId:'cliente_id', descontoMotivo:'desconto_motivo',
                    abertaEm:'aberta_em', fechadaEm:'fechada_em',
@@ -211,6 +214,8 @@ const VAZIO_E_NULO = new Set([
   'comissao_pct', 'comissao_valor', 'total', 'duracao_min', 'preco',
   'trial_ate', 'vence_em', 'indicado_por', 'cliente_id', 'sinal_exigido',
   'sinal_pago', 'sinal_ate', 'nascimento_dia', 'arquivado_em',
+  // O pagamento do pacote (43_pacote_agenda.sql): vazio é "não combinado".
+  'valor', 'pago_em', 'comanda_id',
   /* Os quatro recortes da regra de preço. Todos opcionais na tela: campo em
      branco quer dizer "não recorta", e tem que chegar no banco como NULL.
      Vazio como texto num `date` ou num `int` derruba a gravação inteira da

@@ -5078,3 +5078,31 @@ label.pedido-chave{ font-weight:600 }
 .pedido-passos ol{ margin:8px 0 12px 18px; padding:0 }
 .pedido-passos li{ margin:8px 0; line-height:1.5 }
 .pedido-passos li .btn{ margin-left:6px; vertical-align:middle }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O PACOTE COM AGENDA FIXA E O PAGAMENTO (43_pacote_agenda.sql)
+   Só com os tokens do tema.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pk-receber{ border-left:3px solid var(--wa-500) }
+.pk-receber-linha{
+  display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  padding:8px 0; border-top:1px solid var(--borda); font-size:14px;
+}
+.pk-receber-linha:first-of-type{ border-top:0 }
+.pk-fixa{ font-size:12.5px; color:var(--txt2) }
+.pk-acoes{ text-align:right }
+.pk-acoes .btn{ margin:2px 0 2px 4px }
+.pk-fixa-chave{ display:flex; gap:10px; align-items:flex-start; cursor:pointer }
+.pk-fixa-chave input{ width:auto; margin-top:3px }
+.pk-semanas{ display:flex; flex-direction:column; gap:10px }
+.pk-semana{
+  border:1px solid var(--borda); border-radius:var(--r-sm); padding:10px 12px; background:var(--painel);
+}
+.pk-semana .campo{ margin-bottom:8px }
+.pk-semana-topo{ display:flex; justify-content:space-between; gap:8px; margin-bottom:8px; font-size:14px }
+.pk-semana-topo span{ color:var(--txt2) }
+.pk-servicos button{ height:auto; min-height:40px; padding:6px 12px; font-size:13.5px }
+.pk-problema{ border-color:var(--er-500); background:var(--er-soft) }
+.pk-motivo{ margin:8px 0 0; font-size:13px; font-weight:600; color:var(--er-500) }
+.pk-erro{ margin:12px 0 0; font-size:13.5px; font-weight:600; color:var(--er-500) }
+.pk-lista{ margin:8px 0 10px; padding-left:20px; line-height:1.6 }

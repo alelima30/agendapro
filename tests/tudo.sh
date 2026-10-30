@@ -259,6 +259,8 @@ rodar "sinal por Pix" node "$AQUI/sinal.test.mjs"
 rodar "ficha da equipe" node "$AQUI/ficha-equipe.test.mjs"
 # O que a auditoria de segurança achou: o painel em quadro de outro site e o e-mail escapado.
 rodar "travas da auditoria" node "$AQUI/travas.test.mjs"
+# O pacote com agenda fixa (as terças já marcadas) e o pagamento do pacote.
+rodar "pacote com agenda fixa" node "$AQUI/pacote-agenda.test.mjs"
 rodar "o horário do + Agendamento" node "$AQUI/horario-form.test.mjs"
 
 echo ""
