@@ -225,7 +225,7 @@ begin
     return 'Confira o horário: o fim tem que ser depois do início.';
   end if;
 
-  select p.id, p.nome, p.ativo, sa.fuso, sa.status as status_salao
+  select p.id, p.nome, p.ativo, p.salao_id, sa.fuso, sa.status as status_salao
     into v_prof
     from public.profissionais p
     join public.saloes sa on sa.id = p.salao_id
@@ -233,6 +233,22 @@ begin
 
   if v_prof.id is null then
     return 'Profissional não encontrado.';
+  end if;
+
+  /* ⚠ A EXPLICAÇÃO TEM NOME DE CLIENTE E MOTIVO DE BLOQUEIO — "Ana já tem
+     Maria Silva das 10:00 às 11:00", "bloqueado: consulta médica". É a frase
+     certa para a recepção, e era entregue a QUALQUER conta logada: o id da
+     profissional é público (a vitrine o devolve), e perguntando horário por
+     horário dava para ler a agenda e a clientela de qualquer salão. Achado na
+     auditoria de segurança.
+
+     Pela internet (anon/authenticated), só a equipe DESTE salão pergunta. O
+     SQL Editor, o worker e o service_role não passam por aqui (`role` não é
+     anon nem authenticated) — e os testes do motor continuam valendo. */
+  if coalesce(current_setting('role', true), 'none') in ('anon', 'authenticated')
+     and not public.e_equipe(v_prof.salao_id) then
+    raise exception 'Só a equipe do salão consulta a agenda.'
+      using errcode = 'insufficient_privilege';
   end if;
   if not v_prof.ativo then
     return format('%s está desativado(a) na equipe.', v_prof.nome);

@@ -1122,13 +1122,18 @@ begin
   if p_inicio is null or p_fim is null or p_fim <= p_inicio then
     return 'Confira o horário: o fim tem que ser depois do início.';
   end if;
-  select p.id, p.nome, p.ativo, sa.fuso, sa.status as status_salao
+  select p.id, p.nome, p.ativo, p.salao_id, sa.fuso, sa.status as status_salao
     into v_prof
     from public.profissionais p
     join public.saloes sa on sa.id = p.salao_id
    where p.id = p_profissional;
   if v_prof.id is null then
     return 'Profissional não encontrado.';
+  end if;
+  if coalesce(current_setting('role', true), 'none') in ('anon', 'authenticated')
+     and not public.e_equipe(v_prof.salao_id) then
+    raise exception 'Só a equipe do salão consulta a agenda.'
+      using errcode = 'insufficient_privilege';
   end if;
   if not v_prof.ativo then
     return format('%s está desativado(a) na equipe.', v_prof.nome);
@@ -6880,6 +6885,33 @@ do $$ begin
       for each row execute function public.tg_suporte();
   end if;
 end $$;
+
+create or replace function public.tg_salao_campos_da_plataforma()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if coalesce(current_setting('role', true), 'none') not in ('anon', 'authenticated')
+     or public.is_super()
+     or coalesce(current_setting('agendapro.plataforma', true), '') = 'sim' then
+    return new;
+  end if;
+  if new.status is distinct from old.status then
+    raise exception 'Só a plataforma muda a situação do salão (ativo, suspenso ou cancelado).'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if new.criado_em is distinct from old.criado_em then
+    raise exception 'A data de criação do salão não muda.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return new;
+end $$;
+drop trigger if exists tg_salao_campos_da_plataforma on public.saloes;
+create trigger tg_salao_campos_da_plataforma
+  before update on public.saloes
+  for each row execute function public.tg_salao_campos_da_plataforma();
+revoke all on function public.tg_salao_campos_da_plataforma() from public, anon, authenticated;
+drop policy if exists salao_ler on public.saloes;
+create policy salao_ler on public.saloes for select to authenticated
+  using ( public.e_equipe(id) );
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();

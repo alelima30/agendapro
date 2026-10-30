@@ -2,6 +2,13 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
+<!-- NAO ABRE DENTRO DE OUTRO SITE (auditoria de seguranca). Sem isto, um site
+     qualquer punha esta tela num quadro invisivel e fazia a dona clicar sem
+     saber (clickjacking). O GitHub Pages nao deixa mandar o cabecalho que
+     barra isso, entao a pagina se recusa sozinha: some e abre no lugar
+     certo. O link da cliente (agendar.html) fica de fora de proposito: o
+     salao pode querer o agendamento dentro do proprio site. -->
+<script>if(window.top!==window.self){document.documentElement.style.display='none';try{window.top.location.replace(window.location.href);}catch(e){}}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Criar conta — AgendaPro</title>
 <meta name="description" content="Crie seu link de agendamento e teste 7 dias grátis, sem cartão." />

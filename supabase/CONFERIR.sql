@@ -1052,6 +1052,29 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
            else '' end
   union all
+  /* As travas da auditoria de segurança (42_travas e 14_motor): o status do
+     salão é da plataforma, a linha do salão é da equipe, e o porquê de um
+     horário não caber (com nome de cliente) só a equipe lê. */
+  select 49, 'Travas da auditoria de segurança',
+         case
+           when not exists (select 1 from pg_trigger where tgname = 'tg_salao_campos_da_plataforma'
+                              and tgrelid = 'public.saloes'::regclass)
+             or not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'saloes'
+                              and policyname = 'salao_ler' and qual like '%e_equipe%')
+             or not exists (select 1 from pg_proc where proname = 'porque_nao_cabe'
+                              and prosrc like '%Só a equipe do salão consulta a agenda%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when not exists (select 1 from pg_trigger where tgname = 'tg_salao_campos_da_plataforma'
+                              and tgrelid = 'public.saloes'::regclass)
+             or not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'saloes'
+                              and policyname = 'salao_ler' and qual like '%e_equipe%')
+             or not exists (select 1 from pg_proc where proname = 'porque_nao_cabe'
+                              and prosrc like '%Só a equipe do salão consulta a agenda%')
+             then 'cole o 00_tudo.sql de novo (42_travas e 14_motor)'
+           else '' end
+  union all
   /* O tópico Procedimentos (41_ficha_equipe, 4): o passo a passo que o dono
      cria — Morena iluminada, Loiro perolado —, só para a equipe. */
   select 48, 'Procedimentos com passo a passo (só a equipe)',

@@ -47,6 +47,7 @@
 --   39_teste_unico.sql       o teste grátis é um por pessoa: excluir e voltar não ganha mais 7 dias
 --   40_saude.sql             o check-up do sistema: a fila do WhatsApp anda? (admin e UptimeRobot)
 --   41_ficha_equipe.sql      só da equipe: o como fazer, os procedimentos e os lembretes sobre a cliente
+--   42_travas.sql            o que a auditoria de segurança achou: status do salão e a linha do salão
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -6609,7 +6610,7 @@ begin
     return 'Confira o horário: o fim tem que ser depois do início.';
   end if;
 
-  select p.id, p.nome, p.ativo, sa.fuso, sa.status as status_salao
+  select p.id, p.nome, p.ativo, p.salao_id, sa.fuso, sa.status as status_salao
     into v_prof
     from public.profissionais p
     join public.saloes sa on sa.id = p.salao_id
@@ -6617,6 +6618,22 @@ begin
 
   if v_prof.id is null then
     return 'Profissional não encontrado.';
+  end if;
+
+  /* ⚠ A EXPLICAÇÃO TEM NOME DE CLIENTE E MOTIVO DE BLOQUEIO — "Ana já tem
+     Maria Silva das 10:00 às 11:00", "bloqueado: consulta médica". É a frase
+     certa para a recepção, e era entregue a QUALQUER conta logada: o id da
+     profissional é público (a vitrine o devolve), e perguntando horário por
+     horário dava para ler a agenda e a clientela de qualquer salão. Achado na
+     auditoria de segurança.
+
+     Pela internet (anon/authenticated), só a equipe DESTE salão pergunta. O
+     SQL Editor, o worker e o service_role não passam por aqui (`role` não é
+     anon nem authenticated) — e os testes do motor continuam valendo. */
+  if coalesce(current_setting('role', true), 'none') in ('anon', 'authenticated')
+     and not public.e_equipe(v_prof.salao_id) then
+    raise exception 'Só a equipe do salão consulta a agenda.'
+      using errcode = 'insufficient_privilege';
   end if;
   if not v_prof.ativo then
     return format('%s está desativado(a) na equipe.', v_prof.nome);
@@ -17527,3 +17544,76 @@ do $$ begin
       for each row execute function public.tg_suporte();
   end if;
 end $$;
+
+-- ###########################################################################
+-- ## 42_travas.sql
+-- ###########################################################################
+
+-- ===========================================================================
+-- 42_travas.sql — o que a auditoria de segurança achou, fechado no banco
+--
+-- O pedido: "conferir a segurança do meu app". A auditoria passou por todas
+-- as tabelas, todas as funções que se chamam de fora, as funções do servidor
+-- e as fotos. Quase tudo já estava trancado. Três portas não:
+--
+--   1. a dona de um salão SUSPENSO pela plataforma se reativava sozinha:
+--      `salao_gerir` deixa a gestão editar a linha do salão, e a coluna
+--      `status` ia junto — pela API, sem passar pela tela;
+--   2. qualquer conta lia a linha INTEIRA de qualquer salão (o `cfg` todo):
+--      virar "cliente" de um salão é um insert livre (`vinc_virar_cliente`,
+--      é o que o link faz), e `tem_acesso()` conta a cliente;
+--   3. `porque_nao_cabe()` dizia nome de cliente e motivo de bloqueio a
+--      qualquer conta logada — essa é fechada no próprio 14_motor.sql.
+--
+-- Os outros achados (o painel dentro de um quadro de outro site, o e-mail na
+-- tela de entrar) são das páginas, e não daqui.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1) O STATUS DO SALÃO É DA PLATAFORMA
+--
+-- Ativo, suspenso, cancelado: quem decide é a `definir_status_salao()`, que
+-- só a plataforma chama. A data de criação vai junto: é histórico, e o painel
+-- da plataforma lê. Pela internet (anon/authenticated), sem ser a plataforma,
+-- as duas não mudam. O SQL Editor, o worker e o service_role passam (o `role`
+-- deles não é anon nem authenticated), como passam no modo suporte (38).
+-- ---------------------------------------------------------------------------
+create or replace function public.tg_salao_campos_da_plataforma()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if coalesce(current_setting('role', true), 'none') not in ('anon', 'authenticated')
+     or public.is_super()
+     or coalesce(current_setting('agendapro.plataforma', true), '') = 'sim' then
+    return new;
+  end if;
+  if new.status is distinct from old.status then
+    raise exception 'Só a plataforma muda a situação do salão (ativo, suspenso ou cancelado).'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if new.criado_em is distinct from old.criado_em then
+    raise exception 'A data de criação do salão não muda.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists tg_salao_campos_da_plataforma on public.saloes;
+create trigger tg_salao_campos_da_plataforma
+  before update on public.saloes
+  for each row execute function public.tg_salao_campos_da_plataforma();
+
+revoke all on function public.tg_salao_campos_da_plataforma() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 2) A LINHA DO SALÃO É DA EQUIPE
+--
+-- A cliente lê o salão pela `vitrine()`, que escolhe campo por campo o que a
+-- página mostra — e diz por quê: o `cfg` é jsonb, cresce, e devolvê-lo por
+-- atacado é um vazamento esperando a próxima chave. A tabela, então, fica
+-- com quem trabalha no salão (e a plataforma, que o `e_equipe()` já inclui).
+-- Nenhuma página da cliente lê a tabela: o `salaoPorSlug()` do dados.js
+-- também passa pela vitrine.
+-- ---------------------------------------------------------------------------
+drop policy if exists salao_ler on public.saloes;
+create policy salao_ler on public.saloes for select to authenticated
+  using ( public.e_equipe(id) );

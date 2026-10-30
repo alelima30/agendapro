@@ -55,6 +55,7 @@ cat > "$SAIDA" <<'CAB'
 --   39_teste_unico.sql       o teste grátis é um por pessoa: excluir e voltar não ganha mais 7 dias
 --   40_saude.sql             o check-up do sistema: a fila do WhatsApp anda? (admin e UptimeRobot)
 --   41_ficha_equipe.sql      só da equipe: o como fazer, os procedimentos e os lembretes sobre a cliente
+--   42_travas.sql            o que a auditoria de segurança achou: status do salão e a linha do salão
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -84,7 +85,7 @@ end $$;
 
 CAB
 
-for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql 36_excluir_conta.sql 37_pedidos.sql 38_suporte.sql 39_teste_unico.sql 40_saude.sql 41_ficha_equipe.sql; do
+for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql 36_excluir_conta.sql 37_pedidos.sql 38_suporte.sql 39_teste_unico.sql 40_saude.sql 41_ficha_equipe.sql 42_travas.sql; do
   {
     echo ''
     echo '-- ###########################################################################'

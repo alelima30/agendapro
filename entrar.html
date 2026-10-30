@@ -2,6 +2,13 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
+<!-- NAO ABRE DENTRO DE OUTRO SITE (auditoria de seguranca). Sem isto, um site
+     qualquer punha esta tela num quadro invisivel e fazia a dona clicar sem
+     saber (clickjacking). O GitHub Pages nao deixa mandar o cabecalho que
+     barra isso, entao a pagina se recusa sozinha: some e abre no lugar
+     certo. O link da cliente (agendar.html) fica de fora de proposito: o
+     salao pode querer o agendamento dentro do proprio site. -->
+<script>if(window.top!==window.self){document.documentElement.style.display='none';try{window.top.location.replace(window.location.href);}catch(e){}}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Entrar — AgendaPro</title>
 <meta name="description" content="Entre no painel do seu salão, barbearia ou estúdio." />
@@ -563,7 +570,12 @@ async function esqueci(){
   /* A frase é deliberadamente "SE existir uma conta". Confirmar que o
      endereço está cadastrado ajudaria quem tem a lista de e-mails a descobrir
      quais são clientes — e não ajudaria em nada quem está tentando entrar. */
-  mostrar('ok', '<b>Se existir uma conta com <span class="mono">' + email
+  // O e-mail é texto digitado: entra na tela escapado, como todo texto de
+  // fora (auditoria de segurança). Hoje só a própria pessoa o digita — e é
+  // por isso mesmo que não pode virar exceção no dia em que vier de um link.
+  const emailSeguro = email.replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
+  mostrar('ok', '<b>Se existir uma conta com <span class="mono">' + emailSeguro
     + '</span>, o link já está a caminho.</b><br>Ele vale por uma hora. Se não '
     + 'chegar em alguns minutos, procure no lixo eletrônico.');
 }
