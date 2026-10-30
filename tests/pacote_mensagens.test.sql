@@ -180,7 +180,18 @@ select t_texto('religou: volta', (t_msg(:'pc', 'pacote_pagamento')).status, 'pen
 
 \echo ''
 \echo '7. A primeira sessão passa para daqui a pouco'
-update public.agendamentos set inicio = now() + interval '30 minutes', fim = now() + interval '75 minutes'
+-- Para amanhã às 14h (ou hoje às 14h, se ainda não deu 9h): dentro da
+-- jornada, no futuro, e com a véspera às 10h já sem folga — rode o teste
+-- a qualquer hora do dia.
+update public.agendamentos
+   set inicio = ((case when extract(hour from now() at time zone 'America/Sao_Paulo') >= 9
+                       then (now() at time zone 'America/Sao_Paulo')::date + 1
+                       else (now() at time zone 'America/Sao_Paulo')::date end + time '14:00')
+                 at time zone 'America/Sao_Paulo'),
+       fim   = ((case when extract(hour from now() at time zone 'America/Sao_Paulo') >= 9
+                       then (now() at time zone 'America/Sao_Paulo')::date + 1
+                       else (now() at time zone 'America/Sao_Paulo')::date end + time '14:45')
+                 at time zone 'America/Sao_Paulo')
  where id = t_sessao(:'pc', 1);
 select t_texto('a véspera já passou: o lembrete sai, em vez de chegar depois da sessão',
   (t_msg(:'pc', 'pacote_pagamento')).status || ' | ' || (t_msg(:'pc', 'pacote_pagamento')).motivo,

@@ -262,6 +262,7 @@ rodar "travas da auditoria" node "$AQUI/travas.test.mjs"
 # O pacote com agenda fixa (as terças já marcadas) e o pagamento do pacote.
 rodar "pacote com agenda fixa" node "$AQUI/pacote-agenda.test.mjs"
 rodar "módulos adicionais" node "$AQUI/adicionais-tela.test.mjs"
+rodar "crediário" node "$AQUI/crediario-tela.test.mjs"
 rodar "o horário do + Agendamento" node "$AQUI/horario-form.test.mjs"
 
 echo ""

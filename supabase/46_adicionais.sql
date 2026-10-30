@@ -131,10 +131,14 @@ returns boolean language sql stable security definer set search_path = public as
 $$;
 
 -- A trava de módulo: o plano inclui, OU um adicional ativo libera a chave.
+-- ⚠ A chave de um adicional que o plano dá (o Crediário no teste grátis) só
+-- vale com o adicional À VENDA: experimentar o que ainda não se pode comprar
+-- não é teste, é brinde.
 create or replace function public.recurso_bool(p_salao uuid, p_chave text)
 returns boolean language sql stable security definer set search_path = public as $$
-  select coalesce((select (pl.recursos ->> p_chave)::boolean
-                     from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)), false)
+  select (coalesce((select (pl.recursos ->> p_chave)::boolean
+                      from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)), false)
+          and not exists (select 1 from public.adicionais ad where ad.recurso = p_chave and not ad.ativo))
       or exists (select 1 from public.adicionais ad
                   where ad.recurso = p_chave and public.adicional_ativo(p_salao, ad.codigo))
 $$;
@@ -502,10 +506,13 @@ begin
   if not public.e_equipe(p_salao) and not public.is_super() then
     raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
   end if;
-  select coalesce(jsonb_agg(ad.codigo order by ad.ordem), '[]'::jsonb),
-         coalesce(jsonb_agg(ad.recurso order by ad.ordem), '[]'::jsonb)
-    into v_ativos, v_recursos
+  select coalesce(jsonb_agg(ad.codigo order by ad.ordem), '[]'::jsonb)
+    into v_ativos
     from public.adicionais ad where public.adicional_ativo(p_salao, ad.codigo);
+  -- As chaves liberadas — pelo adicional ou pelo plano (o teste grátis).
+  select coalesce(jsonb_agg(distinct ad.recurso), '[]'::jsonb)
+    into v_recursos
+    from public.adicionais ad where public.recurso_bool(p_salao, ad.recurso);
   if not public.e_gestor(p_salao) and not public.is_super() then
     return jsonb_build_object('ativos', v_ativos, 'recursos', v_recursos);
   end if;

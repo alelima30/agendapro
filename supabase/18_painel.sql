@@ -106,12 +106,16 @@ begin
                             else 0 end,
         /* + a comissão das sessões de pacote atendidas hoje (44): não são
            comanda, mas são trabalho de hoje. */
-        'comissoes',   coalesce(round(sum(t.comissao_total) filter (
+        'comissoes',   coalesce(round(sum(t.comissao_total * public.fator_a_vista(c.id)) filter (
                          where c.status = 'fechada'), 2), 0)
                        + coalesce((select round(sum(pk.comissao), 2)
                                      from public.pacote_comissoes pk
                                     where pk.salao_id = p_salao
-                                      and pk.atendida_em >= v_ini and pk.atendida_em < v_fim), 0),
+                                      and pk.atendida_em >= v_ini and pk.atendida_em < v_fim), 0)
+                       /* + as parcelas do crediário recebidas hoje (47): a
+                          comissão é conforme a cliente paga. */
+                       + coalesce((select round(sum(cc.comissao), 2)
+                                     from public.crediario_comissoes(p_salao, v_ini, v_fim) cc), 0),
         'estornado',   coalesce(round(sum(t.estornado) filter (
                          where c.status = 'fechada'), 2), 0))
         from public.comandas c

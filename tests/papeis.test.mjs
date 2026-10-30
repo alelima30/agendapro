@@ -162,8 +162,13 @@ const abasDona = await abasDe(pgDona);
 
    O que importa não é quantas são: é que a dona veja TODAS. */
 /* "Todas" quer dizer as que valem para ESTE tipo de negócio: a aba Pedidos só
-   existe no restaurante (37_pedidos), e este salão é de beleza. */
-const totalDeTelas = await pgDona.evaluate(() => TELAS.filter(t => t[0] !== 'pedidos').length);
+   existe no restaurante (37_pedidos), e este salão é de beleza. E a aba
+   Crediário (47_crediario) só aparece com o módulo adicional — ou, para a
+   gestão, quando ele está à venda, para poder contratar. A regra é a da
+   própria tela (`crediarioNaAba`); a aba tem o teste dela, no
+   crediario-tela.test.mjs. */
+const totalDeTelas = await pgDona.evaluate(() => TELAS.filter(t => t[0] !== 'pedidos'
+  && (t[0] !== 'crediario' || crediarioNaAba())).length);
 igual('vê todas as abas do sistema', abasDona.length, totalDeTelas);
 verdade('inclusive Plano e Meu negócio',
   abasDona.includes('plano') && abasDona.includes('salao'));

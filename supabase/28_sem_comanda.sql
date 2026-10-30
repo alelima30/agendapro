@@ -113,7 +113,10 @@ end $$;
 alter table public.pagamentos
   add constraint pagamentos_forma_check
   check (forma in ('dinheiro','pix','debito','credito',
-                   'transferencia','cortesia','pacote','nao_informado'));
+                   'transferencia','cortesia','pacote','nao_informado',
+                   -- O fiado parcelado (47_crediario): só nasce pela venda no
+                   -- crediário, nunca digitado na comanda.
+                   'crediario'));
 
 -- ---------------------------------------------------------------------------
 -- 3) QUEM FOI O SISTEMA, E QUEM FOI GENTE

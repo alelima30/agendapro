@@ -2262,8 +2262,9 @@ $$;
 
 create or replace function public.recurso_bool(p_salao uuid, p_chave text)
 returns boolean language sql stable security definer set search_path = public as $$
-  select coalesce((select (pl.recursos ->> p_chave)::boolean
-                     from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)), false)
+  select (coalesce((select (pl.recursos ->> p_chave)::boolean
+                      from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)), false)
+          and not exists (select 1 from public.adicionais ad where ad.recurso = p_chave and not ad.ativo))
       or exists (select 1 from public.adicionais ad
                   where ad.recurso = p_chave and public.adicional_ativo(p_salao, ad.codigo))
 $$;

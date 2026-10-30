@@ -439,6 +439,9 @@ begin
        - (select coalesce(sum(x.valor), 0) from public.estornos x
             join public.pagamentos g on g.id = x.pagamento_id
            where coalesce(x.caixa_id, g.caixa_id) = p_caixa and g.forma = 'dinheiro')
+       -- A parcela do crediário paga em dinheiro neste caixa (47_crediario).
+       + (select coalesce(sum(r.valor), 0) from public.crediario_recebimentos r
+           where r.caixa_id = p_caixa and r.forma = 'dinheiro' and r.desfeito_em is null)
     into v_dinheiro;
 
   select coalesce(sum(m.valor) filter (where m.tipo = 'sangria'), 0),
@@ -469,19 +472,28 @@ begin
         from (select z.forma, round(sum(z.valor), 2) as valor
                 from (select g.forma, g.valor
                         from public.pagamentos g
-                       where g.caixa_id = p_caixa and g.forma <> 'dinheiro'
+                       -- O `crediario` não entrou em lugar nenhum: é o que a
+                       -- cliente ficou devendo (47). Entra a parcela, quando paga.
+                       where g.caixa_id = p_caixa and g.forma not in ('dinheiro', 'crediario')
+                      union all
+                      select r.forma, r.valor
+                        from public.crediario_recebimentos r
+                       where r.caixa_id = p_caixa and r.forma <> 'dinheiro' and r.desfeito_em is null
                       union all
                       select g.forma, -x.valor
                         from public.estornos x
                         join public.pagamentos g on g.id = x.pagamento_id
                        where coalesce(x.caixa_id, g.caixa_id) = p_caixa
-                         and g.forma <> 'dinheiro') z
+                         and g.forma not in ('dinheiro', 'crediario')) z
                group by z.forma) y), '[]'::jsonb),
     'movimentos', coalesce((
       select jsonb_agg(jsonb_build_object(
                'tipo', m.tipo, 'valor', m.valor, 'motivo', m.motivo,
                'criadoEm', m.criado_em) order by m.criado_em)
-        from public.caixa_movimentos m where m.caixa_id = p_caixa), '[]'::jsonb)
+        from public.caixa_movimentos m where m.caixa_id = p_caixa), '[]'::jsonb),
+    -- As parcelas do crediário recebidas neste caixa (já somadas acima).
+    'crediarioRecebido', (select coalesce(sum(r.valor), 0) from public.crediario_recebimentos r
+                           where r.caixa_id = p_caixa and r.desfeito_em is null)
   );
 end $$;
 

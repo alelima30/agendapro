@@ -1058,6 +1058,38 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
            else '' end
   union all
+  /* O Crediário (47_crediario): a venda a prazo, as parcelas e o que entra
+     no caixa, no relatório e na comissão. */
+  select 54, 'Crediário (venda parcelada no fiado)',
+         case
+           when to_regclass('public.crediario_parcelas') is null
+             or to_regprocedure('public.nova_venda_no_crediario(uuid,uuid,jsonb,uuid,numeric,numeric,text,integer,date)') is null
+             or to_regprocedure('public.receber_parcela(uuid,numeric,text)') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_pagamento_crediario'
+                              and tgrelid = 'public.pagamentos'::regclass)
+             or not exists (select 1 from pg_constraint where conname = 'pagamentos_forma_check'
+                              and pg_get_constraintdef(oid) like '%crediario%')
+             or not exists (select 1 from pg_proc where proname = 'relatorio'
+                              and prosrc like '%crediario_comissoes%')
+             or not exists (select 1 from pg_proc where proname = 'conferir_caixa'
+                              and prosrc like '%crediario_recebimentos%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regclass('public.crediario_parcelas') is null
+             or to_regprocedure('public.nova_venda_no_crediario(uuid,uuid,jsonb,uuid,numeric,numeric,text,integer,date)') is null
+             or to_regprocedure('public.receber_parcela(uuid,numeric,text)') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_pagamento_crediario'
+                              and tgrelid = 'public.pagamentos'::regclass)
+             or not exists (select 1 from pg_constraint where conname = 'pagamentos_forma_check'
+                              and pg_get_constraintdef(oid) like '%crediario%')
+             or not exists (select 1 from pg_proc where proname = 'relatorio'
+                              and prosrc like '%crediario_comissoes%')
+             or not exists (select 1 from pg_proc where proname = 'conferir_caixa'
+                              and prosrc like '%crediario_recebimentos%')
+             then 'cole o 00_tudo.sql de novo (47_crediario, 12, 17, 18 e 28)'
+           else '' end
+  union all
   /* Os módulos adicionais (46_adicionais): o catálogo com o Crediário, a
      mensalidade plano + adicionais no Pix e no cartão, e a trava de módulo
      que aceita o adicional. */

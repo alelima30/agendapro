@@ -831,6 +831,11 @@ span.ajuda{display:block;margin-top:5px}
   </section>
 
   <!-- ══════════ CAIXA ══════════ -->
+  <!-- ══════════ CREDIÁRIO (47_crediario) ══════════ -->
+  <section class="tela" id="tela-crediario">
+    <div id="crCorpo"></div>
+  </section>
+
   <section class="tela" id="tela-caixa">
     <div class="barra">
       <!-- Anda pelos dias aqui mesmo: o Caixa segue o dia aberto na Agenda, e
@@ -1826,6 +1831,11 @@ const TELAS = [
      fazendo o que foi escrito para fazer. É exatamente o defeito que este
      quadro nasceu para acabar: a tela oferecendo o que o banco nega. */
   ['caixa',    'Caixa',            'cartao',     'Dia a dia', BALCAO],
+  /* O Crediário (47_crediario): a venda a prazo e o "a receber". BALCÃO, como
+     o caixa — é a recepção que recebe a parcela; quem atende não vê (as
+     tabelas pedem `ve_agenda_toda`). Só aparece com o módulo adicional
+     valendo, ou para a gestão quando ele está à venda (para contratar). */
+  ['crediario','Crediário',        'dinheiro',   'Dia a dia', BALCAO],
   // Faturamento e comissão da casa inteira não são assunto de quem atende
   // nem da recepção — é a mesma linha que a função `relatorio()` do banco
   // desenha com `e_gestor()`. Esconder aqui é conforto; quem barra é o banco.
@@ -1924,6 +1934,9 @@ const minhasTelas = () => {
   const comanda = usaComanda();
   const restaurante = typeof restaurantePainel === 'function' && restaurantePainel();
   return TELAS.filter(t => t[4].includes(p) && (comanda || t[0] !== 'caixa')
+                        // O Crediário não depende da comanda na tela: a venda
+                        // é feita na própria aba (47, `nova_venda_no_crediario`).
+                        && (t[0] !== 'crediario' || crediarioNaAba())
                         && (restaurante || t[0] !== 'pedidos')
                         && (!restaurante || t[0] !== 'procedimentos'));
 };
@@ -2094,7 +2107,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.7cfe73';
+const VERSAO_APP = 'v9.de25f6';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2144,6 +2157,9 @@ async function trocarSalao(sid){
   salvar();
   // Os pedidos eram do estabelecimento de antes.
   pedidosLista = null; pedidosVistos = null; pedidosNovos.clear();
+  // E os módulos adicionais (o Crediário) também.
+  meusAdicionais = null; crediarioDados = null;
+  carregarAdicionais();
   montarAbas();
   if(restaurantePainel()){ ligarRelogioDosPedidos(); carregarPedidos(); }
   else pintarSeloDePedidos();
@@ -6294,6 +6310,8 @@ function desenharRelatorio(r){
       </tr></tfoot>` : ''}</table></div>`
       : '<div class="vazio">Nenhum pagamento registrado no período.</div>'}
 
+    ${relatorioDoCrediario(r.crediario)}
+
     <h2 class="rel-secao">O que mais saiu
       <small>Os 12 que mais renderam. É o que decide preço, vitrine e o que
              vale ter na cadeira.</small></h2>
@@ -6348,6 +6366,8 @@ function desenharRelatorio(r){
 const FORMA_NOME = {
   dinheiro:'Dinheiro', pix:'Pix', debito:'Débito', credito:'Crédito',
   transferencia:'Transferência', cortesia:'Cortesia', pacote:'Pacote',
+  // O que ficou no fiado (47_crediario): vendido, ainda não recebido.
+  crediario:'Crediário (a prazo)',
 };
 
 /* ── Desenho: página pública ─────────────────────────────────────────── */
@@ -7493,6 +7513,14 @@ function fecharComanda(comId){
 function reabrirComanda(comId){
   const c = bd.comandas.find(x => x.id === comId);
   if(!c || !comandaFechada(c)) return;
+  // Vendida no crediário: reabrir deixaria as parcelas penduradas (o banco
+  // também recusa, 47_crediario). O caminho é desfazer a venda.
+  if(c.pagamentos.some(p => p.forma === 'crediario')){
+    alert('Esta comanda foi vendida no crediário.\n\n'
+        + 'Para corrigir, use "Desfazer a venda no crediário" aqui na comanda '
+        + '(enquanto nenhuma parcela foi recebida).');
+    return;
+  }
   const diaFecho = c.fechadaEm
     ? instanteParaTela(c.fechadaEm, fusoDoSalaoAtual()).data : hoje();
   if(diaFecho !== hoje() && !souGestor()){
@@ -7538,6 +7566,13 @@ function abrirComanda(comId){
       }).join('') : '<tr><td colspan="5" style="color:var(--txt3)">Sem itens.</td></tr>'}
     </tbody></table>
 
+    ${fechada && c.pagamentos.some(p => p.forma === 'crediario') ? `<div class="aviso info" style="margin-bottom:13px" id="avisoCrediarioComanda">
+      <b>Vendida no crediário.</b> As parcelas estão na tela Crediário, onde se
+      registra cada pagamento.
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        ${minhasTelas().some(t => t[0] === 'crediario') ? `<button class="btn btn-peq" onclick="fecharModal();irPara('crediario')">Ver as parcelas</button>` : ''}
+        <button class="btn btn-peq" onclick="desfazerVendaCrediario('${c.id}')">Desfazer a venda no crediário</button>
+      </div></div>` : ''}
     ${fechada ? `<div class="aviso ok" style="margin-bottom:13px">
       <b>Comanda fechada.</b> Este valor já está contando no faturamento
       ${c.fechadaEm ? 'de ' + porExtenso(instanteParaTela(c.fechadaEm, fusoDoSalaoAtual()).data) : ''}.
@@ -7594,7 +7629,7 @@ function abrirComanda(comId){
            justamente o rastro do erro que o estorno existe para guardar. */
         return `<span class="tag ${resta > 0 ? 't-conf' : 't-canc'}"
                       style="margin-right:5px">
-          ${p.forma} ${real(p.valor)}${
+          ${p.forma === 'crediario' ? 'crediário' : p.forma} ${real(p.valor)}${
             dev > 0 ? ` · devolvido ${real(dev)}` : ''}</span>${
           fechada || resta <= 0 ? '' :
           `<button class="btn btn-peq" style="margin-right:8px"
@@ -7619,7 +7654,9 @@ function abrirComanda(comId){
         <input type="number" id="cValor" value="${Math.max(total - pago, 0).toFixed(2)}"
                min="0" step="0.01"></div>
     </div>
-    <button class="btn btn-peq" onclick="receber('${c.id}')">Registrar pagamento</button>`}
+    <button class="btn btn-peq" onclick="receber('${c.id}')">Registrar pagamento</button>
+    ${crediarioNaAba() && faltaNaComanda(c) > 0 ? `<button class="btn btn-peq" style="margin-left:6px"
+        onclick="abrirVendaCrediario('${c.id}')">Vender no crediário</button>` : ''}`}
   `, fechada
     ? [['Reabrir', `reabrirComanda('${c.id}')`, ''],
        ['Fechar janela','fecharModal();pintar()','btn-p']]
@@ -7784,6 +7821,8 @@ function abrirCliente(cid){
         escapar(((c && lembreteDe(c.id)) || {}).texto || '')}</textarea>
       <p class="ajuda" style="margin-top:5px">Aparece para a equipe no horário dela.
         Diferente das observações acima, a cliente nunca vê, nem pelo link.</p></div>
+    ${c && crediarioLiberado() && minhasTelas().some(t => t[0] === 'crediario')
+      ? '<div id="kCrediario"></div>' : ''}
     <!-- A CLIENTE QUE PRECISA DE CONFIRMACAO. Mesmo com o salao confirmando
          sozinho, o horario que ela marca pelo link nasce pendente e espera o
          seu sim. Quem decide e o agendar() no banco (09_cliente.sql, 1c).
@@ -7798,6 +7837,7 @@ function abrirCliente(cid){
     ['Cancelar','fecharModal()',''],
     ['Salvar', `salvarCliente(${c ? `'${c.id}'` : 'null'})`, 'btn-p'],
   ]);
+  if(c && document.getElementById('kCrediario')) pintarCrediarioDaFicha(c.id);
   Documento.dataDigitavel(document.getElementById('kNasc'));
 }
 
@@ -9404,6 +9444,7 @@ function pintar(){
     pintarCaixa();
     carregarGaveta().then(pintarGaveta);
   }
+  if(telaAtual === 'crediario') pintarCrediario();
   // Guardado entre visitas: o `carregarDash()` só vai ao banco na primeira
   // vez, ou quando o dono aperta Atualizar.
   if(telaAtual === 'dashboard') carregarDash();
@@ -14963,8 +15004,10 @@ function avisarLimiteDeEquipe(){
       : [['Entendi', 'fecharModal()', 'btn-p']]);
 }
 function recursoDoPlano(chave){
-  // Um módulo adicional ativo libera a chave dele (46_adicionais).
-  if(meusAdicionais && (meusAdicionais.recursos || []).includes(chave)) return true;
+  // A chave de um módulo adicional (o Crediário) quem diz é o banco: pelo
+  // adicional contratado ou pelo plano (46_adicionais, `meus_adicionais`).
+  if(RECURSOS_DE_ADICIONAL.includes(chave))
+    return !!(meusAdicionais && (meusAdicionais.recursos || []).includes(chave));
   const p = planoEfetivo();
   return p && p.recursos ? p.recursos[chave] : undefined;
 }
@@ -15593,6 +15636,565 @@ function reabrirCobranca(){
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   O CREDIÁRIO (47_crediario) — vender parcelado no fiado
+   ---------------------------------------------------------------------------
+   A venda é a comanda: a entrada (se houver) é um pagamento normal, e o que
+   falta vira parcelas pelo `vender_no_crediario`, que também fecha a
+   comanda. Quem confere CPF, valor, datas e o módulo é o banco; a tela só
+   mostra antes, para a recepção conferir com a cliente na frente.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let crediarioDados = null, crediarioFiltro = 'abertas';
+
+function crediarioLiberado(){
+  return NA_NUVEM && recursoDoPlano('crediario') === true;
+}
+function crediarioNaAba(){
+  if(!NA_NUVEM || !meusAdicionais) return false;
+  if(crediarioLiberado()) return true;
+  return souGestor() && (meusAdicionais.catalogo || []).some(x => x.codigo === 'crediario');
+}
+// Mesmo dia do mês, N meses depois; o dia 31 vira o último do mês curto
+// (como o banco faz).
+function mesesDepois(iso, n){
+  const [a, m, d] = String(iso).split('-').map(Number);
+  const alvo = new Date(Date.UTC(a, m - 1 + n, 1));
+  const ultimo = new Date(Date.UTC(alvo.getUTCFullYear(), alvo.getUTCMonth() + 1, 0)).getUTCDate();
+  alvo.setUTCDate(Math.min(d, ultimo));
+  return alvo.toISOString().slice(0, 10);
+}
+const dm = iso => iso ? String(iso).slice(8, 10) + '/' + String(iso).slice(5, 7) : '';
+// A mesma conta do banco: os centavos que sobram vão para a primeira.
+function parcelasDoCrediario(total, n, primeiro){
+  const centavos = Math.round(total * 100);
+  const base = Math.floor(centavos / n);
+  return Array.from({ length: n }, (_, i) => ({ numero: i + 1,
+    valor: (base + (i === 0 ? centavos - base * n : 0)) / 100,
+    venceEm: mesesDepois(primeiro, i) }));
+}
+
+function avisoDoCrediario(){
+  const x = ((meusAdicionais || {}).catalogo || []).find(i => i.codigo === 'crediario');
+  return `<div class="card trava-plano">
+    <h3 style="font-size:18px;margin-bottom:6px">Crediário — módulo adicional</h3>
+    <p style="color:var(--txt2)">Venda parcelada no fiado: a cliente leva hoje e paga
+      em parcelas. O sistema guarda as parcelas, mostra o que vence e o que
+      atrasou, e prepara a cobrança no WhatsApp.</p>
+    ${x ? `<p><b>${real(Number(x.preco))} por mês</b>, a partir do plano ${escapar(x.planoMinimo || 'Essencial')}.</p>` : ''}
+    ${souGestor() && x && OFERTA_DE_PLANO
+      ? `<button class="btn btn-p" onclick="fecharModal();irPara('plano')">Contratar em Meu plano</button>`
+      : '<p style="font-size:13px">Fale com o proprietário do salão para contratar.</p>'}
+  </div>`;
+}
+
+async function carregarCrediario(){
+  try{ crediarioDados = await Dados.chamar('crediario_painel', { p_salao: salaoAtual }); }
+  catch(e){ crediarioDados = { erro: e.message || 'Não consegui ler o crediário agora.' }; }
+  return crediarioDados;
+}
+
+async function pintarCrediario(){
+  const alvo = document.getElementById('crCorpo');
+  if(!alvo) return;
+  if(!NA_NUVEM){
+    alvo.innerHTML = '<div class="vazio"><b>O crediário precisa do banco</b>Na demonstração não há venda a prazo.</div>';
+    return;
+  }
+  if(!crediarioLiberado()){ alvo.innerHTML = avisoDoCrediario(); return; }
+  if(!crediarioDados) alvo.innerHTML = '<div class="vazio">Carregando o crediário…</div>';
+  await carregarCrediario();
+  desenharCrediario();
+}
+
+function situacaoDaParcela(pa, hojeIso){
+  if(!(Number(pa.saldo) > 0)) return ['paga', 'Paga', 't-conf'];
+  if(pa.venceEm < hojeIso) return ['atrasada', 'Atrasada', 't-falt'];
+  if(pa.venceEm === hojeIso) return ['hoje', 'Vence hoje', 't-pend'];
+  return ['aberta', 'Em aberto', 't-pend'];
+}
+
+function desenharCrediario(){
+  const alvo = document.getElementById('crCorpo');
+  if(!alvo) return;
+  const d = crediarioDados || {};
+  if(d.erro){ alvo.innerHTML = `<div class="vazio">${escapar(d.erro)}</div>`; return; }
+  const r = d.resumo || {}, hj = d.hoje || hoje();
+  const vendas = (d.vendas || []).map(v => {
+    const ps = (v.parcelas || []).map(pa => ({ ...pa, sit: situacaoDaParcela(pa, hj) }));
+    return { ...v, ps, falta: ps.reduce((s, pa) => s + Math.max(Number(pa.saldo) || 0, 0), 0) };
+  });
+  const filtros = [['abertas', 'Em aberto'], ['atrasadas', 'Atrasadas'], ['hoje', 'Vencem hoje'], ['quitadas', 'Quitadas']];
+  const passa = v => crediarioFiltro === 'abertas' ? v.falta > 0
+    : crediarioFiltro === 'atrasadas' ? v.ps.some(pa => pa.sit[0] === 'atrasada')
+    : crediarioFiltro === 'hoje' ? v.ps.some(pa => pa.sit[0] === 'hoje')
+    : v.falta <= 0;
+  const lista = vendas.filter(passa);
+  alvo.innerHTML = `
+    <div class="kpis" id="crResumo">
+      <div class="kpi"><div class="v">${real(Number(r.aReceber) || 0)}</div><div class="r">a receber</div></div>
+      <div class="kpi"><div class="v" style="color:${Number(r.atrasado) > 0 ? 'var(--erro)' : 'inherit'}">${real(Number(r.atrasado) || 0)}</div><div class="r">atrasado</div></div>
+      <div class="kpi"><div class="v">${real(Number(r.venceHoje) || 0)}</div><div class="r">vence hoje</div></div>
+      <div class="kpi"><div class="v">${real(Number(r.recebido) || 0)}</div><div class="r">recebido no mês</div></div>
+    </div>
+    <div class="regua" style="margin:14px 0" id="crFiltros">${filtros.map(([k, rot]) =>
+      `<button class="${k === crediarioFiltro ? 'on' : ''}" onclick="crediarioFiltro='${k}';desenharCrediario()">${rot}</button>`).join('')}</div>
+    <div style="margin-bottom:12px">
+      <button class="btn btn-p" onclick="abrirNovaVendaCrediario()">+ Nova venda no crediário</button>
+    </div>
+    ${lista.length ? lista.map(v => cartaoDoCrediario(v)).join('')
+      : `<div class="vazio">${crediarioFiltro === 'abertas' ? 'Nenhuma parcela em aberto.'
+          : crediarioFiltro === 'atrasadas' ? 'Nenhuma parcela atrasada.'
+          : crediarioFiltro === 'hoje' ? 'Nenhuma parcela vence hoje.' : 'Nenhuma venda quitada nos últimos 60 dias.'}</div>`}`;
+}
+
+function cartaoDoCrediario(v){
+  const n = v.ps.length;
+  return `<div class="card cr-venda" style="margin-bottom:12px" data-venda="${escapar(v.id)}">
+    <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div><b>${escapar(v.cliente)}</b>
+        <div style="font-size:12.5px;color:var(--txt2)">Comanda ${escapar(String(v.numero || ''))} ·
+          ${real(Number(v.valor))} em ${n}x</div></div>
+      <div style="text-align:right"><b>${v.falta > 0 ? real(v.falta) : 'Quitado'}</b>
+        <div style="font-size:12px;color:var(--txt2)">${v.falta > 0 ? 'em aberto' : ''}</div></div>
+    </div>
+    <div style="margin-top:10px">${v.ps.map(pa => `
+      <div class="cr-parcela" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;
+           align-items:center;padding:8px 0;border-top:1px solid var(--borda)">
+        <div style="min-width:0">${pa.numero}/${n} · vence ${dm(pa.venceEm)} · ${real(Number(pa.valor))}
+          <span class="tag ${pa.sit[2]}" style="margin-left:6px">${pa.sit[1]}</span>
+          ${Number(pa.saldo) > 0 && Number(pa.saldo) < Number(pa.valor)
+            ? `<span style="font-size:12.5px;color:var(--txt2)"> · falta ${real(Number(pa.saldo))}</span>` : ''}
+          ${(pa.recebimentos || []).map(rc => `<div style="font-size:12.5px;color:var(--txt2)">
+             Recebido ${real(Number(rc.valor))} · ${escapar(FORMA_NOME[rc.forma] || rc.forma)} ·
+             ${dm(instanteParaTela(rc.em, fusoDoSalaoAtual()).data)}
+             ${souGestor() ? `<button class="btn btn-peq" style="margin-left:6px"
+               onclick="desfazerRecebimentoCrediario('${escapar(rc.id)}')">Desfazer</button>` : ''}</div>`).join('')}
+        </div>
+        ${Number(pa.saldo) > 0 ? `<div style="display:flex;gap:6px">
+          <button class="btn btn-peq" onclick="cobrarParcela('${escapar(v.id)}','${escapar(pa.id)}')">Cobrar</button>
+          <button class="btn btn-p btn-peq" onclick="abrirReceberParcela('${escapar(v.id)}','${escapar(pa.id)}')">Recebi</button>
+        </div>` : ''}
+      </div>`).join('')}</div>
+  </div>`;
+}
+
+function acharParcela(vendaId, parcelaId){
+  const v = ((crediarioDados || {}).vendas || []).find(x => x.id === vendaId);
+  const pa = v && (v.parcelas || []).find(x => x.id === parcelaId);
+  return v && pa ? { v, pa } : null;
+}
+
+function abrirReceberParcela(vendaId, parcelaId){
+  if(emSuporte()) return avisoDoSuporte('registrar recebimento');
+  const achou = acharParcela(vendaId, parcelaId);
+  if(!achou) return;
+  const { v, pa } = achou;
+  const saldo = Number(pa.saldo);
+  abrirModal('Receber a parcela', `
+    <p style="margin-bottom:12px">${escapar(v.cliente)} · parcela ${pa.numero} de ${(v.parcelas || []).length}
+      · em aberto <b>${real(saldo)}</b></p>
+    <div class="dupla">
+      <div class="campo"><label for="crValor">Valor</label>
+        <input type="number" id="crValor" step="0.01" min="0.01" max="${saldo}" value="${saldo.toFixed(2)}"></div>
+      <div class="campo"><label for="crForma">Forma</label>
+        <select id="crForma"><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option>
+          <option value="debito">Débito</option><option value="credito">Crédito</option>
+          <option value="transferencia">Transferência</option></select></div>
+    </div>
+    <p class="ajuda">Pagou menos? O resto continua em aberto nesta parcela. Em dinheiro,
+      entra na gaveta do caixa aberto.</p>`,
+    [['Cancelar', 'fecharModal()', ''], ['Receber', `receberParcela('${escapar(parcelaId)}')`, 'btn-p']]);
+}
+
+async function receberParcela(parcelaId){
+  const valor = Math.round(Number(String(document.getElementById('crValor').value).replace(',', '.')) * 100) / 100;
+  if(!(valor > 0)){ alert('Diga quanto ela pagou.'); return; }
+  try{
+    await Dados.chamar('receber_parcela', { p_parcela: parcelaId, p_valor: valor,
+      p_forma: document.getElementById('crForma').value });
+    fecharModal();
+    await pintarCrediario();
+  }catch(e){
+    alert('Não consegui registrar o recebimento.\n\n' + (e.message || e));
+  }
+}
+
+async function desfazerRecebimentoCrediario(recId){
+  if(!souGestor()) return;
+  if(!confirm('Desfazer este recebimento?\n\nA parcela volta a ficar em aberto e o valor sai do caixa.')) return;
+  try{
+    await Dados.chamar('desfazer_recebimento_crediario', { p_recebimento: recId });
+    await pintarCrediario();
+  }catch(e){
+    alert('Não consegui desfazer.\n\n' + (e.message || e));
+  }
+}
+
+/* A cobrança pelo WhatsApp DO SALÃO (o número dele, não o do AgendaPro): não
+   gasta franquia e funciona sem modelo aprovado. Sem `escapar()`: o texto vai
+   para dentro do endereço, e de lá para a caixa do WhatsApp. */
+function cobrarParcela(vendaId, parcelaId){
+  const achou = acharParcela(vendaId, parcelaId);
+  if(!achou) return;
+  const { v, pa } = achou;
+  const num = numeroWhatsapp(v.telefone);
+  if(!num){ alert('Esta ficha não tem WhatsApp.'); return; }
+  const sl = acharSalao(salaoAtual) || {};
+  const pix = String(((sl.cfg || {}).pagamentos || {}).pix || '').trim();
+  const hj = (crediarioDados || {}).hoje || hoje();
+  const quando = pa.venceEm < hj ? 'venceu em ' + dm(pa.venceEm)
+    : pa.venceEm === hj ? 'vence hoje' : 'vence em ' + dm(pa.venceEm);
+  const linhas = ['Olá, ' + String(v.cliente || '').split(' ')[0] + '! Lembrete da parcela '
+    + pa.numero + ' de ' + (v.parcelas || []).length + ' do seu crediário'
+    + (sl.nome ? ' no ' + sl.nome : '') + ': ' + real(Number(pa.saldo)) + ', ' + quando + '.'];
+  if(pix) linhas.push('Pix: ' + pix);
+  linhas.push('Se já pagou, desconsidere. Obrigada!');
+  window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener');
+}
+
+/* ── A venda direto na aba (a comanda pode estar desligada) ───────────────
+   A tela junta a cliente, os itens, a entrada e as parcelas; o banco lê o
+   preço do cadastro e monta a comanda por baixo. */
+let vendaNova = null;
+
+function abrirNovaVendaCrediario(){
+  if(emSuporte()) return avisoDoSuporte('vender no crediário');
+  if(!crediarioLiberado()){
+    abrirModal('Crediário', avisoDoCrediario(), [['Fechar', 'fecharModal()', '']]);
+    return;
+  }
+  vendaNova = { itens: [] };
+  const clientes = doSalao(bd.clientes || []).slice()
+    .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+  const produtos = doSalao(bd.produtos || []).filter(p => p.ativo !== false);
+  abrirModal('Nova venda no crediário', `
+    <div class="campo"><label for="vnCliente">Cliente</label>
+      <select id="vnCliente" onchange="clienteDaVendaNova()">
+        <option value="">Escolha a cliente</option>
+        ${clientes.map(c => `<option value="${escapar(c.id)}">${escapar(c.nome)}${c.telefone ? ' · ' + escapar(c.telefone) : ''}</option>`).join('')}
+      </select></div>
+    <div id="vnFicha"></div>
+    <div class="dupla">
+      <div class="campo"><label for="vnItem">Item</label>
+        <select id="vnItem">
+          ${produtos.length ? `<optgroup label="Produtos">${produtos.map(p =>
+            `<option value="produto:${escapar(p.id)}">${escapar(p.nome)} · ${real(p.preco)}</option>`).join('')}</optgroup>` : ''}
+          <optgroup label="Serviços">${servsAtivos().map(sv =>
+            `<option value="servico:${escapar(sv.id)}">${escapar(sv.nome)} · ${real(sv.preco)}</option>`).join('')}</optgroup>
+        </select></div>
+      <div class="campo"><label for="vnQtd">Quantidade</label>
+        <input type="number" id="vnQtd" value="1" min="1" step="1"></div>
+    </div>
+    <button class="btn btn-peq" onclick="somarNaVendaNova()">+ Somar à venda</button>
+    <div id="vnItens" style="margin:10px 0"></div>
+    <div class="dupla">
+      <div class="campo"><label for="vnDesc">Desconto</label>
+        <input type="number" id="vnDesc" value="0" min="0" step="0.01" oninput="pintarVendaNova()"></div>
+      <div class="campo"><label for="vnProf">Quem vendeu</label>
+        <select id="vnProf"><option value="">Ninguém (sem comissão)</option>${profsAtivos().map(p =>
+          `<option value="${escapar(p.id)}">${escapar(p.nome)}</option>`).join('')}</select></div>
+    </div>
+    <div class="dupla">
+      <div class="campo"><label for="vnEntrada">Entrada</label>
+        <input type="number" id="vnEntrada" value="0" min="0" step="0.01" oninput="pintarVendaNova()"></div>
+      <div class="campo"><label for="vnFormaEntrada">Entrada paga em</label>
+        <select id="vnFormaEntrada"><option value="pix">Pix</option><option value="dinheiro">Dinheiro</option>
+          <option value="debito">Débito</option><option value="credito">Crédito</option>
+          <option value="transferencia">Transferência</option></select></div>
+    </div>
+    <div class="dupla">
+      <div class="campo"><label for="vnN">Parcelas</label>
+        <select id="vnN" onchange="pintarVendaNova()">${Array.from({ length: 12 }, (_, i) =>
+          `<option value="${i + 1}"${i + 1 === 3 ? ' selected' : ''}>${i + 1}x</option>`).join('')}</select></div>
+      <div class="campo"><label for="vnData">Primeiro vencimento</label>
+        <input type="date" id="vnData" value="${mesesDepois(hoje(), 1)}" min="${hoje()}" onchange="pintarVendaNova()"></div>
+    </div>
+    <div id="vnPrevia"></div>`,
+    [['Cancelar', 'fecharModal()', ''], ['Vender no crediário', 'confirmarNovaVendaCrediario()', 'btn-p']]);
+  pintarVendaNova();
+}
+
+// A ficha da cliente escolhida: nome completo, WhatsApp e CPF, para conferir e completar.
+function clienteDaVendaNova(){
+  const alvo = document.getElementById('vnFicha');
+  const cl = acharCliente((document.getElementById('vnCliente') || {}).value);
+  if(!alvo) return;
+  if(!cl){ alvo.innerHTML = ''; return; }
+  alvo.innerHTML = `<p class="ajuda" style="margin:2px 0 8px">Para vender a prazo, a ficha precisa do
+      nome completo, do WhatsApp e do CPF.</p>
+    <div class="campo"><label for="vcNome">Nome completo</label>
+      <input id="vcNome" value="${escapar(cl.nome || '')}"></div>
+    <div class="dupla">
+      <div class="campo"><label for="vcTel">WhatsApp</label>
+        <input id="vcTel" value="${escapar(cl.telefone || '')}" placeholder="(11) 99999-9999"></div>
+      <div class="campo"><label for="vcCpf">CPF</label>
+        <input id="vcCpf" type="text" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"
+               value="${escapar(Endereco.documento(cl.cpf || ''))}" oninput="Documento.mascaraCpf(this)"></div>
+    </div>`;
+}
+
+function itemDoCatalogo(tipo, id){
+  return tipo === 'produto' ? doSalao(bd.produtos || []).find(p => p.id === id)
+                            : servsAtivos().find(sv => sv.id === id);
+}
+function somarNaVendaNova(){
+  const [tipo, id] = String((document.getElementById('vnItem') || {}).value || '').split(':');
+  const qtd = Math.max(1, Math.round(Number((document.getElementById('vnQtd') || {}).value) || 1));
+  if(!tipo || !itemDoCatalogo(tipo, id)) return;
+  const ja = vendaNova.itens.find(i => i.tipo === tipo && i.id === id);
+  if(ja) ja.qtd += qtd; else vendaNova.itens.push({ tipo, id, qtd });
+  pintarVendaNova();
+}
+function tirarDaVendaNova(ix){
+  vendaNova.itens.splice(ix, 1);
+  pintarVendaNova();
+}
+function contaDaVendaNova(){
+  const sub = vendaNova.itens.reduce((s, i) => s + Number((itemDoCatalogo(i.tipo, i.id) || {}).preco || 0) * i.qtd, 0);
+  const desc = Math.max(0, Number((document.getElementById('vnDesc') || {}).value) || 0);
+  const ent = Math.max(0, Number((document.getElementById('vnEntrada') || {}).value) || 0);
+  const total = Math.round((sub - desc) * 100) / 100;
+  return { sub, desc, ent, total, falta: Math.round((total - ent) * 100) / 100 };
+}
+function pintarVendaNova(){
+  if(!vendaNova) return;
+  const lista = document.getElementById('vnItens'), previa = document.getElementById('vnPrevia');
+  if(!lista || !previa) return;
+  lista.innerHTML = vendaNova.itens.length ? vendaNova.itens.map((i, ix) => {
+    const it = itemDoCatalogo(i.tipo, i.id) || {};
+    return `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--borda)">
+      <span>${escapar(it.nome || '')}${i.qtd > 1 ? ' ×' + i.qtd : ''}</span>
+      <span>${real(Number(it.preco || 0) * i.qtd)}
+        <button class="btn btn-peq" onclick="tirarDaVendaNova(${ix})" aria-label="Tirar">${ico('fechar')}</button></span></div>`;
+  }).join('') : '<div style="color:var(--txt3);font-size:13.5px">Nenhum item ainda.</div>';
+  const k = contaDaVendaNova();
+  const n = Number((document.getElementById('vnN') || {}).value || 0);
+  const data = (document.getElementById('vnData') || {}).value || '';
+  previa.innerHTML = !vendaNova.itens.length ? '' : `
+    <div class="aviso info" style="margin-bottom:8px" id="vnConta">Total ${real(k.total)}${k.ent > 0 ? ' · entrada ' + real(k.ent) : ''}
+      · <b>no crediário: ${real(Math.max(k.falta, 0))}</b></div>
+    ${k.falta > 0 && n && /^\d{4}-\d{2}-\d{2}$/.test(data) ? `<div style="font-size:14px;line-height:1.7">${
+      parcelasDoCrediario(k.falta, n, data).map(p => `${p.numero}ª · ${dm(p.venceEm)} · <b>${real(p.valor)}</b>`).join('<br>')}</div>` : ''}`;
+}
+
+async function confirmarNovaVendaCrediario(){
+  const cid = (document.getElementById('vnCliente') || {}).value;
+  const cl = acharCliente(cid);
+  if(!cl){ alert('Escolha a cliente.'); return; }
+  if(!vendaNova.itens.length){ alert('Some pelo menos um item à venda.'); return; }
+  const k = contaDaVendaNova();
+  if(!(k.falta > 0)){ alert('A entrada cobre a venda inteira: não sobra nada para o crediário.'); return; }
+  const nomeNovo = (document.getElementById('vcNome').value || '').trim().replace(/\s+/g, ' ');
+  const tel = telefoneParaBanco(document.getElementById('vcTel').value);
+  const cpf = Documento.soDigitos(document.getElementById('vcCpf').value || '');
+  const n = Number(document.getElementById('vnN').value);
+  const data = document.getElementById('vnData').value;
+  if(!/\S+\s+\S+/.test(nomeNovo)){ alert('Escreva o nome completo da cliente (nome e sobrenome).'); return; }
+  if(String(tel || '').replace(/\D/g, '').length < 10){ alert('Confira o WhatsApp da cliente, com o DDD.'); return; }
+  if(!Documento.cpfValido(cpf)){ alert('Confira o CPF da cliente: o número não confere.'); return; }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(data) || data < hoje()){ alert('Escolha a data do primeiro vencimento.'); return; }
+  if(cl.nome !== nomeNovo || cl.telefone !== tel || (cl.cpf || '') !== cpf){
+    cl.nome = nomeNovo; cl.telefone = tel; cl.cpf = cpf;
+  }
+  const botao = [...document.querySelectorAll('#fundo .modal button')].find(b => /Vender no crediário/.test(b.textContent));
+  if(botao) botao.disabled = true;
+  salvar();
+  await _filaGravacao;
+  let r;
+  try{
+    r = await Dados.chamar('nova_venda_no_crediario', {
+      p_salao: salaoAtual, p_cliente: cl.id,
+      p_itens: vendaNova.itens.map(i => ({ tipo: i.tipo, id: i.id, qtd: i.qtd })),
+      p_profissional: (document.getElementById('vnProf') || {}).value || null,
+      p_desconto: k.desc, p_entrada: k.ent,
+      p_forma_entrada: k.ent > 0 ? document.getElementById('vnFormaEntrada').value : null,
+      p_parcelas: n, p_primeiro: data });
+  }catch(e){
+    if(botao) botao.disabled = false;
+    alert('Não consegui vender no crediário.\n\n' + (e.message || e));
+    return;
+  }
+  const novo = await carregarTudo();
+  if(novo) bd = novo;
+  crediarioDados = null;
+  vendaNova = null;
+  mostrarVendaCrediario(r.comanda, r);
+  if(telaAtual === 'crediario') pintarCrediario();
+}
+
+/* ── Vender no crediário, de dentro da comanda ─────────────────────────── */
+function abrirVendaCrediario(comId){
+  if(emSuporte()) return avisoDoSuporte('vender no crediário');
+  const c = bd.comandas.find(x => x.id === comId);
+  if(!c || comandaFechada(c)) return;
+  if(!crediarioLiberado()){
+    abrirModal('Crediário', avisoDoCrediario(), [['Fechar', `fecharModal();abrirComanda('${c.id}')`, '']]);
+    return;
+  }
+  if(!c.clienteId){ alert('Escolha a cliente da comanda: o crediário fica no nome dela.'); return; }
+  const falta = Math.round(faltaNaComanda(c) * 100) / 100;
+  if(!(falta > 0)){ alert('Esta comanda já está paga.'); return; }
+  const cl = acharCliente(c.clienteId) || {};
+  const primeiro = mesesDepois(hoje(), 1);
+  abrirModal('Vender no crediário', `
+    <div class="aviso info" style="margin-top:0">Vai para o crediário: <b>${real(falta)}</b>.
+      Se ela der uma entrada, registre o pagamento da entrada antes (Pix, dinheiro…).</div>
+    <p class="ajuda" style="margin:10px 0">Para vender a prazo, a ficha precisa do nome
+      completo, do WhatsApp e do CPF.</p>
+    <div class="campo"><label for="vcNome">Nome completo</label>
+      <input id="vcNome" value="${escapar(cl.nome || '')}"></div>
+    <div class="dupla">
+      <div class="campo"><label for="vcTel">WhatsApp</label>
+        <input id="vcTel" value="${escapar(cl.telefone || '')}" placeholder="(11) 99999-9999"></div>
+      <div class="campo"><label for="vcCpf">CPF</label>
+        <input id="vcCpf" type="text" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"
+               value="${escapar(Endereco.documento(cl.cpf || ''))}" oninput="Documento.mascaraCpf(this)"></div>
+    </div>
+    <div class="dupla">
+      <div class="campo"><label for="vcN">Parcelas</label>
+        <select id="vcN" onchange="previaDoCrediario(${falta})">${Array.from({ length: 12 }, (_, i) =>
+          `<option value="${i + 1}"${i + 1 === 3 ? ' selected' : ''}>${i + 1}x</option>`).join('')}</select></div>
+      <div class="campo"><label for="vcData">Primeiro vencimento</label>
+        <input type="date" id="vcData" value="${primeiro}" min="${hoje()}" onchange="previaDoCrediario(${falta})"></div>
+    </div>
+    <div id="vcPrevia"></div>`,
+    [['Cancelar', `fecharModal();abrirComanda('${c.id}')`, ''],
+     ['Vender no crediário', `confirmarVendaCrediario('${c.id}')`, 'btn-p']]);
+  previaDoCrediario(falta);
+}
+
+function previaDoCrediario(falta){
+  const alvo = document.getElementById('vcPrevia');
+  const n = Number((document.getElementById('vcN') || {}).value || 0);
+  const data = (document.getElementById('vcData') || {}).value || '';
+  if(!alvo) return;
+  if(!n || !/^\d{4}-\d{2}-\d{2}$/.test(data)){ alvo.innerHTML = ''; return; }
+  alvo.innerHTML = `<div class="campo"><label>As parcelas</label>
+    <div style="font-size:14px;line-height:1.7">${parcelasDoCrediario(falta, n, data).map(p =>
+      `${p.numero}ª · ${dm(p.venceEm)} · <b>${real(p.valor)}</b>`).join('<br>')}</div></div>`;
+}
+
+async function confirmarVendaCrediario(comId){
+  const c = bd.comandas.find(x => x.id === comId);
+  const cl = c && acharCliente(c.clienteId);
+  if(!c || !cl) return;
+  const nomeNovo = (document.getElementById('vcNome').value || '').trim().replace(/\s+/g, ' ');
+  const tel = telefoneParaBanco(document.getElementById('vcTel').value);
+  const cpf = Documento.soDigitos(document.getElementById('vcCpf').value || '');
+  const n = Number(document.getElementById('vcN').value);
+  const data = document.getElementById('vcData').value;
+  if(!/\S+\s+\S+/.test(nomeNovo)){ alert('Escreva o nome completo da cliente (nome e sobrenome).'); return; }
+  if(String(tel || '').replace(/\D/g, '').length < 10){ alert('Confira o WhatsApp da cliente, com o DDD.'); return; }
+  if(!Documento.cpfValido(cpf)){ alert('Confira o CPF da cliente: o número não confere.'); return; }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(data) || data < hoje()){ alert('Escolha a data do primeiro vencimento.'); return; }
+  // A ficha completa (e o que estiver pendente na comanda) vai antes: é com
+  // ela que o banco confere.
+  if(cl.nome !== nomeNovo || cl.telefone !== tel || (cl.cpf || '') !== cpf){
+    cl.nome = nomeNovo; cl.telefone = tel; cl.cpf = cpf;
+  }
+  const botao = [...document.querySelectorAll('#fundo .modal button')].find(b => /Vender no crediário/.test(b.textContent));
+  if(botao) botao.disabled = true;
+  salvar();
+  await _filaGravacao;
+  let r;
+  try{
+    r = await Dados.chamar('vender_no_crediario', { p_comanda: comId, p_parcelas: n, p_primeiro: data });
+  }catch(e){
+    if(botao) botao.disabled = false;
+    alert('Não consegui vender no crediário.\n\n' + (e.message || e));
+    return;
+  }
+  const novo = await carregarTudo();
+  if(novo) bd = novo;
+  crediarioDados = null;
+  mostrarVendaCrediario(comId, r);
+  pintar();
+}
+
+function mostrarVendaCrediario(comId, r){
+  const c = bd.comandas.find(x => x.id === comId);
+  const ps = (r && r.parcelas) || [];
+  abrirModal('Vendido no crediário', `
+    <p style="margin-bottom:10px">${escapar(nomeCliente(c ? c.clienteId : null))} ·
+      <b>${real(Number(r && r.valor))}</b> em ${ps.length}x. A comanda está fechada.</p>
+    <div style="font-size:14px;line-height:1.7" id="vcParcelas">${ps.map(p =>
+      `${p.numero}ª · ${dm(p.venceEm)} · <b>${real(Number(p.valor))}</b>`).join('<br>')}</div>`,
+    [['Fechar', 'fecharModal();pintar()', ''],
+     ...(c && zapDoCliente(c.clienteId) ? [['Mandar o combinado no WhatsApp', `mandarCombinadoNoZap('${escapar(comId)}')`, 'btn-zap']] : [])]);
+  mostrarVendaCrediario.ultimo = r;
+}
+
+function mandarCombinadoNoZap(comId){
+  const c = bd.comandas.find(x => x.id === comId);
+  const r = mostrarVendaCrediario.ultimo;
+  const num = c && zapDoCliente(c.clienteId);
+  if(!num || !r) return;
+  const sl = acharSalao(salaoAtual) || {};
+  const pix = String(((sl.cfg || {}).pagamentos || {}).pix || '').trim();
+  const linhas = ['Olá, ' + String(nomeCliente(c.clienteId)).split(' ')[0] + '! O combinado do seu crediário'
+    + (sl.nome ? ' no ' + sl.nome : '') + ': ' + real(Number(r.valor)) + ' em ' + (r.parcelas || []).length + 'x.'];
+  for(const p of r.parcelas || []) linhas.push('• ' + p.numero + 'ª: ' + real(Number(p.valor)) + ' — ' + dm(p.venceEm));
+  if(pix) linhas.push('', 'Pix: ' + pix);
+  linhas.push('Obrigada!');
+  fecharModal();
+  window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener');
+}
+
+async function desfazerVendaCrediario(comId){
+  if(emSuporte()) return avisoDoSuporte('desfazer a venda no crediário');
+  if(!confirm('Desfazer a venda no crediário?\n\nAs parcelas saem, e a comanda volta a ficar aberta '
+      + 'com o valor a receber, para você registrar do jeito certo. Só dá enquanto nenhuma parcela foi recebida.')) return;
+  await carregarCrediario();
+  const v = ((crediarioDados || {}).vendas || []).find(x => x.comandaId === comId);
+  if(!v){ alert('Não achei a venda no crediário desta comanda.'); return; }
+  try{
+    await Dados.chamar('desfazer_crediario', { p_crediario: v.id });
+  }catch(e){
+    alert('Não consegui desfazer.\n\n' + (e.message || e));
+    return;
+  }
+  const novo = await carregarTudo();
+  if(novo) bd = novo;
+  crediarioDados = null;
+  abrirComanda(comId);
+}
+
+/* O que a cliente deve, na ficha dela. */
+async function pintarCrediarioDaFicha(clienteId){
+  await carregarCrediario();
+  const alvo = document.getElementById('kCrediario');
+  const d = crediarioDados || {};
+  if(!alvo || d.erro) return;
+  const hj = d.hoje || hoje();
+  const ps = (d.vendas || []).filter(v => v.clienteId === clienteId)
+    .flatMap(v => (v.parcelas || []).filter(pa => Number(pa.saldo) > 0));
+  if(!ps.length){ alvo.innerHTML = ''; return; }
+  const deve = ps.reduce((s, pa) => s + Number(pa.saldo), 0);
+  const prox = ps.map(pa => pa.venceEm).sort()[0];
+  const atrasada = ps.some(pa => pa.venceEm < hj);
+  alvo.innerHTML = `<div class="aviso ${atrasada ? 'atencao' : 'info'}" style="margin:6px 0 10px">
+    <b>Crediário:</b> deve ${real(deve)} em ${ps.length} parcela(s)${atrasada ? ', com parcela atrasada' : ''}
+    · próxima ${dm(prox)}.
+    <button class="btn btn-peq" style="margin-left:6px" onclick="fecharModal();irPara('crediario')">Ver</button></div>`;
+}
+
+/* No relatório: o que foi vendido no fiado, o que entrou das parcelas e o
+   que está em aberto. O vendido já está no faturamento lá em cima. */
+function relatorioDoCrediario(cr){
+  if(!cr) return '';
+  const n = v => Number(v) || 0;
+  if(!n(cr.vendido) && !n(cr.recebido) && !n(cr.aReceber)) return '';
+  return `<h2 class="rel-secao">Crediário
+      <small>O vendido no fiado já está no faturamento; o recebido é o que entrou das
+             parcelas no período (não soma de novo). O a receber é o que está em aberto hoje.</small></h2>
+    <div class="kpis" id="relCrediario">
+      <div class="kpi"><div class="v">${real(n(cr.vendido))}</div><div class="r">vendido no crediário</div></div>
+      <div class="kpi"><div class="v">${real(n(cr.recebido))}</div><div class="r">recebido das parcelas</div></div>
+      <div class="kpi"><div class="v">${real(n(cr.aReceber))}</div><div class="r">a receber</div></div>
+      <div class="kpi"><div class="v">${real(n(cr.atrasado))}</div><div class="r">atrasado</div></div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    OS MÓDULOS ADICIONAIS (46_adicionais) — o Crediário e os próximos
    ---------------------------------------------------------------------------
    A mensalidade é PLANO + ADICIONAIS. Quem decide se pode, quanto custa e o
@@ -15602,12 +16204,19 @@ function reabrirCobranca(){
    salão paga no cartão. O valor nunca sai daqui.
    ═══════════════════════════════════════════════════════════════════════════ */
 let meusAdicionais = null;
+const RECURSOS_DE_ADICIONAL = ['crediario'];
 
 async function carregarAdicionais(){
   if(!NA_NUVEM || !salaoAtual) return;
+  const antes = JSON.stringify((meusAdicionais || {}).recursos || []) + crediarioNaAba();
   try{ meusAdicionais = await Dados.chamar('meus_adicionais', { p_salao: salaoAtual }); }
   catch(e){ meusAdicionais = null; console.info('[AgendaPro] módulos adicionais:', e.message); }
   pintarAdicionais();
+  // O que o banco disse muda o menu (a aba Crediário) e a tela aberta.
+  if(antes !== JSON.stringify((meusAdicionais || {}).recursos || []) + crediarioNaAba()){
+    montarAbas();
+    if(telaAtual === 'crediario') pintarCrediario();
+  }
 }
 function adicionalAtivo(codigo){
   return !!(meusAdicionais && (meusAdicionais.ativos || []).includes(codigo));
@@ -18957,6 +19566,9 @@ function iniciar(){
   mostrarQuemEstaLogado();
   pintarFaixaSuporte();
   pintar();
+  // Os módulos adicionais (o Crediário): quando a resposta chega, o menu se
+  // refaz se a aba mudou (46_adicionais).
+  carregarAdicionais();
   /* O restaurante abre na tela de Pedidos (uma vez só por carga da página:
      o `iniciar()` roda de novo quando o nome ou o tipo muda, e não pode
      arrancar a pessoa da tela em que ela está). O relógio dos pedidos liga

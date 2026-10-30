@@ -130,9 +130,14 @@ begin
                      coalesce(pr.apelido, pr.nome, 'sem profissional') as nome,
                      round(sum(u.vendido), 2)  as vendido,
                      round(sum(u.comissao), 2) as comissao,
-                     count(*)                  as itens
+                     count(*) filter (where u.item) as itens
+                /* No CREDIÁRIO (47), a comissão é conforme a cliente paga: na
+                   venda conta a parte paga na hora (`fator_a_vista`, que é 1
+                   nas comandas sem crediário), e cada parcela recebida conta
+                   a dela, no dia em que entrou (o último union). */
                 from (select i.profissional_id as pid, i.total as vendido,
-                             i.comissao_valor as comissao
+                             i.comissao_valor * public.fator_a_vista(c.id) as comissao,
+                             true as item
                 /* ⚠ `comanda_itens_calculados`, e não `comanda_itens`.
 
                    A vista é o ÚNICO lugar deste sistema que calcula
@@ -159,13 +164,22 @@ begin
                  vira comanda — o dinheiro entrou na venda —, mas é trabalho,
                  e a comissão dela entra aqui, no dia em que foi atendida. */
               union all
-              select pk.profissional_id, pk.base, pk.comissao
+              select pk.profissional_id, pk.base, pk.comissao, true
                 from public.pacote_comissoes pk
                where pk.salao_id = p_salao
-                 and pk.atendida_em >= v_ini and pk.atendida_em < v_fim) u
+                 and pk.atendida_em >= v_ini and pk.atendida_em < v_fim
+              union all
+              select cc.profissional_id, 0, cc.comissao, false
+                from public.crediario_comissoes(p_salao, v_ini, v_fim) cc) u
                 left join public.profissionais pr on pr.id = u.pid
                group by u.pid, coalesce(pr.apelido, pr.nome, 'sem profissional')) x),
       '[]'::jsonb),
+
+    -- ── O CREDIÁRIO (47) ──────────────────────────────────────────────────
+    -- Vendido no fiado no período, recebido das parcelas no período, e o que
+    -- está em aberto hoje. O vendido já está no faturamento; o recebido não
+    -- soma com ele (seria contar a venda duas vezes).
+    'crediario', public.crediario_no_periodo(p_salao, v_ini, v_fim),
 
     -- ── O QUE MAIS SAI ────────────────────────────────────────────────────
     'servicos', coalesce((
