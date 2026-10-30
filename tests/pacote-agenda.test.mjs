@@ -256,6 +256,28 @@ secao('6. Quem atende não vê a aba');
   await ctx.close();
 }
 
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('7. A comissão da sessão de pacote, no relatório da dona');
+{
+  // A primeira terça da Maria foi atendida (pela Ju, 40%). O pacote de R$ 300
+  // cobre um cheio de R$ 260, então a sessão de mão vale o cheio: R$ 40, e a
+  // comissão é R$ 16,00 (44_pacote_comissao.sql).
+  await banco.query(`update public.agendamentos set status = 'concluido'
+    where id = (select id from public.agendamentos where pacote_cliente_id = $1 order by inicio limit 1)`, [vMaria.id]);
+  const { ctx, p: pd } = await abrirPainel(dDona, 'dona');
+  await pd.evaluate(() => irPara('relatorios'));
+  await pd.waitForFunction(() => /Ju Unhas/.test((document.getElementById('relCorpo') || {}).innerText || ''),
+    null, { timeout: 15000 }).catch(() => {});
+  const rel = await pd.evaluate(() => (document.getElementById('relCorpo') || {}).innerText || '');
+  const linhaJu = await pd.evaluate(() => {
+    const tr = [...document.querySelectorAll('#relCorpo tr')].find(t => /Ju Unhas/.test(t.textContent));
+    return tr ? [...tr.children].map(td => td.textContent.replace(/\s+/g, ' ').trim()) : null; });
+  igual('a Ju aparece no relatório com a terça atendida: vendeu R$ 40, comissão R$ 16',
+    linhaJu, ['Ju Unhas', '1', 'R$ 40,00', 'R$ 16,00']);
+  verdade('e a venda do pacote não vira linha "sem profissional"', !/sem profissional/.test(rel));
+  await ctx.close();
+}
+
 verdade('sem erro de JavaScript nem alerta', erros.length === 0, erros.join(' | '));
 await nav.close();
 await banco.end();

@@ -1052,6 +1052,30 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
            else '' end
   union all
+  /* A comissão da sessão de pacote (44_pacote_comissao): proporcional, de
+     quem atendeu, ao atender — e no relatório e no painel do dia. */
+  select 51, 'Comissão da sessão de pacote',
+         case
+           when to_regclass('public.pacote_comissoes') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_comissao'
+                              and tgrelid = 'public.agendamentos'::regclass)
+             or not exists (select 1 from pg_proc where proname = 'relatorio'
+                              and prosrc like '%pacote_comissoes%')
+             or not exists (select 1 from pg_proc where proname = 'painel_hoje'
+                              and prosrc like '%pacote_comissoes%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regclass('public.pacote_comissoes') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_comissao'
+                              and tgrelid = 'public.agendamentos'::regclass)
+             or not exists (select 1 from pg_proc where proname = 'relatorio'
+                              and prosrc like '%pacote_comissoes%')
+             or not exists (select 1 from pg_proc where proname = 'painel_hoje'
+                              and prosrc like '%pacote_comissoes%')
+             then 'cole o 00_tudo.sql de novo (44_pacote_comissao, 12 e 18)'
+           else '' end
+  union all
   /* O pacote com agenda fixa e o pagamento do pacote (43_pacote_agenda): as
      semanas já marcadas, uma mensagem só, e o pagamento virando comanda. */
   select 50, 'Pacote com agenda fixa e pagamento do pacote',

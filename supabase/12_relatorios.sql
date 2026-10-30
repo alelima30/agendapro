@@ -126,11 +126,13 @@ begin
                'vendido', x.vendido, 'comissao', x.comissao,
                'itens', x.itens)
              order by x.comissao desc)
-        from (select i.profissional_id as pid,
+        from (select u.pid,
                      coalesce(pr.apelido, pr.nome, 'sem profissional') as nome,
-                     round(sum(i.total), 2)          as vendido,
-                     round(sum(i.comissao_valor), 2) as comissao,
-                     count(*)                        as itens
+                     round(sum(u.vendido), 2)  as vendido,
+                     round(sum(u.comissao), 2) as comissao,
+                     count(*)                  as itens
+                from (select i.profissional_id as pid, i.total as vendido,
+                             i.comissao_valor as comissao
                 /* ⚠ `comanda_itens_calculados`, e não `comanda_itens`.
 
                    A vista é o ÚNICO lugar deste sistema que calcula
@@ -147,10 +149,22 @@ begin
                    para lembrar disso que está escrito aqui. */
                 from public.comanda_itens_calculados i
                 join public.comandas c on c.id = i.comanda_id
-                left join public.profissionais pr on pr.id = i.profissional_id
                where c.salao_id = p_salao and c.status = 'fechada'
                  and c.fechada_em >= v_ini and c.fechada_em < v_fim
-               group by i.profissional_id, coalesce(pr.apelido, pr.nome, 'sem profissional')) x),
+                 /* A venda do pacote (43) é item sem profissional e sem
+                    comissão: é faturamento, e não trabalho de ninguém. */
+                 and not (i.profissional_id is null and coalesce(i.comissao_valor, 0) = 0
+                          and c.automatica and c.agendamento_id is null)
+              /* A sessão de PACOTE atendida (44_pacote_comissao.sql): não
+                 vira comanda — o dinheiro entrou na venda —, mas é trabalho,
+                 e a comissão dela entra aqui, no dia em que foi atendida. */
+              union all
+              select pk.profissional_id, pk.base, pk.comissao
+                from public.pacote_comissoes pk
+               where pk.salao_id = p_salao
+                 and pk.atendida_em >= v_ini and pk.atendida_em < v_fim) u
+                left join public.profissionais pr on pr.id = u.pid
+               group by u.pid, coalesce(pr.apelido, pr.nome, 'sem profissional')) x),
       '[]'::jsonb),
 
     -- ── O QUE MAIS SAI ────────────────────────────────────────────────────

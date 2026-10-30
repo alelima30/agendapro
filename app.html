@@ -2094,7 +2094,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.d466fd';
+const VERSAO_APP = 'v9.edeac2';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6250,7 +6250,9 @@ function desenharRelatorio(r){
 
     <h2 class="rel-secao">Comissão por profissional
       <small>Some o que cada uma vendeu no período. Sai do item, então uma
-             cliente atendida por duas pessoas conta certo para as duas.</small></h2>
+             cliente atendida por duas pessoas conta certo para as duas. A
+             sessão de pacote atendida entra pela parte dela no valor do
+             pacote, para quem atendeu.</small></h2>
     ${comissoes.length ? `<div class="tabela-rola"><table class="tabela"><thead><tr>
         <th>Profissional</th><th style="text-align:right">Itens</th>
         <th style="text-align:right">Vendeu</th><th style="text-align:right">A receber</th>
