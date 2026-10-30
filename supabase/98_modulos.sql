@@ -799,6 +799,7 @@ create table if not exists public.cobrancas (
 );
 create index if not exists ix_cobranca_salao
   on public.cobrancas(salao_id, criada_em desc);
+alter table public.cobrancas add column if not exists itens jsonb;
 create unique index if not exists ux_cobranca_aberta
   on public.cobrancas(salao_id) where (status = 'pendente');
 alter table public.cobrancas enable row level security;
@@ -828,6 +829,7 @@ returns public.cobrancas
 language plpgsql security definer set search_path = public as $$
 declare
   v_preco numeric(10,2);
+  v_itens jsonb;
   v_dias  int;
   v_ja    public.cobrancas;
   v_nova  public.cobrancas;
@@ -853,7 +855,8 @@ begin
   if not exists (select 1 from public.planos where codigo = p_plano) then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
-  v_preco := public.preco_do_plano(p_salao, p_plano);
+  v_itens := public.itens_da_mensalidade(p_salao, p_plano);
+  v_preco := public.soma_dos_itens(v_itens);
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -865,15 +868,16 @@ begin
      and metodo <> 'cartao'
    for update;
   if found then
-    if v_ja.plano = p_plano and v_ja.metodo = p_metodo and v_ja.vence_em > now() then
+    if v_ja.plano = p_plano and v_ja.metodo = p_metodo and v_ja.vence_em > now()
+       and v_ja.valor = v_preco then
       return v_ja;
     end if;
     update public.cobrancas set status = 'cancelada' where id = v_ja.id;
   end if;
   v_dias := case when p_metodo = 'boleto' then 3 else 1 end;
-  insert into public.cobrancas (salao_id, plano, valor, metodo, vence_em, aberta_por)
+  insert into public.cobrancas (salao_id, plano, valor, metodo, vence_em, aberta_por, itens)
   values (p_salao, p_plano, v_preco, p_metodo,
-          now() + make_interval(days => v_dias), p_quem)
+          now() + make_interval(days => v_dias), p_quem, v_itens)
   returning * into v_nova;
   return v_nova;
 end $$;
@@ -951,6 +955,7 @@ begin
          vence_em = coalesce(v_base, current_date) + interval '1 month',
          atualizado_em = now()
    where salao_id = c.salao_id;
+  perform public.adicionais_pagos(c.salao_id, c.plano, c.itens);
   return jsonb_build_object('ok', true, 'salao', c.salao_id, 'plano', c.plano);
 end $$;
 revoke all on function public.abrir_cobranca(uuid, text, text, uuid) from public, anon, authenticated;
@@ -3667,7 +3672,7 @@ begin
   return jsonb_build_object(
     'aberta', (
       select to_jsonb(x) from (
-        select c.id, c.plano, c.valor, c.metodo, c.vence_em,
+        select c.id, c.plano, c.valor, c.metodo, c.vence_em, c.itens,
                c.pix_copia_cola, c.pix_qr_base64, c.boleto_url, c.linha_digitavel
           from public.cobrancas c
          where c.salao_id = p_salao and c.status = 'pendente'
@@ -3677,7 +3682,7 @@ begin
     'historico', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', h.id, 'plano', h.plano, 'valor', h.valor,
-               'metodo', h.metodo, 'status', h.status,
+               'metodo', h.metodo, 'status', h.status, 'itens', h.itens,
                'pagaEm', h.paga_em, 'criadaEm', h.criada_em)
              order by h.criada_em desc)
         from (select * from public.cobrancas
@@ -3714,7 +3719,7 @@ begin
   end if;
   select preco_mes, nome into v_preco, v_nome
     from public.planos where codigo = p_plano;
-  if v_preco is not null then v_preco := public.preco_do_plano(p_salao, p_plano); end if;
+  if v_preco is not null then v_preco := public.valor_da_mensalidade(p_salao, p_plano); end if;
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -3844,6 +3849,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   a public.assinaturas;
   v_preco numeric(10,2);
+  v_itens jsonb;
 begin
   select * into a from public.assinaturas
    where mp_preapproval = p_preapproval
@@ -3854,14 +3860,15 @@ begin
   if exists (select 1 from public.cobrancas where mp_id = p_mp_id) then
     return jsonb_build_object('ok', true, 'motivo', 'ja_registrada');
   end if;
-  v_preco := public.preco_do_plano(a.salao_id, a.plano);
-  if coalesce(v_preco, 0) <= 0 then
+  if coalesce(public.preco_do_plano(a.salao_id, a.plano), 0) <= 0 then
     return jsonb_build_object('ok', false, 'motivo', 'plano_sem_preco');
   end if;
+  v_itens := public.itens_que_batem(a.salao_id, a.plano, p_valor);
+  v_preco := public.soma_dos_itens(v_itens);
   insert into public.cobrancas
-    (salao_id, plano, valor, metodo, status, vence_em, mp_id, mp_status)
+    (salao_id, plano, valor, metodo, status, vence_em, mp_id, mp_status, itens)
   values (a.salao_id, a.plano, v_preco, 'cartao', 'pendente',
-          now() + interval '7 days', p_mp_id, p_status);
+          now() + interval '7 days', p_mp_id, p_status, v_itens);
   return public.registrar_pagamento(p_mp_id, p_valor, p_status);
 end $$;
 create or replace function public.assinaturas_a_vencer(p_dias int default 5)
@@ -7529,6 +7536,418 @@ revoke all on function public.tg_pacote_cliente_avisos() from public, anon, auth
 revoke all on function public.tg_salao_avisos_de_pacote() from public, anon, authenticated;
 revoke all on function public.definir_mensagens_do_pacote(boolean) from public, anon;
 grant execute on function public.definir_mensagens_do_pacote(boolean) to authenticated;
+
+create table if not exists public.adicionais (
+  codigo     text primary key,
+  nome       text not null,
+  descricao  text not null default '',
+  preco_mes  numeric(10,2) not null check (preco_mes > 0),
+  recurso    text not null,
+  planos     text[] not null default '{}',
+  recursos   jsonb not null default '{}'::jsonb,
+  ativo      boolean not null default true,
+  ordem      smallint not null default 0
+);
+insert into public.adicionais (codigo, nome, descricao, preco_mes, recurso, planos, recursos, ativo, ordem)
+values ('crediario', 'Crediário',
+        'Venda parcelada no fiado, com as parcelas, o "a receber" e a cobrança no WhatsApp.',
+        49.90, 'crediario', array['individual', 'duo', 'time', 'equipe', 'salao'],
+        '{"mensagens_crediario": 200}'::jsonb, false, 1)
+on conflict (codigo) do update
+  set nome = excluded.nome, descricao = excluded.descricao, recurso = excluded.recurso;
+update public.planos set recursos = recursos || '{"crediario": true}'::jsonb
+ where codigo = 'trial';
+alter table public.adicionais enable row level security;
+drop policy if exists adicionais_ler on public.adicionais;
+create policy adicionais_ler on public.adicionais for select to authenticated using (true);
+revoke all on public.adicionais from anon, authenticated;
+grant select on public.adicionais to authenticated;
+create table if not exists public.salao_adicionais (
+  salao_id       uuid not null references public.saloes(id) on delete cascade,
+  adicional      text not null references public.adicionais(codigo),
+  status         text not null check (status in ('ativo', 'aguardando', 'cancelado')),
+  desde          timestamptz not null default now(),
+  ativo_desde    timestamptz,
+  cancelado_em   timestamptz,
+  vale_ate       date,
+  cortesia       boolean not null default false,
+  preco_especial numeric(10,2) check (preco_especial is null or preco_especial >= 0),
+  ja_teve        boolean not null default false,
+  atualizado_em  timestamptz not null default now(),
+  primary key (salao_id, adicional)
+);
+alter table public.salao_adicionais enable row level security;
+drop policy if exists salao_adicionais_ler on public.salao_adicionais;
+create policy salao_adicionais_ler on public.salao_adicionais
+  for select to authenticated using (public.e_gestor(salao_id) or public.is_super());
+revoke all on public.salao_adicionais from anon, authenticated;
+grant select on public.salao_adicionais to authenticated;
+create or replace function public.adicional_ativo(p_salao uuid, p_adicional text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.salao_adicionais sa
+      join public.adicionais ad on ad.codigo = sa.adicional
+     where sa.salao_id = p_salao and sa.adicional = p_adicional
+       and ((sa.cortesia and sa.status = 'ativo')
+            or (public.plano_efetivo(p_salao) = any(ad.planos)
+                and (sa.status = 'ativo'
+                     or (sa.status = 'cancelado' and sa.vale_ate >= current_date)))))
+$$;
+create or replace function public.recurso_bool(p_salao uuid, p_chave text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select (pl.recursos ->> p_chave)::boolean
+                     from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)), false)
+      or exists (select 1 from public.adicionais ad
+                  where ad.recurso = p_chave and public.adicional_ativo(p_salao, ad.codigo))
+$$;
+create or replace function public.exigir_recurso(p_salao uuid, p_chave text, p_nome text)
+returns void language plpgsql stable set search_path = public as $$
+declare v_nome text; v_minimo text;
+begin
+  if coalesce(public.recurso_bool(p_salao, p_chave), false) then return; end if;
+  begin
+    select ad.nome,
+           (select pl.nome from public.planos pl where pl.codigo = any(ad.planos)
+             order by pl.preco_mes, pl.ordem limit 1)
+      into v_nome, v_minimo
+      from public.adicionais ad where ad.recurso = p_chave order by ad.ordem limit 1;
+  exception when insufficient_privilege then v_nome := null;
+  end;
+  if v_nome is not null then
+    raise exception '% faz parte do módulo adicional %, a partir do plano %. Contrate em Meu plano.',
+      p_nome, v_nome, coalesce(v_minimo, 'Essencial')
+      using errcode = 'check_violation';
+  end if;
+  raise exception '% está disponível a partir do plano Básico.', p_nome
+    using errcode = 'check_violation';
+end $$;
+create or replace function public.itens_da_mensalidade(p_salao uuid, p_plano text)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_array(jsonb_build_object('tipo', 'plano', 'codigo', p_plano,
+           'nome', (select pl.nome from public.planos pl where pl.codigo = p_plano),
+           'valor', public.preco_do_plano(p_salao, p_plano)))
+      || coalesce((select jsonb_agg(jsonb_build_object('tipo', 'adicional', 'codigo', ad.codigo,
+                     'nome', ad.nome, 'valor', coalesce(sa.preco_especial, ad.preco_mes))
+                     order by ad.ordem)
+                     from public.salao_adicionais sa join public.adicionais ad on ad.codigo = sa.adicional
+                    where sa.salao_id = p_salao and sa.status in ('ativo', 'aguardando')
+                      and not sa.cortesia and p_plano = any(ad.planos)
+                      and coalesce(sa.preco_especial, ad.preco_mes) > 0), '[]'::jsonb)
+$$;
+create or replace function public.soma_dos_itens(p_itens jsonb)
+returns numeric language sql immutable set search_path = public as $$
+  select case when exists (select 1 from jsonb_array_elements(p_itens) x
+                            where x->>'tipo' = 'plano' and x->'valor' = 'null'::jsonb)
+              then null
+              else (select coalesce(sum((x->>'valor')::numeric), 0)::numeric(10,2)
+                      from jsonb_array_elements(p_itens) x) end
+$$;
+create or replace function public.valor_da_mensalidade(p_salao uuid, p_plano text)
+returns numeric language sql stable security definer set search_path = public as $$
+  select public.soma_dos_itens(public.itens_da_mensalidade(p_salao, p_plano))
+$$;
+create or replace function public.itens_que_batem(p_salao uuid, p_plano text, p_valor numeric)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare v_agora jsonb; v_so jsonb; v_todos jsonb;
+begin
+  v_agora := public.itens_da_mensalidade(p_salao, p_plano);
+  if public.soma_dos_itens(v_agora) = p_valor then return v_agora; end if;
+  v_so := jsonb_build_array(v_agora->0);
+  if public.soma_dos_itens(v_so) = p_valor then return v_so; end if;
+  v_todos := v_so || coalesce((select jsonb_agg(jsonb_build_object('tipo', 'adicional',
+                 'codigo', ad.codigo, 'nome', ad.nome, 'valor', coalesce(sa.preco_especial, ad.preco_mes))
+                 order by ad.ordem)
+                 from public.salao_adicionais sa join public.adicionais ad on ad.codigo = sa.adicional
+                where sa.salao_id = p_salao and not sa.cortesia and p_plano = any(ad.planos)
+                  and coalesce(sa.preco_especial, ad.preco_mes) > 0), '[]'::jsonb);
+  if public.soma_dos_itens(v_todos) = p_valor then return v_todos; end if;
+  return v_agora;
+end $$;
+create or replace function public.adicionais_pagos(p_salao uuid, p_plano text, p_itens jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.salao_adicionais sa
+     set status = 'ativo', vale_ate = null, cancelado_em = null,
+         ativo_desde = case when sa.status = 'ativo' then sa.ativo_desde else now() end,
+         atualizado_em = now()
+   where sa.salao_id = p_salao
+     and sa.adicional in (select x->>'codigo' from jsonb_array_elements(coalesce(p_itens, '[]'::jsonb)) x
+                           where x->>'tipo' = 'adicional');
+  update public.salao_adicionais sa
+     set status = 'cancelado', vale_ate = current_date, cancelado_em = now(),
+         ja_teve = true, atualizado_em = now()
+    from public.adicionais ad
+   where ad.codigo = sa.adicional and sa.salao_id = p_salao
+     and sa.status = 'ativo' and not sa.cortesia and not (p_plano = any(ad.planos));
+end $$;
+create or replace function public.assinaturas_a_vencer(p_dias int default 5)
+returns table (salao_id uuid, salao text, whatsapp text, plano text,
+               valor numeric, vence_em date)
+language sql security definer set search_path = public as $$
+  select a.salao_id, s.nome, s.whatsapp, a.plano,
+         public.valor_da_mensalidade(a.salao_id, a.plano), a.vence_em
+    from public.assinaturas a
+    join public.saloes s  on s.id = a.salao_id
+    join public.planos pl on pl.codigo = a.plano
+   where a.status = 'ativa'
+     and a.vence_em is not null
+     and a.vence_em <= current_date + p_dias
+     and pl.preco_mes > 0
+     and a.mp_preapproval is null
+     and not exists (
+       select 1 from public.cobrancas c
+        where c.salao_id = a.salao_id and c.status = 'pendente'
+          and c.metodo <> 'cartao'
+          and c.vence_em > now())
+   order by a.vence_em;
+$$;
+create or replace function public.conta_do_adicional(
+  p_salao uuid, p_adicional text, p_acao text, p_quem uuid, p_preco numeric default null)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  ad public.adicionais%rowtype; r public.salao_adicionais%rowtype; a public.assinaturas%rowtype;
+  v_super boolean; v_em_dia boolean; v_trial boolean; v_aceita boolean;
+  n jsonb; v_efeito text; v_antes numeric; v_depois numeric; v_contrib_r numeric; v_contrib_n numeric;
+begin
+  if p_quem is null then
+    raise exception 'Pedido sem responsável.' using errcode = 'check_violation';
+  end if;
+  v_super := coalesce((select pf.super_admin from public.perfis pf where pf.id = p_quem), false);
+  if p_acao in ('contratar', 'cancelar') then
+    if not v_super and not exists (
+         select 1 from public.vinculos v
+          where v.perfil_id = p_quem and v.salao_id = p_salao
+            and v.status = 'ativo' and v.papel in ('dono', 'admin')) then
+      raise exception 'Só o proprietário ou um administrador contrata módulos.'
+        using errcode = 'insufficient_privilege';
+    end if;
+  elsif p_acao in ('cortesia', 'sem_cortesia', 'preco') then
+    if not v_super then
+      raise exception 'Só a plataforma dá cortesia ou preço especial.'
+        using errcode = 'insufficient_privilege';
+    end if;
+  else
+    raise exception 'Ação desconhecida.' using errcode = 'check_violation';
+  end if;
+  select * into ad from public.adicionais where codigo = p_adicional;
+  if ad.codigo is null then
+    raise exception 'Módulo não encontrado.' using errcode = 'check_violation';
+  end if;
+  select * into a from public.assinaturas where salao_id = p_salao;
+  if a.salao_id is null then
+    raise exception 'Este salão não tem assinatura.' using errcode = 'check_violation';
+  end if;
+  select * into r from public.salao_adicionais where salao_id = p_salao and adicional = p_adicional;
+  v_em_dia := a.status = 'ativa' and (a.vence_em is null or a.vence_em >= current_date);
+  v_trial  := public.plano_efetivo(p_salao) = 'trial';
+  v_aceita := a.plano = any(ad.planos);
+  n := jsonb_build_object('status', r.status, 'cortesia', coalesce(r.cortesia, false),
+         'preco_especial', r.preco_especial, 'vale_ate', r.vale_ate, 'ja_teve', coalesce(r.ja_teve, false));
+  if p_acao = 'contratar' then
+    if not ad.ativo then
+      raise exception 'Este módulo não está à venda.' using errcode = 'check_violation';
+    end if;
+    if r.status in ('ativo', 'aguardando') then
+      v_efeito := 'ja_contratado';
+    elsif r.status = 'cancelado' and r.vale_ate >= current_date and v_em_dia and v_aceita then
+      n := n || jsonb_build_object('status', 'ativo', 'vale_ate', null);
+      v_efeito := 'voltou';
+    elsif not v_em_dia and not v_trial then
+      raise exception 'Regularize a mensalidade primeiro: com ela em dia, o módulo é liberado na hora.'
+        using errcode = 'check_violation';
+    elsif v_em_dia and v_aceita and not coalesce(r.ja_teve, false) then
+      n := n || jsonb_build_object('status', 'ativo', 'vale_ate', null);
+      v_efeito := 'liberado';
+    elsif v_em_dia and v_aceita then
+      n := n || jsonb_build_object('status', 'aguardando', 'vale_ate', null);
+      v_efeito := 'aguarda_pagamento';
+    else
+      n := n || jsonb_build_object('status', 'aguardando', 'vale_ate', null);
+      v_efeito := 'aguarda_plano';
+    end if;
+  elsif p_acao = 'cancelar' then
+    if r.status is null or r.status = 'cancelado' then
+      v_efeito := 'ja_cancelado';
+    elsif r.status = 'aguardando' then
+      n := n || jsonb_build_object('status', 'cancelado', 'vale_ate', null);
+      v_efeito := 'desistiu';
+    else
+      n := n || jsonb_build_object('status', 'cancelado', 'ja_teve', true,
+             'vale_ate', greatest(coalesce(a.vence_em, current_date), current_date));
+      v_efeito := 'cancelado';
+    end if;
+  elsif p_acao = 'cortesia' then
+    n := n || jsonb_build_object('status', 'ativo', 'cortesia', true, 'vale_ate', null);
+    v_efeito := 'cortesia';
+  elsif p_acao = 'sem_cortesia' then
+    if not coalesce(r.cortesia, false) then
+      v_efeito := 'sem_mudanca';
+    elsif v_em_dia and v_aceita then
+      n := n || jsonb_build_object('cortesia', false);
+      v_efeito := 'cobrado';
+    else
+      n := n || jsonb_build_object('cortesia', false, 'status', 'cancelado', 'vale_ate', current_date);
+      v_efeito := 'encerrado';
+    end if;
+  else
+    if p_preco is not null and p_preco < 0 then
+      raise exception 'Preço não pode ser negativo.' using errcode = 'check_violation';
+    end if;
+    n := n || jsonb_build_object('preco_especial', round(p_preco, 2),
+                                 'status', coalesce(r.status, 'cancelado'));
+    v_efeito := 'preco';
+  end if;
+  v_contrib_r := case when r.status in ('ativo', 'aguardando') and not coalesce(r.cortesia, false) and v_aceita
+                      then greatest(coalesce(r.preco_especial, ad.preco_mes), 0) else 0 end;
+  v_contrib_n := case when n->>'status' in ('ativo', 'aguardando') and not (n->>'cortesia')::boolean and v_aceita
+                      then greatest(coalesce((n->>'preco_especial')::numeric, ad.preco_mes), 0) else 0 end;
+  v_antes := coalesce(public.valor_da_mensalidade(p_salao, a.plano), 0);
+  v_depois := v_antes - v_contrib_r + v_contrib_n;
+  return jsonb_build_object(
+    'efeito', v_efeito,
+    'mudou', v_efeito not in ('ja_contratado', 'ja_cancelado', 'sem_mudanca'),
+    'novo', n,
+    'antes', v_antes, 'depois', v_depois,
+    'proxima', a.vence_em, 'plano', a.plano,
+    'preapproval', a.mp_preapproval,
+    'nome', ad.nome, 'preco', coalesce(r.preco_especial, ad.preco_mes));
+end $$;
+create or replace function public.preparar_adicional(
+  p_salao uuid, p_adicional text, p_acao text, p_quem uuid, p_preco numeric default null)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select public.conta_do_adicional(p_salao, p_adicional, p_acao, p_quem, p_preco) - 'novo'
+$$;
+create or replace function public.simular_adicional(p_salao uuid, p_adicional text, p_acao text)
+returns jsonb language sql stable security definer set search_path = public as $$
+  select (public.conta_do_adicional(p_salao, p_adicional, p_acao, auth.uid()) - 'novo' - 'preapproval')
+         || jsonb_build_object('cartao', exists (select 1 from public.assinaturas a
+                                                  where a.salao_id = p_salao and a.mp_preapproval is not null))
+$$;
+create or replace function public.aplicar_adicional(
+  p_salao uuid, p_adicional text, p_acao text, p_quem uuid,
+  p_preco numeric default null, p_esperado numeric default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare c jsonb; n jsonb;
+begin
+  perform 1 from public.assinaturas where salao_id = p_salao for update;
+  c := public.conta_do_adicional(p_salao, p_adicional, p_acao, p_quem, p_preco);
+  if p_esperado is not null and (c->>'depois')::numeric is distinct from p_esperado then
+    raise exception 'A mensalidade mudou enquanto você confirmava. Abra Meu plano de novo.'
+      using errcode = 'check_violation';
+  end if;
+  if not (c->>'mudou')::boolean then
+    return jsonb_build_object('ok', true, 'efeito', c->>'efeito', 'mensalidade', (c->>'antes')::numeric);
+  end if;
+  n := c->'novo';
+  insert into public.salao_adicionais as sa
+    (salao_id, adicional, status, cortesia, preco_especial, vale_ate, ja_teve,
+     desde, ativo_desde, cancelado_em, atualizado_em)
+  values (p_salao, p_adicional, n->>'status', (n->>'cortesia')::boolean,
+          (n->>'preco_especial')::numeric, (n->>'vale_ate')::date, (n->>'ja_teve')::boolean,
+          now(), case when n->>'status' = 'ativo' then now() end,
+          case when n->>'status' = 'cancelado' then now() end, now())
+  on conflict (salao_id, adicional) do update
+    set status         = excluded.status,
+        cortesia       = excluded.cortesia,
+        preco_especial = excluded.preco_especial,
+        vale_ate       = excluded.vale_ate,
+        ja_teve        = excluded.ja_teve,
+        desde          = case when p_acao = 'contratar' then now() else sa.desde end,
+        ativo_desde    = case when excluded.status = 'ativo' and sa.status <> 'ativo' then now()
+                              when excluded.status = 'ativo' then sa.ativo_desde end,
+        cancelado_em   = case when excluded.status = 'cancelado' and sa.status <> 'cancelado' then now()
+                              when excluded.status = 'cancelado' then sa.cancelado_em end,
+        atualizado_em  = now();
+  if (c->>'antes')::numeric is distinct from (c->>'depois')::numeric then
+    update public.cobrancas set status = 'cancelada'
+     where salao_id = p_salao and status = 'pendente' and metodo <> 'cartao';
+  end if;
+  return jsonb_build_object('ok', true, 'efeito', c->>'efeito',
+    'status', n->>'status', 'valeAte', n->>'vale_ate',
+    'mensalidade', (c->>'depois')::numeric, 'proxima', c->>'proxima');
+end $$;
+create or replace function public.meus_adicionais(p_salao uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare a public.assinaturas%rowtype; v_ativos jsonb; v_recursos jsonb;
+begin
+  if not public.e_equipe(p_salao) and not public.is_super() then
+    raise exception 'Sem permissão neste salão.' using errcode = 'insufficient_privilege';
+  end if;
+  select coalesce(jsonb_agg(ad.codigo order by ad.ordem), '[]'::jsonb),
+         coalesce(jsonb_agg(ad.recurso order by ad.ordem), '[]'::jsonb)
+    into v_ativos, v_recursos
+    from public.adicionais ad where public.adicional_ativo(p_salao, ad.codigo);
+  if not public.e_gestor(p_salao) and not public.is_super() then
+    return jsonb_build_object('ativos', v_ativos, 'recursos', v_recursos);
+  end if;
+  select * into a from public.assinaturas where salao_id = p_salao;
+  return jsonb_build_object(
+    'ativos', v_ativos, 'recursos', v_recursos,
+    'plano', a.plano,
+    'emDia', a.status = 'ativa' and (a.vence_em is null or a.vence_em >= current_date),
+    'teste', public.plano_efetivo(p_salao) = 'trial',
+    'proxima', a.vence_em,
+    'cartao', a.mp_preapproval is not null,
+    'mensalidade', public.valor_da_mensalidade(p_salao, a.plano),
+    'itens', public.itens_da_mensalidade(p_salao, a.plano),
+    'catalogo', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'codigo', ad.codigo, 'nome', ad.nome, 'descricao', ad.descricao,
+               'preco', coalesce(sa.preco_especial, ad.preco_mes), 'precoNormal', ad.preco_mes,
+               'planos', to_jsonb(ad.planos),
+               'planoMinimo', (select pl.nome from public.planos pl where pl.codigo = any(ad.planos)
+                                order by pl.preco_mes, pl.ordem limit 1),
+               'aceitaMeuPlano', a.plano = any(ad.planos),
+               'status', sa.status, 'ativo', public.adicional_ativo(p_salao, ad.codigo),
+               'valeAte', sa.vale_ate, 'cortesia', coalesce(sa.cortesia, false),
+               'jaTeve', coalesce(sa.ja_teve, false))
+             order by ad.ordem)
+        from public.adicionais ad
+        left join public.salao_adicionais sa on sa.salao_id = p_salao and sa.adicional = ad.codigo
+       where ad.ativo or sa.status is not null), '[]'::jsonb));
+end $$;
+create or replace function public.adicionais_da_plataforma()
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_super() then
+    raise exception 'Só a plataforma vê os adicionais de todos.' using errcode = 'insufficient_privilege';
+  end if;
+  return jsonb_build_object(
+    'catalogo', coalesce((select jsonb_agg(jsonb_build_object('codigo', codigo, 'nome', nome,
+                  'preco', preco_mes, 'ativo', ativo) order by ordem) from public.adicionais), '[]'::jsonb),
+    'saloes', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'salaoId', sa.salao_id, 'salao', s.nome, 'adicional', sa.adicional, 'nome', ad.nome,
+               'status', sa.status, 'ativo', public.adicional_ativo(sa.salao_id, sa.adicional),
+               'cortesia', sa.cortesia, 'preco', coalesce(sa.preco_especial, ad.preco_mes),
+               'precoEspecial', sa.preco_especial, 'valeAte', sa.vale_ate, 'desde', sa.desde)
+             order by s.nome)
+        from public.salao_adicionais sa
+        join public.saloes s on s.id = sa.salao_id
+        join public.adicionais ad on ad.codigo = sa.adicional), '[]'::jsonb),
+    'receitaMes', coalesce((
+      select sum(coalesce(sa.preco_especial, ad.preco_mes))
+        from public.salao_adicionais sa join public.adicionais ad on ad.codigo = sa.adicional
+       where sa.status = 'ativo' and not sa.cortesia
+         and public.adicional_ativo(sa.salao_id, sa.adicional)), 0));
+end $$;
+revoke all on function public.adicional_ativo(uuid, text) from public, anon, authenticated;
+revoke all on function public.itens_da_mensalidade(uuid, text) from public, anon, authenticated;
+revoke all on function public.valor_da_mensalidade(uuid, text) from public, anon, authenticated;
+revoke all on function public.itens_que_batem(uuid, text, numeric) from public, anon, authenticated;
+revoke all on function public.adicionais_pagos(uuid, text, jsonb) from public, anon, authenticated;
+revoke all on function public.conta_do_adicional(uuid, text, text, uuid, numeric) from public, anon, authenticated;
+revoke all on function public.assinaturas_a_vencer(int) from public, anon, authenticated;
+revoke all on function public.preparar_adicional(uuid, text, text, uuid, numeric) from public, anon, authenticated;
+revoke all on function public.aplicar_adicional(uuid, text, text, uuid, numeric, numeric) from public, anon, authenticated;
+grant execute on function public.preparar_adicional(uuid, text, text, uuid, numeric) to service_role;
+grant execute on function public.aplicar_adicional(uuid, text, text, uuid, numeric, numeric) to service_role;
+revoke all on function public.simular_adicional(uuid, text, text) from public, anon;
+revoke all on function public.meus_adicionais(uuid) from public, anon;
+revoke all on function public.adicionais_da_plataforma() from public, anon;
+grant execute on function public.simular_adicional(uuid, text, text) to authenticated;
+grant execute on function public.meus_adicionais(uuid) to authenticated;
+grant execute on function public.adicionais_da_plataforma() to authenticated;
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();

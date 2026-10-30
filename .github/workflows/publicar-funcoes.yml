@@ -36,6 +36,7 @@ on:
       - 'supabase/functions/webhook-mp/**'
       - 'supabase/functions/assinar-cartao/**'
       - 'supabase/functions/cancelar-cartao/**'
+      - 'supabase/functions/adicional/**'
       - 'supabase/functions/saude/**'
       # Texto de ajuda (MODELOS.md, README.md) não é código: mudar não publica.
       - '!supabase/functions/**/*.md'
@@ -90,6 +91,10 @@ jobs:
         run: supabase functions deploy assinar-cartao --project-ref "$PROJETO"
       - name: cancelar-cartao
         run: supabase functions deploy cancelar-cartao --project-ref "$PROJETO"
+      # Os módulos adicionais (o Crediário): muda o valor do cartão no Mercado
+      # Pago junto com o banco. Com verificação de JWT, como as do painel.
+      - name: adicional
+        run: supabase functions deploy adicional --project-ref "$PROJETO"
 
       # O aviso de pagamento. SEM verificação de JWT, de propósito: o Mercado
       # Pago chama sem token do Supabase — quem guarda a porta é a assinatura

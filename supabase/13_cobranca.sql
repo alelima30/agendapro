@@ -87,6 +87,11 @@ create table if not exists public.cobrancas (
 create index if not exists ix_cobranca_salao
   on public.cobrancas(salao_id, criada_em desc);
 
+/* O que a cobrança cobra, item por item: o plano e os módulos adicionais
+   (46_adicionais). [{tipo:'plano'|'adicional', codigo, nome, valor}]. Nula
+   nas cobranças de antes dos adicionais — eram só o plano. */
+alter table public.cobrancas add column if not exists itens jsonb;
+
 /* ⚠ UMA COBRANÇA ABERTA POR SALÃO, E SÓ UMA.
    Sem isto, cada clique em "Assinar" abre uma cobrança nova no Mercado Pago.
    O dono acaba com seis Pix na mão sem saber qual vale, paga dois, e a gente
@@ -172,6 +177,7 @@ returns public.cobrancas
 language plpgsql security definer set search_path = public as $$
 declare
   v_preco numeric(10,2);
+  v_itens jsonb;
   v_dias  int;
   v_ja    public.cobrancas;
   v_nova  public.cobrancas;
@@ -209,11 +215,13 @@ begin
     raise exception 'Forma de pagamento desconhecida.' using errcode = 'check_violation';
   end if;
 
-  -- O preço do plano PARA ESTE SALÃO (1b): o normal, ou o especial dele.
+  -- O preço do plano PARA ESTE SALÃO (1b): o normal, ou o especial dele —
+  -- mais os módulos adicionais que ele contratou (46_adicionais).
   if not exists (select 1 from public.planos where codigo = p_plano) then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
-  v_preco := public.preco_do_plano(p_salao, p_plano);
+  v_itens := public.itens_da_mensalidade(p_salao, p_plano);
+  v_preco := public.soma_dos_itens(v_itens);
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -243,7 +251,10 @@ begin
    for update;
 
   if found then
-    if v_ja.plano = p_plano and v_ja.metodo = p_metodo and v_ja.vence_em > now() then
+    -- E do mesmo VALOR: contratou um módulo depois de gerar o Pix, o Pix
+    -- velho não serve mais (46_adicionais).
+    if v_ja.plano = p_plano and v_ja.metodo = p_metodo and v_ja.vence_em > now()
+       and v_ja.valor = v_preco then
       return v_ja;
     end if;
     update public.cobrancas set status = 'cancelada' where id = v_ja.id;
@@ -253,9 +264,9 @@ begin
   -- painel. Boleto precisa de mais, porque compensa em dia útil.
   v_dias := case when p_metodo = 'boleto' then 3 else 1 end;
 
-  insert into public.cobrancas (salao_id, plano, valor, metodo, vence_em, aberta_por)
+  insert into public.cobrancas (salao_id, plano, valor, metodo, vence_em, aberta_por, itens)
   values (p_salao, p_plano, v_preco, p_metodo,
-          now() + make_interval(days => v_dias), p_quem)
+          now() + make_interval(days => v_dias), p_quem, v_itens)
   returning * into v_nova;
 
   return v_nova;
@@ -392,6 +403,10 @@ begin
          vence_em = coalesce(v_base, current_date) + interval '1 month',
          atualizado_em = now()
    where salao_id = c.salao_id;
+
+  -- Os módulos adicionais que vieram nesta mensalidade passam a valer; os que
+  -- o plano pago não aceita param (46_adicionais).
+  perform public.adicionais_pagos(c.salao_id, c.plano, c.itens);
 
   return jsonb_build_object('ok', true, 'salao', c.salao_id, 'plano', c.plano);
 end $$;

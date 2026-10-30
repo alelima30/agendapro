@@ -2094,7 +2094,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.b9b335';
+const VERSAO_APP = 'v9.7cfe73';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -9415,6 +9415,7 @@ function pintar(){
     // tela aparecer e o medidor preencher do que a tela esperar o servidor.
     pintarPlano();
     carregarUsoDoPlano();
+    carregarAdicionais();
   }
   // Conteúdo desenhado agora pode trazer <span data-ico>; troca por SVG.
   if(window.aplicarIcones) aplicarIcones();
@@ -14962,6 +14963,8 @@ function avisarLimiteDeEquipe(){
       : [['Entendi', 'fecharModal()', 'btn-p']]);
 }
 function recursoDoPlano(chave){
+  // Um módulo adicional ativo libera a chave dele (46_adicionais).
+  if(meusAdicionais && (meusAdicionais.recursos || []).includes(chave)) return true;
   const p = planoEfetivo();
   return p && p.recursos ? p.recursos[chave] : undefined;
 }
@@ -15376,6 +15379,7 @@ function pintarPlano(){
            (Sem crase e sem acento: comentario dentro de template literal.) -->
       <div id="medidoresDoPlano"></div>
       ${oQueOPlanoInclui()}
+      <div id="adicionaisPlano"></div>
       ${mesCheio ? `<div class="aviso atencao" style="margin-top:13px;margin-bottom:0">
         <b>Você usou os ${tetoMes} horários deste mês.</b><br>
         A agenda continua aberta para consultar e atender; para marcar mais,
@@ -15404,6 +15408,8 @@ function pintarPlano(){
         por mês e sem caixa, relatórios, produtos, pacotes, cupons e mensagens
         automáticas. O que você cadastrou fica guardado.</div>` : ''}
     </div>`;
+
+  pintarAdicionais();
 
   /* ⚠ DAQUI PARA BAIXO É A OFERTA, E ELA SAI INTEIRA QUANDO A VENDA ESTÁ
      DESLIGADA — inclusive a chamada a `mostrarCobrancaPendente()` lá no fim,
@@ -15545,7 +15551,7 @@ async function mostrarCobrancaPendente(){
        paguei" parecia ter mudado de plano — e deixa desistir. */
     const forma = c.aberta.metodo === 'boleto' ? 'Boleto' : 'Pix';
     alvo.innerHTML = `<div class="aviso atencao" style="margin-top:14px" id="avisoCobranca">
-      <b>${forma} em aberto, ainda não pago</b> — ${escapar(p ? p.nome : c.aberta.plano)},
+      <b>${forma} em aberto, ainda não pago</b> — ${escapar(nomeDaCobranca(c.aberta))},
       ${real(Number(c.aberta.valor))}.<br>
       Seu plano continua o mesmo até o pagamento cair.
       <div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap">
@@ -15554,7 +15560,7 @@ async function mostrarCobrancaPendente(){
       </div></div>`;
     cobrancaAberta = {
       id: c.aberta.id, plano: c.aberta.plano, valor: c.aberta.valor,
-      metodo: c.aberta.metodo, venceEm: c.aberta.vence_em,
+      metodo: c.aberta.metodo, venceEm: c.aberta.vence_em, itens: c.aberta.itens,
       pixCopiaCola: c.aberta.pix_copia_cola, pixQrBase64: c.aberta.pix_qr_base64,
       boletoUrl: c.aberta.boleto_url, linhaDigitavel: c.aberta.linha_digitavel,
     };
@@ -15584,6 +15590,168 @@ function reabrirCobranca(){
     '<div class="vazio" id="pgtoCorpo">…</div>',
     [['Fechar','fecharModal();pintar()','btn-p']]);
   desenharPagamento(cobrancaAberta);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OS MÓDULOS ADICIONAIS (46_adicionais) — o Crediário e os próximos
+   ---------------------------------------------------------------------------
+   A mensalidade é PLANO + ADICIONAIS. Quem decide se pode, quanto custa e o
+   que acontece é o banco: a tela pergunta antes (`simular_adicional`) para
+   mostrar "sua mensalidade passa de… para…", e quem muda é a borda
+   `adicional` — que muda também o valor do cartão no Mercado Pago, quando o
+   salão paga no cartão. O valor nunca sai daqui.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let meusAdicionais = null;
+
+async function carregarAdicionais(){
+  if(!NA_NUVEM || !salaoAtual) return;
+  try{ meusAdicionais = await Dados.chamar('meus_adicionais', { p_salao: salaoAtual }); }
+  catch(e){ meusAdicionais = null; console.info('[AgendaPro] módulos adicionais:', e.message); }
+  pintarAdicionais();
+}
+function adicionalAtivo(codigo){
+  return !!(meusAdicionais && (meusAdicionais.ativos || []).includes(codigo));
+}
+const diaMesAno = d => d ? String(d).slice(8, 10) + '/' + String(d).slice(5, 7) + '/' + String(d).slice(0, 4) : '';
+
+function pintarAdicionais(){
+  const alvo = document.getElementById('adicionaisPlano');
+  if(!alvo) return;
+  const m = meusAdicionais;
+  if(!NA_NUVEM || !souGestor() || !m || !Array.isArray(m.catalogo)){ alvo.innerHTML = ''; return; }
+  // Com a venda desligada, só aparece o que já foi contratado.
+  const lista = m.catalogo.filter(x => OFERTA_DE_PLANO || x.status);
+  if(!lista.length){ alvo.innerHTML = ''; return; }
+  const itens = Array.isArray(m.itens) ? m.itens : [];
+  alvo.innerHTML = `
+    <div class="linha-fina" style="margin:18px 0 14px"></div>
+    <div style="font-size:12px;font-weight:800;color:var(--txt2);letter-spacing:.05em">MÓDULOS ADICIONAIS</div>
+    ${itens.length > 1 ? `<div class="aviso info" style="margin-top:10px;margin-bottom:0" id="somaMensalidade">
+      Sua mensalidade: ${itens.map(i => escapar(i.nome || i.codigo) + ' ' + real(Number(i.valor))).join(' + ')}
+      = <b>${real(Number(m.mensalidade))}</b>.</div>` : ''}
+    ${lista.map(cartaoAdicional).join('')}`;
+}
+
+function cartaoAdicional(x){
+  const m = meusAdicionais;
+  const cod = escapar(x.codigo);
+  const alvoPlano = planoMinimoDoAdicional(x);
+  let situacao = '', botoes = '';
+  if(x.ativo && x.cortesia){
+    situacao = 'Ativo — cortesia do AgendaPro.';
+  }else if(x.status === 'ativo'){
+    situacao = 'Ativo. Entra na sua mensalidade.';
+    botoes = `<button class="btn btn-peq" onclick="pedirAdicional('${cod}','cancelar')">Cancelar o módulo</button>`;
+  }else if(x.status === 'cancelado' && x.ativo){
+    situacao = `Cancelado — continua valendo até ${diaMesAno(x.valeAte)}.`;
+    if(OFERTA_DE_PLANO) botoes = `<button class="btn btn-peq" onclick="pedirAdicional('${cod}','contratar')">Voltar a contratar</button>`;
+  }else if(x.status === 'aguardando'){
+    situacao = x.aceitaMeuPlano
+      ? (m.cartao ? `Contratado — começa a valer no próximo débito do cartão${m.proxima ? ' (' + diaMesAno(m.proxima) + ')' : ''}.`
+                  : 'Contratado — começa a valer quando a próxima mensalidade for paga.')
+      : `Pedido — entra junto com a mensalidade do ${escapar(x.planoMinimo || 'Essencial')} (ou de um plano maior).`;
+    botoes = (x.aceitaMeuPlano && !m.cartao && OFERTA_DE_PLANO
+               ? `<button class="btn btn-p btn-peq" onclick="assinar('${escapar(m.plano)}','pix')">Pagar a mensalidade agora</button>` : '')
+      + (!x.aceitaMeuPlano && alvoPlano && OFERTA_DE_PLANO
+               ? `<button class="btn btn-p btn-peq" onclick="pagarPlanoComAdicional('${escapar(alvoPlano)}')">Assinar o ${escapar(x.planoMinimo || 'Essencial')}</button>` : '')
+      + `<button class="btn btn-peq" onclick="pedirAdicional('${cod}','cancelar')">Desistir</button>`;
+  }else if(m.teste){
+    situacao = `No teste grátis ele já está liberado. Depois do teste: ${real(Number(x.preco))} por mês, a partir do ${escapar(x.planoMinimo || 'Essencial')}.`;
+    if(OFERTA_DE_PLANO) botoes = `<button class="btn btn-peq" onclick="pedirAdicional('${cod}','contratar')">Quero no meu plano</button>`;
+  }else if(!x.aceitaMeuPlano){
+    situacao = `Disponível a partir do ${escapar(x.planoMinimo || 'Essencial')}.`;
+    if(OFERTA_DE_PLANO && alvoPlano) botoes = `<button class="btn btn-p btn-peq" onclick="pedirAdicional('${cod}','contratar','${escapar(alvoPlano)}')">Mudar para o ${escapar(x.planoMinimo || 'Essencial')} + ${escapar(x.nome)}</button>`;
+  }else if(!m.emDia){
+    situacao = 'Regularize a mensalidade primeiro: com ela em dia, o módulo é liberado na hora.';
+  }else if(OFERTA_DE_PLANO){
+    botoes = `<button class="btn btn-p btn-peq" onclick="pedirAdicional('${cod}','contratar')">Contratar</button>`;
+  }
+  return `<div class="card" style="margin-top:12px" id="adicional-${cod}">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="min-width:0">
+        <h3 style="font-size:17px">${escapar(x.nome)}</h3>
+        <p style="font-size:13.5px;color:var(--txt2)">${escapar(x.descricao || '')}</p>
+      </div>
+      <div class="ao-lado">
+        <div style="font-size:20px;font-weight:800">${real(Number(x.preco))}</div>
+        <div style="font-size:12px;color:var(--txt2)">por mês</div>
+      </div>
+    </div>
+    ${situacao ? `<p class="ad-situacao" style="margin-top:8px;font-size:13.5px">${situacao}</p>` : ''}
+    ${botoes ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${botoes}</div>` : ''}
+  </div>`;
+}
+
+// O plano mais em conta que aceita o adicional (o "a partir do Essencial").
+function planoMinimoDoAdicional(x){
+  const aceitos = (bd.planos || []).filter(p => (x.planos || []).includes(p.codigo))
+    .sort((a, b) => Number(a.precoMes || 0) - Number(b.precoMes || 0));
+  return aceitos.length ? aceitos[0].codigo : null;
+}
+
+/* Pergunta ao banco o que vai acontecer e mostra antes de confirmar. */
+async function pedirAdicional(codigo, acao, planoAlvo){
+  if(emSuporte()) return avisoDoSuporte('contratar ou cancelar módulo');
+  let s;
+  try{
+    s = await Dados.chamar('simular_adicional', { p_salao: salaoAtual, p_adicional: codigo, p_acao: acao });
+  }catch(e){
+    abrirModal('Módulo adicional', `<p style="line-height:1.55">${escapar(e.message)}</p>`,
+      [['Entendi', 'fecharModal()', 'btn-p']]);
+    return;
+  }
+  const oModulo = escapar(s.nome || codigo);
+  const antes = real(Number(s.antes)), depois = real(Number(s.depois));
+  const quando = s.proxima ? diaMesAno(s.proxima) : '';
+  const textos = {
+    liberado: `Sua mensalidade passa de <b>${antes}</b> para <b>${depois}</b>${quando ? ' a partir de ' + quando : ''}.<br>O ${oModulo} é liberado agora.`,
+    voltou: `O cancelamento é desfeito: o ${oModulo} continua, e a mensalidade volta a <b>${depois}</b>.`,
+    aguarda_pagamento: `O ${oModulo} entra na sua mensalidade (que passa para <b>${depois}</b>) e começa a valer quando ela for paga.`,
+    aguarda_plano: planoAlvo
+      ? `O ${oModulo} entra junto com o novo plano. Na próxima tela você escolhe como pagar.`
+      : `Pronto para entrar: o ${oModulo} vem junto com a primeira mensalidade de um plano a partir do Essencial.`,
+    cancelado: `O ${oModulo} continua valendo até <b>${quando}</b> (o mês que já está pago). Depois disso, as parcelas que estão em aberto continuam aparecendo e você continua registrando o que receber — só não dá para vender fiado novo.<br>A mensalidade volta para <b>${depois}</b>.`,
+    desistiu: `O pedido do ${oModulo} é desfeito. Nada é cobrado.`,
+    ja_contratado: `O ${oModulo} já está contratado.`,
+    ja_cancelado: `O ${oModulo} já está cancelado.`,
+  };
+  if(s.efeito === 'ja_contratado' || s.efeito === 'ja_cancelado'){
+    abrirModal(s.nome || 'Módulo adicional', `<p>${textos[s.efeito]}</p>`, [['Fechar', 'fecharModal()', 'btn-p']]);
+    return;
+  }
+  const titulo = (acao === 'cancelar' ? 'Cancelar o ' : 'Contratar o ') + (s.nome || codigo);
+  const alvo = planoAlvo ? `,'${escapar(planoAlvo)}'` : '';
+  abrirModal(titulo, `<p style="line-height:1.55" id="contaAdicional">${textos[s.efeito] || ''}</p>`, [
+    ['Agora não', 'fecharModal()', ''],
+    [acao === 'cancelar' ? 'Cancelar o módulo' : 'Confirmar',
+     `confirmarAdicional('${escapar(codigo)}','${escapar(acao)}'${alvo})`, acao === 'cancelar' ? 'btn-perigo' : 'btn-p']]);
+}
+
+async function confirmarAdicional(codigo, acao, planoAlvo){
+  const corpo = document.getElementById('contaAdicional');
+  if(corpo) corpo.innerHTML = 'Um instante…';
+  document.querySelectorAll('#fundo .modal button').forEach(b => b.disabled = true);
+  try{
+    const r = await Dados.borda('adicional', { salaoId: salaoAtual, adicional: codigo, acao });
+    fecharModal();
+    await carregarAdicionais();
+    if(r && r.efeito === 'aguarda_plano' && planoAlvo) return pagarPlanoComAdicional(planoAlvo);
+    pintar();
+  }catch(e){
+    if(corpo) corpo.innerHTML = '<b>Não deu certo.</b><br>' + escapar(e.message || 'Tente de novo em alguns minutos.');
+    document.querySelectorAll('#fundo .modal button').forEach(b => b.disabled = false);
+  }
+}
+
+// "Mudar para o Essencial + Crediário": o módulo já está pedido; agora o plano.
+function pagarPlanoComAdicional(plano){
+  const p = planoDe(plano);
+  const oPlano = escapar(p ? p.nome : plano);
+  abrirModal('Assinar o ' + oPlano, `<p style="line-height:1.55">Como você quer pagar o ${oPlano}
+      com o módulo? O valor sai certo, com os dois juntos.</p>`, [
+    ['Agora não', 'fecharModal();pintar()', ''],
+    ['Cartão (renova sozinho)', `fecharModal();assinarCartao('${escapar(plano)}')`, ''],
+    ['Pix', `fecharModal();assinar('${escapar(plano)}','pix')`, 'btn-p']]);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -15811,6 +15979,15 @@ async function abrirPagamento(codigo, metodo){
   }
 }
 
+/* "Essencial + Crediário": a cobrança diz o que cobra (46_adicionais). Sem
+   itens (cobrança de antes dos adicionais), é o nome do plano. */
+function nomeDaCobranca(c){
+  const itens = Array.isArray(c && c.itens) ? c.itens : [];
+  if(itens.length > 1) return itens.map(i => i.nome || i.codigo).join(' + ');
+  const p = planoDe(c.plano);
+  return p ? p.nome : c.plano;
+}
+
 function desenharPagamento(c){
   const alvo = document.getElementById('pgtoCorpo');
   if(!alvo) return;
@@ -15820,7 +15997,7 @@ function desenharPagamento(c){
   alvo.outerHTML = `
     <div id="pgtoCorpo">
       <div class="aviso info" style="margin-top:0">
-        <b>${escapar(p ? p.nome : c.plano)} · ${real(Number(c.valor))} por mês.</b><br>
+        <b>${escapar(nomeDaCobranca(c))} · ${real(Number(c.valor))} por mês.</b><br>
         A assinatura passa a valer assim que o pagamento cair — costuma ser em
         segundos no Pix. Você não precisa avisar ninguém.
       </div>

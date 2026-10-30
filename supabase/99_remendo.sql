@@ -2248,13 +2248,46 @@ language sql stable security definer set search_path = public as $$
   where s.slug = p_slug and s.status = 'ativo'
 $$;
 
+create or replace function public.adicional_ativo(p_salao uuid, p_adicional text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.salao_adicionais sa
+      join public.adicionais ad on ad.codigo = sa.adicional
+     where sa.salao_id = p_salao and sa.adicional = p_adicional
+       and ((sa.cortesia and sa.status = 'ativo')
+            or (public.plano_efetivo(p_salao) = any(ad.planos)
+                and (sa.status = 'ativo'
+                     or (sa.status = 'cancelado' and sa.vale_ate >= current_date)))))
+$$;
+
+create or replace function public.recurso_bool(p_salao uuid, p_chave text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select (pl.recursos ->> p_chave)::boolean
+                     from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)), false)
+      or exists (select 1 from public.adicionais ad
+                  where ad.recurso = p_chave and public.adicional_ativo(p_salao, ad.codigo))
+$$;
+
 create or replace function public.exigir_recurso(p_salao uuid, p_chave text, p_nome text)
 returns void language plpgsql stable set search_path = public as $$
+declare v_nome text; v_minimo text;
 begin
-  if not coalesce(public.recurso_bool(p_salao, p_chave), false) then
-    raise exception '% está disponível a partir do plano Básico.', p_nome
+  if coalesce(public.recurso_bool(p_salao, p_chave), false) then return; end if;
+  begin
+    select ad.nome,
+           (select pl.nome from public.planos pl where pl.codigo = any(ad.planos)
+             order by pl.preco_mes, pl.ordem limit 1)
+      into v_nome, v_minimo
+      from public.adicionais ad where ad.recurso = p_chave order by ad.ordem limit 1;
+  exception when insufficient_privilege then v_nome := null;
+  end;
+  if v_nome is not null then
+    raise exception '% faz parte do módulo adicional %, a partir do plano %. Contrate em Meu plano.',
+      p_nome, v_nome, coalesce(v_minimo, 'Essencial')
       using errcode = 'check_violation';
   end if;
+  raise exception '% está disponível a partir do plano Básico.', p_nome
+    using errcode = 'check_violation';
 end $$;
 
 create or replace function public.minutos_de_jornada(

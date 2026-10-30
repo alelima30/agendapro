@@ -94,7 +94,7 @@ begin
   return jsonb_build_object(
     'aberta', (
       select to_jsonb(x) from (
-        select c.id, c.plano, c.valor, c.metodo, c.vence_em,
+        select c.id, c.plano, c.valor, c.metodo, c.vence_em, c.itens,
                c.pix_copia_cola, c.pix_qr_base64, c.boleto_url, c.linha_digitavel
           from public.cobrancas c
          where c.salao_id = p_salao and c.status = 'pendente'
@@ -104,7 +104,7 @@ begin
     'historico', coalesce((
       select jsonb_agg(jsonb_build_object(
                'id', h.id, 'plano', h.plano, 'valor', h.valor,
-               'metodo', h.metodo, 'status', h.status,
+               'metodo', h.metodo, 'status', h.status, 'itens', h.itens,
                'pagaEm', h.paga_em, 'criadaEm', h.criada_em)
              order by h.criada_em desc)
         from (select * from public.cobrancas
@@ -173,9 +173,10 @@ begin
 
   select preco_mes, nome into v_preco, v_nome
     from public.planos where codigo = p_plano;
-  -- Com o preço especial do salão, se houver (13_cobranca, 1b): a
-  -- mensalidade do cartão nasce aqui e se repete todo mês.
-  if v_preco is not null then v_preco := public.preco_do_plano(p_salao, p_plano); end if;
+  -- Com o preço especial do salão, se houver (13_cobranca, 1b), e os módulos
+  -- adicionais dele (46_adicionais): a mensalidade do cartão nasce aqui e se
+  -- repete todo mês.
+  if v_preco is not null then v_preco := public.valor_da_mensalidade(p_salao, p_plano); end if;
   if v_preco is null then
     raise exception 'Plano não encontrado.' using errcode = 'check_violation';
   end if;
@@ -417,6 +418,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   a public.assinaturas;
   v_preco numeric(10,2);
+  v_itens jsonb;
 begin
   select * into a from public.assinaturas
    where mp_preapproval = p_preapproval
@@ -436,19 +438,22 @@ begin
 
   -- O mesmo preço que a pré-aprovação nasceu (13_cobranca, 1b): sem isso o
   -- salão de preço especial teria a 2ª mensalidade recusada por divergir.
-  v_preco := public.preco_do_plano(a.salao_id, a.plano);
-  if coalesce(v_preco, 0) <= 0 then
+  if coalesce(public.preco_do_plano(a.salao_id, a.plano), 0) <= 0 then
     return jsonb_build_object('ok', false, 'motivo', 'plano_sem_preco');
   end if;
+  -- E com os módulos adicionais: a composição que bate com o que o Mercado
+  -- Pago cobrou (46_adicionais, `itens_que_batem`).
+  v_itens := public.itens_que_batem(a.salao_id, a.plano, p_valor);
+  v_preco := public.soma_dos_itens(v_itens);
 
   /* ⚠ A linha nasce com o preço do PLANO, e o `registrar_pagamento` logo
      abaixo compara com o que veio da API do Mercado Pago. Se divergirem, ele
      recusa — é a mesma trava que impede pagar R$ 57 e levar o plano de
      R$ 497, agora valendo também para a recorrência. */
   insert into public.cobrancas
-    (salao_id, plano, valor, metodo, status, vence_em, mp_id, mp_status)
+    (salao_id, plano, valor, metodo, status, vence_em, mp_id, mp_status, itens)
   values (a.salao_id, a.plano, v_preco, 'cartao', 'pendente',
-          now() + interval '7 days', p_mp_id, p_status);
+          now() + interval '7 days', p_mp_id, p_status, v_itens);
 
   -- E daqui em diante é o caminho de sempre: ele confere o valor, marca a
   -- cobrança como paga e estende `vence_em` em um mês.

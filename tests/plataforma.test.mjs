@@ -215,6 +215,25 @@ console.log('\nQuem é');
   await pa.click('#ajustePacote button');
   await pa.waitForTimeout(1200);
   diz(/desligadas/.test(await ajPac()), 'e desliga de novo (a bancada volta como estava)');
+
+  /* Os módulos adicionais (46): quem tem, quanto rende, e a cortesia — que
+     vai pela borda `adicional` (interceptada: só o pedido importa aqui). */
+  const ajAd = () => pa.textContent('#ajusteAdicionais').catch(() => '');
+  diz(/Crediário/.test(await ajAd()) && /49,90/.test(await ajAd()) && /por mês/.test(await ajAd()),
+    'o admin mostra os módulos adicionais, com o preço e quanto rendem por mês',
+    (await ajAd()).replace(/\s+/g, ' ').slice(0, 160));
+  const pedidosAd = [];
+  await pa.route('**/functions/v1/adicional', rota => {
+    pedidosAd.push(JSON.parse(rota.request().postData() || '{}'));
+    return rota.fulfill({ json: { ok: true, efeito: 'cortesia' } });
+  });
+  pa.dialogos = [];
+  await pa.click('#ajusteAdicionais button:has-text("Dar cortesia")');
+  await pa.waitForTimeout(1200);
+  diz(pa.dialogos.some(m => /cortesia/.test(m)) && pedidosAd.length === 1
+      && pedidosAd[0].acao === 'cortesia' && pedidosAd[0].adicional === 'crediario' && !!pedidosAd[0].salaoId,
+    'dar cortesia pergunta antes e manda salão, módulo e ação para a borda',
+    JSON.stringify(pedidosAd) + ' | ' + pa.dialogos.join(' | '));
   diz(pa.erros.length === 0, 'sem erro de JavaScript', pa.erros.join(' · '));
   await pa.context().close();
 }

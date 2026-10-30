@@ -188,6 +188,9 @@ let painelSaude = null;
 
 const real = v => (Number(v) || 0)
   .toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 });
+// Com os centavos: o preço de um módulo (R$ 49,90) não se arredonda.
+const centavos = v => (Number(v) || 0)
+  .toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
 const escapar = t => String(t == null ? '' : t)
   .replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -244,12 +247,15 @@ async function carregar(){
   try{
     // Os acessos de suporte vêm junto, mas não podem derrubar o painel: banco
     // sem o 38_suporte.sql instalado responde que a função não existe.
-    const [p, acessos, ajustes] = await Promise.all([
+    const [p, acessos, ajustes, adicionais] = await Promise.all([
       Dados.chamar('painel_plataforma'),
       Dados.chamar('acessos_de_suporte', { p_limite: 30 })
         .catch(e => { console.info('[plataforma] acessos de suporte:', e.message); return null; }),
       Dados.chamar('ajustes_da_plataforma')
         .catch(e => { console.info('[plataforma] ajustes:', e.message); return null; }),
+      // Os módulos adicionais (46_adicionais). Banco sem ele: a seção não aparece.
+      Dados.chamar('adicionais_da_plataforma')
+        .catch(e => { console.info('[plataforma] adicionais:', e.message); return null; }),
     ]);
     /* O check-up vem à parte e não derruba o painel: banco sem o 40_saude.sql
        responde que a função não existe, e a tela diz isso no lugar dele. */
@@ -259,6 +265,7 @@ async function carregar(){
     painel = Array.isArray(p) ? p[0] : p;
     painel.acessos = Array.isArray(acessos) ? acessos : null;
     painel.ajustes = (Array.isArray(ajustes) ? ajustes[0] : ajustes) || null;
+    painel.adicionais = (Array.isArray(adicionais) ? adicionais[0] : adicionais) || null;
     desenhar();
   }catch(e){
     console.error('[plataforma]', e);
@@ -385,6 +392,44 @@ function desenhar(){
         <div style="margin-top:10px">
           <button class="acao ${pacote ? 'perigo' : ''}" onclick="ligarMensagensDoPacote(${!pacote})">
             ${pacote ? 'Desligar' : 'Ligar as mensagens do pacote'}</button>
+        </div>
+      </div>`;
+  }
+
+  /* Os módulos adicionais (o Crediário): quem tem, quanto rende, e a
+     cortesia e o preço especial — que mudam também o valor do cartão de quem
+     paga no cartão, pela mesma borda `adicional` que o dono usa. */
+  if(painel.adicionais){
+    const ad = painel.adicionais;
+    const linhas = ad.saloes || [];
+    const situacao = x => x.cortesia && x.ativo ? 'cortesia'
+      : x.status === 'ativo' ? (x.ativo ? 'ativo' : 'ativo · plano não vale')
+      : x.status === 'aguardando' ? 'aguardando o pagamento'
+      : x.ativo ? 'cancelado · vale até ' + data(x.valeAte) : 'cancelado';
+    h += `<h2>Módulos adicionais</h2>
+      <div class="recado" id="ajusteAdicionais">
+        <b>${linhas.filter(x => x.ativo).length} salão(ões) com módulo ativo · ${centavos(ad.receitaMes)} por mês</b>
+        ${(ad.catalogo || []).map(c => escapar(c.nome) + ' ' + centavos(c.preco) + '/mês').join(' · ')}.
+        A cortesia vale em qualquer plano e não entra na mensalidade.
+        ${linhas.length ? `<div class="rolo" style="margin-top:10px"><table>
+          <thead><tr><th>Salão</th><th>Módulo</th><th>Situação</th><th class="num">Preço</th><th></th></tr></thead><tbody>
+          ${linhas.map(x => `<tr>
+            <td>${escapar(x.salao)}</td><td>${escapar(x.nome)}</td><td>${escapar(situacao(x))}</td>
+            <td class="num">${x.cortesia ? '—' : centavos(x.preco)}${x.precoEspecial != null ? ' (especial)' : ''}</td>
+            <td><button class="acao" data-salao="${escapar(x.salaoId)}" data-ad="${escapar(x.adicional)}"
+                  onclick="mudarAdicional(this.dataset.salao, this.dataset.ad, '${x.cortesia ? 'sem_cortesia' : 'cortesia'}')">
+                  ${x.cortesia ? 'Tirar cortesia' : 'Dar cortesia'}</button>
+                <button class="acao" data-salao="${escapar(x.salaoId)}" data-ad="${escapar(x.adicional)}"
+                  onclick="precoDoAdicional(this.dataset.salao, this.dataset.ad)">Preço especial</button></td>
+          </tr>`).join('')}
+          </tbody></table></div>` : ''}
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <select id="adSalao">${(painel.saloes || []).map(s =>
+            `<option value="${escapar(s.id)}">${escapar(s.nome)}</option>`).join('')}</select>
+          <select id="adModulo">${(ad.catalogo || []).map(c =>
+            `<option value="${escapar(c.codigo)}">${escapar(c.nome)}</option>`).join('')}</select>
+          <button class="acao" onclick="mudarAdicional(document.getElementById('adSalao').value,
+            document.getElementById('adModulo').value, 'cortesia')">Dar cortesia</button>
         </div>
       </div>`;
   }
@@ -593,6 +638,31 @@ async function ligarMensagensDoPacote(ligar){
     console.error('[plataforma] mensagens do pacote:', e);
     alert('Não consegui mudar.\n\n' + e.message);
   }
+}
+
+/* ── Os módulos adicionais: cortesia e preço especial ─────────────────────── */
+async function mudarAdicional(salaoId, adicional, acao, preco){
+  if(!salaoId || !adicional) return;
+  const nome = ((painel.saloes || []).find(s => s.id === salaoId) || {}).nome || 'este salão';
+  const pergunta = acao === 'cortesia' ? 'Dar o módulo de cortesia para ' + nome + '?\n\nEle passa a valer agora e não entra na mensalidade.'
+    : acao === 'sem_cortesia' ? 'Tirar a cortesia de ' + nome + '?\n\nCom a assinatura em dia, o módulo continua e passa a entrar na mensalidade.'
+    : null;
+  if(pergunta && !confirm(pergunta)) return;
+  try{
+    await Dados.borda('adicional', { salaoId, adicional, acao, preco: preco === undefined ? null : preco });
+    await carregar();
+  }catch(e){
+    console.error('[plataforma] adicional:', e);
+    alert('Não consegui mudar.\n\n' + e.message);
+  }
+}
+async function precoDoAdicional(salaoId, adicional){
+  const resp = prompt('Preço especial por mês para este salão (ex.: 29,90). Deixe vazio para voltar ao preço normal.', '');
+  if(resp === null) return;
+  const txt = resp.trim().replace(/\./g, '').replace(',', '.');
+  const preco = txt === '' ? null : Number(txt);
+  if(preco !== null && !(preco >= 0)){ alert('Preço inválido.'); return; }
+  await mudarAdicional(salaoId, adicional, 'preco', preco);
 }
 
 /* ── Estender teste ───────────────────────────────────────────────────────

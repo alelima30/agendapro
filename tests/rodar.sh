@@ -112,6 +112,7 @@ preparar() {
   carregar "$RAIZ/supabase/43_pacote_agenda.sql"
   carregar "$RAIZ/supabase/44_pacote_comissao.sql"
   carregar "$RAIZ/supabase/45_pacote_mensagens.sql"
+  carregar "$RAIZ/supabase/46_adicionais.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

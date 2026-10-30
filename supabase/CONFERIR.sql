@@ -721,8 +721,11 @@ with conferencia(ordem, item, veredito, detalhe) as (
                              where table_schema = 'public' and table_name = 'assinaturas'
                                and column_name = 'precos_especiais')
              or to_regprocedure('public.preco_do_plano(uuid,text)') is null
-             or pg_get_functiondef(to_regprocedure('public.abrir_cobranca(uuid,text,text,uuid)'))
-                  not like '%preco_do_plano%'
+             or (pg_get_functiondef(to_regprocedure('public.abrir_cobranca(uuid,text,text,uuid)'))
+                   not like '%preco_do_plano%'
+                 -- Com os adicionais (46), o preço do plano vem pela mensalidade.
+                 and pg_get_functiondef(to_regprocedure('public.abrir_cobranca(uuid,text,text,uuid)'))
+                   not like '%itens_da_mensalidade%')
              or to_regprocedure('public.campanha_liberada(uuid)') is null
              or pg_get_functiondef(to_regprocedure('public.fila_proxima(integer)'))
                   not like '%campanha_liberada%'
@@ -733,8 +736,11 @@ with conferencia(ordem, item, veredito, detalhe) as (
                              where table_schema = 'public' and table_name = 'assinaturas'
                                and column_name = 'precos_especiais')
              or to_regprocedure('public.preco_do_plano(uuid,text)') is null
-             or pg_get_functiondef(to_regprocedure('public.abrir_cobranca(uuid,text,text,uuid)'))
-                  not like '%preco_do_plano%'
+             or (pg_get_functiondef(to_regprocedure('public.abrir_cobranca(uuid,text,text,uuid)'))
+                   not like '%preco_do_plano%'
+                 -- Com os adicionais (46), o preço do plano vem pela mensalidade.
+                 and pg_get_functiondef(to_regprocedure('public.abrir_cobranca(uuid,text,text,uuid)'))
+                   not like '%itens_da_mensalidade%')
              or to_regprocedure('public.campanha_liberada(uuid)') is null
              or pg_get_functiondef(to_regprocedure('public.fila_proxima(integer)'))
                   not like '%campanha_liberada%'
@@ -1050,6 +1056,41 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or not coalesce((select relrowsecurity from pg_class
                                where oid = to_regclass('public.clientes_lembretes')), false)
              then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
+           else '' end
+  union all
+  /* Os módulos adicionais (46_adicionais): o catálogo com o Crediário, a
+     mensalidade plano + adicionais no Pix e no cartão, e a trava de módulo
+     que aceita o adicional. */
+  select 53, 'Módulos adicionais (Crediário) na mensalidade',
+         case
+           when to_regclass('public.salao_adicionais') is null
+             or not exists (select 1 from public.adicionais where codigo = 'crediario')
+             or to_regprocedure('public.valor_da_mensalidade(uuid,text)') is null
+             or to_regprocedure('public.aplicar_adicional(uuid,text,text,uuid,numeric,numeric)') is null
+             or not exists (select 1 from information_schema.columns where table_schema = 'public'
+                              and table_name = 'cobrancas' and column_name = 'itens')
+             or not exists (select 1 from pg_proc where proname = 'abrir_cobranca'
+                              and prosrc like '%itens_da_mensalidade%')
+             or not exists (select 1 from pg_proc where proname = 'registrar_pagamento'
+                              and prosrc like '%adicionais_pagos%')
+             or not exists (select 1 from pg_proc where proname = 'recurso_bool'
+                              and prosrc like '%adicional_ativo%')
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regclass('public.salao_adicionais') is null
+             or not exists (select 1 from public.adicionais where codigo = 'crediario')
+             or to_regprocedure('public.valor_da_mensalidade(uuid,text)') is null
+             or to_regprocedure('public.aplicar_adicional(uuid,text,text,uuid,numeric,numeric)') is null
+             or not exists (select 1 from information_schema.columns where table_schema = 'public'
+                              and table_name = 'cobrancas' and column_name = 'itens')
+             or not exists (select 1 from pg_proc where proname = 'abrir_cobranca'
+                              and prosrc like '%itens_da_mensalidade%')
+             or not exists (select 1 from pg_proc where proname = 'registrar_pagamento'
+                              and prosrc like '%adicionais_pagos%')
+             or not exists (select 1 from pg_proc where proname = 'recurso_bool'
+                              and prosrc like '%adicional_ativo%')
+             then 'cole o 00_tudo.sql de novo (46_adicionais, 13 e 23)'
            else '' end
   union all
   /* As mensagens do pacote (45_pacote_mensagens): o aviso de renovação e o

@@ -210,6 +210,8 @@ function paraTela(c: Record<string, unknown>){
   return {
     id: c.id, plano: c.plano, valor: c.valor, metodo: c.metodo,
     venceEm: c.vence_em,
+    // O que a cobrança cobra: o plano e os módulos adicionais (46_adicionais).
+    itens: c.itens ?? null,
     pixCopiaCola: c.pix_copia_cola ?? null,
     pixQrBase64:  c.pix_qr_base64 ?? null,
     boletoUrl: c.boleto_url ?? null,

@@ -65,7 +65,9 @@ insert into borda_precisa values
   ('public.cancelar_cartao(uuid,uuid)',                             'cancelar-cartao'),
   ('public.ligar_cartao(uuid,text)',                                'webhook-mp'),
   ('public.desligar_cartao(text)',                                  'webhook-mp'),
-  ('public.registrar_recorrencia(text,text,numeric,text)',          'webhook-mp');
+  ('public.registrar_recorrencia(text,text,numeric,text)',          'webhook-mp'),
+  ('public.preparar_adicional(uuid,text,text,uuid,numeric)',        'adicional'),
+  ('public.aplicar_adicional(uuid,text,text,uuid,numeric,numeric)', 'adicional');
 
 do $$
 declare r record; faltando text := '';
