@@ -728,6 +728,18 @@ span.ajuda{display:block;margin-top:5px}
     <div id="listaServicos"></div>
   </section>
 
+  <!-- ══════════ PROCEDIMENTOS (41_ficha_equipe.sql) ══════════ -->
+  <section class="tela" id="tela-procedimentos">
+    <div class="barra">
+      <span class="espaco"></span>
+      <input id="buscaProc" type="search" placeholder="Buscar procedimento"
+             oninput="pintarProcedimentos()"
+             style="padding:8px 11px;border:1px solid var(--borda);border-radius:9px;background:var(--painel);min-width:220px">
+      <button class="btn btn-p" id="btNovoProc" onclick="abrirProcedimento()">+ Procedimento</button>
+    </div>
+    <div id="listaProcedimentos"></div>
+  </section>
+
   <!-- ══════════ PRODUTOS ══════════ -->
   <!-- ══════════ PEDIDOS (restaurante) ══════════ -->
   <section class="tela" id="tela-pedidos">
@@ -1829,6 +1841,11 @@ const TELAS = [
   ['aniversarios','Aniversariantes','bolo',      'Dia a dia', EQUIPE],
   ['clientes', 'Clientes',         'usuario',    'Cadastros', EQUIPE],
   ['servicos', 'Serviços',         'tesoura',    'Cadastros', EQUIPE],
+  /* Procedimentos (41_ficha_equipe.sql): o passo a passo que o dono cria —
+     "morena iluminada", "loiro perolado". EQUIPE, igual a Serviços: quem
+     atende precisa LER; quem escreve é a gestão (o botão segue o papel, e o
+     banco barra com `procedimentos_escrever`). No restaurante não existe. */
+  ['procedimentos','Procedimentos','documento',  'Cadastros', EQUIPE],
   /* ⚠ EQUIPE, e não GESTAO — igual a Serviços, e pelo mesmo motivo: quem
      atende precisa ENXERGAR o catálogo para lançar um produto na comanda. A
      policy `prod_ler` do 02_rls diz exatamente isso (`e_equipe`), e quem
@@ -1896,7 +1913,8 @@ const minhasTelas = () => {
   const comanda = usaComanda();
   const restaurante = typeof restaurantePainel === 'function' && restaurantePainel();
   return TELAS.filter(t => t[4].includes(p) && (comanda || t[0] !== 'caixa')
-                        && (restaurante || t[0] !== 'pedidos'));
+                        && (restaurante || t[0] !== 'pedidos')
+                        && (!restaurante || t[0] !== 'procedimentos'));
 };
 
 /* O nome da aba. No restaurante os produtos SÃO o cardápio — mesma tela,
@@ -2065,7 +2083,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.278421';
+const VERSAO_APP = 'v9.d39c55';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6684,6 +6702,7 @@ function abrirDetalhe(agId){
           ? 'como a cliente disse que vai pagar' : 'como a cliente vai pagar'}</span></td></tr>` : ''}
     </tbody></table>
     ${comoFazerDoHorario(a)}
+    ${procedimentosDoHorario(a)}
     <div class="dupla" style="margin-top:14px">
       <div class="campo">
         <label>Mudar status</label>
@@ -7590,6 +7609,158 @@ function comoFazerDoHorario(a){
       <div class="como-fazer-txt">${escapar(s.procedimento)}</div></details>`).join('');
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROCEDIMENTOS (41_ficha_equipe.sql, 4)
+
+   "Tem coloração que uma é diferente da outra": o serviço é um só
+   (Coloração), mas a técnica muda de cliente para cliente — Morena
+   iluminada, Loiro perolado. Aqui o dono cria quantos quiser, cada um com
+   os produtos e o passo a passo (um passo por linha, que a tela numera), e
+   pode ligar ao serviço: no horário dele, quem atende vê os procedimentos.
+
+   A equipe lê; o botão de criar e o de editar seguem o papel, como em
+   Serviços — quem barra de verdade é a policy `procedimentos_escrever`.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const procedimentosDoSalao = () => doSalao(bd.procedimentos || []);
+const porNomeDoProc = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+
+// "1. Lavar", "- Lavar", "• Lavar": a numeração é da tela, então o número
+// que a pessoa digitou sai, para não aparecer "1. 1. Lavar".
+function passosDe(txt){
+  return String(txt || '').split('\n')
+    .map(l => l.trim().replace(/^(\d{1,2}\s*[.)\-:]\s*|[-•*]\s+)/, '').trim())
+    .filter(Boolean);
+}
+function passosHtml(txt){
+  const l = passosDe(txt);
+  return l.length ? `<ol class="proc-passos">${l.map(x => `<li>${escapar(x)}</li>`).join('')}</ol>` : '';
+}
+
+function pintarProcedimentos(){
+  const alvo = document.getElementById('listaProcedimentos');
+  if(!alvo) return;
+  const bt = document.getElementById('btNovoProc');
+  if(bt) bt.style.display = souGestor() ? '' : 'none';
+  const todos = procedimentosDoSalao().slice().sort(porNomeDoProc);
+  if(!todos.length){
+    alvo.innerHTML = `<div class="vazio"><b>Nenhum procedimento ainda</b>${souGestor()
+      ? 'Crie o passo a passo de cada técnica — Morena iluminada, Loiro perolado, Progressiva — com os produtos e cada etapa na ordem. A equipe vê aqui e no horário da cliente; a cliente não vê.'
+      : 'Quando a gestão do salão criar os procedimentos, eles aparecem aqui.'}</div>`;
+    return;
+  }
+  const busca = nomeAchatado((document.getElementById('buscaProc') || {}).value);
+  const lista = !busca ? todos : todos.filter(p => nomeAchatado([p.nome,
+    (acharServico(p.servicoId) || {}).nome, p.produtos, p.passos].join(' ')).includes(busca));
+  if(!lista.length){
+    alvo.innerHTML = '<div class="vazio"><b>Nada encontrado</b>Tente outra palavra.</div>';
+    return;
+  }
+  alvo.innerHTML = `<div class="proc-grade">${lista.map(p => {
+    const sv = p.servicoId ? acharServico(p.servicoId) : null;
+    const n = passosDe(p.passos).length;
+    return `<button type="button" class="card proc-cartao" data-proc="${p.id}"
+        onclick="verProcedimento('${p.id}')">
+        <b class="proc-nome">${escapar(p.nome)}</b>
+        <span class="proc-sub">${sv ? escapar(sv.nome) + ' · ' : ''}${
+          n ? n + (n === 1 ? ' passo' : ' passos') : 'sem passo a passo'}</span>
+        ${p.produtos ? `<span class="proc-prod">${escapar(p.produtos)}</span>` : ''}</button>`;
+  }).join('')}</div>`;
+}
+
+function verProcedimento(pid){
+  const p = procedimentosDoSalao().find(x => x.id === pid);
+  if(!p) return;
+  const sv = p.servicoId ? acharServico(p.servicoId) : null;
+  abrirModal(p.nome, `
+    ${sv ? `<p class="proc-ver-serv">Serviço: <b>${escapar(sv.nome)}</b></p>` : ''}
+    ${p.produtos ? `<div class="proc-bloco"><b>Produtos</b>
+      <p class="proc-ver-prod">${escapar(p.produtos)}</p></div>` : ''}
+    <div class="proc-bloco"><b>Passo a passo</b>
+      ${passosHtml(p.passos) || '<p class="ajuda">Ainda sem passo a passo.</p>'}</div>`,
+    [['Fechar', 'fecharModal()', ''],
+     ...(souGestor() ? [['Editar', `abrirProcedimento('${p.id}')`, 'btn-p']] : [])]);
+}
+
+function abrirProcedimento(pid){
+  if(!souGestor()) return;
+  const p = pid ? procedimentosDoSalao().find(x => x.id === pid) : null;
+  const servs = doSalao(bd.servicos).filter(s => s.ativo || (p && s.id === p.servicoId))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  abrirModal(p ? 'Editar procedimento' : 'Novo procedimento', `
+    <div class="campo"><label for="prNome">Nome</label>
+      <input id="prNome" maxlength="80" value="${escapar(p ? p.nome : '')}"
+             placeholder="Ex.: Morena iluminada"></div>
+    <div class="campo"><label for="prServico">De qual serviço
+        <span class="opcional">opcional</span></label>
+      <select id="prServico">
+        <option value="">Nenhum (fica só em Procedimentos)</option>
+        ${servs.map(s => `<option value="${s.id}"${p && p.servicoId === s.id ? ' selected' : ''}>${
+          escapar(s.nome)}</option>`).join('')}
+      </select>
+      <span style="font-size:12px;color:var(--txt2)">Ligado a um serviço, aparece
+        para quem atende no horário dele.</span></div>
+    <div class="campo"><label for="prProdutos">Produtos
+        <span class="opcional">opcional</span></label>
+      <textarea id="prProdutos" rows="3" maxlength="2000"
+        placeholder="Ex.: pó descolorante com ox 30 volumes; tonalizante 9.1; máscara matizadora">${
+        escapar(p ? (p.produtos || '') : '')}</textarea></div>
+    <div class="campo"><label for="prPassos">Passo a passo</label>
+      <textarea id="prPassos" rows="8" maxlength="8000"
+        placeholder="Um passo por linha. Ex.:&#10;Lavar com shampoo antirresíduo&#10;Aplicar o descolorante nas mechas&#10;Deixar agir e conferir a cada 10 minutos&#10;Enxaguar e tonalizar">${
+        escapar(p ? (p.passos || '') : '')}</textarea>
+      <span style="font-size:12px;color:var(--txt2)">Um passo por linha: a equipe
+        vê numerado. Só a equipe vê; a cliente não.</span></div>`,
+    [...(p ? [['Excluir', `excluirProcedimento('${p.id}')`, 'btn-perigo']] : []),
+     ['Cancelar', 'fecharModal()'],
+     ['Salvar', `salvarProcedimento(${p ? "'" + p.id + "'" : 'null'})`, 'btn-p']]);
+}
+
+function salvarProcedimento(pid){
+  if(!souGestor()) return;
+  const v = k => (document.getElementById(k).value || '').trim();
+  const nome = v('prNome');
+  if(!nome){ alert('Dê um nome ao procedimento. Ex.: Morena iluminada'); return; }
+  const dados = { nome, servicoId: v('prServico') || null,
+                  produtos: v('prProdutos') || null, passos: v('prPassos') || null };
+  const p = pid ? procedimentosDoSalao().find(x => x.id === pid) : null;
+  if(p) Object.assign(p, dados);
+  else (bd.procedimentos ||= []).push({ id: id(), salaoId: salaoAtual, ...dados });
+  salvar();
+  fecharModal();
+  pintarProcedimentos();
+}
+
+function excluirProcedimento(pid){
+  if(!souGestor()) return;
+  const p = procedimentosDoSalao().find(x => x.id === pid);
+  if(!p || !confirm('Excluir o procedimento ' + p.nome + '?')) return;
+  bd.procedimentos = (bd.procedimentos || []).filter(x => x.id !== pid);
+  salvar();
+  fecharModal();
+  pintarProcedimentos();
+}
+
+/* No horário: os procedimentos ligados aos serviços dele. Um só já vem aberto;
+   com vários (a Coloração com Morena iluminada E Loiro perolado), cada um se
+   abre ao toque — quem atende sabe qual é o da cliente. */
+function procedimentosDoHorario(a){
+  const svs = new Set((a.servicos || []).map(x => x.servicoId));
+  const lista = procedimentosDoSalao().filter(p => p.servicoId && svs.has(p.servicoId))
+    .sort(porNomeDoProc);
+  return lista.map(p => `<details class="como-fazer proc-detalhe"${lista.length === 1 ? ' open' : ''}>
+      <summary>Procedimento · ${escapar(p.nome)}</summary>
+      <div class="proc-detalhe-txt">${p.produtos ? `<p class="proc-ver-prod"><b>Produtos:</b> ${
+        escapar(p.produtos)}</p>` : ''}${passosHtml(p.passos)}</div></details>`).join('');
+}
+
+/* No cadastro do serviço: quais procedimentos estão pendurados nele. */
+function procedimentosDoServico(s){
+  if(!s) return '';
+  const l = procedimentosDoSalao().filter(p => p.servicoId === s.id).sort(porNomeDoProc);
+  return l.length ? `<p class="ajuda" style="margin-top:6px">Procedimentos deste serviço:
+    ${l.map(p => `<b>${escapar(p.nome)}</b>`).join(', ')} (no tópico Procedimentos).</p>` : '';
+}
+
 function abrirServico(sid){
   const s = sid ? acharServico(sid) : null;
   abrirModal(s ? 'Editar serviço' : 'Novo serviço', `
@@ -7681,7 +7852,8 @@ function abrirServico(sid){
         placeholder="Ex.: Tinta 9.1 + 0.11 com ox 20 volumes, 35 minutos. Lavar com shampoo sem sulfato e finalizar com máscara matizadora.">${
         escapar(s ? (s.procedimento || '') : '')}</textarea>
       <span style="font-size:12px;color:var(--txt2)">Produtos, tempos, passo a
-        passo. Quem atende vê ao abrir o horário; a cliente não vê.</span></div>
+        passo. Quem atende vê ao abrir o horário; a cliente não vê.</span>
+      ${procedimentosDoServico(s)}</div>
 
     <label class="serv-op" style="border:1px solid var(--borda);border-radius:9px">
       <input type="checkbox" id="sAtivo" ${!s || s.ativo ? 'checked' : ''}>
@@ -8899,6 +9071,7 @@ function pintar(){
   if(telaAtual === 'clientes') pintarClientes();
   if(telaAtual === 'aniversarios') pintarAniversarios();
   if(telaAtual === 'servicos') pintarServicos();
+  if(telaAtual === 'procedimentos') pintarProcedimentos();
   if(telaAtual === 'produtos') pintarProdutos();
   if(telaAtual === 'pacotes')  pintarPacotes();
   if(telaAtual === 'cupons')   pintarCupons();

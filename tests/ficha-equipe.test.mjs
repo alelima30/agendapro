@@ -15,7 +15,10 @@
      2. a profissional (outro login) abre o horário da Maria e vê o
         lembrete e o como fazer; o cartão do dia mostra as marcas;
      3. desmarcar tudo apaga o lembrete;
-     4. o link da cliente não recebe nem o lembrete nem o como fazer.
+     4. o link da cliente não recebe nem o lembrete nem o como fazer;
+     5. PROCEDIMENTOS, o tópico próprio: a dona cria Morena iluminada e Loiro
+        perolado na Coloração; a Bia vê a aba (sem criar nem editar), o passo
+        a passo numerado, e os dois no horário da Maria; o link não recebe.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -243,6 +246,90 @@ secao('4. O link da cliente não recebe nada disso');
   verdade('mas o como fazer não chega nem na resposta do servidor',
     !tudo.includes('ox 20 volumes') && !tudo.includes('procedimento'));
   verdade('nem o lembrete', !tudo.includes('segredo da equipe') && !tudo.includes('Atenção no pagamento'));
+  await ctx.close();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   5 — PROCEDIMENTOS
+   ══════════════════════════════════════════════════════════════════════════ */
+secao('5. Procedimentos: o tópico próprio');
+const PASSOS = '1. Separar o cabelo em mechas finas\n2. Aplicar o descolorante\n\n- Enxaguar e tonalizar';
+{
+  const { ctx, p } = await abrirPainel(dDona, 'dona');
+  igual('a dona vê a aba Procedimentos, logo depois de Serviços',
+    await p.evaluate(() => { const k = [...document.querySelectorAll('#abas .aba')].map(b => b.dataset.chave);
+      return k[k.indexOf('servicos') + 1]; }), 'procedimentos');
+  await p.evaluate(() => irPara('procedimentos'));
+  await p.waitForTimeout(300);
+  verdade('vazia, explica para que serve', /Nenhum procedimento ainda/.test(await p.textContent('#listaProcedimentos')));
+  for(const [nome, prod, passos] of [['Morena iluminada', 'Pó descolorante; ox 20 volumes', PASSOS],
+                                     ['Loiro perolado', 'Tonalizante perolado', 'Lavar\nTonalizar']]){
+    await p.click('#btNovoProc');
+    await p.waitForSelector('#prNome');
+    await p.fill('#prNome', nome);
+    await p.selectOption('#prServico', SV.id);
+    await p.fill('#prProdutos', prod);
+    await p.fill('#prPassos', passos);
+    await p.evaluate(() => salvarProcedimento(null));
+    await p.waitForTimeout(1500);
+  }
+  const noBanco = (await banco.query(`select nome, servico_id, produtos, passos from public.procedimentos
+    where salao_id=$1 order by nome`, [SALAO])).rows;
+  igual('os dois foram para o banco, ligados à Coloração',
+    noBanco.map(r => [r.nome, r.servico_id]), [['Loiro perolado', SV.id], ['Morena iluminada', SV.id]]);
+  igual('com o passo a passo como foi digitado', noBanco[1].passos, PASSOS);
+  igual('a lista mostra os dois cartões, em ordem de nome',
+    await p.evaluate(() => [...document.querySelectorAll('.proc-cartao .proc-nome')].map(b => b.textContent)),
+    ['Loiro perolado', 'Morena iluminada']);
+  await p.fill('#buscaProc', 'descolor');
+  igual('a busca acha também pelo produto',
+    await p.evaluate(() => [...document.querySelectorAll('.proc-cartao .proc-nome')].map(b => b.textContent)),
+    ['Morena iluminada']);
+  await p.fill('#buscaProc', '');
+  await p.evaluate(id => { irPara('servicos'); abrirServico(id); }, SV.id);
+  await p.waitForSelector('#sProc');
+  verdade('o cadastro do serviço diz quais procedimentos estão nele',
+    /Procedimentos deste serviço:\s*Loiro perolado, Morena iluminada/.test(
+      await p.evaluate(() => document.querySelector('.modal').innerText)));
+  await ctx.close();
+}
+{
+  const { ctx, p } = await abrirPainel(dBia, 'bia');
+  await p.evaluate(() => irPara('procedimentos'));
+  await p.waitForTimeout(300);
+  igual('a Bia vê a aba e os dois procedimentos',
+    await p.evaluate(() => [telaAtual, document.querySelectorAll('.proc-cartao').length]), ['procedimentos', 2]);
+  verdade('mas sem o botão de criar', !(await p.isVisible('#btNovoProc')));
+  await p.click('.proc-cartao:has-text("Morena iluminada")');
+  await p.waitForTimeout(300);
+  const ver = await p.evaluate(() => ({
+    passos: [...document.querySelectorAll('.modal .proc-passos li')].map(l => l.textContent),
+    botoes: [...document.querySelectorAll('.modal button')].map(b => b.textContent.trim()) }));
+  igual('o passo a passo vem numerado, sem o número e o traço digitados',
+    ver.passos, ['Separar o cabelo em mechas finas', 'Aplicar o descolorante', 'Enxaguar e tonalizar']);
+  verdade('e sem o botão Editar para ela', !ver.botoes.includes('Editar'), JSON.stringify(ver.botoes));
+  await p.evaluate(id => { fecharModal(); abrirDetalhe(id); }, AG.id);
+  await p.waitForTimeout(400);
+  const det = await p.evaluate(() => [...document.querySelectorAll('.modal details.proc-detalhe')]
+    .map(d => [d.querySelector('summary').textContent.trim(), d.open]));
+  igual('no horário da Maria (Coloração), os dois procedimentos, fechados para ela escolher',
+    det, [['Procedimento · Loiro perolado', false], ['Procedimento · Morena iluminada', false]]);
+  verdade('e o como fazer do serviço continua lá',
+    await p.evaluate(() => !!document.querySelector('.modal details.como-fazer:not(.proc-detalhe)')));
+  await ctx.close();
+}
+{
+  const ctx = await nav.newContext({ viewport:{ width:390, height:880 }, isMobile:true, hasTouch:true });
+  const p = await ctx.newPage();
+  p.on('pageerror', e => erros.push('link: ' + e.message));
+  const respostas = [];
+  p.on('response', async r => { if(/\/rest\/v1\//.test(r.url())) respostas.push(await r.text().catch(() => '')); });
+  await p.goto(BASE + '/agendar.html?salao=' + SLUG);
+  await p.waitForFunction(() => typeof tela !== 'undefined' && tela === 'capa', null, { timeout: 15000 });
+  await p.waitForTimeout(1500);
+  const tudo = respostas.join('\n') + (await p.content());
+  verdade('o link não recebe os procedimentos',
+    !tudo.includes('Morena iluminada') && !tudo.includes('Tonalizante perolado'));
   await ctx.close();
 }
 

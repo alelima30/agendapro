@@ -355,6 +355,16 @@ function semear(){
        valeAgendamento:true, valeProdutos:false, servicos:null, inicio:null,
        fim:null, limiteTotal:null, umPorCliente:true, ativo:true},
     ],
+    /* Dois procedimentos, para o tópico não abrir vazio na demonstração. São
+       exemplo de como escrever, não receita: cada salão põe a sua. */
+    procedimentos: [
+      {id:'pr1', salaoId:s1, servicoId:'v4', nome:'Morena iluminada',
+       produtos:'Pó descolorante; ox 20 volumes; tonalizante; máscara de hidratação',
+       passos:'Separar o cabelo em mechas finas\nAplicar o descolorante nas mechas escolhidas\nConferir o clareamento a cada 10 minutos\nEnxaguar e tonalizar\nHidratar e finalizar'},
+      {id:'pr2', salaoId:s1, servicoId:'v3', nome:'Loiro perolado',
+       produtos:'Tonalizante perolado; ox 10 volumes; shampoo sem sulfato; máscara matizadora',
+       passos:'Lavar com shampoo sem sulfato\nAplicar o tonalizante em todo o comprimento\nDeixar agir pelo tempo do fabricante\nEnxaguar e aplicar a máscara matizadora\nSecar e finalizar'},
+    ],
   };
 }
 

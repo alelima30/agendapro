@@ -1,6 +1,6 @@
 -- ===========================================================================
 -- 41_ficha_equipe.sql — o que só a equipe sabe: o "como fazer" de cada
--- serviço e os lembretes sobre a cliente
+-- serviço, os procedimentos (o passo a passo) e os lembretes sobre a cliente
 --
 -- Os pedidos: "criar um lugar que o profissional consiga fazer o
 -- procedimento, exemplo: coloração loiro perolado, quais as tintas e como
@@ -21,6 +21,14 @@
 -- Uma linha por cliente: as marcas tocadas na tela ("Prefere não conversar",
 -- "Atenção no pagamento"...) e um texto livre. Quem lê e escreve é a equipe
 -- do salão — a profissional que vai atender é quem mais precisa saber.
+--
+-- ── 3) OS PROCEDIMENTOS: UM TÓPICO PRÓPRIO ──────────────────────────────────
+-- "Tem coloração que uma é diferente da outra": o mesmo serviço Coloração é
+-- Morena iluminada para uma cliente e Loiro perolado para outra. Por isso, além
+-- do como fazer do serviço, a tabela `procedimentos`: o dono cria quantos
+-- quiser, cada um com os produtos e o passo a passo, e pode ligar ao serviço.
+-- No horário daquele serviço, a profissional vê os procedimentos dele.
+-- A equipe lê; quem escreve é a gestão (como em Serviços). A cliente não lê.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
@@ -100,6 +108,69 @@ do $$ begin
   if to_regprocedure('public.tg_suporte()') is not null then
     drop trigger if exists zz_suporte on public.clientes_lembretes;
     create trigger zz_suporte after insert or update or delete on public.clientes_lembretes
+      for each row execute function public.tg_suporte();
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 4) OS PROCEDIMENTOS
+-- ---------------------------------------------------------------------------
+create table if not exists public.procedimentos (
+  id            uuid primary key default gen_random_uuid(),
+  salao_id      uuid not null references public.saloes(id) on delete cascade,
+  nome          text not null,
+  servico_id    uuid references public.servicos(id) on delete set null,
+  produtos      text,
+  passos        text,
+  criado_em     timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+  check (length(btrim(nome)) between 1 and 80),
+  check (produtos is null or length(produtos) <= 2000),
+  check (passos is null or length(passos) <= 8000)
+);
+create index if not exists ix_procedimentos_salao on public.procedimentos(salao_id);
+
+/* O serviço ligado tem de ser do mesmo salão: sem isto, a gestão de um salão
+   penduraria o procedimento num serviço de outro. Roda como dono, como todo
+   gatilho do projeto; a policy abaixo já garante que quem grava é gestão de
+   `salao_id`. */
+create or replace function public.tg_procedimento()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.servico_id is not null and not exists (
+       select 1 from public.servicos s where s.id = new.servico_id and s.salao_id = new.salao_id) then
+    raise exception 'Este serviço não é deste salão.' using errcode = 'check_violation';
+  end if;
+  new.nome := btrim(new.nome);
+  new.produtos := nullif(btrim(coalesce(new.produtos, '')), '');
+  new.passos := nullif(btrim(coalesce(new.passos, '')), '');
+  if tg_op = 'UPDATE' then new.atualizado_em := now(); end if;
+  return new;
+end $$;
+
+drop trigger if exists tg_procedimento on public.procedimentos;
+create trigger tg_procedimento
+  before insert or update on public.procedimentos
+  for each row execute function public.tg_procedimento();
+
+alter table public.procedimentos enable row level security;
+
+drop policy if exists procedimentos_ler on public.procedimentos;
+create policy procedimentos_ler on public.procedimentos
+  for select to authenticated using (public.e_equipe(salao_id));
+drop policy if exists procedimentos_escrever on public.procedimentos;
+create policy procedimentos_escrever on public.procedimentos
+  for all to authenticated
+  using (public.e_gestor(salao_id)) with check (public.e_gestor(salao_id));
+
+grant select, insert, update, delete on public.procedimentos to authenticated;
+revoke all on public.procedimentos from anon;
+revoke all on function public.tg_procedimento() from public, anon, authenticated;
+
+do $$ begin
+  if to_regprocedure('public.tg_suporte()') is not null then
+    drop trigger if exists zz_suporte on public.procedimentos;
+    create trigger zz_suporte after insert or update or delete on public.procedimentos
       for each row execute function public.tg_suporte();
   end if;
 end $$;

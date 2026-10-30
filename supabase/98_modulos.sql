@@ -6831,6 +6831,55 @@ do $$ begin
       for each row execute function public.tg_suporte();
   end if;
 end $$;
+create table if not exists public.procedimentos (
+  id            uuid primary key default gen_random_uuid(),
+  salao_id      uuid not null references public.saloes(id) on delete cascade,
+  nome          text not null,
+  servico_id    uuid references public.servicos(id) on delete set null,
+  produtos      text,
+  passos        text,
+  criado_em     timestamptz not null default now(),
+  atualizado_em timestamptz not null default now(),
+  check (length(btrim(nome)) between 1 and 80),
+  check (produtos is null or length(produtos) <= 2000),
+  check (passos is null or length(passos) <= 8000)
+);
+create index if not exists ix_procedimentos_salao on public.procedimentos(salao_id);
+create or replace function public.tg_procedimento()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.servico_id is not null and not exists (
+       select 1 from public.servicos s where s.id = new.servico_id and s.salao_id = new.salao_id) then
+    raise exception 'Este serviço não é deste salão.' using errcode = 'check_violation';
+  end if;
+  new.nome := btrim(new.nome);
+  new.produtos := nullif(btrim(coalesce(new.produtos, '')), '');
+  new.passos := nullif(btrim(coalesce(new.passos, '')), '');
+  if tg_op = 'UPDATE' then new.atualizado_em := now(); end if;
+  return new;
+end $$;
+drop trigger if exists tg_procedimento on public.procedimentos;
+create trigger tg_procedimento
+  before insert or update on public.procedimentos
+  for each row execute function public.tg_procedimento();
+alter table public.procedimentos enable row level security;
+drop policy if exists procedimentos_ler on public.procedimentos;
+create policy procedimentos_ler on public.procedimentos
+  for select to authenticated using (public.e_equipe(salao_id));
+drop policy if exists procedimentos_escrever on public.procedimentos;
+create policy procedimentos_escrever on public.procedimentos
+  for all to authenticated
+  using (public.e_gestor(salao_id)) with check (public.e_gestor(salao_id));
+grant select, insert, update, delete on public.procedimentos to authenticated;
+revoke all on public.procedimentos from anon;
+revoke all on function public.tg_procedimento() from public, anon, authenticated;
+do $$ begin
+  if to_regprocedure('public.tg_suporte()') is not null then
+    drop trigger if exists zz_suporte on public.procedimentos;
+    create trigger zz_suporte after insert or update or delete on public.procedimentos
+      for each row execute function public.tg_suporte();
+  end if;
+end $$;
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();

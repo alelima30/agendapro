@@ -98,6 +98,10 @@ const COLUNAS = {
      parte porque a cliente logada lê a própria ficha, e estes ela não lê. */
   clientes_lembretes: { salaoId:'salao_id', clienteId:'cliente_id',
                    atualizadoEm:'atualizado_em' },
+  /* O tópico Procedimentos (41_ficha_equipe.sql): o passo a passo que o dono
+     cria, ligado ou não a um serviço. */
+  procedimentos: { salaoId:'salao_id', servicoId:'servico_id', criadoEm:'criado_em',
+                   atualizadoEm:'atualizado_em' },
   agendamentos:  { salaoId:'salao_id', clienteId:'cliente_id',
                    profissionalId:'profissional_id', valorPrevisto:'valor_previsto',
                    canceladoMotivo:'cancelado_motivo', atendidoNome:'atendido_nome',
@@ -1155,6 +1159,9 @@ const TABELAS_SINCRONIZADAS = [
      de preço aponta para os dois. Mesma razão de `agendamento_servicos` vir
      logo depois do agendamento. */
   'precos_regras',
+  /* Depois de `servicos` pela chave estrangeira: o procedimento pode apontar
+     para um serviço, e o serviço novo tem de chegar primeiro. */
+  'procedimentos',
   'jornadas',
   'bloqueios','clientes',
   /* Logo depois de `clientes`, pela chave estrangeira: o lembrete aponta para

@@ -3846,6 +3846,27 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .como-fazer-txt{
   padding:0 12px 12px; font-size:14px; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere;
 }
+/* O tópico Procedimentos: cartões que abrem o passo a passo. */
+.proc-grade{ display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:12px }
+.proc-cartao{
+  display:flex; flex-direction:column; align-items:flex-start; gap:4px; text-align:left;
+  width:100%; min-height:44px; cursor:pointer; font:inherit; color:var(--txt);
+}
+.proc-cartao:hover{ border-color:var(--borda-forte) }
+.proc-nome{ font-size:15.5px; overflow-wrap:anywhere }
+.proc-sub{ font-size:13px; color:var(--txt2) }
+.proc-prod{
+  font-size:13px; color:var(--txt2); overflow:hidden; display:-webkit-box;
+  -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow-wrap:anywhere;
+}
+.proc-ver-serv{ margin:0 0 12px; color:var(--txt2); font-size:14px }
+.proc-bloco{ margin-bottom:14px }
+.proc-bloco > b{ display:block; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--txt2); margin-bottom:6px }
+.proc-ver-prod{ margin:0; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.5 }
+.proc-passos{ margin:0; padding-left:22px; line-height:1.55 }
+.proc-passos li{ margin-bottom:6px; overflow-wrap:anywhere }
+.proc-detalhe-txt{ padding:0 12px 12px; font-size:14px }
+.proc-detalhe-txt .proc-ver-prod{ margin-bottom:8px }
 .dia-cartao .dc-vlr{ font-weight:800; white-space:nowrap }
 /* Como a cliente vai pagar, embaixo do valor: "Pix", "Cartão de crédito". */
 .dia-cartao .dc-pag{ font-size:12px; font-weight:600; color:var(--txt2); white-space:nowrap }

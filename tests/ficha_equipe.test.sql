@@ -174,3 +174,86 @@ do $$ begin
   perform t_igual('apagar a ficha leva o lembrete junto',
     (select count(*) from public.clientes_lembretes), 0);
 end $$;
+
+\echo ''
+\echo '7. Procedimentos: a gestão cria, a equipe lê, a cliente não'
+insert into public.servicos (id, salao_id, nome, duracao_min, preco) values
+  ('54200000-0000-0000-0000-00000000000b', '54100000-0000-0000-0000-00000000000b',
+   'Corte masculino', 30, 50);
+begin;
+  set local role authenticated;
+  set local request.jwt.claim.sub = 'a4100000-0000-0000-0000-00000000000a';
+  insert into public.procedimentos (salao_id, servico_id, nome, produtos, passos) values
+    ('54100000-0000-0000-0000-00000000000a', '54200000-0000-0000-0000-00000000000a',
+     '  Morena iluminada ', '  ', E'Separar em mechas\nAplicar o descolorante'),
+    ('54100000-0000-0000-0000-00000000000a', '54200000-0000-0000-0000-00000000000a',
+     'Loiro perolado', 'Tonalizante perolado', E'Lavar\nTonalizar');
+  do $$ begin
+    perform t_igual('a dona cria dois procedimentos no mesmo serviço',
+      (select count(*) from public.procedimentos), 2);
+    perform t_texto('o nome chega sem espaço sobrando, e produto em branco vira vazio',
+      (select nome || '|' || coalesce(produtos, '(nada)') from public.procedimentos
+        where nome like 'Morena%'), 'Morena iluminada|(nada)');
+    perform t_texto('não pendura procedimento em serviço de outro salão',
+      erro_de($q$insert into public.procedimentos (salao_id, servico_id, nome)
+                 values ('54100000-0000-0000-0000-00000000000a',
+                         '54200000-0000-0000-0000-00000000000b', 'x')$q$),
+      'Este serviço não é deste salão.');
+    perform t_verdade('nome em branco é recusado',
+      recusado($q$insert into public.procedimentos (salao_id, nome)
+                 values ('54100000-0000-0000-0000-00000000000a', '   ')$q$));
+  end $$;
+commit;
+
+begin;
+  set local role authenticated;
+  set local request.jwt.claim.sub = 'b4100000-0000-0000-0000-00000000000b';
+  do $$ declare n bigint; begin
+    perform t_igual('a profissional lê os procedimentos',
+      (select count(*) from public.procedimentos), 2);
+    perform t_verdade('mas não cria (quem escreve é a gestão)',
+      recusado($q$insert into public.procedimentos (salao_id, nome)
+                 values ('54100000-0000-0000-0000-00000000000a', 'Meu jeito')$q$));
+    update public.procedimentos set passos = 'mudei';
+    get diagnostics n = row_count;
+    perform t_igual('nem muda o passo a passo', n, 0);
+  end $$;
+commit;
+
+begin;
+  set local role authenticated;
+  set local request.jwt.claim.sub = 'c4100000-0000-0000-0000-00000000000c';
+  do $$ begin
+    perform t_igual('a cliente logada não lê procedimento nenhum',
+      (select count(*) from public.procedimentos), 0);
+  end $$;
+commit;
+
+begin;
+  set local role authenticated;
+  set local request.jwt.claim.sub = 'e4100000-0000-0000-0000-00000000000e';
+  do $$ begin
+    perform t_igual('o dono do salão vizinho também não',
+      (select count(*) from public.procedimentos), 0);
+  end $$;
+commit;
+
+begin;
+  set local role anon;
+  do $$ begin
+    perform t_verdade('anônimo nem chega na tabela', recusado('select 1 from public.procedimentos'));
+  end $$;
+commit;
+
+do $$
+declare v text := public.vitrine('ficha-a')::text;
+begin
+  perform t_falso('a vitrine (o link) não leva os procedimentos',
+    v like '%Morena iluminada%' or v like '%Tonalizante perolado%');
+  perform t_verdade('a trava do modo suporte está na tabela',
+    exists (select 1 from pg_trigger where tgname = 'zz_suporte'
+              and tgrelid = 'public.procedimentos'::regclass));
+  delete from public.servicos where id = '54200000-0000-0000-0000-00000000000a';
+  perform t_igual('apagar o serviço não apaga o procedimento: ele fica solto',
+    (select count(*) from public.procedimentos where servico_id is null), 2);
+end $$;

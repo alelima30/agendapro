@@ -1052,6 +1052,26 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
            else '' end
   union all
+  /* O tópico Procedimentos (41_ficha_equipe, 4): o passo a passo que o dono
+     cria — Morena iluminada, Loiro perolado —, só para a equipe. */
+  select 48, 'Procedimentos com passo a passo (só a equipe)',
+         case
+           when to_regclass('public.procedimentos') is null
+             or not exists (select 1 from pg_policies where schemaname = 'public'
+                              and tablename = 'procedimentos' and policyname = 'procedimentos_ler')
+             or not coalesce((select relrowsecurity from pg_class
+                               where oid = to_regclass('public.procedimentos')), false)
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regclass('public.procedimentos') is null
+             or not exists (select 1 from pg_policies where schemaname = 'public'
+                              and tablename = 'procedimentos' and policyname = 'procedimentos_ler')
+             or not coalesce((select relrowsecurity from pg_class
+                               where oid = to_regclass('public.procedimentos')), false)
+             then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
+           else '' end
+  union all
   /* OS ACENTOS. Colado com a codificação errada, o banco fica com "Ã£" no
      lugar de "ã" — no nome do plano que o dono vê e em todo texto das
      funções, inclusive o que vai para a cliente. O padrão ("Ã" seguido de um

@@ -54,7 +54,7 @@ cat > "$SAIDA" <<'CAB'
 --   38_suporte.sql           o modo suporte: a plataforma olha o painel do salão, e só edita liberando
 --   39_teste_unico.sql       o teste grátis é um por pessoa: excluir e voltar não ganha mais 7 dias
 --   40_saude.sql             o check-up do sistema: a fila do WhatsApp anda? (admin e UptimeRobot)
---   41_ficha_equipe.sql      só da equipe: o como fazer de cada serviço e os lembretes sobre a cliente
+--   41_ficha_equipe.sql      só da equipe: o como fazer, os procedimentos e os lembretes sobre a cliente
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
