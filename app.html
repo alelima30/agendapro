@@ -2083,7 +2083,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.d39c55';
+const VERSAO_APP = 'v9.ab967e';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -14739,6 +14739,12 @@ function oQueOPlanoInclui(){
     ['Pacotes', moduloLiberado('pacotes')],
     ['Cupons de desconto', moduloLiberado('cupons')],
     ['Aparência do link (cores, fotos e modelos)', moduloLiberado('aparencia')],
+    /* Os três sem trava de plano no banco (09_cliente 1e, 41_ficha_equipe):
+       todo plano tem. No fim da lista, para o `splice` da comanda abaixo
+       continuar caindo no mesmo lugar. */
+    ['Sinal por Pix para garantir o horário', true],
+    ['Procedimentos com passo a passo (só a equipe vê)', true],
+    ['Lembretes da equipe sobre cada cliente', true],
   ];
   if(COMANDA_NA_PLATAFORMA) itens.splice(3, 0, ['Comanda e caixa', moduloLiberado('caixa')]);
   return `<div class="plano-inclui" id="planoInclui">

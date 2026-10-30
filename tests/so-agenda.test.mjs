@@ -208,6 +208,10 @@ secao('3b) A tela do Plano: o que inclui, quanto resta, e a saída a 90%');
   verdade('"O que o seu plano inclui", com a agenda e os relatórios (teste: tudo liberado)',
     /O que o seu plano inclui/.test(t) && /Agenda e link de agendamento/.test(t) && /Relatórios/.test(t), t.slice(0, 600));
   verdade('sem "Comanda e caixa" na lista (desligados na plataforma)', !/Comanda e caixa/.test(t), t.slice(0, 600));
+  verdade('e com o sinal, os procedimentos e os lembretes, que todo plano tem',
+    /✓\s*Sinal por Pix para garantir o horário/.test(t)
+    && /✓\s*Procedimentos com passo a passo/.test(t)
+    && /✓\s*Lembretes da equipe sobre cada cliente/.test(t), t.slice(0, 900));
   verdade('as mensagens dizem quantas restam no mês', /Restam\s*\d+\s*mensagens neste mês/.test(t), t.slice(0, 600));
   verdade('a equipe cheia no plano de 1 não assusta: diz em que plano cabe mais gente',
     !/chegou ao limite/.test(t) && /plano maior/.test(t) && /Dupla/.test(t), t.slice(0, 700));
