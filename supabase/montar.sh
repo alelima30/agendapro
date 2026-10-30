@@ -58,6 +58,7 @@ cat > "$SAIDA" <<'CAB'
 --   42_travas.sql            o que a auditoria de segurança achou: status do salão e a linha do salão
 --   43_pacote_agenda.sql     o pacote com agenda fixa (as semanas já marcadas) e o pagamento do pacote
 --   44_pacote_comissao.sql   a comissão da sessão de pacote: proporcional, de quem atendeu, ao atender
+--   45_pacote_mensagens.sql  as mensagens do pacote: aviso de renovação e lembrete do pagamento
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -87,7 +88,7 @@ end $$;
 
 CAB
 
-for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql 36_excluir_conta.sql 37_pedidos.sql 38_suporte.sql 39_teste_unico.sql 40_saude.sql 41_ficha_equipe.sql 42_travas.sql 43_pacote_agenda.sql 44_pacote_comissao.sql; do
+for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql 36_excluir_conta.sql 37_pedidos.sql 38_suporte.sql 39_teste_unico.sql 40_saude.sql 41_ficha_equipe.sql 42_travas.sql 43_pacote_agenda.sql 44_pacote_comissao.sql 45_pacote_mensagens.sql; do
   {
     echo ''
     echo '-- ###########################################################################'

@@ -199,6 +199,22 @@ console.log('\nQuem é');
   await pa.click('#ajustePagamento button');
   await pa.waitForTimeout(1200);
   diz(/desligada/.test(await ajuste()), 'e desliga de novo (a bancada volta como estava)');
+
+  /* As do pacote (45): o mesmo cuidado, com os dois modelos novos. */
+  const ajPac = () => pa.textContent('#ajustePacote').catch(() => '');
+  diz(/desligadas/.test(await ajPac()) && /aprovados/.test(await ajPac()),
+    'o admin mostra "mensagens do pacote: desligadas", e quando ligar',
+    (await ajPac()).replace(/\s+/g, ' ').slice(0, 160));
+  pa.dialogos = [];
+  await pa.click('#ajustePacote button');
+  await pa.waitForTimeout(1200);
+  diz(pa.dialogos.some(m => /pacote.*APROVADOS na Meta/s.test(m)),
+    'ligar pergunta antes se os dois modelos do pacote já foram aprovados', pa.dialogos.join(' | '));
+  diz(/ligadas/.test(await ajPac()) && !/desligadas/.test(await ajPac()),
+    'e liga', (await ajPac()).replace(/\s+/g, ' ').slice(0, 120));
+  await pa.click('#ajustePacote button');
+  await pa.waitForTimeout(1200);
+  diz(/desligadas/.test(await ajPac()), 'e desliga de novo (a bancada volta como estava)');
   diz(pa.erros.length === 0, 'sem erro de JavaScript', pa.erros.join(' · '));
   await pa.context().close();
 }

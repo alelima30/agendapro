@@ -434,6 +434,74 @@ Qualquer dúvida, fale com o estabelecimento.
 
 ---
 
+# Os dois do pacote
+
+O aviso de que o pacote está acabando e o lembrete do pagamento de quem está
+"a receber" (`45_pacote_mensagens.sql`). Mesmas regras: **Utilidade**,
+**Português (BR)**, sem cabeçalho e sem botão — e o formato dos que a Meta
+aprovou como Utilidade: sem "!" e fechando com "Aviso automático do sistema de
+agendamento."
+
+> **⚠ CATEGORIA: UTILIDADE.** A tela da Meta abre com "Marketing" marcado:
+> troque antes de avançar. Se ela reclassificar algum dos dois para
+> Marketing, não ligue — me avise, que o texto é ajustado e vai com outro
+> nome.
+
+> **⚠ A ordem para ligar.** Enquanto os dois não estiverem **aprovados**,
+> nada do pacote vai para a fila — o painel do salão mostra "ainda não estão
+> saindo". Depois da aprovação, ligue em **admin → Mensagens do WhatsApp →
+> Ligar as mensagens do pacote**. Ligando, os pacotes que já estão na agenda
+> ganham as mensagens deles na hora.
+
+## 11. `agendapro_pacote_renovacao`
+
+Vai para a cliente **seis dias antes da última sessão do pacote**, às 10h
+(hora do salão) — só quando todas as sessões do pacote estão na agenda. Se ela
+renovar antes, não sai.
+
+```
+Olá, {{1}}. Aviso sobre o seu pacote {{2}} no {{3}}.
+
+📅 Última sessão do pacote: {{4}}
+
+Depois dessa data o pacote termina. Para manter os seus horários, combine a renovação com o salão.
+
+Aviso automático do sistema de agendamento.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Maria |
+| `{{2}}` | nome do pacote | Mão e pé mensal |
+| `{{3}}` | nome do salão | Salão da Ana |
+| `{{4}}` | dia da semana, data e hora da última sessão | terça, 01/12 às 14:00 |
+
+## 12. `agendapro_pacote_pagamento`
+
+Vai para a cliente com o pacote **a receber**, na **véspera da primeira
+sessão**, às 10h. Se o salão registrar o pagamento antes, não sai.
+
+```
+Olá, {{1}}. Lembrete do pagamento do seu pacote {{2}} no {{3}}.
+
+💰 Valor: {{4}}
+💳 Pagamento: {{5}}
+
+Se você já pagou, desconsidere esta mensagem.
+
+Aviso automático do sistema de agendamento.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Maria |
+| `{{2}}` | nome do pacote | Mão e pé mensal |
+| `{{3}}` | nome do salão | Salão da Ana |
+| `{{4}}` | valor do pacote | R$ 220,00 |
+| `{{5}}` | a chave Pix do salão, ou "combine com o salão" sem Pix | Pix (chave: ana@salao.com) |
+
+---
+
 ## As regras que quebram o envio sem avisar direito
 
 | regra | o que acontece se quebrar |
@@ -468,4 +536,4 @@ select tipo, modelo, variaveis, corpo
 profissional, 4 no resumo e 7 no lembrete para o salão — na ordem das tabelas acima.
 Nos do pedido: 5 no pedido novo e no confirmado, 3 no "a caminho" e no
 "pronto", e 4 no cancelado. Os nomes deles estão no `modelo_de()` do
-`37_pedidos.sql`.
+`37_pedidos.sql`. Nos do pacote: 4 na renovação e 5 no lembrete do pagamento.

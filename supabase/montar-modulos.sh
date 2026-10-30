@@ -142,6 +142,7 @@ partes.append(limpar(open('supabase/41_ficha_equipe.sql', encoding='utf-8').read
 partes.append(limpar(open('supabase/42_travas.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/43_pacote_agenda.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/44_pacote_comissao.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/45_pacote_mensagens.sql', encoding='utf-8').read()))
 
 # ⚠ E O 09_cliente.sql POR ÚLTIMO, porque é dele o `agendar()` que vale.
 #

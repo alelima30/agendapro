@@ -371,6 +371,22 @@ function desenhar(){
             ${ligado ? 'Desligar' : 'Ligar a forma de pagamento'}</button>
         </div>
       </div>`;
+    /* As duas do pacote (45): o aviso de renovação e o lembrete do
+       pagamento. Desligadas até os dois modelos novos estarem aprovados. */
+    const pacote = !!painel.ajustes.mensagensPacote;
+    h += `<div class="recado" id="ajustePacote" style="margin-top:12px">
+        <b>Mensagens do pacote: ${pacote ? 'ligadas' : 'desligadas'}</b>
+        O aviso de renovação (seis dias antes da última sessão do pacote) e o
+        lembrete do pagamento (na véspera da primeira sessão, para quem está
+        "a receber"). Usam os dois modelos do pacote do MODELOS.md
+        (<code>agendapro_pacote_renovacao</code> e <code>agendapro_pacote_pagamento</code>):
+        ${pacote ? 'desligando, o que estava na fila sai na hora.'
+                 : 'ligue só depois que os dois estiverem <b style="display:inline">aprovados</b> na Meta. Ligando, os pacotes que já estão na agenda ganham as mensagens deles.'}
+        <div style="margin-top:10px">
+          <button class="acao ${pacote ? 'perigo' : ''}" onclick="ligarMensagensDoPacote(${!pacote})">
+            ${pacote ? 'Desligar' : 'Ligar as mensagens do pacote'}</button>
+        </div>
+      </div>`;
   }
 
   /* Quem entrou no painel de quem, pelo modo suporte. O dono do salão vê o
@@ -557,6 +573,24 @@ async function ligarPagamentoNasMensagens(ligar){
     await carregar();
   }catch(e){
     console.error('[plataforma] pagamento nas mensagens:', e);
+    alert('Não consegui mudar.\n\n' + e.message);
+  }
+}
+
+/* ── As mensagens do pacote ──────────────────────────────────────────────── */
+async function ligarMensagensDoPacote(ligar){
+  if(ligar && !confirm('Os dois modelos do pacote (agendapro_pacote_renovacao e agendapro_pacote_pagamento) já estão APROVADOS na Meta?\n\n'
+      + 'Ligado antes da aprovação, as mensagens vão para um modelo '
+      + 'que não existe e não chegam a ninguém.')) return;
+  try{
+    const r = await Dados.chamar('definir_mensagens_do_pacote', { p_ligar: ligar });
+    const v = (Array.isArray(r) ? r[0] : r) || {};
+    alert(v.ligado
+      ? 'Ligadas. ' + (Number(v.pacotes) || 0) + ' pacote(s) com sessão marcada foram conferidos.'
+      : 'Desligadas. O que estava na fila saiu.');
+    await carregar();
+  }catch(e){
+    console.error('[plataforma] mensagens do pacote:', e);
     alert('Não consegui mudar.\n\n' + e.message);
   }
 }

@@ -135,7 +135,10 @@ alter table public.notificacoes drop constraint if exists notificacoes_tipo_chec
 alter table public.notificacoes add constraint notificacoes_tipo_check
   check (tipo in ('confirmacao','lembrete','resumo','novo','lembrete_equipe',
                   'pedido_novo','pedido_confirmado','pedido_a_caminho',
-                  'pedido_pronto','pedido_cancelado'));
+                  'pedido_pronto','pedido_cancelado',
+                  -- O pacote (45_pacote_mensagens.sql): o aviso de que está
+                  -- acabando e o lembrete do pagamento a receber.
+                  'pacote_renovar','pacote_pagamento'));
 
 /* O modelo aprovado na Meta, por tipo — a lista inteira, porque esta função
    substitui a do 21 (a de número maior vale). Com o sufixo `_pagamento` dos
@@ -155,6 +158,9 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_a_caminho'  then 'agendapro_pedido_a_caminho'
     when 'pedido_pronto'     then 'agendapro_pedido_pronto'
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
+    -- Os do pacote (45). Só saem com o interruptor da plataforma ligado.
+    when 'pacote_renovar'    then 'agendapro_pacote_renovacao'
+    when 'pacote_pagamento'  then 'agendapro_pacote_pagamento'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
                and public.mensagens_com_pagamento()
@@ -173,7 +179,8 @@ returns boolean language sql stable security definer set search_path = public as
   select case
     when public.teto_mensagens(p_salao) is null then true
     when p_tipo in ('confirmacao', 'lembrete', 'pedido_confirmado',
-                    'pedido_a_caminho', 'pedido_pronto', 'pedido_cancelado')
+                    'pedido_a_caminho', 'pedido_pronto', 'pedido_cancelado',
+                    'pacote_renovar', 'pacote_pagamento')
       then public.mensagens_no_mes(p_salao) < public.teto_mensagens(p_salao)
     else public.mensagens_no_mes(p_salao) < public.teto_mensagens_salao(p_salao)
   end

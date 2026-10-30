@@ -2094,7 +2094,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.edeac2';
+const VERSAO_APP = 'v9.b9b335';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -10511,6 +10511,24 @@ function pintarSalao(){
 
       <div class="linha-fina" style="margin:18px 0"></div>
 
+      <!-- AS DO PACOTE (45_pacote_mensagens). Ligadas de fabrica: falam do que
+           a cliente ja comprou. Saem quando a plataforma libera os modelos. -->
+      <div class="campo">
+        <label class="check"><input type="checkbox" id="nPacoteRenova">
+          <span><b>Pacote: aviso de renovação</b> — seis dias antes da última
+          sessão do pacote, às 10h, a cliente recebe a data dela e o convite
+          para combinar a renovação. Se ela renovar antes, não sai.</span></label>
+      </div>
+      <div class="campo" style="margin-top:12px">
+        <label class="check"><input type="checkbox" id="nPacotePaga">
+          <span><b>Pacote: lembrete do pagamento</b> — na véspera da primeira
+          sessão, às 10h, quem está com o pacote "a receber" recebe o valor e a
+          sua chave Pix. Se você registrar o pagamento antes, não sai.</span></label>
+      </div>
+      <div id="avisoPacoteMsg"></div>
+
+      <div class="linha-fina" style="margin:18px 0"></div>
+
       <!-- O LEMBRETE PARA O SALAO (21, secao 7c). Desligado de fabrica: e
            mensagem nova, e cada uma gasta a cota do plano. -->
       <div class="campo">
@@ -10632,6 +10650,8 @@ function pintarSalao(){
      notifResumo        false   o resumo do dia começa DESLIGADO
      notifResumoHora    8
      notifResumoPeriodo 'dia'
+     notifPacoteRenova  true    o aviso de renovação do pacote (45)
+     notifPacotePaga    true    o lembrete do pagamento do pacote (45)
 
    ⚠ O resumo nasce desligado de propósito, e é o único. Confirmação e
    lembrete a cliente espera receber; o resumo é uma mensagem por dia para o
@@ -10642,6 +10662,7 @@ const NOTIF_PADRAO = { notifConfirma:true, notifProfNovo:true,
   notifLembrete:true, notifLembreteMin:120, notifResumo:false,
   notifLembreteEquipe:false, notifLembreteEquipeMin:60, notifLembreteEquipePara:'atende',
   notifResumoHora:8, notifResumoPeriodo:'dia',
+  notifPacoteRenova:true, notifPacotePaga:true,
   notifManhaIni:0, notifManhaFim:12, notifTardeIni:12, notifTardeFim:24 };
 
 const horasDoDia = (sel, val) => {
@@ -10668,6 +10689,8 @@ function pintarNotificacoes(soVisibilidade){
       ['atende', 'dono', 'ambos'].includes(cfg.notifLembreteEquipePara)
         ? cfg.notifLembreteEquipePara : 'atende');
     marcar('nResumo', cfg.notifResumo === true);
+    marcar('nPacoteRenova', cfg.notifPacoteRenova !== false);
+    marcar('nPacotePaga', cfg.notifPacotePaga !== false);
     escolher('nResumoPeriodo', cfg.notifResumoPeriodo || 'dia');
     horasDoDia('nResumoHora', Number(cfg.notifResumoHora ?? 8));
     horasDoDia('nManhaIni',  Number(cfg.notifManhaIni  ?? 0));
@@ -10769,6 +10792,8 @@ function salvarNotificacoes(){
     notifLembreteEquipeMin: num('nLembEquipeMin') || 60,
     notifLembreteEquipePara: (document.getElementById('nLembEquipePara') || {}).value || 'atende',
     notifResumo: liga('nResumo'),
+    notifPacoteRenova: liga('nPacoteRenova'),
+    notifPacotePaga: liga('nPacotePaga'),
     notifResumoHora: num('nResumoHora') || 0,
     notifResumoPeriodo: (document.getElementById('nResumoPeriodo') || {}).value || 'dia',
     notifManhaIni: num('nManhaIni') || 0,
@@ -10798,11 +10823,38 @@ const ROTULO_NOTIF = { confirmacao:'Confirmação', lembrete:'Lembrete para o cl
                        // As do modo Pedidos (37_pedidos).
                        pedido_novo:'Aviso de pedido novo', pedido_confirmado:'Pedido confirmado',
                        pedido_a_caminho:'Pedido saiu para entrega', pedido_pronto:'Pedido pronto para retirar',
-                       pedido_cancelado:'Pedido cancelado' };
+                       pedido_cancelado:'Pedido cancelado',
+                       // As do pacote (45_pacote_mensagens).
+                       pacote_renovar:'Pacote: aviso de renovação',
+                       pacote_pagamento:'Pacote: lembrete do pagamento' };
 const ROTULO_ESTADO = { pendente:['pendente','t-pend'], enviando:['enviando','t-pend'],
   enviado:['enviado','t-conf'], entregue:['entregue','t-conf'],
   lido:['lido','t-conc'], falhou:['falhou','t-falt'],
   cancelado:['cancelado','t-canc'] };
+
+/* ⚠ AS DO PACOTE SÓ SAEM COM OS MODELOS LIBERADOS. São dois modelos novos
+   na Meta, e até a plataforma ligá-los o banco não põe nada na fila (45).
+   A chave aqui fica ligada — e a tela diz que ainda não está saindo, em vez
+   de deixar o dono achar que a cliente foi avisada. Quem responde é o banco;
+   sem resposta, a tela não afirma nada. */
+async function pintarAvisoPacoteMsg(){
+  const alvo = document.getElementById('avisoPacoteMsg');
+  if(!alvo) return;
+  let liberadas = null;
+  try{
+    const r = await Dados.chamar('mensagens_do_pacote', {});
+    liberadas = (Array.isArray(r) ? r[0] : r) === true;
+  }catch(e){
+    console.error('[notificações] mensagens do pacote:', e);
+  }
+  alvo.innerHTML = liberadas === false
+    ? `<div class="aviso info" style="margin-top:12px;margin-bottom:0">
+        <b>As duas do pacote ainda não estão saindo.</b> Elas usam textos novos
+        que o WhatsApp precisa aprovar; assim que o AgendaPro liberar, começam
+        sozinhas — inclusive para os pacotes que já estão na agenda. Pode
+        deixar ligadas.</div>`
+    : '';
+}
 
 async function pintarHistoricoNotif(){
   const alvo = document.getElementById('historicoNotif');
@@ -10821,6 +10873,7 @@ async function pintarHistoricoNotif(){
   linhas = linhas.sort((a, b) =>
     String(b.criadoEm || '').localeCompare(String(a.criadoEm || ''))).slice(0, 20);
   pintarAvisoWhats(linhas.some(n => ['enviado', 'entregue', 'lido'].includes(n.status)));
+  pintarAvisoPacoteMsg();
 
   if(!linhas.length){
     alvo.innerHTML = '<div class="vazio"><b>Nada preparado ainda</b>'

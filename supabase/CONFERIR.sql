@@ -1052,6 +1052,39 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (41_ficha_equipe)'
            else '' end
   union all
+  /* As mensagens do pacote (45_pacote_mensagens): o aviso de renovação e o
+     lembrete do pagamento, que acompanham a agenda do pacote. Saem só depois
+     que a plataforma liga, no admin — "certo" aqui é a peça instalada. */
+  select 52, 'Mensagens do pacote (renovação e pagamento)',
+         case
+           when to_regprocedure('public.avisos_do_pacote(uuid)') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_avisos'
+                              and tgrelid = 'public.agendamentos'::regclass)
+             or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_cliente_avisos'
+                              and tgrelid = 'public.pacote_clientes'::regclass)
+             or not exists (select 1 from pg_constraint where conname = 'notificacoes_tipo_check'
+                              and pg_get_constraintdef(oid) like '%pacote_pagamento%')
+             or public.modelo_de('pacote_renovar') is distinct from 'agendapro_pacote_renovacao'
+             or not exists (select 1 from pg_proc where proname = 'montar_pacote'
+                              and strpos(prosrc, 'perform public.receber_pacote') between 1
+                                  and strpos(prosrc, 'insert into public.agendamentos'))
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.avisos_do_pacote(uuid)') is null
+             or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_avisos'
+                              and tgrelid = 'public.agendamentos'::regclass)
+             or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_cliente_avisos'
+                              and tgrelid = 'public.pacote_clientes'::regclass)
+             or not exists (select 1 from pg_constraint where conname = 'notificacoes_tipo_check'
+                              and pg_get_constraintdef(oid) like '%pacote_pagamento%')
+             or public.modelo_de('pacote_renovar') is distinct from 'agendapro_pacote_renovacao'
+             or not exists (select 1 from pg_proc where proname = 'montar_pacote'
+                              and strpos(prosrc, 'perform public.receber_pacote') between 1
+                                  and strpos(prosrc, 'insert into public.agendamentos'))
+             then 'cole o 00_tudo.sql de novo (45_pacote_mensagens, 21, 37 e 43)'
+           else '' end
+  union all
   /* A comissão da sessão de pacote (44_pacote_comissao): proporcional, de
      quem atendeu, ao atender — e no relatório e no painel do dia. */
   select 51, 'Comissão da sessão de pacote',

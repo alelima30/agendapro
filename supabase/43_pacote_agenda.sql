@@ -321,6 +321,13 @@ begin
        values (p_pacote, p_cliente, v_pac.sessoes, v_vence, nullif(round(coalesce(p_valor, 0), 2), 0))
     returning id into v_pc;
 
+  -- Pago na hora: recebe ANTES de marcar as sessões. A mensagem de cada
+  -- sessão nasce no insert dela e já sai sabendo que está pago (e não "a
+  -- combinar"), e o lembrete de pagamento (45) nem chega a nascer.
+  if p_forma is not null then
+    perform public.receber_pacote(v_pc, p_forma, p_valor);
+  end if;
+
   for i in 0 .. v_n - 1 loop
     w := p_semanas->i;
     v_servs := array(select x::uuid from jsonb_array_elements_text(w->'servicos') x);
@@ -357,10 +364,6 @@ begin
   end loop;
 
   perform public.juntar_mensagens_do_pacote(v_ids, v_pac.nome);
-
-  if p_forma is not null then
-    perform public.receber_pacote(v_pc, p_forma, p_valor);
-  end if;
 
   return jsonb_build_object('ok', true, 'pacoteCliente', v_pc, 'agendamentos', to_jsonb(v_ids),
                             'venceEm', v_vence,

@@ -174,7 +174,10 @@ alter table public.notificacoes drop constraint if exists notificacoes_tipo_chec
 alter table public.notificacoes add constraint notificacoes_tipo_check
   check (tipo in ('confirmacao','lembrete','resumo','novo','lembrete_equipe',
                   'pedido_novo','pedido_confirmado','pedido_a_caminho',
-                  'pedido_pronto','pedido_cancelado'));
+                  'pedido_pronto','pedido_cancelado',
+                  -- O pacote (45_pacote_mensagens.sql): o aviso de que está
+                  -- acabando e o lembrete do pagamento a receber.
+                  'pacote_renovar','pacote_pagamento'));
 
 create unique index if not exists ux_notif_chave
   on public.notificacoes(salao_id, chave);
@@ -1108,7 +1111,10 @@ begin
   if not public.is_super() then
     raise exception 'Só a plataforma vê os ajustes.' using errcode = 'insufficient_privilege';
   end if;
-  return jsonb_build_object('mensagensComPagamento', public.mensagens_com_pagamento());
+  return jsonb_build_object('mensagensComPagamento', public.mensagens_com_pagamento(),
+    -- As do pacote (45): lido direto da tabela, porque o 45 roda depois.
+    'mensagensPacote', coalesce((select a.valor = 'true'::jsonb from public.plataforma_ajustes a
+                                  where a.chave = 'mensagensPacote'), false));
 end $$;
 
 revoke all on function public.definir_mensagens_com_pagamento(boolean) from public, anon;

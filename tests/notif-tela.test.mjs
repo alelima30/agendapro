@@ -79,6 +79,11 @@ for(let d = 0; d <= 6; d++)
 const sv = await dona.inserir('servicos', { salaoId: SALAO, nome:'Corte',
   duracaoMin:60, intervaloMin:0, preco:80, ativo:true, aceitaOnline:true });
 
+// As mensagens do pacote (45) começam desligadas na plataforma (os modelos
+// novos esperam a Meta). Outra suíte que tenha ligado e caído no meio não
+// pode mudar o que esta tela mostra.
+await banco.query(`delete from public.plataforma_ajustes where chave = 'mensagensPacote'`);
+
 const nav = await chromium.launch({ executablePath: CHROMIUM });
 const erros = [];
 const p = await (await nav.newContext({ viewport:{ width:1360, height:900 } })).newPage();
@@ -138,6 +143,20 @@ igual('em 2 horas antes', await p.inputValue('#nLembreteMin'), '120');
    mandar mensagem que ninguém pediu e cobrar a cota dele por ela. */
 igual('e o resumo do dia vem DESLIGADO', await p.isChecked('#nResumo'), false);
 
+/* As duas do pacote vêm ligadas (falam do que a cliente já comprou) — e,
+   enquanto a plataforma não libera os modelos novos, a tela diz que elas
+   ainda não estão saindo, em vez de deixar o dono achar que avisou. */
+igual('as duas do pacote vêm ligadas', JSON.stringify(
+  [await p.isChecked('#nPacoteRenova'), await p.isChecked('#nPacotePaga')]), '[true,true]');
+await p.waitForFunction(() => (document.getElementById('avisoPacoteMsg') || {}).innerText,
+  null, { timeout: 8000 }).catch(() => {});
+verdade('e a tela diz que ainda não estão saindo (os modelos esperam a Meta)',
+  /ainda não estão saindo/.test(await p.textContent('#avisoPacoteMsg')),
+  await p.textContent('#avisoPacoteMsg'));
+igual('o banco concorda que estão ligadas', (await banco.query(
+  `select public.notif_liga($1,'notifPacoteRenova',true) and public.notif_liga($1,'notifPacotePaga',true) as l`,
+  [SALAO])).rows[0].l, true);
+
 /* "Preciso que apareça lá que é pro cliente": o lembrete da cliente diz de
    quem é, e o do salão é outro, à parte. */
 verdade('o lembrete diz que é para o cliente', await p.evaluate(() =>
@@ -175,6 +194,7 @@ await p.check('#nResumo');
 await p.waitForTimeout(200);
 await p.selectOption('#nResumoHora', '7');
 await p.selectOption('#nResumoPeriodo', 'manha');
+await p.uncheck('#nPacoteRenova');
 await p.click('button:has-text("Salvar notificações")');
 await p.waitForTimeout(2500);
 
@@ -184,6 +204,10 @@ igual('o banco passa a usar 24 horas',
 igual('e o resumo passa a estar ligado',
   (await banco.query(`select public.notif_liga($1,'notifResumo',false) as l`,
     [SALAO])).rows[0].l, true);
+igual('o aviso de renovação do pacote chega desligado ao banco, o do pagamento segue ligado',
+  (await banco.query(`select public.notif_liga($1,'notifPacoteRenova',true) as r,
+     public.notif_liga($1,'notifPacotePaga',true) as p`, [SALAO])).rows.map(x => JSON.stringify([x.r, x.p]))[0],
+  '[false,true]');
 igual('às 7h', Number((await banco.query(
   `select public.notif_num($1,'notifResumoHora',8) as h`, [SALAO])).rows[0].h), 7);
 const lembSalao = (await banco.query(
@@ -227,6 +251,8 @@ await abrirNotif();
 
 igual('o lembrete volta em 24 horas', await p.inputValue('#nLembreteMin'), '1440');
 igual('o resumo volta ligado', await p.isChecked('#nResumo'), true);
+igual('a renovação do pacote volta desligada, o pagamento ligado', JSON.stringify(
+  [await p.isChecked('#nPacoteRenova'), await p.isChecked('#nPacotePaga')]), '[false,true]');
 igual('na hora escolhida', await p.inputValue('#nResumoHora'), '7');
 igual('e no período escolhido', await p.inputValue('#nResumoPeriodo'), 'manha');
 igual('o lembrete para o salão volta ligado, 2h, para os dois',
