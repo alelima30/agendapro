@@ -2670,6 +2670,7 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
     when 'pacote_renovar'    then 'agendapro_pacote_renovacao'
     when 'pacote_pagamento'  then 'agendapro_pacote_pagamento'
+    when 'pacote_agenda'     then 'agendapro_pacote_agenda'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
                and public.mensagens_com_pagamento()

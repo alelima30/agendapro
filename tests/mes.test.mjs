@@ -146,6 +146,18 @@ e('e dia sem atendimento não ganha pastilha com zero', semZero === 0,
    cada clique tira dele justamente a comparação que ele veio fazer.
    ══════════════════════════════════════════════════════════════════════════ */
 console.log('\n── ESCOLHENDO UM DIA ────────────────────────────────────────');
+/* No dia 1º, a demonstração ainda não tem outro dia com movimento neste mês
+   (o histórico dela ficou no mês anterior): volta um mês para ter onde
+   clicar. Sem isto, o teste reprovava todo dia 1º, com o painel certo. */
+const temOutro = () => p.evaluate(() => {
+  const sel = document.querySelector('.mes-dia.sel');
+  return [...document.querySelectorAll('.mes-dia')]
+    .some(b => b !== sel && b.querySelector('.mes-qtd:not(.bloq)'));
+});
+if(!(await temOutro())){
+  await p.evaluate(() => mudarDia(-1));
+  await p.waitForTimeout(800);
+}
 const outro = await p.evaluate(() => {
   const sel = document.querySelector('.mes-dia.sel');
   const todos = [...document.querySelectorAll('.mes-dia')]

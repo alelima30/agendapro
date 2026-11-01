@@ -177,7 +177,7 @@ alter table public.notificacoes add constraint notificacoes_tipo_check
                   'pedido_pronto','pedido_cancelado',
                   -- O pacote (45_pacote_mensagens.sql): o aviso de que está
                   -- acabando e o lembrete do pagamento a receber.
-                  'pacote_renovar','pacote_pagamento'));
+                  'pacote_renovar','pacote_pagamento','pacote_agenda'));
 
 create unique index if not exists ux_notif_chave
   on public.notificacoes(salao_id, chave);

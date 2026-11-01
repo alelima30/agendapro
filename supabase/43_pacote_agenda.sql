@@ -188,13 +188,24 @@ begin
    where agendamento_id = any(p_ids[2:])
      and tipo in ('confirmacao', 'novo') and status = 'pendente';
 
-  -- A primeira leva todas. Confirmação: {{2}} data, {{3}} hora, {{4}} serviço.
-  update public.notificacoes
-     set variaveis = jsonb_set(jsonb_set(jsonb_set(variaveis,
-                       '{1}', to_jsonb(v_datas)), '{2}', to_jsonb(v_hora)), '{3}', to_jsonb(v_serv)),
-         corpo = replace(replace(corpo, v_data1, d->>'datas'), v_serv1, 'pacote ' || p_pacote)
-   where agendamento_id = p_ids[1] and tipo = 'confirmacao' and status = 'pendente'
-     and jsonb_typeof(variaveis) = 'array' and jsonb_array_length(variaveis) >= 4;
+  /* Com o modelo do pacote ligado (45, `agenda_do_pacote`), a cliente recebe
+     a LISTA: cada data, a hora e o que ela faz naquele dia ("ter 04/11 às
+     14:00 (Mão)"). Aí a confirmação da primeira também sai — é a lista que
+     confirma. Desligado, segue o jeito de antes: a confirmação de sempre,
+     com as datas juntas. */
+  if public.agenda_do_pacote(p_ids, p_pacote) then
+    update public.notificacoes
+       set status = 'cancelado', motivo = 'pacote: a lista de horários vai numa mensagem só'
+     where agendamento_id = p_ids[1] and tipo = 'confirmacao' and status = 'pendente';
+  else
+    -- A primeira leva todas. Confirmação: {{2}} data, {{3}} hora, {{4}} serviço.
+    update public.notificacoes
+       set variaveis = jsonb_set(jsonb_set(jsonb_set(variaveis,
+                         '{1}', to_jsonb(v_datas)), '{2}', to_jsonb(v_hora)), '{3}', to_jsonb(v_serv)),
+           corpo = replace(replace(corpo, v_data1, d->>'datas'), v_serv1, 'pacote ' || p_pacote)
+     where agendamento_id = p_ids[1] and tipo = 'confirmacao' and status = 'pendente'
+       and jsonb_typeof(variaveis) = 'array' and jsonb_array_length(variaveis) >= 4;
+  end if;
   -- Aviso de "novo" para quem atende: {{3}} serviço, {{4}} data, {{5}} hora.
   update public.notificacoes
      set variaveis = jsonb_set(jsonb_set(jsonb_set(variaveis,

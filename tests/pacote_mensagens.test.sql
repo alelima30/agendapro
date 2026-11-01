@@ -222,9 +222,21 @@ select t_verdade('   e as mensagens das terças novas não dizem "a combinar" (o
   not exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
                where a.pacote_cliente_id = :'pc2' and n.corpo like '%a combinar%')
   and exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
-               where a.pacote_cliente_id = :'pc2' and n.tipo = 'confirmacao' and n.status = 'pendente')
+               where a.pacote_cliente_id = :'pc2' and n.tipo = 'lembrete' and n.status = 'pendente')
   and exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
                where a.pacote_cliente_id = :'pc' and n.corpo like '%a combinar%'));
+select t_texto('com o modelo do pacote ligado, a cliente recebe a lista: cada data, a hora e o procedimento',
+  (t_msg(:'pc2', 'pacote_agenda')).modelo || ' | ' || ((t_msg(:'pc2', 'pacote_agenda')).variaveis->>3),
+  'agendapro_pacote_agenda | ter ' || to_char(:'terca'::date + 28, 'DD/MM') || ' às 14:00 (Mão); ter '
+    || to_char(:'terca'::date + 35, 'DD/MM') || ' às 14:00 (Mão + Pé); ter '
+    || to_char(:'terca'::date + 42, 'DD/MM') || ' às 14:00 (Mão); ter '
+    || to_char(:'terca'::date + 49, 'DD/MM') || ' às 14:00 (Mão + Pé)');
+select t_igual('   no lugar da confirmação (nenhuma confirmação do pacote fica na fila)',
+  (select count(*) from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
+    where a.pacote_cliente_id = :'pc2' and n.tipo = 'confirmacao' and n.status = 'pendente'), 0);
+select t_texto('   com quem atende, e saindo agora',
+  ((t_msg(:'pc2', 'pacote_agenda')).variaveis->>4) || ' | '
+    || ((t_msg(:'pc2', 'pacote_agenda')).quando <= now() + interval '1 minute')::text, 'Ju | true');
 begin;
   set local role authenticated;
   set local request.jwt.claim.sub = 'a4500000-0000-0000-0000-00000000000a';

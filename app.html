@@ -1009,7 +1009,10 @@ span.ajuda{display:block;margin-top:5px}
 </div>
 
 <!-- ══════════ MODAL ══════════ -->
-<div class="fundo" id="fundo" onclick="if(event.target===this)fecharModal()">
+<!-- A janela fecha pelo X, pelo Cancelar ou pela tecla Esc — e NAO ao tocar
+     fora dela. Pedido do dono: um toque sem querer no fundo escuro perdia a
+     venda inteira que estava sendo digitada. (Sem crase: comentario HTML.) -->
+<div class="fundo" id="fundo">
   <div class="modal">
     <div class="modal-h">
       <h3 id="modalTitulo">—</h3>
@@ -2107,7 +2110,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.de25f6';
+const VERSAO_APP = 'v9.6352de';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -10868,7 +10871,8 @@ const ROTULO_NOTIF = { confirmacao:'Confirmação', lembrete:'Lembrete para o cl
                        pedido_cancelado:'Pedido cancelado',
                        // As do pacote (45_pacote_mensagens).
                        pacote_renovar:'Pacote: aviso de renovação',
-                       pacote_pagamento:'Pacote: lembrete do pagamento' };
+                       pacote_pagamento:'Pacote: lembrete do pagamento',
+                       pacote_agenda:'Pacote: lista de horários' };
 const ROTULO_ESTADO = { pendente:['pendente','t-pend'], enviando:['enviando','t-pend'],
   enviado:['enviado','t-conf'], entregue:['entregue','t-conf'],
   lido:['lido','t-conc'], falhou:['falhou','t-falt'],
@@ -10891,7 +10895,7 @@ async function pintarAvisoPacoteMsg(){
   }
   alvo.innerHTML = liberadas === false
     ? `<div class="aviso info" style="margin-top:12px;margin-bottom:0">
-        <b>As duas do pacote ainda não estão saindo.</b> Elas usam textos novos
+        <b>As mensagens do pacote ainda não estão saindo.</b> Elas usam textos novos
         que o WhatsApp precisa aprovar; assim que o AgendaPro liberar, começam
         sozinhas — inclusive para os pacotes que já estão na agenda. Pode
         deixar ligadas.</div>`
@@ -15644,6 +15648,10 @@ function reabrirCobranca(){
    mostra antes, para a recepção conferir com a cliente na frente.
    ═══════════════════════════════════════════════════════════════════════════ */
 let crediarioDados = null, crediarioFiltro = 'abertas';
+// A busca, o mês de vencimento e a página: com mil vendas, a lista não pode
+// vir inteira de uma vez (desenha 30, e "Ver mais").
+let crediarioBusca = '', crediarioMes = '', crediarioPagina = 1;
+const CREDIARIO_POR_PAGINA = 30;
 
 function crediarioLiberado(){
   return NA_NUVEM && recursoDoPlano('crediario') === true;
@@ -15727,7 +15735,13 @@ function desenharCrediario(){
     : crediarioFiltro === 'atrasadas' ? v.ps.some(pa => pa.sit[0] === 'atrasada')
     : crediarioFiltro === 'hoje' ? v.ps.some(pa => pa.sit[0] === 'hoje')
     : v.falta <= 0;
-  const lista = vendas.filter(passa);
+  crediarioVendas = vendas.filter(passa);
+  // Os meses que têm parcela em aberto (para o filtro de vencimento).
+  const meses = [...new Set(vendas.flatMap(v => v.ps.filter(pa => Number(pa.saldo) > 0)
+    .map(pa => String(pa.venceEm).slice(0, 7))))].sort();
+  if(crediarioMes && !meses.includes(crediarioMes)) crediarioMes = '';
+  const rotuloDoMes = ym => { const [a, m] = ym.split('-').map(Number);
+    return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][m - 1] + '/' + a; };
   alvo.innerHTML = `
     <div class="kpis" id="crResumo">
       <div class="kpi"><div class="v">${real(Number(r.aReceber) || 0)}</div><div class="r">a receber</div></div>
@@ -15736,14 +15750,48 @@ function desenharCrediario(){
       <div class="kpi"><div class="v">${real(Number(r.recebido) || 0)}</div><div class="r">recebido no mês</div></div>
     </div>
     <div class="regua" style="margin:14px 0" id="crFiltros">${filtros.map(([k, rot]) =>
-      `<button class="${k === crediarioFiltro ? 'on' : ''}" onclick="crediarioFiltro='${k}';desenharCrediario()">${rot}</button>`).join('')}</div>
+      `<button class="${k === crediarioFiltro ? 'on' : ''}" onclick="crediarioFiltro='${k}';crediarioPagina=1;desenharCrediario()">${rot}</button>`).join('')}</div>
     <div style="margin-bottom:12px">
       <button class="btn btn-p" onclick="abrirNovaVendaCrediario()">+ Nova venda no crediário</button>
     </div>
-    ${lista.length ? lista.map(v => cartaoDoCrediario(v)).join('')
-      : `<div class="vazio">${crediarioFiltro === 'abertas' ? 'Nenhuma parcela em aberto.'
-          : crediarioFiltro === 'atrasadas' ? 'Nenhuma parcela atrasada.'
-          : crediarioFiltro === 'hoje' ? 'Nenhuma parcela vence hoje.' : 'Nenhuma venda quitada nos últimos 60 dias.'}</div>`}`;
+    <div class="dupla" id="crBuscaLinha">
+      <div class="campo"><label for="crBusca">Buscar</label>
+        <input id="crBusca" type="search" placeholder="Nome, telefone ou nº da venda"
+               value="${escapar(crediarioBusca)}"
+               oninput="crediarioBusca=this.value;crediarioPagina=1;desenharListaCrediario()"></div>
+      <div class="campo"><label for="crMes">Vencimento</label>
+        <select id="crMes" onchange="crediarioMes=this.value;crediarioPagina=1;desenharListaCrediario()">
+          <option value="">Todos os meses</option>
+          ${meses.map(ym => `<option value="${ym}"${ym === crediarioMes ? ' selected' : ''}>${rotuloDoMes(ym)}</option>`).join('')}
+        </select></div>
+    </div>
+    <div id="crLista"></div>`;
+  desenharListaCrediario();
+}
+
+let crediarioVendas = [];
+function desenharListaCrediario(){
+  const alvo = document.getElementById('crLista');
+  if(!alvo) return;
+  const q = semAcento(crediarioBusca).trim(), qDig = q.replace(/\D/g, '');
+  const achadas = crediarioVendas.filter(v =>
+    (!q || semAcento(v.cliente).includes(q)
+        || (qDig.length >= 3 && String(v.telefone || '').replace(/\D/g, '').includes(qDig))
+        || (qDig && String(v.numero || '') === qDig))
+    && (!crediarioMes || v.ps.some(pa => String(pa.venceEm).slice(0, 7) === crediarioMes
+                                         && (crediarioFiltro === 'quitadas' || Number(pa.saldo) > 0))));
+  const ate = crediarioPagina * CREDIARIO_POR_PAGINA;
+  const vazio = q || crediarioMes ? 'Nada encontrado com essa busca.'
+    : crediarioFiltro === 'abertas' ? 'Nenhuma parcela em aberto.'
+    : crediarioFiltro === 'atrasadas' ? 'Nenhuma parcela atrasada.'
+    : crediarioFiltro === 'hoje' ? 'Nenhuma parcela vence hoje.' : 'Nenhuma venda quitada nos últimos 60 dias.';
+  alvo.innerHTML = achadas.length
+    ? `<p class="ajuda" style="margin:0 0 8px" id="crContagem">${achadas.length} venda(s)${
+        achadas.length > ate ? ` · mostrando ${ate}` : ''}</p>`
+      + achadas.slice(0, ate).map(v => cartaoDoCrediario(v)).join('')
+      + (achadas.length > ate ? `<div style="text-align:center;margin:10px 0">
+          <button class="btn" onclick="crediarioPagina++;desenharListaCrediario()">Ver mais (${achadas.length - ate} restantes)</button></div>` : '')
+    : `<div class="vazio">${vazio}</div>`;
 }
 
 function cartaoDoCrediario(v){
@@ -15862,16 +15910,15 @@ function abrirNovaVendaCrediario(){
     abrirModal('Crediário', avisoDoCrediario(), [['Fechar', 'fecharModal()', '']]);
     return;
   }
-  vendaNova = { itens: [] };
   const clientes = doSalao(bd.clientes || []).slice()
     .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+  vendaNova = { itens: [], clientes };
   const produtos = doSalao(bd.produtos || []).filter(p => p.ativo !== false);
   abrirModal('Nova venda no crediário', `
-    <div class="campo"><label for="vnCliente">Cliente</label>
-      <select id="vnCliente" onchange="clienteDaVendaNova()">
-        <option value="">Escolha a cliente</option>
-        ${clientes.map(c => `<option value="${escapar(c.id)}">${escapar(c.nome)}${c.telefone ? ' · ' + escapar(c.telefone) : ''}</option>`).join('')}
-      </select></div>
+    <div class="campo"><label for="vnBuscaCliente">Cliente</label>
+      <input id="vnBuscaCliente" type="search" placeholder="Buscar por nome ou telefone"
+             oninput="filtrarClientesDaVenda()" style="margin-bottom:6px">
+      <select id="vnCliente" onchange="clienteDaVendaNova()">${opcoesDeClienteDaVenda(clientes)}</select></div>
     <div id="vnFicha"></div>
     <div class="dupla">
       <div class="campo"><label for="vnItem">Item</label>
@@ -15911,6 +15958,26 @@ function abrirNovaVendaCrediario(){
     <div id="vnPrevia"></div>`,
     [['Cancelar', 'fecharModal()', ''], ['Vender no crediário', 'confirmarNovaVendaCrediario()', 'btn-p']]);
   pintarVendaNova();
+}
+
+// Com mil clientes, a lista inteira não serve: a busca filtra as opções.
+function opcoesDeClienteDaVenda(lista, escolhida){
+  return `<option value="">${lista.length ? 'Escolha a cliente' : 'Nenhuma cliente com essa busca'}</option>`
+    + lista.slice(0, 200).map(c => `<option value="${escapar(c.id)}"${c.id === escolhida ? ' selected' : ''}>${
+        escapar(c.nome)}${c.telefone ? ' · ' + escapar(c.telefone) : ''}</option>`).join('');
+}
+function filtrarClientesDaVenda(){
+  const sel = document.getElementById('vnCliente');
+  if(!sel || !vendaNova) return;
+  const q = semAcento((document.getElementById('vnBuscaCliente') || {}).value).trim();
+  const qDig = q.replace(/\D/g, '');
+  const lista = vendaNova.clientes.filter(c => !q || semAcento(c.nome).includes(q)
+    || (qDig.length >= 3 && String(c.telefone || '').replace(/\D/g, '').includes(qDig)));
+  const antes = sel.value;
+  sel.innerHTML = opcoesDeClienteDaVenda(lista, antes);
+  // Uma só encontrada: já fica escolhida.
+  if(lista.length === 1 && sel.value !== lista[0].id){ sel.value = lista[0].id; }
+  if(sel.value !== antes) clienteDaVendaNova();
 }
 
 // A ficha da cliente escolhida: nome completo, WhatsApp e CPF, para conferir e completar.

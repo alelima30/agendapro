@@ -383,12 +383,14 @@ function desenhar(){
     const pacote = !!painel.ajustes.mensagensPacote;
     h += `<div class="recado" id="ajustePacote" style="margin-top:12px">
         <b>Mensagens do pacote: ${pacote ? 'ligadas' : 'desligadas'}</b>
-        O aviso de renovação (seis dias antes da última sessão do pacote) e o
-        lembrete do pagamento (na véspera da primeira sessão, para quem está
-        "a receber"). Usam os dois modelos do pacote do MODELOS.md
-        (<code>agendapro_pacote_renovacao</code> e <code>agendapro_pacote_pagamento</code>):
+        A lista de horários (cada data, a hora e o procedimento, ao montar o
+        pacote), o aviso de renovação (seis dias antes da última sessão) e o
+        lembrete do pagamento (na véspera da primeira, para quem está "a
+        receber"). Usam os três modelos do pacote do MODELOS.md
+        (<code>agendapro_pacote_agenda</code>, <code>agendapro_pacote_renovacao</code> e
+        <code>agendapro_pacote_pagamento</code>):
         ${pacote ? 'desligando, o que estava na fila sai na hora.'
-                 : 'ligue só depois que os dois estiverem <b style="display:inline">aprovados</b> na Meta. Ligando, os pacotes que já estão na agenda ganham as mensagens deles.'}
+                 : 'ligue só depois que os três estiverem <b style="display:inline">aprovados</b> na Meta. Ligando, os pacotes que já estão na agenda ganham o aviso de renovação e o lembrete.'}
         <div style="margin-top:10px">
           <button class="acao ${pacote ? 'perigo' : ''}" onclick="ligarMensagensDoPacote(${!pacote})">
             ${pacote ? 'Desligar' : 'Ligar as mensagens do pacote'}</button>
@@ -624,7 +626,7 @@ async function ligarPagamentoNasMensagens(ligar){
 
 /* ── As mensagens do pacote ──────────────────────────────────────────────── */
 async function ligarMensagensDoPacote(ligar){
-  if(ligar && !confirm('Os dois modelos do pacote (agendapro_pacote_renovacao e agendapro_pacote_pagamento) já estão APROVADOS na Meta?\n\n'
+  if(ligar && !confirm('Os três modelos do pacote (agendapro_pacote_agenda, agendapro_pacote_renovacao e agendapro_pacote_pagamento) já estão APROVADOS na Meta?\n\n'
       + 'Ligado antes da aprovação, as mensagens vão para um modelo '
       + 'que não existe e não chegam a ninguém.')) return;
   try{

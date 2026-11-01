@@ -227,6 +227,60 @@ begin
   return v_n;
 end $$;
 
+/* ── A LISTA DE HORÁRIOS, NUMA MENSAGEM SÓ ─────────────────────────────
+   "E a lista de todos os horários e procedimentos do pacote?" Ao montar o
+   pacote com agenda fixa (43), a cliente recebe cada data, a hora e o que
+   faz naquele dia: "ter 04/11 às 14:00 (Mão); ter 11/11 às 14:00 (Mão +
+   Pé)". Numa linha só, porque variável de modelo não aceita quebra de
+   linha. É a confirmação do pacote: sai com a chave da confirmação ligada,
+   e no lugar dela. Devolve se pôs na fila. */
+create or replace function public.agenda_do_pacote(p_ids uuid[], p_pacote text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare r record; v_tel text; v_lista text; v_nome text;
+  v_dias text[] := array['dom','seg','ter','qua','qui','sex','sáb'];
+begin
+  if cardinality(p_ids) < 2 or not public.mensagens_do_pacote() then return false; end if;
+  select a.salao_id, a.cliente_id, a.pacote_cliente_id, c.nome as cliente, c.telefone,
+         sa.nome as casa, coalesce(sa.fuso, 'America/Sao_Paulo') as fuso,
+         coalesce(pr.apelido, pr.nome, '—') as prof
+    into r
+    from public.agendamentos a
+    join public.clientes c on c.id = a.cliente_id
+    join public.saloes sa on sa.id = a.salao_id
+    left join public.profissionais pr on pr.id = a.profissional_id
+   where a.id = p_ids[1];
+  if r.salao_id is null or r.pacote_cliente_id is null
+     or not public.notif_liga(r.salao_id, 'notifConfirma', true) then
+    return false;
+  end if;
+  v_tel := public.so_digitos(r.telefone);
+  if coalesce(v_tel, '') = '' then return false; end if;
+  v_nome := public.variavel_limpa(split_part(btrim(coalesce(r.cliente, 'cliente')), ' ', 1));
+  select string_agg(v_dias[extract(dow from (a.inicio at time zone r.fuso))::int + 1] || ' '
+           || to_char(a.inicio at time zone r.fuso, 'DD/MM "às" HH24:MI')
+           || ' (' || coalesce((select string_agg(sv.nome, ' + ' order by asv.ordem)
+                                  from public.agendamento_servicos asv
+                                  join public.servicos sv on sv.id = asv.servico_id
+                                 where asv.agendamento_id = a.id), 'atendimento') || ')',
+           '; ' order by a.inicio)
+    into v_lista
+    from public.agendamentos a where a.id = any(p_ids);
+
+  insert into public.notificacoes
+    (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo, chave, modelo, variaveis)
+  values (r.salao_id, 'pacote_agenda', v_tel, r.cliente_id, p_ids[1], now(),
+          'Olá, ' || v_nome || '. Seu pacote ' || p_pacote || ' no ' || r.casa
+            || ' está com os horários marcados.'
+            || E'\n\n📅 Horários: ' || v_lista
+            || E'\n👤 Profissional: ' || r.prof
+            || E'\n\nVocê recebe um lembrete antes de cada sessão. Aviso automático do sistema de agendamento.',
+          'pacote_agenda:' || r.pacote_cliente_id, public.modelo_de('pacote_agenda'),
+          jsonb_build_array(v_nome, public.variavel_limpa(p_pacote), public.variavel_limpa(r.casa),
+                            public.variavel_limpa(v_lista), public.variavel_limpa(r.prof)))
+  on conflict (salao_id, chave) do nothing;
+  return true;
+end $$;
+
 -- ---------------------------------------------------------------------------
 -- 4) QUEM CHAMA: OS GATILHOS
 -- ---------------------------------------------------------------------------
@@ -300,7 +354,7 @@ begin
   if not coalesce(p_ligar, false) then
     update public.notificacoes
        set status = 'cancelado', motivo = 'mensagens do pacote desligadas'
-     where tipo in ('pacote_renovar', 'pacote_pagamento') and status = 'pendente';
+     where tipo in ('pacote_renovar', 'pacote_pagamento', 'pacote_agenda') and status = 'pendente';
   end if;
   -- Ligou: os pacotes que já estão na agenda ganham as mensagens deles.
   v_n := public.refazer_avisos_de_pacote(null);
@@ -314,6 +368,7 @@ grant execute on function public.mensagens_do_pacote() to authenticated;
 revoke all on function public.gravar_aviso_do_pacote(uuid, text, text, text, timestamptz, interval,
   timestamptz, text, uuid, uuid, text, jsonb) from public, anon, authenticated;
 revoke all on function public.avisos_do_pacote(uuid) from public, anon, authenticated;
+revoke all on function public.agenda_do_pacote(uuid[], text) from public, anon, authenticated;
 revoke all on function public.refazer_avisos_de_pacote(uuid) from public, anon, authenticated;
 revoke all on function public.tg_pacote_avisos() from public, anon, authenticated;
 revoke all on function public.tg_pacote_cliente_avisos() from public, anon, authenticated;

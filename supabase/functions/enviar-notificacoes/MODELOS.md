@@ -434,10 +434,10 @@ Qualquer dúvida, fale com o estabelecimento.
 
 ---
 
-# Os dois do pacote
+# Os três do pacote
 
-O aviso de que o pacote está acabando e o lembrete do pagamento de quem está
-"a receber" (`45_pacote_mensagens.sql`). Mesmas regras: **Utilidade**,
+A lista de horários ao montar o pacote, o aviso de que ele está acabando e o
+lembrete do pagamento de quem está "a receber" (`45_pacote_mensagens.sql`). Mesmas regras: **Utilidade**,
 **Português (BR)**, sem cabeçalho e sem botão — e o formato dos que a Meta
 aprovou como Utilidade: sem "!" e fechando com "Aviso automático do sistema de
 agendamento."
@@ -447,11 +447,34 @@ agendamento."
 > Marketing, não ligue — me avise, que o texto é ajustado e vai com outro
 > nome.
 
-> **⚠ A ordem para ligar.** Enquanto os dois não estiverem **aprovados**,
+> **⚠ A ordem para ligar.** Enquanto os três não estiverem **aprovados**,
 > nada do pacote vai para a fila — o painel do salão mostra "ainda não estão
-> saindo". Depois da aprovação, ligue em **admin → Mensagens do WhatsApp →
-> Ligar as mensagens do pacote**. Ligando, os pacotes que já estão na agenda
-> ganham as mensagens deles na hora.
+> saindo" (e a cliente continua recebendo a confirmação de sempre, com as
+> datas juntas). Depois da aprovação, ligue em **admin → Mensagens do
+> WhatsApp → Ligar as mensagens do pacote**.
+
+## 10b. `agendapro_pacote_agenda`
+
+Vai para a cliente quando o salão monta o pacote com agenda fixa: cada data,
+a hora e o que ela faz naquele dia. Sai **no lugar da confirmação** (com a
+chave da confirmação ligada em Notificações).
+
+```
+Olá, {{1}}. Seu pacote {{2}} no {{3}} está com os horários marcados.
+
+📅 Horários: {{4}}
+👤 Profissional: {{5}}
+
+Você recebe um lembrete antes de cada sessão. Aviso automático do sistema de agendamento.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Maria |
+| `{{2}}` | nome do pacote | Mão e pé mensal |
+| `{{3}}` | nome do salão | Salão da Ana |
+| `{{4}}` | as sessões, numa linha só | ter 04/11 às 14:00 (Mão); ter 11/11 às 14:00 (Mão + Pé) |
+| `{{5}}` | quem atende | Ju |
 
 ## 11. `agendapro_pacote_renovacao`
 
@@ -638,6 +661,6 @@ select tipo, modelo, variaveis, corpo
 profissional, 4 no resumo e 7 no lembrete para o salão — na ordem das tabelas acima.
 Nos do pedido: 5 no pedido novo e no confirmado, 3 no "a caminho" e no
 "pronto", e 4 no cancelado. Os nomes deles estão no `modelo_de()` do
-`37_pedidos.sql`. Nos do pacote: 4 na renovação e 5 no lembrete do pagamento.
+`37_pedidos.sql`. Nos do pacote: 5 na lista de horários, 4 na renovação e 5 no lembrete do pagamento.
 Nos do crediário: 4 no resumo da compra, 6 no lembrete, 5 no "vence hoje" e 6
 no atraso.

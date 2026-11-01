@@ -1138,6 +1138,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or not exists (select 1 from pg_constraint where conname = 'notificacoes_tipo_check'
                               and pg_get_constraintdef(oid) like '%pacote_pagamento%')
              or public.modelo_de('pacote_renovar') is distinct from 'agendapro_pacote_renovacao'
+             or public.modelo_de('pacote_agenda') is distinct from 'agendapro_pacote_agenda'
              or not exists (select 1 from pg_proc where proname = 'montar_pacote'
                               and strpos(prosrc, 'perform public.receber_pacote') between 1
                                   and strpos(prosrc, 'insert into public.agendamentos'))
@@ -1152,6 +1153,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
              or not exists (select 1 from pg_constraint where conname = 'notificacoes_tipo_check'
                               and pg_get_constraintdef(oid) like '%pacote_pagamento%')
              or public.modelo_de('pacote_renovar') is distinct from 'agendapro_pacote_renovacao'
+             or public.modelo_de('pacote_agenda') is distinct from 'agendapro_pacote_agenda'
              or not exists (select 1 from pg_proc where proname = 'montar_pacote'
                               and strpos(prosrc, 'perform public.receber_pacote') between 1
                                   and strpos(prosrc, 'insert into public.agendamentos'))

@@ -9210,7 +9210,7 @@ alter table public.notificacoes add constraint notificacoes_tipo_check
                   'pedido_pronto','pedido_cancelado',
                   -- O pacote (45_pacote_mensagens.sql): o aviso de que está
                   -- acabando e o lembrete do pagamento a receber.
-                  'pacote_renovar','pacote_pagamento'));
+                  'pacote_renovar','pacote_pagamento','pacote_agenda'));
 
 create unique index if not exists ux_notif_chave
   on public.notificacoes(salao_id, chave);
@@ -15965,7 +15965,7 @@ alter table public.notificacoes add constraint notificacoes_tipo_check
                   'pedido_pronto','pedido_cancelado',
                   -- O pacote (45_pacote_mensagens.sql): o aviso de que está
                   -- acabando e o lembrete do pagamento a receber.
-                  'pacote_renovar','pacote_pagamento'));
+                  'pacote_renovar','pacote_pagamento','pacote_agenda'));
 
 /* O modelo aprovado na Meta, por tipo — a lista inteira, porque esta função
    substitui a do 21 (a de número maior vale). Com o sufixo `_pagamento` dos
@@ -15988,6 +15988,7 @@ returns text language sql stable set search_path = public as $$
     -- Os do pacote (45). Só saem com o interruptor da plataforma ligado.
     when 'pacote_renovar'    then 'agendapro_pacote_renovacao'
     when 'pacote_pagamento'  then 'agendapro_pacote_pagamento'
+    when 'pacote_agenda'     then 'agendapro_pacote_agenda'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
                and public.mensagens_com_pagamento()
@@ -16007,7 +16008,7 @@ returns boolean language sql stable security definer set search_path = public as
     when public.teto_mensagens(p_salao) is null then true
     when p_tipo in ('confirmacao', 'lembrete', 'pedido_confirmado',
                     'pedido_a_caminho', 'pedido_pronto', 'pedido_cancelado',
-                    'pacote_renovar', 'pacote_pagamento')
+                    'pacote_renovar', 'pacote_pagamento', 'pacote_agenda')
       then public.mensagens_no_mes(p_salao) < public.teto_mensagens(p_salao)
     else public.mensagens_no_mes(p_salao) < public.teto_mensagens_salao(p_salao)
   end
@@ -17925,13 +17926,24 @@ begin
    where agendamento_id = any(p_ids[2:])
      and tipo in ('confirmacao', 'novo') and status = 'pendente';
 
-  -- A primeira leva todas. Confirmação: {{2}} data, {{3}} hora, {{4}} serviço.
-  update public.notificacoes
-     set variaveis = jsonb_set(jsonb_set(jsonb_set(variaveis,
-                       '{1}', to_jsonb(v_datas)), '{2}', to_jsonb(v_hora)), '{3}', to_jsonb(v_serv)),
-         corpo = replace(replace(corpo, v_data1, d->>'datas'), v_serv1, 'pacote ' || p_pacote)
-   where agendamento_id = p_ids[1] and tipo = 'confirmacao' and status = 'pendente'
-     and jsonb_typeof(variaveis) = 'array' and jsonb_array_length(variaveis) >= 4;
+  /* Com o modelo do pacote ligado (45, `agenda_do_pacote`), a cliente recebe
+     a LISTA: cada data, a hora e o que ela faz naquele dia ("ter 04/11 às
+     14:00 (Mão)"). Aí a confirmação da primeira também sai — é a lista que
+     confirma. Desligado, segue o jeito de antes: a confirmação de sempre,
+     com as datas juntas. */
+  if public.agenda_do_pacote(p_ids, p_pacote) then
+    update public.notificacoes
+       set status = 'cancelado', motivo = 'pacote: a lista de horários vai numa mensagem só'
+     where agendamento_id = p_ids[1] and tipo = 'confirmacao' and status = 'pendente';
+  else
+    -- A primeira leva todas. Confirmação: {{2}} data, {{3}} hora, {{4}} serviço.
+    update public.notificacoes
+       set variaveis = jsonb_set(jsonb_set(jsonb_set(variaveis,
+                         '{1}', to_jsonb(v_datas)), '{2}', to_jsonb(v_hora)), '{3}', to_jsonb(v_serv)),
+           corpo = replace(replace(corpo, v_data1, d->>'datas'), v_serv1, 'pacote ' || p_pacote)
+     where agendamento_id = p_ids[1] and tipo = 'confirmacao' and status = 'pendente'
+       and jsonb_typeof(variaveis) = 'array' and jsonb_array_length(variaveis) >= 4;
+  end if;
   -- Aviso de "novo" para quem atende: {{3}} serviço, {{4}} data, {{5}} hora.
   update public.notificacoes
      set variaveis = jsonb_set(jsonb_set(jsonb_set(variaveis,
@@ -18501,6 +18513,60 @@ begin
   return v_n;
 end $$;
 
+/* ── A LISTA DE HORÁRIOS, NUMA MENSAGEM SÓ ─────────────────────────────
+   "E a lista de todos os horários e procedimentos do pacote?" Ao montar o
+   pacote com agenda fixa (43), a cliente recebe cada data, a hora e o que
+   faz naquele dia: "ter 04/11 às 14:00 (Mão); ter 11/11 às 14:00 (Mão +
+   Pé)". Numa linha só, porque variável de modelo não aceita quebra de
+   linha. É a confirmação do pacote: sai com a chave da confirmação ligada,
+   e no lugar dela. Devolve se pôs na fila. */
+create or replace function public.agenda_do_pacote(p_ids uuid[], p_pacote text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare r record; v_tel text; v_lista text; v_nome text;
+  v_dias text[] := array['dom','seg','ter','qua','qui','sex','sáb'];
+begin
+  if cardinality(p_ids) < 2 or not public.mensagens_do_pacote() then return false; end if;
+  select a.salao_id, a.cliente_id, a.pacote_cliente_id, c.nome as cliente, c.telefone,
+         sa.nome as casa, coalesce(sa.fuso, 'America/Sao_Paulo') as fuso,
+         coalesce(pr.apelido, pr.nome, '—') as prof
+    into r
+    from public.agendamentos a
+    join public.clientes c on c.id = a.cliente_id
+    join public.saloes sa on sa.id = a.salao_id
+    left join public.profissionais pr on pr.id = a.profissional_id
+   where a.id = p_ids[1];
+  if r.salao_id is null or r.pacote_cliente_id is null
+     or not public.notif_liga(r.salao_id, 'notifConfirma', true) then
+    return false;
+  end if;
+  v_tel := public.so_digitos(r.telefone);
+  if coalesce(v_tel, '') = '' then return false; end if;
+  v_nome := public.variavel_limpa(split_part(btrim(coalesce(r.cliente, 'cliente')), ' ', 1));
+  select string_agg(v_dias[extract(dow from (a.inicio at time zone r.fuso))::int + 1] || ' '
+           || to_char(a.inicio at time zone r.fuso, 'DD/MM "às" HH24:MI')
+           || ' (' || coalesce((select string_agg(sv.nome, ' + ' order by asv.ordem)
+                                  from public.agendamento_servicos asv
+                                  join public.servicos sv on sv.id = asv.servico_id
+                                 where asv.agendamento_id = a.id), 'atendimento') || ')',
+           '; ' order by a.inicio)
+    into v_lista
+    from public.agendamentos a where a.id = any(p_ids);
+
+  insert into public.notificacoes
+    (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo, chave, modelo, variaveis)
+  values (r.salao_id, 'pacote_agenda', v_tel, r.cliente_id, p_ids[1], now(),
+          'Olá, ' || v_nome || '. Seu pacote ' || p_pacote || ' no ' || r.casa
+            || ' está com os horários marcados.'
+            || E'\n\n📅 Horários: ' || v_lista
+            || E'\n👤 Profissional: ' || r.prof
+            || E'\n\nVocê recebe um lembrete antes de cada sessão. Aviso automático do sistema de agendamento.',
+          'pacote_agenda:' || r.pacote_cliente_id, public.modelo_de('pacote_agenda'),
+          jsonb_build_array(v_nome, public.variavel_limpa(p_pacote), public.variavel_limpa(r.casa),
+                            public.variavel_limpa(v_lista), public.variavel_limpa(r.prof)))
+  on conflict (salao_id, chave) do nothing;
+  return true;
+end $$;
+
 -- ---------------------------------------------------------------------------
 -- 4) QUEM CHAMA: OS GATILHOS
 -- ---------------------------------------------------------------------------
@@ -18574,7 +18640,7 @@ begin
   if not coalesce(p_ligar, false) then
     update public.notificacoes
        set status = 'cancelado', motivo = 'mensagens do pacote desligadas'
-     where tipo in ('pacote_renovar', 'pacote_pagamento') and status = 'pendente';
+     where tipo in ('pacote_renovar', 'pacote_pagamento', 'pacote_agenda') and status = 'pendente';
   end if;
   -- Ligou: os pacotes que já estão na agenda ganham as mensagens deles.
   v_n := public.refazer_avisos_de_pacote(null);
@@ -18588,6 +18654,7 @@ grant execute on function public.mensagens_do_pacote() to authenticated;
 revoke all on function public.gravar_aviso_do_pacote(uuid, text, text, text, timestamptz, interval,
   timestamptz, text, uuid, uuid, text, jsonb) from public, anon, authenticated;
 revoke all on function public.avisos_do_pacote(uuid) from public, anon, authenticated;
+revoke all on function public.agenda_do_pacote(uuid[], text) from public, anon, authenticated;
 revoke all on function public.refazer_avisos_de_pacote(uuid) from public, anon, authenticated;
 revoke all on function public.tg_pacote_avisos() from public, anon, authenticated;
 revoke all on function public.tg_pacote_cliente_avisos() from public, anon, authenticated;

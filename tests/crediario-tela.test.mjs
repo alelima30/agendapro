@@ -109,8 +109,16 @@ await p.evaluate(() => irPara('crediario'));
 await p.waitForSelector('#crResumo', { timeout: 15000 });
 await p.click('button:has-text("+ Nova venda no crediário")');
 await p.waitForSelector('#vnCliente');
-await p.selectOption('#vnCliente', MARIA);
+// "Só fechar se eu clicar no X": tocar no fundo escuro não fecha mais.
+await p.mouse.click(5, 5);
+await p.waitForTimeout(300);
+verdade('tocar fora da janela não fecha (só o X ou o Cancelar)', await p.evaluate(() =>
+  document.getElementById('fundo').classList.contains('on') && !!document.getElementById('vnCliente')));
+// "E se for mil clientes?": a busca filtra a lista; uma só encontrada já fica escolhida.
+await p.fill('#vnBuscaCliente', 'souz');
 await p.waitForSelector('#vcCpf');
+igual('a busca da cliente acha a Maria pelo pedaço do sobrenome, e já escolhe',
+  await p.inputValue('#vnCliente'), MARIA);
 await p.fill('#vcCpf', '529.982.247-25');
 await p.selectOption('#vnItem', 'produto:' + PROD);
 await p.fill('#vnQtd', '2');
@@ -161,6 +169,17 @@ await p.click('.cr-venda .cr-parcela >> nth=0 >> button:has-text("Cobrar")');
 const cobra = decodeURIComponent(((await p.evaluate(() => window.__abriu)) || []).slice(-1)[0] || '');
 verdade('"Cobrar" abre o WhatsApp com a parcela e o que falta', /Lembrete da parcela 1 de 2/.test(cobra)
   && /R\$\s?40,00/.test(cobra), cobra);
+
+// "E se for mil vendas?": a busca e o filtro do mês.
+await p.fill('#crBusca', 'zzz');
+verdade('buscar quem não existe: "Nada encontrado"', /Nada encontrado/.test(await texto(p, '#crLista')),
+  await texto(p, '#crLista'));
+await p.fill('#crBusca', 'mari');
+verdade('buscar pelo começo do nome acha a venda', /1 venda\(s\)/.test(await texto(p, '#crContagem'))
+  && /Maria Souza/.test(await texto(p, '#crLista')), await texto(p, '#crLista'));
+const mesesOpcoes = await p.evaluate(() => [...document.querySelectorAll('#crMes option')].map(o => o.value));
+verdade('o filtro do mês lista os meses com parcela em aberto', mesesOpcoes.length >= 2, JSON.stringify(mesesOpcoes));
+await p.fill('#crBusca', '');
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 secao('4. Na ficha da cliente');
