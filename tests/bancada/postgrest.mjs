@@ -375,6 +375,17 @@ const http_ = http.createServer(async (req, res) => {
         return json(res, 200, rows[0] || { id });
       }
 
+      /* As opções públicas do Auth, como o Supabase responde (sem login, só
+         com o apikey). As telas leem daqui se o Google está ligado; o
+         padrão do Supabase é DESLIGADO, até o dono ligar no painel — e é
+         assim que a bancada responde. O google-tela.test.mjs liga por cima. */
+      if(acao === 'settings' && req.method === 'GET'){
+        return json(res, 200, {
+          external: { email: true, phone: false, google: false },
+          disable_signup: false,
+        });
+      }
+
       return erroAuth(res, 'not_found', 'auth: ' + acao, 404);
     }
 

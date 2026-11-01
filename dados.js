@@ -371,6 +371,7 @@ const cfg = global.AGENDAPRO || {};
 const LIGADO = !!(cfg.url && cfg.chave);
 
 let sessao = null;   // { token, refresh, usuarioId, expiraEm }
+let googleLigadoMemo = null; // a resposta do /auth/v1/settings, uma vez por página
 
 const CHAVE_SESSAO = 'agendapro.sessao';
 
@@ -676,6 +677,37 @@ const Nuvem = {
     await auth('resend?redirect_to=' + encodeURIComponent(volta),
                { type: 'signup', email, gotrue_meta_security: {} });
     return { redirect: volta };
+  },
+
+  /* ── ENTRAR COM O GOOGLE ─────────────────────────────────────────────
+     O endereço do Supabase Auth que leva ao Google e volta para `volta` com
+     a sessão no #fragmento — o mesmo caminho da confirmação de e-mail, que
+     as telas já leem (`entrarComToken`). O Client ID e o Client Secret do
+     Google ficam no painel do Supabase: nada disso passa pelo navegador.
+
+     `volta` precisa estar nas Redirect URLs do projeto, como as outras. */
+  urlDoGoogle(volta){
+    return cfg.url + '/auth/v1/authorize?provider=google&redirect_to='
+      + encodeURIComponent(volta || location.href);
+  },
+
+  /* O botão só aparece com o Google LIGADO no painel do Supabase. Antes
+     disso, clicar daria a página de erro do Supabase ("provider is not
+     enabled") — um botão que quebra. Quem diz é o próprio Supabase, no
+     endereço público /auth/v1/settings (o mesmo que o painel dele usa):
+     ligou lá, o botão aparece aqui, sem publicar nada. Na dúvida (sem rede,
+     resposta estranha), não mostra: e-mail e senha continuam ali. */
+  async googleLigado(){
+    if(googleLigadoMemo) return googleLigadoMemo;
+    googleLigadoMemo = (async () => {
+      try{
+        const r = await fetch(cfg.url + '/auth/v1/settings', { headers: { 'apikey': cfg.chave } });
+        if(!r.ok) return false;
+        const j = await r.json();
+        return !!(j && j.external && j.external.google === true);
+      }catch(_){ return false; }
+    })();
+    return googleLigadoMemo;
   },
 
   /* A sessão que chega pelo #fragmento de um link de e-mail (confirmação de
@@ -1092,6 +1124,8 @@ const Demo = {
   },
   async reenviarConfirmacao(){ throw new Error('Confirmação de e-mail só existe no modo nuvem.'); },
   entrarComToken(){ /* na demonstração não há token nem sessão */ },
+  urlDoGoogle(){ return null; },
+  async googleLigado(){ return false; },
   async pedirCodigo(){ return { demo: true }; },
   async conferirCodigo(telefone){
     const d = lerDemo();

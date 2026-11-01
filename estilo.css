@@ -4987,6 +4987,16 @@ body.tem-cor-produtos .loja-cat.on{
 .conta-abas button{ flex:1; min-height:42px; border:0; border-radius:var(--r-pill, 999px);
   background:transparent; color:var(--txt2); font-weight:650; font-size:15px; cursor:pointer }
 .conta-abas button.on{ background:var(--painel); color:var(--ac-600); box-shadow:var(--sombra-xs) }
+/* Entrar com o Google: botão neutro, nas cores do tema (o "G" em contorno,
+   na cor da letra), e a linha "ou com e-mail e senha" logo abaixo. */
+.btn-google{ width:100%; min-height:48px; display:flex; align-items:center; justify-content:center;
+  gap:10px; margin:0 0 12px; border:1.5px solid var(--borda); border-radius:var(--r-campo, 12px);
+  background:var(--painel); color:var(--txt); font-weight:650; font-size:15px; cursor:pointer }
+.btn-google:hover{ border-color:var(--ac-600); color:var(--ac-600) }
+.btn-google .g-ic{ width:24px; height:24px; border-radius:50%; display:grid; place-items:center;
+  border:1.5px solid currentColor; font-weight:800; font-size:13px; line-height:1 }
+.ou-linha{ display:flex; align-items:center; gap:10px; margin:0 0 14px; color:var(--txt3); font-size:13px }
+.ou-linha::before, .ou-linha::after{ content:''; flex:1; height:1px; background:var(--borda) }
 .senha-caixa{ position:relative }
 .senha-caixa input{ width:100%; padding-right:52px }
 .senha-olho{ position:absolute; right:4px; top:50%; transform:translateY(-50%);

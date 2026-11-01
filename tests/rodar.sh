@@ -117,6 +117,7 @@ preparar() {
   carregar "$RAIZ/supabase/48_cadastro_link.sql"
   carregar "$RAIZ/supabase/49_remarcar.sql"
   carregar "$RAIZ/supabase/50_pacote_excluir.sql"
+  carregar "$RAIZ/supabase/51_google.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

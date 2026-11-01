@@ -203,6 +203,18 @@ html.com-abertura, html.com-abertura body{ overflow:hidden }
 }
 .esqueci:hover{ color:var(--txt) }
 
+/* ── Entrar com o Google: botão neutro, nas cores do tema ──────────────── */
+.google{
+  width:100%; padding:13px; border-radius:var(--r-sm); font-weight:580; font-size:15px;
+  background:var(--painel); color:var(--txt); border:1px solid var(--borda);
+  display:flex; align-items:center; justify-content:center; gap:10px;
+}
+.google:hover{ border-color:var(--acao); color:var(--acao) }
+.google .g-ic{ width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
+  border:1.5px solid currentColor; font-weight:800; font-size:12px; line-height:1 }
+.ou{ display:flex; align-items:center; gap:14px; margin:14px 0; color:var(--txt3); font-size:12.5px }
+.ou::before, .ou::after{ content:""; flex:1; height:1px; background:var(--borda) }
+
 /* ── O convite para cadastrar ─────────────────────────────────────────── */
 .risco{
   display:flex; align-items:center; gap:14px; margin:26px 0 20px;
@@ -303,6 +315,13 @@ html.com-abertura, html.com-abertura body{ overflow:hidden }
       <p class="sub">Acesse o painel do seu estabelecimento.</p>
 
       <div id="recado"></div>
+
+      <!-- Entrar com o Google: so na nuvem (na demonstracao nao ha conta). -->
+      <div id="caixaGoogle" style="display:none">
+        <button class="google" type="button" id="btGoogle" onclick="entrarComGoogle()">
+          <span class="g-ic" aria-hidden="true">G</span>Continuar com o Google</button>
+        <div class="ou">ou com e-mail e senha</div>
+      </div>
 
       <form id="formEntrar" onsubmit="event.preventDefault();entrar()">
         <div class="campo">
@@ -591,6 +610,11 @@ async function esqueci(){
 
    Roda antes da cortina: não faz sentido esperar 3 segundos de abertura para
    depois sair da página. */
+function entrarComGoogle(){
+  const url = Dados.urlDoGoogle && Dados.urlDoGoogle(new URL('entrar.html', location.href).href);
+  if(url) location.href = url;
+}
+
 function chegouPeloEmail(){
   const h = location.hash || '';
   if(h.length < 2) return false;
@@ -638,6 +662,18 @@ function chegouPeloEmail(){
   if(chegouPeloEmail()) return;
 
   abrirCortina();
+
+  /* Entrar com o Google: o Supabase Auth leva ao Google e volta para esta
+     tela com a sessão no #fragmento — o mesmo caminho do link de e-mail, que
+     o `chegouPeloEmail()` acima já lê e manda para o painel. Quem entra pela
+     primeira vez, sem salão, cai no "crie o seu" do painel, e o criar.html
+     segue com a conta Google (sem pedir e-mail e senha). O botão só aparece
+     com o Google ligado no Supabase — antes, levaria a uma página de erro. */
+  if(NA_NUVEM && Dados.googleLigado){
+    Dados.googleLigado().then(on => {
+      if(on) document.getElementById('caixaGoogle').style.display = '';
+    });
+  }
 
   /* A volta do "Excluir minha conta" (app.html). A conta já não existe, e a
      tela diz isso — sem o recado, a pessoa tentaria entrar e leria "e-mail

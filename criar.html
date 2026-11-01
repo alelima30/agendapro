@@ -216,6 +216,17 @@ input.bom{border-color:rgba(21,128,61,.5)!important}
 .grande:hover{background:var(--acao-hover);border-color:var(--acao-hover)}
 .grande:disabled{opacity:.38;pointer-events:none}
 .sob-botao{text-align:center;font-size:12.5px;color:var(--txt3);margin-top:11px}
+/* Entrar com o Google: botão neutro, nas cores do tema. */
+.google{
+  width:100%;padding:13px;border-radius:var(--r-sm);font-weight:580;font-size:15px;
+  background:var(--painel);color:var(--txt);border:1px solid var(--borda);
+  display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4px;
+}
+.google:hover{border-color:var(--acao);color:var(--acao)}
+.google .g-ic{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  border:1.5px solid currentColor;font-weight:800;font-size:12px;line-height:1}
+.ou{display:flex;align-items:center;gap:14px;margin:14px 0;color:var(--txt3);font-size:12.5px}
+.ou::before,.ou::after{content:"";flex:1;height:1px;background:var(--borda)}
 
 /* ── Pronto ──────────────────────────────────────────────────────────── */
 .selo-ok{
@@ -288,6 +299,13 @@ input.bom{border-color:rgba(21,128,61,.5)!important}
     <div id="avisoGeral"></div>
 
     <div class="caixa">
+      <!-- Criar com o Google: volta para esta tela ja logado, e ai so faltam o
+           nome e o salao (sem e-mail e senha). So na nuvem. -->
+      <div id="caixaGoogle" style="display:none">
+        <button class="google" type="button" id="btGoogle" onclick="criarComGoogle()">
+          <span class="g-ic" aria-hidden="true">G</span>Continuar com o Google</button>
+        <div class="ou">ou com e-mail e senha</div>
+      </div>
       <div class="campo">
         <label for="fNome">Seu nome <em>*</em></label>
         <div class="entrada"><span class="ic" data-ico="usuario"></span>
@@ -734,8 +752,54 @@ function mudouNomeSalao(){
 /* O passo 1 só passa com os três campos da conta em ordem. Validar tudo no
    fim faria a pessoa descobrir um e-mail errado depois de preencher o
    estabelecimento inteiro. */
+/* ── CRIAR COM O GOOGLE ───────────────────────────────────────────────────
+   O Supabase Auth leva ao Google e volta para esta tela com a sessão no
+   #fragmento. Aí a conta já existe: o passo 1 pede só o nome (e-mail e senha
+   somem), e o passo 2 cria o salão com ela. O WhatsApp digitado vai para o
+   perfil (`completar_meu_cadastro`, 51_google.sql) — é dele que o teste
+   grátis (39) sabe se a pessoa já usou os 7 dias. */
+let modoGoogle = false;
+function criarComGoogle(){
+  const url = Dados.urlDoGoogle && Dados.urlDoGoogle(location.href.split('#')[0]);
+  if(url) location.href = url;
+}
+async function voltouDoGoogle(){
+  if(!(window.Dados && Dados.ligado)) return;
+  try{
+    const h = new URLSearchParams((location.hash || '').slice(1));
+    if(h.get('access_token') && h.get('type') !== 'recovery')
+      Dados.entrarComToken({ token: h.get('access_token'), refresh: h.get('refresh_token') });
+    if(h.get('access_token') || h.get('error'))
+      history.replaceState(null, '', location.pathname + location.search);
+  }catch(e){}
+  const s = Dados.sessaoAtual && Dados.sessaoAtual();
+  if(!(s && s.token)){
+    // O botão só com o Google ligado no Supabase: antes, daria página de erro.
+    if(Dados.googleLigado && await Dados.googleLigado())
+      document.getElementById('caixaGoogle').style.display = '';
+    return;
+  }
+  let eu = null;
+  try{ eu = await Dados.minhaConta(); }catch(e){}
+  if(!eu) return;
+  modoGoogle = true;
+  for(const id of ['fEmail', 'fSenha']){
+    const c = document.getElementById(id).closest('.campo');
+    if(c) c.style.display = 'none';
+  }
+  document.getElementById('caixaGoogle').style.display = 'none';
+  try{
+    const p = (await Dados.lista('perfis', { id: eu.id }))[0];
+    const n = document.getElementById('fNome');
+    if(p && p.nome && !n.value) n.value = p.nome;
+  }catch(e){}
+  document.getElementById('avisoGeral').innerHTML = '<div class="aviso neutro"><span class="ic">'
+    + ico('info') + '</span><div><b>Você entrou como ' + textoSeguro(eu.email || 'sua conta Google')
+    + '</b>Agora é só conferir seu nome e criar o seu salão.</div></div>';
+}
+
 function irNegocio(){
-  const campos = ['fNome','fEmail','fSenha'];
+  const campos = modoGoogle ? ['fNome'] : ['fNome','fEmail','fSenha'];
   let ok = true, primeiro = null;
   for(const c of campos)
     if(!validarCampo(c, true)){ ok = false; if(!primeiro) primeiro = c; }
@@ -822,7 +886,12 @@ async function criarConta(){
     const rotulo = bt.textContent;
     bt.disabled = true; bt.textContent = 'Criando…';
     try{
-      const conta = await Dados.criarConta({
+      /* Com o Google, a conta já existe e já está logada: o WhatsApp vai para
+         o perfil, e segue direto para criar o salão. */
+      if(modoGoogle){
+        await Dados.chamar('completar_meu_cadastro', { p_telefone: paraE164(tel), p_nascimento: null });
+      }
+      const conta = modoGoogle ? { access_token: 'sessao-do-google' } : await Dados.criarConta({
         email: document.getElementById('fEmail').value.trim(),
         senha: document.getElementById('fSenha').value,
         nome, telefone: paraE164(tel) });
@@ -884,7 +953,9 @@ async function criarConta(){
       const cod = String(e.codigo || ''), cru = String(e.message || '');
       const eh = (c, re) => cod === c || (!cod && re.test(cru));
       const recado =
-        eh('user_already_exists', /already registered|already been registered|user_exists/i)
+        /já está em outra conta/i.test(cru)
+          ? '<b>' + textoSeguro(cru) + '</b>'
+        : eh('user_already_exists', /already registered|already been registered|user_exists/i)
           ? '<b>Este e-mail já tem conta.</b> Vá em <a href="entrar.html">Entrar</a> '
             + '— e se não lembrar a senha, use "Esqueci minha senha" por lá.'
         : eh('email_exists', /email.*exists/i)
@@ -1041,6 +1112,7 @@ function registrarServiceWorker(){
 (function(){
   bd = carregar();
   registrarServiceWorker();
+  voltouDoGoogle();
   /* O rodapé diz "demonstração, nada é enviado para servidor". Ligado ao
      banco isso é mentira — e aparecia no fim do cadastro de verdade, no
      minuto em que a pessoa acabou de criar a conta. Some, como no app.html. */

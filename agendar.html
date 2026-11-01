@@ -650,6 +650,14 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
         <button type="button" role="tab" id="abaEntrar" onclick="modoConta('entrar')">Entrar</button>
         <button type="button" role="tab" id="abaCriar" onclick="modoConta('criar')">Criar conta</button>
       </div>
+      <!-- ENTRAR COM O GOOGLE: serve para criar a conta e para entrar depois.
+           Sem senha. Na primeira vez a tela pede o WhatsApp e o aniversario
+           (o Google so entrega nome e e-mail). (Sem crase: template.) -->
+      <div id="caixaGoogle" style="display:none">
+        <button type="button" class="btn-google" id="btGoogle" onclick="entrarComGoogle()">
+          <span class="g-ic" aria-hidden="true">G</span> Continuar com o Google</button>
+        <p class="ou-linha"><span>ou com e-mail e senha</span></p>
+      </div>
       <div id="contaCriarCampos">
         <div class="campo"><label for="cNome">Nome completo</label>
           <input id="cNome" placeholder="Nome e sobrenome" autocomplete="name"></div>
@@ -677,6 +685,20 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
       <p class="centro" id="linhaEsqueci">
         <button class="link" onclick="esqueciSenhaCliente()">Esqueci minha senha</button></p>
       <div id="avisoConta"></div>
+    </section>
+
+    <!-- ══════ COMPLETAR O CADASTRO (entrou com o Google) ══════ -->
+    <section class="passo" id="p-completar">
+      <h2>Falta pouco</h2>
+      <p class="sub">Para o salão te encontrar e mandar as confirmações, informe seu
+        WhatsApp e seu aniversário. É só desta vez.</p>
+      <div class="campo"><label for="cpTel">WhatsApp</label>
+        <input id="cpTel" type="tel" inputmode="numeric" placeholder="(11) 99999-9999"
+               autocomplete="tel" oninput="mascaraTelefone(this)"></div>
+      <div class="campo"><label for="cpNasc">Aniversário</label>
+        <input id="cpNasc" type="date" autocomplete="bday">
+        <p class="pista">Só o dia — o salão usa para o agrado do seu mês.</p></div>
+      <div id="avisoCompletar"></div>
     </section>
 
     <!-- ══════ CADASTRO FEITO (link de cadastro, sem agendar) ══════ -->
@@ -1452,7 +1474,10 @@ async function abrirSalaoDaNuvem(slug){
      (`&conta=nova`) fazem a ficha; sem eles, o caminho de sempre. */
   if(!iniciarPedidoDoLink())
     (logada() ? aposEntrar() : carregarMeusPacotes())
-      .then(() => { if(meusPacotes.length || logada()) desenhar(); });
+      .then(f => {
+        if(logada() && !completarAdiado && precisaCompletar(f)) return pedirCompletar(false);
+        if(meusPacotes.length || logada()) desenhar();
+      });
   /* Não bloqueia nada e não redesenha: só é lida lá na frente, quando ela
      termina de marcar. Pedir agora é ter a resposta na mão na hora certa. */
   carregarPoliticaDeConfirmacao();
@@ -2210,6 +2235,10 @@ function desenhar(){
   if(tela === 'conta')       { desenharConta();     trilhaAte(0);
                                bp.textContent = contaModo === 'criar'
                                  ? (contaDoCadastro ? 'Fazer meu cadastro' : 'Criar conta') : 'Entrar'; }
+  if(tela === 'completar')   { trilhaAte(0); bp.textContent = 'Continuar';
+                               bs.style.display = ''; bs.textContent = 'Agora não';
+                               const cn = document.getElementById('cpNasc');
+                               if(cn && window.Documento) Documento.dataDigitavel(cn); }
   if(tela === 'cadastro')    { trilhaAte(0);
                                bp.textContent = casaFazServicos() ? 'Marcar um horário' : 'Ir para o início';
                                if(casaFazServicos()){ bs.style.display=''; bs.textContent='Ver o salão'; } }
@@ -5847,6 +5876,7 @@ function acaoPrincipal(){
   if(tela === 'quando')    return irPara('dados');
   if(tela === 'dados')     return salvarDados();
   if(tela === 'conta')     return contaModo === 'criar' ? criarContaCliente() : entrarCliente();
+  if(tela === 'completar') return salvarCompletar();
   if(tela === 'cadastro'){
     historico = [];
     if(!casaFazServicos()) return irPara('capa', true);
@@ -5905,6 +5935,7 @@ function acaoSecundaria(){
   if(tela === 'confirmar') return irPara('quando');
   if(tela === 'conta') return voltarDaConta();
   if(tela === 'cadastro'){ historico = []; return irPara('capa', true); }
+  if(tela === 'completar'){ completarAdiado = true; historico = []; return irPara('capa', true); }
   if(VOLTAR_ESCRITO.includes(tela)) return voltar();
   /* "Voltar para a home": a capa, com a escolha zerada — era "Marcar outro",
      que abria a lista de serviços; da capa o Agendar horário faz o mesmo. */
@@ -7536,6 +7567,15 @@ function desenharConta(){
     b.setAttribute('aria-selected', String(on));
   }
   document.getElementById('contaCriarCampos').style.display = criar ? '' : 'none';
+  /* Só com o Google ligado no Supabase (Dados.googleLigado): antes disso o
+     botão levaria a uma página de erro. */
+  const cg = document.getElementById('caixaGoogle');
+  if(cg){
+    cg.style.display = 'none';
+    if(NA_NUVEM && Dados.googleLigado){
+      Dados.googleLigado().then(on => { if(on) cg.style.display = ''; });
+    }
+  }
   document.getElementById('linhaEsqueci').style.display = criar ? 'none' : '';
   const senha = document.getElementById('cSenha');
   senha.autocomplete = criar ? 'new-password' : 'current-password';
@@ -7750,7 +7790,8 @@ function voltarDaConta(){
 const PEDIDO_DO_LINK = (() => {
   try{
     const q = new URLSearchParams(location.search);
-    return { cadastro: q.get('cadastro') === '1', contaNova: q.get('conta') === 'nova' };
+    return { cadastro: q.get('cadastro') === '1',
+             contaNova: q.get('conta') === 'nova' || q.get('conta') === 'google' };
   }catch(e){ return { cadastro: false, contaNova: false }; }
 })();
 function voltaDaContaNova(){
@@ -7775,10 +7816,65 @@ function iniciarPedidoDoLink(){
     return null;
   }
   return aposEntrar({ cadastrar: true }).then(f => {
+    // Entrou com o Google (ou a conta veio sem WhatsApp): completa primeiro.
+    if(precisaCompletar(f)) return pedirCompletar(PEDIDO_DO_LINK.cadastro);
     if(PEDIDO_DO_LINK.cadastro) mostrarCadastro(f);
     else if(meusPacotes.length || logada()) desenhar();
     return f;
   });
+}
+
+/* ── ENTRAR COM O GOOGLE ──────────────────────────────────────────────────
+   Leva ao Google pelo Supabase Auth e volta para ESTE salão, já logada (o
+   #fragmento é lido na abertura, como o do e-mail). `conta=google` faz a
+   volta cuidar da ficha, como uma conta nova; no link de cadastro, volta
+   para a tela de cadastro feito. */
+function entrarComGoogle(){
+  if(!NA_NUVEM) return;
+  const url = Dados.urlDoGoogle(linkDoSalao() + (contaDoCadastro ? '&cadastro=1' : '&conta=google'));
+  if(url) location.href = url;
+}
+
+/* ── COMPLETAR O CADASTRO ─────────────────────────────────────────────────
+   O Google entrega nome e e-mail, e só. Sem o WhatsApp o salão não acha a
+   ficha nem manda mensagem; sem o aniversário, ela não entra em
+   Aniversariantes. Então a primeira vez pede os dois — e o banco grava no
+   perfil (`completar_meu_cadastro`, 51_google.sql). Também serve à conta
+   antiga que nasceu sem WhatsApp. "Agora não" deixa para depois, sem
+   insistir de novo nesta visita. */
+let completarAdiado = false, completarDoCadastro = false;
+function precisaCompletar(f){
+  return NA_NUVEM && logada() && !!f && typeof f === 'object' && !Array.isArray(f) && !f.telefone;
+}
+function pedirCompletar(doCadastro){
+  completarDoCadastro = !!doCadastro;
+  const a = document.getElementById('avisoCompletar');
+  if(a) a.innerHTML = '';
+  historico = ['capa'];
+  irPara('completar', true);
+}
+async function salvarCompletar(){
+  const tel = valorDe('cpTel'), nasc = valorDe('cpNasc');
+  const dizer = h => { document.getElementById('avisoCompletar').innerHTML =
+    '<div class="recado erro">' + h + '</div>'; };
+  if(soDigitos(tel).length < 10) return dizer('Falta o WhatsApp com DDD.');
+  if(!nasc && Documento.dataIncompleta(document.getElementById('cpNasc')))
+    return dizer('Confira a data do aniversário — escreva dia, mês e ano, como 04/10/1990.');
+  if(!nasc) return dizer('Falta o seu aniversário. É só o dia — o salão usa para o agrado do seu mês.');
+  if(nasc > hoje() || nasc < '1900-01-01') return dizer('Confira o ano do seu aniversário.');
+  const bp = document.getElementById('btPrincipal');
+  bp.disabled = true; bp.textContent = 'Salvando…';
+  try{
+    await Dados.chamar('completar_meu_cadastro', { p_telefone: paraE164(tel), p_nascimento: nasc });
+  }catch(e){
+    bp.disabled = false; bp.textContent = 'Continuar';
+    return dizer(escapar(e.message || 'Não consegui salvar agora. Tente de novo em instantes.'));
+  }
+  const f = await aposEntrar({ cadastrar: true });
+  bp.disabled = false; bp.textContent = 'Continuar';
+  if(completarDoCadastro) return mostrarCadastro(f);
+  historico = [];
+  irPara('capa', true);
 }
 function mostrarCadastro(f){
   contaDoCadastro = false;

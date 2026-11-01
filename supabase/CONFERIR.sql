@@ -1075,6 +1075,16 @@ with conferencia(ordem, item, veredito, detalhe) as (
                 or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_nao_apaga')
               then 'cole as duas partes de novo (50_pacote_excluir)' else '' end
   union all
+  /* Entrar com o Google (51): na primeira vez a tela pede o WhatsApp e o
+     aniversário, e esta função os grava — só para quem está logado. */
+  select 62, 'Entrar com o Google (completar o cadastro)',
+         case when to_regprocedure('public.completar_meu_cadastro(text,date)') is null
+                or has_function_privilege('anon', 'public.completar_meu_cadastro(text,date)', 'execute')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.completar_meu_cadastro(text,date)') is null
+                or has_function_privilege('anon', 'public.completar_meu_cadastro(text,date)', 'execute')
+              then 'cole as duas partes de novo (51_google)' else '' end
+  union all
   /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
      o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
   select 59, 'Aniversário do cadastro chega à ficha',
