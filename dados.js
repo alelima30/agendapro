@@ -121,7 +121,9 @@ const COLUNAS = {
                    comissaoFixa:'comissao_fixa', vendaOnline:'venda_online',
                    precoVisivel:'preco_visivel' },
   pacotes:       { salaoId:'salao_id', validadeDias:'validade_dias',
-                   soNosDias:'so_nos_dias', criadoEm:'criado_em' },
+                   soNosDias:'so_nos_dias', criadoEm:'criado_em',
+                   // Excluído depois de vendido: sai da lista, o histórico fica (50).
+                   arquivadoEm:'arquivado_em' },
   pacote_servicos: { pacoteId:'pacote_id', servicoId:'servico_id' },
   cupons:        { salaoId:'salao_id', valeAgendamento:'vale_agendamento',
                    valeProdutos:'vale_produtos', limiteTotal:'limite_total',

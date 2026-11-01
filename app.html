@@ -2112,7 +2112,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.c4b9c3';
+const VERSAO_APP = 'v9.c64cb9';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3447,7 +3447,8 @@ function pintarPacotes(){
   const bt = document.getElementById('btNovoPacote');
   if(bt) bt.style.display = souGestor() ? '' : 'none';
 
-  const lista = pacotesDoSalao();
+  // O excluído depois de vendido fica no banco (histórico), mas sai da lista.
+  const lista = pacotesDoSalao().filter(p => !p.arquivadoEm);
   if(!lista.length){
     alvo.innerHTML = `<div class="vazio"><b>Nenhum pacote ainda</b>
       Um pacote é um combinado: a cliente paga adiantado por várias sessões e
@@ -3602,8 +3603,52 @@ function abrirPacote(pid){
     ${p ? `<label class="check" style="margin-top:12px">
       <input type="checkbox" id="pkAtivo"${p.ativo ? ' checked' : ''}>
       <span>Pacote ativo</span></label>` : ''}`,
-    [['Cancelar','fecharModal()'],
+    [...(p ? [['Excluir', `excluirPacote('${p.id}')`, 'btn-perigo']] : []),
+     ['Cancelar','fecharModal()'],
      ['Salvar', `salvarPacote(${p ? "'" + p.id + "'" : 'null'})`, 'btn-p']]);
+}
+
+/* ── EXCLUIR O PACOTE ─────────────────────────────────────────────────────
+   "Só excluir quando não tiver pessoas nesse pacote." Com cliente dentro
+   (vínculo vivo, dentro da validade), não exclui e diz quem. Sem ninguém:
+   nunca vendido, apaga; já vendido, sai da lista e o histórico fica. Quem
+   decide e confere é o banco (`excluir_pacote`, 50_pacote_excluir.sql). */
+async function excluirPacote(pid){
+  if(!souGestor()) return;
+  const p = pacotesDoSalao().find(x => x.id === pid);
+  if(!p) return;
+  const dentro = vendasDoPacote(pid).filter(v => v.venceEm >= hoje())
+    .map(v => nomeCliente(v.clienteId)).filter(Boolean);
+  if(dentro.length){
+    alert('Não dá para excluir o pacote "' + p.nome + '": ainda tem cliente nele ('
+        + dentro.join(', ') + ').\n\nTire as clientes do pacote primeiro (botão Tirar, na '
+        + 'lista de Pacotes), ou espere o pacote delas vencer.');
+    return;
+  }
+  const vendido = (bd.pacote_clientes || []).some(v => v.pacoteId === pid);
+  if(!confirm('Excluir o pacote "' + p.nome + '"?\n\n' + (vendido
+      ? 'Ele já foi vendido antes: sai da lista e não pode mais ser vendido, mas o '
+        + 'histórico de quem teve o pacote continua guardado.'
+      : 'Ele nunca foi vendido e será apagado.'))) return;
+  if(!NA_NUVEM){
+    if(vendido){ p.arquivadoEm = new Date().toISOString(); p.ativo = false; }
+    else{
+      bd.pacotes = (bd.pacotes || []).filter(x => x.id !== pid);
+      bd.pacote_servicos = (bd.pacote_servicos || []).filter(x => x.pacoteId !== pid);
+    }
+    salvar(); fecharModal(); pintarPacotes();
+    return;
+  }
+  try{
+    try{ await _filaGravacao; }catch(e){}
+    await Dados.chamar('excluir_pacote', { p_pacote: pid });
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+    fecharModal();
+    pintarPacotes();
+  }catch(e){
+    alert('Não consegui excluir o pacote.\n\n' + (e.message || e));
+  }
 }
 
 function salvarPacote(pid){
@@ -10031,6 +10076,15 @@ function pintarSalao(){
       <div class="regua" id="reguaConfirma" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaConfirma" style="margin-top:9px"></p>
 
+      <!-- SENHA PARA MARCAR PELO LINK. Desligada para todo salao que ja
+           existe; o dono liga se quiser. (Sem crase: template literal.) -->
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Senha para marcar pelo link</h3>
+      <p class="secao-sub">Com senha, a cliente vê os horários e o pacote dela em qualquer
+        celular. Sem senha, ela marca mais rápido.</p>
+      <div class="regua" id="reguaSenha" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaSenha" style="margin-top:9px"></p>
+
       <!-- ATÉ QUANDO A AGENDA FICA ABERTA. Não é preferência de tela: é regra
            de negócio, e o banco a aplica — dias_liberados() limita o que
            horarios_livres() oferece, então mexer aqui muda o que a cliente
@@ -10891,6 +10945,7 @@ function pintarSalao(){
   pintarPagamentosEditor();
   pintarComanda();
   pintarConfirma();
+  pintarSenha();
   pintarTetoOnline();
   pintarNotificacoes();
   pintarAparencia();
@@ -14394,6 +14449,36 @@ function pintarConfirma(){
 
 function escolherConfirma(v){ confirmaEscolhida = !!v; pintarConfirma(); }
 
+/* ── EXIGIR SENHA PARA MARCAR ─────────────────────────────────────────────
+   `cfg.exigeSenha`, ausente = não. Ligado, o link só confirma a marcação de
+   quem cria a senha (ou entra na conta que já tem). Quem já marcou sem conta
+   não perde nada: ficha e horários ficam como estão, e a conta, quando ela
+   criar, liga na ficha pelo WhatsApp. */
+let senhaEscolhida = null, senhaDoSalao = null;
+function exigeSenha(sl){
+  const v = ((sl || acharSalao(salaoAtual) || {}).cfg || {}).exigeSenha;
+  return v === true || ['true', 'sim', '1'].includes(String(v).trim().toLowerCase());
+}
+function pintarSenha(){
+  const alvo = document.getElementById('reguaSenha');
+  if(!alvo) return;
+  if(senhaEscolhida === null || senhaDoSalao !== salaoAtual){
+    senhaEscolhida = exigeSenha();
+    senhaDoSalao = salaoAtual;
+  }
+  alvo.innerHTML = [[false, 'Opcional'], [true, 'Obrigatória']]
+    .map(([v, rot]) => `<button type="button"
+        class="${v === senhaEscolhida ? 'on' : ''}"
+        onclick="escolherSenha(${v})">${escapar(rot)}</button>`).join('');
+  const ex = document.getElementById('explicaSenha');
+  if(ex) ex.textContent = senhaEscolhida
+    ? 'Para marcar pelo link, a cliente cria uma senha (ou entra na conta que já tem). '
+      + 'Quem já marcou sem senha não perde nada: a ficha e os horários continuam.'
+    : 'A cliente marca sem senha, e no fim recebe o convite para criar uma. '
+      + 'Quem não criar continua marcando normalmente.';
+}
+function escolherSenha(v){ senhaEscolhida = !!v; pintarSenha(); }
+
 /* ⚠ O TEXTO DOS DOIS INTERRUPTORES MORA AQUI, E NUM LUGAR SÓ.
 
    Ele é escrito em duas telas: aqui, em Meu negócio, e no passo a passo do
@@ -14866,6 +14951,8 @@ function salvarCadastroSalao(){
        linhas acima. */
     usaComanda: comandaParaGravar(comandaEscolhida),
     confirmaAuto: confirmaEscolhida ?? true,
+    // Sem a régua desenhada, fica o que já estava (e não "desliga").
+    exigeSenha: senhaEscolhida ?? exigeSenha(),
     /* ⚠ `?? true` PELO MESMO MOTIVO das duas linhas acima: `false` é escolha
        legítima nos dois, e com `||` desligar a loja gravaria `true` — o dono
        marcaria "Não", salvaria, e os produtos continuariam no link dele sem

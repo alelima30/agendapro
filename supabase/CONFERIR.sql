@@ -1060,6 +1060,21 @@ with conferencia(ordem, item, veredito, detalhe) as (
   union all
   /* O Crediário (47_crediario): a venda a prazo, as parcelas e o que entra
      no caixa, no relatório e na comissão. */
+  /* Senha para marcar (25) e excluir pacote (50). */
+  select 60, 'Senha para marcar pelo link (opção do salão)',
+         case when not exists (select 1 from pg_proc where proname = 'vitrine' and prosrc like '%exigeSenha%')
+              then 'FALTA' else 'certo' end,
+         case when not exists (select 1 from pg_proc where proname = 'vitrine' and prosrc like '%exigeSenha%')
+              then 'cole as duas partes de novo (25_loja)' else '' end
+  union all
+  select 61, 'Excluir pacote (só sem cliente nele)',
+         case when to_regprocedure('public.excluir_pacote(uuid)') is null
+                or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_nao_apaga')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.excluir_pacote(uuid)') is null
+                or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_nao_apaga')
+              then 'cole as duas partes de novo (50_pacote_excluir)' else '' end
+  union all
   /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
      o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
   select 59, 'Aniversário do cadastro chega à ficha',

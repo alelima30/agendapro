@@ -2132,6 +2132,8 @@ language sql stable security definer set search_path = public as $$
       'passoHorarios', case
         when c.cfg->>'passoHorarios' in ('15','30','60')
           then (c.cfg->>'passoHorarios')::int else 15 end,
+      'exigeSenha', lower(btrim(coalesce(c.cfg->>'exigeSenha', 'false')))
+                      in ('true', 't', '1', 'sim', 'yes'),
       'cores',     coalesce(c.cfg->'cores', '{}'::jsonb),
       'modo',      coalesce(c.cfg->>'modo', 'atual'),
       'logoForma', coalesce(c.cfg->>'logoForma', 'circular'),

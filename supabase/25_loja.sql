@@ -261,6 +261,11 @@ language sql stable security definer set search_path = public as $$
       'passoHorarios', case
         when c.cfg->>'passoHorarios' in ('15','30','60')
           then (c.cfg->>'passoHorarios')::int else 15 end,
+      /* O salão pede senha para marcar ("Exigir senha", Meu negócio)?
+         Ausente = não: todo salão que já existe segue como sempre. Booleano
+         pela peneira de texto, como o `fitaBrilho` abaixo. */
+      'exigeSenha', lower(btrim(coalesce(c.cfg->>'exigeSenha', 'false')))
+                      in ('true', 't', '1', 'sim', 'yes'),
 
       /* ── A CAMADA DE PERSONALIZAÇÃO POR ESTABELECIMENTO ────────────────
          Cinco chaves, e as cinco AUSENTES no salão que nunca mexeu — que é

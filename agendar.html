@@ -632,7 +632,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
           <button type="button" class="senha-olho" data-ico="olho"
                   aria-label="Mostrar a senha" onclick="olhoSenha('dSenha', this)"></button>
         </div>
-        <p class="pista">Com senha, você vê seus horários em qualquer celular e
+        <p class="pista" id="dSenhaPista">Com senha, você vê seus horários em qualquer celular e
           usa os pacotes do salão.</p>
       </div>
       <div id="avisoDados"></div>
@@ -797,6 +797,8 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
            ainda não sabe se vai usar; aqui ela acabou de marcar, sabe que
            volta, e o salão vira um ícone na tela dela em vez de um link
            perdido no WhatsApp. Some sozinho quando já está instalado. -->
+      <!-- Marcou sem conta: o convite para criar a senha (convidarASenha). -->
+      <div id="convidarSenha"></div>
       <div id="convitePwa" style="display:none"></div>
     </section>
 
@@ -1252,6 +1254,8 @@ function bdDaVitrine(v){
       // De quanto em quanto tempo esta página oferece horário. Ver
       // `passoDoLink()`: é peneira de exibição, não de disponibilidade.
       passoHorarios: s.passoHorarios,
+      // O salão pede senha para marcar (Meu negócio → "Exigir senha").
+      exigeSenha: s.exigeSenha === true,
       /* ── A PERSONALIZAÇÃO POR ESTABELECIMENTO ──────────────────────────
          As cinco chaves chegam soltas, e as cinco podem vir vazias — que é o
          estado de todo salão que nunca abriu essa parte. Vazio aqui quer
@@ -2200,7 +2204,7 @@ function desenhar(){
                                bs.style.display='';
                                bs.innerHTML = '<span data-ico="esquerda"></span>Alterar horário';
                                if(window.aplicarIcones) aplicarIcones(bs); }
-  if(tela === 'pronto')      { bp.textContent='Ver meus horários'; trilhaAte(0);
+  if(tela === 'pronto')      { convidarASenha(); bp.textContent='Ver meus horários'; trilhaAte(0);
                                bs.style.display=''; bs.textContent='Voltar para a home'; }
   if(tela === 'meus')        { desenharMeus();      bp.textContent='Agendar novo horário'; trilhaAte(0); }
   if(tela === 'conta')       { desenharConta();     trilhaAte(0);
@@ -3499,6 +3503,16 @@ function desenharDados(){
         onclick="abrirConta('entrar')">Entrar</button> — seus dados vêm preenchidos.</div>`;
   const cs = document.getElementById('campoSenhaCadastro');
   if(cs) cs.style.display = NA_NUVEM && !logada() ? '' : 'none';
+  /* O salão que exige senha: o campo deixa de ser opcional, e diz por quê. */
+  const exige = senhaObrigatoria();
+  const rotSenha = document.querySelector('label[for="dSenha"]');
+  if(rotSenha) rotSenha.innerHTML = exige ? 'Crie uma senha'
+    : 'Crie uma senha <span style="font-weight:400">(opcional)</span>';
+  const pistaSenha = document.getElementById('dSenhaPista');
+  if(pistaSenha) pistaSenha.textContent = exige
+    ? 'Este salão pede uma senha para marcar: com ela você vê seus horários e o seu pacote '
+      + 'em qualquer celular. Já tem conta? Toque em Entrar, logo acima.'
+    : 'Com senha, você vê seus horários em qualquer celular e usa os pacotes do salão.';
   if(window.aplicarIcones && cs) aplicarIcones(cs);
 
   const resumo = `${escapar(nomesEscolhidos())} · ${dataLonga(escolha.data)} às ${hm(escolha.inicio)}`;
@@ -3600,9 +3614,24 @@ function salvarDados(){
   /* Com senha, a conta nasce junto — e a marcação já sai como ela: o banco
      liga a ficha e o pacote vale nesta mesma vez. Sem senha, nada muda. */
   const senha = valorDe('dSenha');
+  /* O salão que EXIGE senha ("Exigir senha para marcar", Meu negócio): sem
+     ela, não segue. Quem já tem conta entra pelo "Entrar" logo acima.
+
+     ⚠ É escolha de como o salão atende, e não trava de segurança — por isso
+     mora aqui, na tela, e não no `agendar()`: com a confirmação de e-mail
+     ligada no Supabase, a conta nasce SEM sessão, e o banco recusaria a
+     marcação de quem acabou de criar a senha. Nada se perde: quem já marcou
+     sem conta continua com a ficha e os horários como estão. */
+  if(!senha && senhaObrigatoria()){
+    dizer('Crie uma senha de pelo menos 8 caracteres: este salão pede conta para marcar. '
+        + 'Já tem conta? Toque em <b>Entrar</b>, logo acima.');
+    return;
+  }
   if(senha && NA_NUVEM && !logada()){
     if(senha.length < 8){
-      dizer('A senha precisa de pelo menos 8 caracteres — ou deixe em branco '
+      dizer(salao && salao.exigeSenha
+        ? 'A senha precisa de pelo menos 8 caracteres.'
+        : 'A senha precisa de pelo menos 8 caracteres — ou deixe em branco '
           + 'para marcar sem conta.');
       return;
     }
@@ -4207,6 +4236,26 @@ function desenharConfirmar(){
    certo; o resumo do que foi marcado; e o status — aguardando o salão, ou
    confirmado. Sem bolha de WhatsApp desenhada: mostrar uma mensagem que a
    tela não enviou seria simular um envio. */
+/* O salão pede senha para marcar, e ela ainda não está na conta. */
+function senhaObrigatoria(){
+  return NA_NUVEM && !logada() && !!(salao && salao.exigeSenha);
+}
+
+/* ── O CONVITE PARA CRIAR A SENHA ─────────────────────────────────────────
+   Marcou sem conta (o salão não exige): logo abaixo do "Agendamento
+   enviado", um convite para criar a senha — com nome, WhatsApp, aniversário
+   e e-mail já preenchidos, ela só digita a senha. Com a conta, vê os
+   horários e o pacote em qualquer celular. A ficha dela é ligada pelo
+   WhatsApp (48), sem duplicar. */
+function convidarASenha(){
+  const alvo = document.getElementById('convidarSenha');
+  if(!alvo) return;
+  if(!NA_NUVEM || logada()){ alvo.innerHTML = ''; return; }
+  alvo.innerHTML = `<div class="recado convite-senha"><b>Crie sua senha</b> e veja seus horários
+      e o seu pacote em qualquer celular. Seus dados já vêm preenchidos.
+      <br><button type="button" class="link" onclick="abrirConta('criar')">Criar minha senha</button></div>`;
+}
+
 function desenharPronto(pendente, prof){
   const sinal = pendente && sinalDaMarcacao;
   document.querySelector('#p-pronto h2').textContent = sinal ? 'Falta só o sinal!'
@@ -4233,6 +4282,7 @@ function desenharPronto(pendente, prof){
   if(window.aplicarIcones) aplicarIcones(document.getElementById('p-pronto'));
   historico = [];
   irPara('pronto', true);
+  convidarASenha();
   convidarAInstalar();
 }
 

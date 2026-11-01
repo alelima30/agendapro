@@ -18,7 +18,9 @@
      6. o lembrete da cliente (marcas E texto) aparece no cartão do dia, na
         grade e na lista do que espera confirmação — "para eu saber quem é";
      7. vender o pacote "Já pagou" pergunta antes: com o não, nada é gravado;
-     8. a 390px a janela cabe; nenhum erro de JavaScript.
+     8. excluir o pacote: com cliente dentro, não exclui e diz quem; o que
+        nunca foi vendido, apaga;
+     9. a 390px a janela cabe; nenhum erro de JavaScript.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -266,6 +268,30 @@ await venderJaPago();
 igual('com o sim, o pacote fica pago no Pix',
   await linha(`select pago_em is not null as pago, forma_pagamento f from public.pacote_clientes where cliente_id = $1`, [JOANA]),
   { pago: true, f: 'pix' });
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('8. Excluir o pacote');
+await p.evaluate(async () => { const novo = await carregarTudo(); if(novo) bd = novo; });
+await p.evaluate(pid => { fecharModal(); irPara('pacotes'); abrirPacote(pid); }, pacote.id);
+await p.waitForSelector('#modalPe .btn:has-text("Excluir")');
+verdade('a janela do pacote tem "Excluir" (no estilo de risco)', await p.evaluate(() =>
+  [...document.querySelectorAll('#modalPe .btn')].some(b => b.textContent.trim() === 'Excluir' && b.classList.contains('btn-perigo'))));
+dialogos.length = 0;
+await p.click('#modalPe .btn:has-text("Excluir")'); await p.waitForTimeout(800);
+verdade('com cliente dentro, não exclui e diz quem', dialogos.length === 1
+  && /Não dá para excluir o pacote "Escova da semana": ainda tem cliente nele \(Maria Souza, Joana Lima\)/.test(dialogos[0]), dialogos.join(' | '));
+igual('e o pacote continua no banco, ativo',
+  (await linha(`select ativo, arquivado_em is null as vivo from public.pacotes where id = $1`, [pacote.id])), { ativo: true, vivo: true });
+const solto = await dona.inserir('pacotes', { salaoId: SALAO, nome:'Nunca vendido', preco:90,
+  sessoes:2, validadeDias:30, dias:[0,1,2,3,4,5,6], ativo:true });
+await p.evaluate(async pid => { const novo = await carregarTudo(); if(novo) bd = novo; fecharModal(); abrirPacote(pid); }, solto.id);
+await p.waitForSelector('#modalPe .btn:has-text("Excluir")');
+dialogos.length = 0;
+await p.click('#modalPe .btn:has-text("Excluir")'); await p.waitForTimeout(2500);
+verdade('o que nunca foi vendido: pergunta, e diz que será apagado',
+  dialogos.some(d => /Excluir o pacote "Nunca vendido"\?/.test(d) && /nunca foi vendido e será apagado/.test(d)), dialogos.join(' | '));
+igual('e some do banco e da lista', [(await linha(`select count(*)::int n from public.pacotes where id = $1`, [solto.id])).n,
+  await p.evaluate(() => /Nunca vendido/.test(document.getElementById('listaPacotes').innerText))], [0, false]);
 
 igual('\nnenhum erro de JavaScript', erros, []);
 await nav.close();
