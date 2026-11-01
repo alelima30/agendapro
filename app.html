@@ -720,6 +720,7 @@ span.ajuda{display:block;margin-top:5px}
       <input id="buscaCliente" placeholder="Buscar por nome ou telefone"
              oninput="pintarClientes()"
              style="padding:8px 11px;border:1px solid var(--borda);border-radius:9px;background:var(--painel);min-width:220px">
+      <button class="btn" onclick="abrirLinkDeCadastro()" title="Link para a cliente se cadastrar sem marcar horário">Link de cadastro</button>
       <button class="btn btn-p" onclick="abrirCliente()">+ Cliente</button>
     </div>
     <div id="listaClientes"></div>
@@ -2110,7 +2111,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.6352de';
+const VERSAO_APP = 'v9.65f6b8';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3284,7 +3285,8 @@ function pintarClientes(){
       // tem o que contar. Uma tabela em que toda linha grita não avisa nada.
       const f = faltasDoCliente(c.id);
       return `<tr>
-        <td><b>${escapar(c.nome)}</b>${c.exigeConfirmacao
+        <td><b>${escapar(c.nome)}</b>${c.peloLink
+          ? ' <span class="tag t-conc" title="Ela mesma fez o cadastro pelo link do salão">cadastrou pelo link</span>' : ''}${c.exigeConfirmacao
           ? ' <span class="tag t-pend" title="O que ela marcar pelo link espera sua confirmação">confirma antes</span>' : ''}${
           c.obs ? `<br><span style="font-size:12px;color:var(--txt2)">${escapar(c.obs)}</span>` : ''}${
           marcasDe(c.id).length ? `<br><span class="lembrete-na-lista">${escapar(marcasDe(c.id).join(' · '))}</span>` : ''}</td>
@@ -19115,8 +19117,39 @@ function pdLinkDoSalao(){
 // Na demonstração, o link da cliente continua na demonstração (ver `pintarPublico`).
 function sufixoDemo(){ return NA_NUVEM ? '' : '&demo=1'; }
 
-function pdCopiarLink(bt){
-  const el = document.getElementById('pdLink');
+/* ── O LINK DE CADASTRO ───────────────────────────────────────────────────
+   O mesmo link do salão, com `&cadastro=1`: abre direto em "Faça seu
+   cadastro". A cliente cria a conta e a ficha nasce aqui em Clientes, marcada
+   "cadastrou pelo link", sem ela marcar horário — e o dono a coloca no
+   pacote depois. Quem decide e cria a ficha é o banco
+   (`cadastrar_minha_ficha`, 48_cadastro_link.sql): mesmo WhatsApp com o
+   mesmo nome liga à ficha que já existe, sem duplicar. */
+function linkDeCadastro(){ return pdLinkDoSalao() + '&cadastro=1'; }
+function abrirLinkDeCadastro(){
+  const link = linkDeCadastro();
+  abrirModal('Link de cadastro', `
+    <p style="margin:0 0 10px">Mande este link para a cliente se cadastrar <b>sem marcar horário</b>.
+      A ficha dela aparece aqui em Clientes com a marca
+      <span class="tag t-conc">cadastrou pelo link</span>, e você pode colocá-la num pacote.</p>
+    <input id="linkCadastro" readonly value="${escapar(link)}" aria-label="Link de cadastro"
+           style="width:100%;margin:4px 0 10px" onclick="this.select()">
+    <p style="margin:0;font-size:13px;color:var(--txt2)">Se o WhatsApp dela já estiver numa ficha daqui,
+      com o mesmo nome, o cadastro é ligado a essa ficha, sem duplicar. Cada cadastro conta
+      como cliente no limite do seu plano.${NA_NUVEM ? ''
+        : ' Na demonstração o link abre o salão de exemplo, sem criar conta.'}</p>`,
+    [['Fechar', 'fecharModal()'],
+     ['Copiar o link', "pdCopiarLink(this, 'linkCadastro')"],
+     ['Mandar no WhatsApp', 'mandarLinkDeCadastro()', 'btn-p']]);
+}
+function mandarLinkDeCadastro(){
+  const sl = acharSalao(salaoAtual) || {};
+  const texto = 'Oi! Faça seu cadastro no ' + (sl.nome || 'salão') + ' por este link, '
+              + 'é rapidinho: ' + linkDeCadastro();
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank', 'noopener');
+}
+
+function pdCopiarLink(bt, id){
+  const el = document.getElementById(id || 'pdLink');
   if(!el) return;
   el.select();
   const pronto = () => {

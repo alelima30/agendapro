@@ -114,6 +114,7 @@ preparar() {
   carregar "$RAIZ/supabase/45_pacote_mensagens.sql"
   carregar "$RAIZ/supabase/46_adicionais.sql"
   carregar "$RAIZ/supabase/47_crediario.sql"
+  carregar "$RAIZ/supabase/48_cadastro_link.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

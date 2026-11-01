@@ -233,11 +233,13 @@ duas linhas a mais no fim: **💰 Valor** e **💳 Pagamento** — sempre as **d
 
 - **Valor**: o total do atendimento, como o painel mostra — a soma dos
   serviços, menos o desconto do cupom (ex.: **R$ 80,00**). Sessão de pacote
-  sai **R$ 0,00**.
+  leva o valor do pacote (ex.: **R$ 200,00 (valor do pacote)**); pacote sem
+  valor informado sai **R$ 0,00**.
 - **Pagamento**: **Pix**, **Dinheiro**, **Cartão de débito**, **Cartão de
   crédito** (o que a cliente escolheu no link ou a recepção anotou),
-  **Pacote (já pago)**, **Sem custo**, ou **A combinar no salão** quando
-  ninguém informou.
+  **Pacote já pago (Pix)** (com a forma em que foi pago), **Pacote a pagar
+  no salão**, **Pacote (já pago)** (pacote sem valor informado), **Sem
+  custo**, ou **A combinar no salão** quando ninguém informou.
 
 > **⚠ A ordem para ligar.** Enquanto estes quatro não estiverem
 > **aprovados**, o sistema continua mandando os de cima — nada muda. Depois

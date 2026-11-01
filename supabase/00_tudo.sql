@@ -53,6 +53,7 @@
 --   45_pacote_mensagens.sql  as mensagens do pacote: aviso de renovação e lembrete do pagamento
 --   46_adicionais.sql        os módulos adicionais (o Crediário): a mensalidade é plano + adicionais
 --   47_crediario.sql         o Crediário: vender parcelado no fiado, as parcelas, o a receber
+--   48_cadastro_link.sql     a cliente se cadastra pelo link, sem agendar, e ganha a ficha
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -9278,7 +9279,7 @@ declare
   a public.agendamentos%rowtype;
   v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
   v_linhas int; v_soma numeric; v_total numeric; v_pacote boolean;
-  v_pacote_a_pagar boolean := false;
+  v_pacote_a_pagar boolean := false; v_pc_valor numeric; v_pc_forma text; v_pc_pago boolean;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
   if a.id is null then return null; end if;
@@ -9297,12 +9298,14 @@ begin
      `pago_em`) não pode sair como "já pago" na mensagem. Por `to_jsonb`, como
      o resto daqui: o 21 roda antes do 43 numa instalação do zero. */
   if v_pacote then
-    select coalesce((to_jsonb(pc)->>'valor')::numeric, 0) > 0
-           and to_jsonb(pc)->>'pago_em' is null
-      into v_pacote_a_pagar
+    select coalesce((to_jsonb(pc)->>'valor')::numeric, 0),
+           to_jsonb(pc)->>'forma_pagamento',
+           to_jsonb(pc)->>'pago_em' is not null
+      into v_pc_valor, v_pc_forma, v_pc_pago
       from public.pacote_clientes pc
      where pc.id = (to_jsonb(a)->>'pacote_cliente_id')::uuid;
-    v_pacote_a_pagar := coalesce(v_pacote_a_pagar, false);
+    v_pc_valor := coalesce(v_pc_valor, 0);
+    v_pacote_a_pagar := v_pc_valor > 0 and not coalesce(v_pc_pago, false);
   end if;
   v_total := case
     when v_pacote then 0
@@ -9334,9 +9337,23 @@ begin
     /* O valor e como a cliente vai pagar — "falta forma de pagamento e
        valor" nos modelos, para o profissional e a cliente. Em reais, do
        jeito brasileiro: R$ 1.250,00. */
-    'valor', 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,'),
+    /* ⚠ SESSÃO DE PACOTE: o valor é o DO PACOTE, e não o da sessão. Cada
+       sessão vale zero na agenda (o dinheiro entra uma vez, no pacote), e a
+       mensagem dizia "Valor: R$ 0,00" e "a combinar" — o dono testou e leu
+       "chega sem valor e pagamento". Agora vai o preço do pacote, e o
+       pagamento diz se já foi pago, e como, ou se é a pagar. Pacote ligado
+       sem valor (cortesia, ou vendido antes de o valor existir) segue como
+       antes. */
+    'valor', case
+      when v_pacote and v_pc_valor > 0
+        then 'R$ ' || translate(to_char(v_pc_valor, 'FM999,999,990.00'), ',.', '.,') || ' (valor do pacote)'
+      else 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,') end,
     'pagamento', case
-      when v_pacote and v_pacote_a_pagar then 'Pacote (pagamento a combinar com o salão)'
+      when v_pacote and v_pacote_a_pagar then 'Pacote a pagar no salão'
+      when v_pacote and v_pc_pago and v_pc_valor > 0 then 'Pacote já pago' || coalesce(' (' || case v_pc_forma
+             when 'pix' then 'Pix' when 'dinheiro' then 'dinheiro'
+             when 'debito' then 'cartão de débito' when 'credito' then 'cartão de crédito'
+             when 'transferencia' then 'transferência' end || ')', '')
       when v_pacote then 'Pacote (já pago)'
       when to_jsonb(a)->>'forma_pagamento' = 'pix'      then 'Pix'
       when to_jsonb(a)->>'forma_pagamento' = 'dinheiro' then 'Dinheiro'
@@ -17800,6 +17817,30 @@ exception when duplicate_object then null; end $$;
 -- ---------------------------------------------------------------------------
 -- 2) RECEBER O PAGAMENTO DO PACOTE
 -- ---------------------------------------------------------------------------
+/* Os lembretes que ainda vão sair (da cliente e da equipe) são reescritos
+   quando o pacote é pago, ou o pagamento é desfeito: a mensagem leva o valor
+   e o pagamento do pacote (21, `pecas_agendamento`), e o lembrete da véspera
+   não pode dizer "a pagar no salão" de um pacote que já foi pago. O que já
+   saiu não se mexe. */
+create or replace function public.refazer_textos_do_pacote(p_pacote_cliente uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_agendamento(n.agendamento_id, 'lembrete'), n.corpo),
+         variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, 'lembrete'), n.variaveis),
+         modelo = public.modelo_de('lembrete')
+   where n.tipo = 'lembrete' and n.status = 'pendente'
+     and n.agendamento_id in (select a.id from public.agendamentos a
+                               where a.pacote_cliente_id = p_pacote_cliente);
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_lembrete_equipe(n.agendamento_id, n.profissional_id), n.corpo),
+         variaveis = coalesce(public.variaveis_lembrete_equipe(n.agendamento_id, n.profissional_id), n.variaveis),
+         modelo = public.modelo_de('lembrete_equipe')
+   where n.tipo = 'lembrete_equipe' and n.status = 'pendente'
+     and n.agendamento_id in (select a.id from public.agendamentos a
+                               where a.pacote_cliente_id = p_pacote_cliente);
+end $$;
+
 create or replace function public.receber_pacote(
   p_pacote_cliente uuid, p_forma text, p_valor numeric default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -17843,6 +17884,7 @@ begin
   update public.pacote_clientes
      set valor = v_valor, pago_em = now(), forma_pagamento = p_forma, comanda_id = v_comanda
    where id = p_pacote_cliente;
+  perform public.refazer_textos_do_pacote(p_pacote_cliente);
   return jsonb_build_object('ok', true, 'comanda', v_comanda, 'valor', v_valor);
 end $$;
 
@@ -17869,6 +17911,7 @@ begin
      set pago_em = null, forma_pagamento = null, comanda_id = null
    where id = p_pacote_cliente;
   delete from public.comandas where id = r.comanda_id and automatica;
+  perform public.refazer_textos_do_pacote(p_pacote_cliente);
   return jsonb_build_object('ok', true);
 end $$;
 
@@ -18130,6 +18173,7 @@ grant execute on function public.desfazer_recebimento_pacote(uuid) to authentica
 grant execute on function public.montar_pacote(uuid, uuid, numeric, text, uuid, jsonb) to authenticated;
 -- As peças de dentro não são de ninguém.
 revoke all on function public.datas_do_pacote(uuid[]) from public, anon, authenticated;
+revoke all on function public.refazer_textos_do_pacote(uuid) from public, anon, authenticated;
 revoke all on function public.juntar_mensagens_do_pacote(uuid[], text) from public, anon, authenticated;
 
 -- ###########################################################################
@@ -19844,3 +19888,78 @@ grant execute on function public.receber_parcela(uuid, numeric, text) to authent
 grant execute on function public.desfazer_recebimento_crediario(uuid) to authenticated;
 grant execute on function public.desfazer_crediario(uuid) to authenticated;
 grant execute on function public.crediario_painel(uuid) to authenticated;
+
+-- ###########################################################################
+-- ## 48_cadastro_link.sql
+-- ###########################################################################
+
+-- ===========================================================================
+-- 48_cadastro_link.sql — a cliente se cadastra pelo link, sem agendar
+--
+-- O pedido: "no link tem como a cliente fazer o cadastro sem agendar? Aí ela
+-- se cadastra e depois eu coloco ela no pacote." Até aqui, criar a conta no
+-- link só LIGAVA a conta a uma ficha que o salão já tivesse com o mesmo
+-- WhatsApp (`ligar_minha_ficha`, 09); sem ficha, ela só nascia no primeiro
+-- horário marcado. A cliente que se cadastrava para entrar num pacote não
+-- aparecia em Clientes.
+--
+-- Agora, quem cria a conta pelo link do salão (ou abre o link de cadastro,
+-- `?cadastro=1`) ganha a ficha naquele salão: nome, WhatsApp e e-mail, com a
+-- marca `pelo_link` para o dono saber de onde veio.
+--
+-- ── SEM DUPLICAR ──────────────────────────────────────────────────────────
+-- A mesma regra da ligação: ficha com o mesmo WhatsApp e o mesmo primeiro
+-- nome é DELA, e só é ligada. Mesmo WhatsApp com outro nome (mãe e filha no
+-- mesmo número, ou um engano) não ganha ficha nova: o telefone já é de outra
+-- ficha, e o salão resolve no balcão.
+--
+-- ── O TETO DO PLANO ───────────────────────────────────────────────────────
+-- Conta como qualquer cliente (o gatilho do 22 continua valendo). Passou do
+-- teto, a conta dela continua criada — só a ficha não nasce, e a função diz
+-- por quê, sem derrubar a tela da cliente.
+-- ===========================================================================
+
+alter table public.clientes add column if not exists pelo_link boolean not null default false;
+
+create or replace function public.cadastrar_minha_ficha(p_salao uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_perfil uuid := auth.uid(); v_nome text; v_tel text; v_email text; v_nasc date;
+  v_ficha jsonb; v_cliente uuid; v_nacional text;
+begin
+  if v_perfil is null or p_salao is null then return null; end if;
+  if not exists (select 1 from public.saloes s where s.id = p_salao and s.status = 'ativo') then
+    return null;
+  end if;
+  -- Primeiro, o caminho de sempre: a ficha que já é dela, ou a que bate.
+  v_ficha := public.ligar_minha_ficha(p_salao);
+  if v_ficha->>'ficha' is not null then
+    return v_ficha || jsonb_build_object('criada', false);
+  end if;
+
+  select p.nome, p.telefone, p.email, p.nascimento into v_nome, v_tel, v_email, v_nasc
+    from public.perfis p where p.id = v_perfil;
+  v_nacional := public.telefone_nacional(v_tel);
+  if coalesce(v_nacional, '') = '' or length(v_nacional) < 10 or coalesce(btrim(v_nome), '') = '' then
+    return v_ficha || jsonb_build_object('criada', false, 'motivo', 'sem_telefone');
+  end if;
+  -- O WhatsApp já é de outra ficha deste salão (com outro nome): não duplica.
+  if exists (select 1 from public.clientes c
+              where c.salao_id = p_salao
+                and public.telefone_nacional(c.telefone) = v_nacional) then
+    return v_ficha || jsonb_build_object('criada', false, 'motivo', 'telefone_de_outra_ficha');
+  end if;
+
+  begin
+    insert into public.clientes (salao_id, perfil_id, nome, telefone, email, nascimento, pelo_link)
+         values (p_salao, v_perfil, btrim(v_nome), v_nacional, v_email, v_nasc, true)
+      returning id into v_cliente;
+  exception when check_violation or unique_violation then
+    -- O teto do plano (22) ou uma corrida com outra ficha: a conta fica.
+    return v_ficha || jsonb_build_object('criada', false, 'motivo', 'nao_coube');
+  end;
+  return v_ficha || jsonb_build_object('ficha', v_cliente, 'criada', true);
+end $$;
+
+revoke all on function public.cadastrar_minha_ficha(uuid) from public, anon;
+grant execute on function public.cadastrar_minha_ficha(uuid) to authenticated;

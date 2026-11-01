@@ -218,13 +218,16 @@ select t_texto('o novo tem o dele, seis dias antes da última terça nova',
   to_char(:'terca'::date + 49 - 6, 'YYYY-MM-DD') || ' 10:00');
 select t_igual('pago no balcão: o lembrete de pagamento nem chegou a nascer',
   (select count(*) from public.notificacoes where chave = 'pacote_pagamento:' || :'pc2'), 0);
-select t_verdade('   e as mensagens das terças novas não dizem "a combinar" (o antigo, a receber, diz)',
+select t_verdade('   e as mensagens das terças novas dizem "já pago (Pix)", e não "a pagar" (o antigo, a receber, diz)',
   not exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
-               where a.pacote_cliente_id = :'pc2' and n.corpo like '%a combinar%')
+               where a.pacote_cliente_id = :'pc2' and n.corpo like '%a pagar%')
+  and exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
+               where a.pacote_cliente_id = :'pc2' and n.tipo = 'lembrete' and n.status = 'pendente'
+                 and n.corpo like '%Pacote já pago (Pix)%' and n.corpo like '%R$ 220,00 (valor do pacote)%')
   and exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
                where a.pacote_cliente_id = :'pc2' and n.tipo = 'lembrete' and n.status = 'pendente')
   and exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
-               where a.pacote_cliente_id = :'pc' and n.corpo like '%a combinar%'));
+               where a.pacote_cliente_id = :'pc' and n.corpo like '%a pagar no salão%'));
 select t_texto('com o modelo do pacote ligado, a cliente recebe a lista: cada data, a hora e o procedimento',
   (t_msg(:'pc2', 'pacote_agenda')).modelo || ' | ' || ((t_msg(:'pc2', 'pacote_agenda')).variaveis->>3),
   'agendapro_pacote_agenda | ter ' || to_char(:'terca'::date + 28, 'DD/MM') || ' às 14:00 (Mão); ter '

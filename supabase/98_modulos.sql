@@ -2416,7 +2416,7 @@ declare
   a public.agendamentos%rowtype;
   v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
   v_linhas int; v_soma numeric; v_total numeric; v_pacote boolean;
-  v_pacote_a_pagar boolean := false;
+  v_pacote_a_pagar boolean := false; v_pc_valor numeric; v_pc_forma text; v_pc_pago boolean;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
   if a.id is null then return null; end if;
@@ -2424,12 +2424,14 @@ begin
     from public.agendamento_servicos asv where asv.agendamento_id = a.id;
   v_pacote := to_jsonb(a)->>'pacote_cliente_id' is not null;
   if v_pacote then
-    select coalesce((to_jsonb(pc)->>'valor')::numeric, 0) > 0
-           and to_jsonb(pc)->>'pago_em' is null
-      into v_pacote_a_pagar
+    select coalesce((to_jsonb(pc)->>'valor')::numeric, 0),
+           to_jsonb(pc)->>'forma_pagamento',
+           to_jsonb(pc)->>'pago_em' is not null
+      into v_pc_valor, v_pc_forma, v_pc_pago
       from public.pacote_clientes pc
      where pc.id = (to_jsonb(a)->>'pacote_cliente_id')::uuid;
-    v_pacote_a_pagar := coalesce(v_pacote_a_pagar, false);
+    v_pc_valor := coalesce(v_pc_valor, 0);
+    v_pacote_a_pagar := v_pc_valor > 0 and not coalesce(v_pc_pago, false);
   end if;
   v_total := case
     when v_pacote then 0
@@ -2454,9 +2456,16 @@ begin
     'casa',     coalesce(v_casa, '—'),
     'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
     'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'),
-    'valor', 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,'),
+    'valor', case
+      when v_pacote and v_pc_valor > 0
+        then 'R$ ' || translate(to_char(v_pc_valor, 'FM999,999,990.00'), ',.', '.,') || ' (valor do pacote)'
+      else 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,') end,
     'pagamento', case
-      when v_pacote and v_pacote_a_pagar then 'Pacote (pagamento a combinar com o salão)'
+      when v_pacote and v_pacote_a_pagar then 'Pacote a pagar no salão'
+      when v_pacote and v_pc_pago and v_pc_valor > 0 then 'Pacote já pago' || coalesce(' (' || case v_pc_forma
+             when 'pix' then 'Pix' when 'dinheiro' then 'dinheiro'
+             when 'debito' then 'cartão de débito' when 'credito' then 'cartão de crédito'
+             when 'transferencia' then 'transferência' end || ')', '')
       when v_pacote then 'Pacote (já pago)'
       when to_jsonb(a)->>'forma_pagamento' = 'pix'      then 'Pix'
       when to_jsonb(a)->>'forma_pagamento' = 'dinheiro' then 'Dinheiro'
@@ -6986,6 +6995,24 @@ do $$ begin
     check (forma_pagamento is null
            or forma_pagamento in ('pix', 'dinheiro', 'debito', 'credito', 'transferencia'));
 exception when duplicate_object then null; end $$;
+create or replace function public.refazer_textos_do_pacote(p_pacote_cliente uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_agendamento(n.agendamento_id, 'lembrete'), n.corpo),
+         variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, 'lembrete'), n.variaveis),
+         modelo = public.modelo_de('lembrete')
+   where n.tipo = 'lembrete' and n.status = 'pendente'
+     and n.agendamento_id in (select a.id from public.agendamentos a
+                               where a.pacote_cliente_id = p_pacote_cliente);
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_lembrete_equipe(n.agendamento_id, n.profissional_id), n.corpo),
+         variaveis = coalesce(public.variaveis_lembrete_equipe(n.agendamento_id, n.profissional_id), n.variaveis),
+         modelo = public.modelo_de('lembrete_equipe')
+   where n.tipo = 'lembrete_equipe' and n.status = 'pendente'
+     and n.agendamento_id in (select a.id from public.agendamentos a
+                               where a.pacote_cliente_id = p_pacote_cliente);
+end $$;
 create or replace function public.receber_pacote(
   p_pacote_cliente uuid, p_forma text, p_valor numeric default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -7027,6 +7054,7 @@ begin
   update public.pacote_clientes
      set valor = v_valor, pago_em = now(), forma_pagamento = p_forma, comanda_id = v_comanda
    where id = p_pacote_cliente;
+  perform public.refazer_textos_do_pacote(p_pacote_cliente);
   return jsonb_build_object('ok', true, 'comanda', v_comanda, 'valor', v_valor);
 end $$;
 create or replace function public.desfazer_recebimento_pacote(p_pacote_cliente uuid)
@@ -7050,6 +7078,7 @@ begin
      set pago_em = null, forma_pagamento = null, comanda_id = null
    where id = p_pacote_cliente;
   delete from public.comandas where id = r.comanda_id and automatica;
+  perform public.refazer_textos_do_pacote(p_pacote_cliente);
   return jsonb_build_object('ok', true);
 end $$;
 create or replace function public.datas_do_pacote(p_ids uuid[])
@@ -7261,6 +7290,7 @@ grant execute on function public.receber_pacote(uuid, text, numeric) to authenti
 grant execute on function public.desfazer_recebimento_pacote(uuid) to authenticated;
 grant execute on function public.montar_pacote(uuid, uuid, numeric, text, uuid, jsonb) to authenticated;
 revoke all on function public.datas_do_pacote(uuid[]) from public, anon, authenticated;
+revoke all on function public.refazer_textos_do_pacote(uuid) from public, anon, authenticated;
 revoke all on function public.juntar_mensagens_do_pacote(uuid[], text) from public, anon, authenticated;
 
 create table if not exists public.pacote_comissoes (
@@ -8470,6 +8500,44 @@ grant execute on function public.receber_parcela(uuid, numeric, text) to authent
 grant execute on function public.desfazer_recebimento_crediario(uuid) to authenticated;
 grant execute on function public.desfazer_crediario(uuid) to authenticated;
 grant execute on function public.crediario_painel(uuid) to authenticated;
+
+alter table public.clientes add column if not exists pelo_link boolean not null default false;
+create or replace function public.cadastrar_minha_ficha(p_salao uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_perfil uuid := auth.uid(); v_nome text; v_tel text; v_email text; v_nasc date;
+  v_ficha jsonb; v_cliente uuid; v_nacional text;
+begin
+  if v_perfil is null or p_salao is null then return null; end if;
+  if not exists (select 1 from public.saloes s where s.id = p_salao and s.status = 'ativo') then
+    return null;
+  end if;
+  v_ficha := public.ligar_minha_ficha(p_salao);
+  if v_ficha->>'ficha' is not null then
+    return v_ficha || jsonb_build_object('criada', false);
+  end if;
+  select p.nome, p.telefone, p.email, p.nascimento into v_nome, v_tel, v_email, v_nasc
+    from public.perfis p where p.id = v_perfil;
+  v_nacional := public.telefone_nacional(v_tel);
+  if coalesce(v_nacional, '') = '' or length(v_nacional) < 10 or coalesce(btrim(v_nome), '') = '' then
+    return v_ficha || jsonb_build_object('criada', false, 'motivo', 'sem_telefone');
+  end if;
+  if exists (select 1 from public.clientes c
+              where c.salao_id = p_salao
+                and public.telefone_nacional(c.telefone) = v_nacional) then
+    return v_ficha || jsonb_build_object('criada', false, 'motivo', 'telefone_de_outra_ficha');
+  end if;
+  begin
+    insert into public.clientes (salao_id, perfil_id, nome, telefone, email, nascimento, pelo_link)
+         values (p_salao, v_perfil, btrim(v_nome), v_nacional, v_email, v_nasc, true)
+      returning id into v_cliente;
+  exception when check_violation or unique_violation then
+    return v_ficha || jsonb_build_object('criada', false, 'motivo', 'nao_coube');
+  end;
+  return v_ficha || jsonb_build_object('ficha', v_cliente, 'criada', true);
+end $$;
+revoke all on function public.cadastrar_minha_ficha(uuid) from public, anon;
+grant execute on function public.cadastrar_minha_ficha(uuid) to authenticated;
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();

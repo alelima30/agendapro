@@ -245,7 +245,7 @@ declare
   a public.agendamentos%rowtype;
   v_fuso text; v_casa text; v_cli text; v_prof text; v_serv text;
   v_linhas int; v_soma numeric; v_total numeric; v_pacote boolean;
-  v_pacote_a_pagar boolean := false;
+  v_pacote_a_pagar boolean := false; v_pc_valor numeric; v_pc_forma text; v_pc_pago boolean;
 begin
   select * into a from public.agendamentos where id = p_agendamento;
   if a.id is null then return null; end if;
@@ -264,12 +264,14 @@ begin
      `pago_em`) não pode sair como "já pago" na mensagem. Por `to_jsonb`, como
      o resto daqui: o 21 roda antes do 43 numa instalação do zero. */
   if v_pacote then
-    select coalesce((to_jsonb(pc)->>'valor')::numeric, 0) > 0
-           and to_jsonb(pc)->>'pago_em' is null
-      into v_pacote_a_pagar
+    select coalesce((to_jsonb(pc)->>'valor')::numeric, 0),
+           to_jsonb(pc)->>'forma_pagamento',
+           to_jsonb(pc)->>'pago_em' is not null
+      into v_pc_valor, v_pc_forma, v_pc_pago
       from public.pacote_clientes pc
      where pc.id = (to_jsonb(a)->>'pacote_cliente_id')::uuid;
-    v_pacote_a_pagar := coalesce(v_pacote_a_pagar, false);
+    v_pc_valor := coalesce(v_pc_valor, 0);
+    v_pacote_a_pagar := v_pc_valor > 0 and not coalesce(v_pc_pago, false);
   end if;
   v_total := case
     when v_pacote then 0
@@ -301,9 +303,23 @@ begin
     /* O valor e como a cliente vai pagar — "falta forma de pagamento e
        valor" nos modelos, para o profissional e a cliente. Em reais, do
        jeito brasileiro: R$ 1.250,00. */
-    'valor', 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,'),
+    /* ⚠ SESSÃO DE PACOTE: o valor é o DO PACOTE, e não o da sessão. Cada
+       sessão vale zero na agenda (o dinheiro entra uma vez, no pacote), e a
+       mensagem dizia "Valor: R$ 0,00" e "a combinar" — o dono testou e leu
+       "chega sem valor e pagamento". Agora vai o preço do pacote, e o
+       pagamento diz se já foi pago, e como, ou se é a pagar. Pacote ligado
+       sem valor (cortesia, ou vendido antes de o valor existir) segue como
+       antes. */
+    'valor', case
+      when v_pacote and v_pc_valor > 0
+        then 'R$ ' || translate(to_char(v_pc_valor, 'FM999,999,990.00'), ',.', '.,') || ' (valor do pacote)'
+      else 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,') end,
     'pagamento', case
-      when v_pacote and v_pacote_a_pagar then 'Pacote (pagamento a combinar com o salão)'
+      when v_pacote and v_pacote_a_pagar then 'Pacote a pagar no salão'
+      when v_pacote and v_pc_pago and v_pc_valor > 0 then 'Pacote já pago' || coalesce(' (' || case v_pc_forma
+             when 'pix' then 'Pix' when 'dinheiro' then 'dinheiro'
+             when 'debito' then 'cartão de débito' when 'credito' then 'cartão de crédito'
+             when 'transferencia' then 'transferência' end || ')', '')
       when v_pacote then 'Pacote (já pago)'
       when to_jsonb(a)->>'forma_pagamento' = 'pix'      then 'Pix'
       when to_jsonb(a)->>'forma_pagamento' = 'dinheiro' then 'Dinheiro'

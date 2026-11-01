@@ -1060,6 +1060,28 @@ with conferencia(ordem, item, veredito, detalhe) as (
   union all
   /* O Crediário (47_crediario): a venda a prazo, as parcelas e o que entra
      no caixa, no relatório e na comissão. */
+  /* O cadastro pelo link (48_cadastro_link): a cliente cria a conta pelo
+     link do salão e a ficha nasce em Clientes, marcada "cadastrou pelo link". */
+  select 55, 'Cadastro da cliente pelo link (sem agendar)',
+         case
+           when to_regprocedure('public.cadastrar_minha_ficha(uuid)') is null
+             or not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'clientes'
+                               and column_name = 'pelo_link')
+             or coalesce((select has_function_privilege('anon', p.oid, 'execute') from pg_proc p
+                           where p.oid = to_regprocedure('public.cadastrar_minha_ficha(uuid)')), false)
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.cadastrar_minha_ficha(uuid)') is null
+             or not exists (select 1 from information_schema.columns
+                             where table_schema = 'public' and table_name = 'clientes'
+                               and column_name = 'pelo_link')
+             or coalesce((select has_function_privilege('anon', p.oid, 'execute') from pg_proc p
+                           where p.oid = to_regprocedure('public.cadastrar_minha_ficha(uuid)')), false)
+             then 'cole o 00_tudo.sql de novo (48_cadastro_link)'
+           else '' end
+  union all
   select 54, 'Crediário (venda parcelada no fiado)',
          case
            when to_regclass('public.crediario_parcelas') is null

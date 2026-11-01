@@ -62,6 +62,30 @@ exception when duplicate_object then null; end $$;
 -- ---------------------------------------------------------------------------
 -- 2) RECEBER O PAGAMENTO DO PACOTE
 -- ---------------------------------------------------------------------------
+/* Os lembretes que ainda vão sair (da cliente e da equipe) são reescritos
+   quando o pacote é pago, ou o pagamento é desfeito: a mensagem leva o valor
+   e o pagamento do pacote (21, `pecas_agendamento`), e o lembrete da véspera
+   não pode dizer "a pagar no salão" de um pacote que já foi pago. O que já
+   saiu não se mexe. */
+create or replace function public.refazer_textos_do_pacote(p_pacote_cliente uuid)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_agendamento(n.agendamento_id, 'lembrete'), n.corpo),
+         variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, 'lembrete'), n.variaveis),
+         modelo = public.modelo_de('lembrete')
+   where n.tipo = 'lembrete' and n.status = 'pendente'
+     and n.agendamento_id in (select a.id from public.agendamentos a
+                               where a.pacote_cliente_id = p_pacote_cliente);
+  update public.notificacoes n
+     set corpo = coalesce(public.texto_lembrete_equipe(n.agendamento_id, n.profissional_id), n.corpo),
+         variaveis = coalesce(public.variaveis_lembrete_equipe(n.agendamento_id, n.profissional_id), n.variaveis),
+         modelo = public.modelo_de('lembrete_equipe')
+   where n.tipo = 'lembrete_equipe' and n.status = 'pendente'
+     and n.agendamento_id in (select a.id from public.agendamentos a
+                               where a.pacote_cliente_id = p_pacote_cliente);
+end $$;
+
 create or replace function public.receber_pacote(
   p_pacote_cliente uuid, p_forma text, p_valor numeric default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -105,6 +129,7 @@ begin
   update public.pacote_clientes
      set valor = v_valor, pago_em = now(), forma_pagamento = p_forma, comanda_id = v_comanda
    where id = p_pacote_cliente;
+  perform public.refazer_textos_do_pacote(p_pacote_cliente);
   return jsonb_build_object('ok', true, 'comanda', v_comanda, 'valor', v_valor);
 end $$;
 
@@ -131,6 +156,7 @@ begin
      set pago_em = null, forma_pagamento = null, comanda_id = null
    where id = p_pacote_cliente;
   delete from public.comandas where id = r.comanda_id and automatica;
+  perform public.refazer_textos_do_pacote(p_pacote_cliente);
   return jsonb_build_object('ok', true);
 end $$;
 
@@ -392,4 +418,5 @@ grant execute on function public.desfazer_recebimento_pacote(uuid) to authentica
 grant execute on function public.montar_pacote(uuid, uuid, numeric, text, uuid, jsonb) to authenticated;
 -- As peças de dentro não são de ninguém.
 revoke all on function public.datas_do_pacote(uuid[]) from public, anon, authenticated;
+revoke all on function public.refazer_textos_do_pacote(uuid) from public, anon, authenticated;
 revoke all on function public.juntar_mensagens_do_pacote(uuid[], text) from public, anon, authenticated;

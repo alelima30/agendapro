@@ -93,7 +93,9 @@ const COLUNAS = {
   bloqueios:     { salaoId:'salao_id', profissionalId:'profissional_id',
                    criadoEm:'criado_em' },
   clientes:      { salaoId:'salao_id', perfilId:'perfil_id', criadoEm:'criado_em',
-                   exigeConfirmacao:'exige_confirmacao' },
+                   exigeConfirmacao:'exige_confirmacao',
+                   // Cadastrou pelo link, sem agendar (48_cadastro_link.sql).
+                   peloLink:'pelo_link' },
   /* Os lembretes da equipe sobre a cliente (41_ficha_equipe.sql): tabela à
      parte porque a cliente logada lê a própria ficha, e estes ela não lê. */
   clientes_lembretes: { salaoId:'salao_id', clienteId:'cliente_id',

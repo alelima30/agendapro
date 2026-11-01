@@ -7,7 +7,7 @@
 --   1. a recepção monta: o vínculo e as 4 terças, cada uma com o seu serviço
 --      e a sua duração, já confirmadas e cobertas pelo pacote;
 --   2. uma mensagem só, com as 4 datas; o lembrete de cada uma fica;
---   3. "a receber": a mensagem não diz "já pago";
+--   3. "a receber": a mensagem não diz "já pago", e leva o valor do pacote;
 --   4. tudo ou nada: uma semana que não cabe devolve o porquê e não grava
 --      nada; dia fora do pacote; mais semanas que sessões;
 --   5. receber vira comanda fechada (o faturamento vê); não recebe duas
@@ -158,11 +158,19 @@ end $$;
 \echo ''
 \echo '3. A receber: a mensagem não diz "já pago"'
 do $$ begin
-  perform t_texto('o pagamento do horário diz que é a combinar',
+  perform t_texto('o pagamento do horário diz que é a pagar no salão',
     (select public.pecas_agendamento(a.id)->>'pagamento' from public.agendamentos a
        join public.pacote_clientes pc on pc.id = a.pacote_cliente_id
       where pc.cliente_id = 'c4310000-0000-0000-0000-00000000000a' limit 1),
-    'Pacote (pagamento a combinar com o salão)');
+    'Pacote a pagar no salão');
+  -- O dono testou: "chega sem valor e pagamento". O valor é o do pacote.
+  perform t_texto('e o valor é o do pacote, não o R$ 0,00 da sessão',
+    (select public.pecas_agendamento(a.id)->>'valor' from public.agendamentos a
+       join public.pacote_clientes pc on pc.id = a.pacote_cliente_id
+      where pc.cliente_id = 'c4310000-0000-0000-0000-00000000000a' limit 1),
+    (select 'R$ ' || translate(to_char(pc.valor, 'FM999,999,990.00'), ',.', '.,') || ' (valor do pacote)'
+       from public.pacote_clientes pc
+      where pc.cliente_id = 'c4310000-0000-0000-0000-00000000000a' limit 1));
 end $$;
 
 \echo ''
@@ -209,6 +217,10 @@ commit;
 
 \echo ''
 \echo '5. Receber o pagamento'
+-- Com a linha de pagamento ligada (a plataforma liga depois da Meta): os
+-- lembretes nasceram sem ela, e receber o pacote os reescreve.
+insert into public.plataforma_ajustes (chave, valor) values ('mensagensComPagamento', 'true')
+  on conflict (chave) do update set valor = excluded.valor;
 begin;
   set local role authenticated;
   set local request.jwt.claim.sub = 'b4300000-0000-0000-0000-00000000000b';
@@ -231,8 +243,18 @@ begin
     (select total::text from public.comandas_totais where id = pc.comanda_id), '300.00');
   perform t_texto('agora a mensagem do horário diz que o pacote está pago',
     (select public.pecas_agendamento(a.id)->>'pagamento' from public.agendamentos a
-      where a.pacote_cliente_id = pc.id limit 1), 'Pacote (já pago)');
+      where a.pacote_cliente_id = pc.id limit 1), 'Pacote já pago (Pix)');
+  perform t_texto('com o valor do pacote',
+    (select public.pecas_agendamento(a.id)->>'valor' from public.agendamentos a
+      where a.pacote_cliente_id = pc.id limit 1), 'R$ 300,00 (valor do pacote)');
+  -- O lembrete da véspera, que nasceu "a pagar", é reescrito quando paga.
+  perform t_igual('os lembretes que ainda vão sair são reescritos: pago no Pix, com o valor',
+    (select count(*)::int from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
+      where a.pacote_cliente_id = pc.id and n.tipo = 'lembrete' and n.status = 'pendente'
+        and n.corpo like '%R$ 300,00 (valor do pacote)%' and n.corpo like '%Pacote já pago (Pix)%'
+        and n.variaveis::text like '%Pacote já pago (Pix)%'), 4);
 end $$;
+delete from public.plataforma_ajustes where chave = 'mensagensComPagamento';
 
 begin;
   set local role authenticated;

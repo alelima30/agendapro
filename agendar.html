@@ -644,7 +644,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
          (Sem crase: HTML lido como template literal noutros pontos.) -->
     <section class="passo" id="p-conta">
       <h2 id="contaTitulo">Entrar</h2>
-      <p class="sub">Com a sua conta, você vê seus horários em qualquer celular
+      <p class="sub" id="contaSub">Com a sua conta, você vê seus horários em qualquer celular
         e usa os pacotes do salão.</p>
       <div class="conta-abas" role="tablist" aria-label="Entrar ou criar conta">
         <button type="button" role="tab" id="abaEntrar" onclick="modoConta('entrar')">Entrar</button>
@@ -672,6 +672,15 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
       <p class="centro" id="linhaEsqueci">
         <button class="link" onclick="esqueciSenhaCliente()">Esqueci minha senha</button></p>
       <div id="avisoConta"></div>
+    </section>
+
+    <!-- ══════ CADASTRO FEITO (link de cadastro, sem agendar) ══════ -->
+    <section class="passo" id="p-cadastro">
+      <div class="cf-ok">
+        <div class="cf-ok-ic" id="cadastroIcone"><span data-ico="ok"></span></div>
+        <h2 id="cadastroTitulo">Cadastro feito</h2>
+        <p class="sub" id="cadastroTexto">—</p>
+      </div>
     </section>
 
     <!-- ══════ LISTA DE ESPERA ══════ -->
@@ -1430,8 +1439,11 @@ async function abrirSalaoDaNuvem(slug){
   /* Logada (ou chegando agora pelo link do e-mail): a ficha é ligada antes
      de buscar os pacotes — sem isso, quem acabou de criar a conta não veria
      o pacote que comprou no balcão. */
-  (logada() ? aposEntrar() : carregarMeusPacotes())
-    .then(() => { if(meusPacotes.length || logada()) desenhar(); });
+  /* O link de cadastro (`&cadastro=1`) e a volta do e-mail de conta nova
+     (`&conta=nova`) fazem a ficha; sem eles, o caminho de sempre. */
+  if(!iniciarPedidoDoLink())
+    (logada() ? aposEntrar() : carregarMeusPacotes())
+      .then(() => { if(meusPacotes.length || logada()) desenhar(); });
   /* Não bloqueia nada e não redesenha: só é lida lá na frente, quando ela
      termina de marcar. Pedir agora é ter a resposta na mão na hora certa. */
   carregarPoliticaDeConfirmacao();
@@ -2187,7 +2199,11 @@ function desenhar(){
                                bs.style.display=''; bs.textContent='Voltar para a home'; }
   if(tela === 'meus')        { desenharMeus();      bp.textContent='Agendar novo horário'; trilhaAte(0); }
   if(tela === 'conta')       { desenharConta();     trilhaAte(0);
-                               bp.textContent = contaModo === 'criar' ? 'Criar conta' : 'Entrar'; }
+                               bp.textContent = contaModo === 'criar'
+                                 ? (contaDoCadastro ? 'Fazer meu cadastro' : 'Criar conta') : 'Entrar'; }
+  if(tela === 'cadastro')    { trilhaAte(0);
+                               bp.textContent = casaFazServicos() ? 'Marcar um horário' : 'Ir para o início';
+                               if(casaFazServicos()){ bs.style.display=''; bs.textContent='Ver o salão'; } }
   /* ⚠ SEM O MÓDULO DE SERVIÇOS NÃO HÁ O QUE USAR, e o botão some.
 
      O pacote é serviço pago adiantado. Com o módulo desligado, "Usar meu
@@ -5776,6 +5792,14 @@ function acaoPrincipal(){
   if(tela === 'quando')    return irPara('dados');
   if(tela === 'dados')     return salvarDados();
   if(tela === 'conta')     return contaModo === 'criar' ? criarContaCliente() : entrarCliente();
+  if(tela === 'cadastro'){
+    historico = [];
+    if(!casaFazServicos()) return irPara('capa', true);
+    escolha = { servicos:[], profissionalId:null, data:null,
+                inicio:null, para: 'mim', filhoNome: '', quem: null, relacao: null, junto: false };
+    historico = ['capa'];
+    return irPara('servico', true);
+  }
   if(tela === 'fila')      return confirmarFila();
   if(tela === 'telefone')  return enviarCodigo();
   if(tela === 'codigo')    return conferirCodigo();
@@ -5825,6 +5849,7 @@ function acaoSecundaria(){
   // resto do caminho (dados, confirmar) é o de sempre.
   if(tela === 'confirmar') return irPara('quando');
   if(tela === 'conta') return voltarDaConta();
+  if(tela === 'cadastro'){ historico = []; return irPara('capa', true); }
   if(VOLTAR_ESCRITO.includes(tela)) return voltar();
   /* "Voltar para a home": a capa, com a escolha zerada — era "Marcar outro",
      que abria a lista de serviços; da capa o Agendar horário faz o mesmo. */
@@ -7401,6 +7426,8 @@ function guardarSessao(){
    WhatsApp é o que fecha essa porta, e está escrito no banco.
    ═══════════════════════════════════════════════════════════════════════════ */
 let contaModo = 'entrar';
+// A tela de conta veio do link de cadastro (ver `iniciarPedidoDoLink`).
+let contaDoCadastro = false;
 let contaEmail = '';
 
 // "Logada" é ter TOKEN — `sessao` é só a lembrança do aparelho.
@@ -7420,13 +7447,14 @@ function tocarEu(){
   if(sessao || logada()) return irPara('meus');
   abrirConta('entrar');
 }
-function abrirConta(modo){
+function abrirConta(modo, doCadastro){
   contaModo = modo === 'criar' ? 'criar' : 'entrar';
+  contaDoCadastro = !!doCadastro;
   const a = document.getElementById('avisoConta');
   if(a) a.innerHTML = '';
   irPara('conta');
 }
-function modoConta(m){ abrirConta(m); }
+function modoConta(m){ abrirConta(m, contaDoCadastro); }
 function olhoSenha(id, bt){
   const i = document.getElementById(id);
   const ver = i.type === 'password';
@@ -7437,7 +7465,16 @@ function olhoSenha(id, bt){
 
 function desenharConta(){
   const criar = contaModo === 'criar';
-  document.getElementById('contaTitulo').textContent = criar ? 'Criar conta' : 'Entrar';
+  document.getElementById('contaTitulo').textContent = contaDoCadastro
+    ? (criar ? 'Faça seu cadastro' : 'Entre para se cadastrar')
+    : (criar ? 'Criar conta' : 'Entrar');
+  const sub = document.getElementById('contaSub');
+  if(sub) sub.textContent = contaDoCadastro
+    ? (criar ? 'Seu cadastro no ' + (salao.nome || 'salão') + ', sem precisar marcar horário. '
+             + 'Depois é só agendar por aqui quando quiser.'
+             : 'Já tem conta? Entre com ela e o cadastro no ' + (salao.nome || 'salão')
+             + ' fica feito.')
+    : 'Com a sua conta, você vê seus horários em qualquer celular e usa os pacotes do salão.';
   for(const [id, on] of [['abaEntrar', !criar], ['abaCriar', criar]]){
     const b = document.getElementById(id);
     b.classList.toggle('on', on);
@@ -7514,8 +7551,9 @@ async function entrarCliente(){
     return avisarConta(frasesDaConta(e, 'entrar'));
   }
   document.getElementById('cSenha').value = '';
-  await aposEntrar();
+  const f = await aposEntrar({ cadastrar: contaDoCadastro });
   bp.disabled = false;
+  if(contaDoCadastro) return mostrarCadastro(f);
   voltarDaConta();
 }
 
@@ -7531,17 +7569,17 @@ async function criarContaCliente(){
   contaEmail = email;
   let r;
   try{
-    r = await Dados.criarConta({ email, senha, nome, telefone: paraE164(tel), volta: linkDoSalao() });
+    r = await Dados.criarConta({ email, senha, nome, telefone: paraE164(tel), volta: voltaDaContaNova() });
   }catch(e){
     console.info('[AgendaPro] criar conta:', e.message);
-    bp.disabled = false; bp.textContent = 'Criar conta';
+    bp.disabled = false; bp.textContent = contaDoCadastro ? 'Fazer meu cadastro' : 'Criar conta';
     return avisarConta(frasesDaConta(e, 'criar'));
   }
   document.getElementById('cSenha').value = '';
   // O aparelho passa a lembrar dela, com conta confirmada ou não.
   sessao = Object.assign({}, sessao || {}, { nome, telefone: tel, email });
   guardarSessao();
-  bp.disabled = false; bp.textContent = 'Criar conta';
+  bp.disabled = false; bp.textContent = contaDoCadastro ? 'Fazer meu cadastro' : 'Criar conta';
   /* ⚠ PROJETO QUE EXIGE CONFIRMAR O E-MAIL: a conta nasce sem sessão. O link
      do e-mail traz de volta para ESTE salão (`volta`), já dentro da conta. */
   if(!r || !r.access_token){
@@ -7549,7 +7587,9 @@ async function criarContaCliente(){
       + escapar(email) + '</b>. Toque nele e você volta para cá já dentro da conta.'
       + '<br><button class="link" onclick="reenviarConfirmacaoCliente()">Reenviar o e-mail</button>', 'ok');
   }
-  const f = await aposEntrar();
+  /* Conta criada pelo link do salão já é cadastro nele: a ficha nasce agora
+     (48_cadastro_link.sql), sem esperar o primeiro horário. */
+  const f = await aposEntrar({ cadastrar: true });
   /* ⚠ WHATSAPP QUE JÁ É DE OUTRA CONTA: o banco não deixa duas contas com o
      mesmo número (08_conta.sql), e a conta nova nasce sem telefone — então
      não liga ficha nenhuma, e o pacote não aparece. O caso comum é ela já ter
@@ -7567,6 +7607,7 @@ async function criarContaCliente(){
       + 'reconhece, avise o salão.<br><button class="link" '
       + 'onclick="voltarDaConta()">Seguir com esta conta</button>');
   }
+  if(contaDoCadastro) return mostrarCadastro(f);
   voltarDaConta();
 }
 
@@ -7585,7 +7626,7 @@ async function esqueciSenhaCliente(){
 
 async function reenviarConfirmacaoCliente(){
   const email = contaEmail || valorDe('cEmail').trim() || valorDe('dEmail').trim();
-  try{ await Dados.reenviarConfirmacao(email, linkDoSalao()); }catch(e){}
+  try{ await Dados.reenviarConfirmacao(email, voltaDaContaNova()); }catch(e){}
   avisarConta('Pronto: mandamos de novo para <b>' + escapar(email) + '</b>. Pode '
     + 'levar um minuto, e às vezes cai no lixo eletrônico.', 'ok');
 }
@@ -7593,10 +7634,19 @@ async function reenviarConfirmacaoCliente(){
 /* Depois de entrar: liga a ficha do salão à conta, o aparelho passa a
    lembrar dos dados da conta, e os pacotes e os horários são buscados de
    novo — agora como ela. */
-async function aposEntrar(){
+async function aposEntrar(op){
   let f = null;
-  try{ f = await Dados.chamar('ligar_minha_ficha', { p_salao: salao.id }); }
-  catch(e){ console.info('[AgendaPro] ligar_minha_ficha:', e.message); }
+  /* Cadastro (conta criada aqui, ou o link de cadastro): a ficha que bate é
+     ligada e, se não houver, nasce. Banco ainda sem o 48 (o SQL não foi
+     colado), a chamada falha e fica o caminho de sempre, que só liga. */
+  if(op && op.cadastrar){
+    try{ f = await Dados.chamar('cadastrar_minha_ficha', { p_salao: salao.id }); }
+    catch(e){ console.info('[AgendaPro] cadastrar_minha_ficha:', e.message); f = null; }
+  }
+  if(!f || typeof f !== 'object' || Array.isArray(f)){
+    try{ f = await Dados.chamar('ligar_minha_ficha', { p_salao: salao.id }); }
+    catch(e){ console.info('[AgendaPro] ligar_minha_ficha:', e.message); }
+  }
   if(f && typeof f === 'object' && !Array.isArray(f)){
     const antes = sessao || {};
     sessao = Object.assign({}, antes, {
@@ -7615,6 +7665,82 @@ async function aposEntrar(){
 function voltarDaConta(){
   if(historico.length) voltar();
   else irPara('capa', true);
+}
+
+/* ── O LINK DE CADASTRO ───────────────────────────────────────────────────
+   `agendar.html?salao=x&cadastro=1`, que o salão manda no WhatsApp: abre
+   direto em "Faça seu cadastro". Ela cria a conta (ou entra com a que já
+   tem) e a ficha nasce no salão, sem marcar horário — e o salão a coloca no
+   pacote depois.
+
+   ⚠ A VOLTA DO E-MAIL. Com confirmação de e-mail ligada, a conta nasce sem
+   sessão e ela volta pelo link do e-mail — muitas vezes aberto noutro
+   navegador (o do aplicativo de e-mail), sem nada guardado deste. Por isso o
+   aviso vai NO ENDEREÇO da volta: `cadastro=1` traz de volta à tela de
+   cadastro feito; `conta=nova` (conta criada pela tela de conta) só faz a
+   ficha, calado. Usado o aviso, ele sai do endereço: recarregar a página
+   não repete nada. */
+const PEDIDO_DO_LINK = (() => {
+  try{
+    const q = new URLSearchParams(location.search);
+    return { cadastro: q.get('cadastro') === '1', contaNova: q.get('conta') === 'nova' };
+  }catch(e){ return { cadastro: false, contaNova: false }; }
+})();
+function voltaDaContaNova(){
+  return linkDoSalao() + (contaDoCadastro ? '&cadastro=1' : '&conta=nova');
+}
+function tirarPedidoDoEndereco(){
+  try{
+    const u = new URL(location.href);
+    u.searchParams.delete('cadastro'); u.searchParams.delete('conta');
+    history.replaceState(null, '', u.pathname + u.search + u.hash);
+  }catch(e){}
+}
+/* Chamado quando o salão abre. Devolve a promessa quando cuidou da conta
+   (e aí o caminho de sempre não roda), ou null. */
+function iniciarPedidoDoLink(){
+  const pede = PEDIDO_DO_LINK.cadastro || PEDIDO_DO_LINK.contaNova;
+  // Fora da nuvem não há conta: o link abre a capa, como o de sempre.
+  if(!pede || !NA_NUVEM) return null;
+  tirarPedidoDoEndereco();
+  if(!logada()){
+    if(PEDIDO_DO_LINK.cadastro) abrirConta('criar', true);
+    return null;
+  }
+  return aposEntrar({ cadastrar: true }).then(f => {
+    if(PEDIDO_DO_LINK.cadastro) mostrarCadastro(f);
+    else if(meusPacotes.length || logada()) desenhar();
+    return f;
+  });
+}
+function mostrarCadastro(f){
+  contaDoCadastro = false;
+  const primeiro = ((f && f.nome) || (sessao && sessao.nome) || '').trim().split(' ')[0];
+  const casa = salao.nome || 'salão';
+  let titulo, frase, deu = true;
+  if(f && f.ficha && f.criada === false){
+    titulo = 'Você já tinha cadastro';
+    frase = 'Encontramos o seu cadastro no ' + casa + ' e ele agora está ligado à sua conta.'
+          + ' Seus horários e pacotes aparecem por aqui.';
+  } else if(f && f.ficha){
+    titulo = 'Cadastro feito';
+    frase = (primeiro ? 'Pronto, ' + primeiro + '! ' : 'Pronto! ')
+          + 'Seu cadastro no ' + casa + ' está feito. Quando quiser, é só marcar seu horário por aqui.';
+  } else if(f && f.motivo === 'telefone_de_outra_ficha'){
+    deu = false;
+    titulo = 'Falta um detalhe';
+    frase = 'Sua conta está pronta, mas este WhatsApp já está no cadastro de outra pessoa no '
+          + casa + '. Avise o salão para acertarem o seu cadastro.';
+  } else {
+    deu = false;
+    titulo = 'Falta um detalhe';
+    frase = 'Sua conta está pronta. Para terminar o seu cadastro no ' + casa + ', fale com o salão.';
+  }
+  document.getElementById('cadastroTitulo').textContent = titulo;
+  document.getElementById('cadastroTexto').textContent = frase;
+  document.getElementById('cadastroIcone').style.display = deu ? '' : 'none';
+  historico = ['capa'];
+  irPara('cadastro', true);
 }
 
 async function sair(){
