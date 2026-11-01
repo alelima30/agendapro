@@ -502,6 +502,108 @@ Aviso automático do sistema de agendamento.
 
 ---
 
+# Os quatro do crediário
+
+Os avisos do módulo Crediário (`47_crediario.sql`): o resumo da compra, o
+lembrete antes do vencimento, o "vence hoje" e um aviso de atraso. Mesmas
+regras: **Utilidade**, **Português (BR)**, sem cabeçalho e sem botão. O texto
+é de aviso puro, sem cobrança agressiva (Código de Defesa do Consumidor,
+art. 42): nada de ameaça, nada de "nome sujo".
+
+> **⚠ Cadastre já, junto com os do pacote** — a aprovação demora, e o
+> sistema passa a usar estes quatro quando o Crediário for posto à venda.
+> Até lá, cadastrados e aprovados, eles só esperam.
+
+## 13. `agendapro_crediario_compra`
+
+Vai para a cliente logo depois da venda no crediário.
+
+```
+Olá, {{1}}. Resumo da sua compra no crediário em {{2}}.
+
+💰 Valor no crediário: {{3}}
+🗓️ Parcelas: {{4}}
+
+Guarde esta mensagem. Mensagem automática do sistema do salão.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Maria |
+| `{{2}}` | nome do salão | Lingerie da Ana |
+| `{{3}}` | valor que ficou no crediário | R$ 200,00 |
+| `{{4}}` | as parcelas, numa linha só | 1ª R$ 100,00 em 05/12; 2ª R$ 100,00 em 05/01 |
+
+## 14. `agendapro_crediario_lembrete`
+
+Vai para a cliente **dois dias antes** do vencimento da parcela, às 10h.
+
+```
+Olá, {{1}}. Lembrete da parcela {{2}} do seu crediário em {{3}}.
+
+💰 Valor: {{4}}
+📅 Vencimento: {{5}}
+💳 Pagamento: {{6}}
+
+Se você já pagou, desconsidere esta mensagem. Mensagem automática do sistema do salão.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Maria |
+| `{{2}}` | qual parcela | 2 de 3 |
+| `{{3}}` | nome do salão | Lingerie da Ana |
+| `{{4}}` | o que falta pagar da parcela | R$ 100,00 |
+| `{{5}}` | a data do vencimento | 05/12 |
+| `{{6}}` | a chave Pix do salão, ou "combine com o salão" | Pix (chave: ana@salao.com) |
+
+## 15. `agendapro_crediario_vence_hoje`
+
+Vai para a cliente **no dia** do vencimento, às 10h, se a parcela ainda
+estiver em aberto.
+
+```
+Olá, {{1}}. A parcela {{2}} do seu crediário em {{3}} vence hoje.
+
+💰 Valor: {{4}}
+💳 Pagamento: {{5}}
+
+Se você já pagou, desconsidere esta mensagem. Mensagem automática do sistema do salão.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Maria |
+| `{{2}}` | qual parcela | 2 de 3 |
+| `{{3}}` | nome do salão | Lingerie da Ana |
+| `{{4}}` | o que falta pagar da parcela | R$ 100,00 |
+| `{{5}}` | a chave Pix do salão, ou "combine com o salão" | Pix (chave: ana@salao.com) |
+
+## 16. `agendapro_crediario_atraso`
+
+Vai para a cliente **um dia depois** do vencimento, às 10h, se a parcela
+continuar em aberto. Uma vez só por parcela.
+
+```
+Olá, {{1}}. A parcela {{2}} do seu crediário em {{3}} venceu em {{4}} e ainda aparece em aberto.
+
+💰 Valor: {{5}}
+💳 Pagamento: {{6}}
+
+Se você já pagou, desconsidere esta mensagem. Em caso de dúvida, fale com o salão. Mensagem automática do sistema do salão.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Maria |
+| `{{2}}` | qual parcela | 2 de 3 |
+| `{{3}}` | nome do salão | Lingerie da Ana |
+| `{{4}}` | a data do vencimento | 05/12 |
+| `{{5}}` | o que falta pagar da parcela | R$ 100,00 |
+| `{{6}}` | a chave Pix do salão, ou "combine com o salão" | Pix (chave: ana@salao.com) |
+
+---
+
 ## As regras que quebram o envio sem avisar direito
 
 | regra | o que acontece se quebrar |
@@ -537,3 +639,5 @@ profissional, 4 no resumo e 7 no lembrete para o salão — na ordem das tabelas
 Nos do pedido: 5 no pedido novo e no confirmado, 3 no "a caminho" e no
 "pronto", e 4 no cancelado. Os nomes deles estão no `modelo_de()` do
 `37_pedidos.sql`. Nos do pacote: 4 na renovação e 5 no lembrete do pagamento.
+Nos do crediário: 4 no resumo da compra, 6 no lembrete, 5 no "vence hoje" e 6
+no atraso.
