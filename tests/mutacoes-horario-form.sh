@@ -111,7 +111,7 @@ troca app.html \
 
 echo "9. o dia cheio não oferece os próximos dias"
 troca app.html \
-  "    const prox = data ? proximosDiasComVaga(profId, data, dur, 3) : [];" \
+  "    const prox = data ? proximosDiasComVaga(profId, data, dur, 3, null, ignorar) : [];" \
   "    const prox = [];" \
   && rodar "dia cheio vira beco sem saída"
 

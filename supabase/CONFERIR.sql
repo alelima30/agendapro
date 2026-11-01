@@ -1060,6 +1060,22 @@ with conferencia(ordem, item, veredito, detalhe) as (
   union all
   /* O Crediário (47_crediario): a venda a prazo, as parcelas e o que entra
      no caixa, no relatório e na comissão. */
+  /* Remarcar pelo painel (49_remarcar): o salão move o horário, mantendo o
+     pacote, os serviços e o valor. */
+  select 56, 'Remarcar pelo painel',
+         case
+           when to_regprocedure('public.remarcar_pelo_salao(uuid,timestamptz,uuid,boolean)') is null
+             or coalesce((select has_function_privilege('anon', p.oid, 'execute') from pg_proc p
+                           where p.oid = to_regprocedure('public.remarcar_pelo_salao(uuid,timestamptz,uuid,boolean)')), false)
+             then 'FALTA'
+           else 'certo' end,
+         case
+           when to_regprocedure('public.remarcar_pelo_salao(uuid,timestamptz,uuid,boolean)') is null
+             or coalesce((select has_function_privilege('anon', p.oid, 'execute') from pg_proc p
+                           where p.oid = to_regprocedure('public.remarcar_pelo_salao(uuid,timestamptz,uuid,boolean)')), false)
+             then 'cole o 00_tudo.sql de novo (49_remarcar)'
+           else '' end
+  union all
   /* O cadastro pelo link (48_cadastro_link): a cliente cria a conta pelo
      link do salão e a ficha nasce em Clientes, marcada "cadastrou pelo link". */
   select 55, 'Cadastro da cliente pelo link (sem agendar)',

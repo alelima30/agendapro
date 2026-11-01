@@ -1351,13 +1351,14 @@ function avaliarHorario(profId, data, ini, fim, ignorar){
 
 // Horários livres para um serviço com um profissional, num dia.
 // É a versão de tela da função `horarios_livres()` que vai para o banco.
-function horariosLivres(profId, data, duracao){
+// `ignorar`: o horário que está sendo remarcado não ocupa o próprio lugar.
+function horariosLivres(profId, data, duracao, ignorar){
   const prof = bd.profissionais.find(p => p.id === profId);
   if(!prof) return [];
   const livres = [];
   for(const [jIni, jFim] of jornadaDo(prof, data)){
     for(let t = jIni; t + duracao <= jFim; t += PASSO){
-      if(conflito(profId, data, t, t + duracao, null)) continue;
+      if(conflito(profId, data, t, t + duracao, ignorar || null)) continue;
       if(emBloqueio(profId, data, t, t + duracao)) continue;
       livres.push(t);
     }
@@ -1367,12 +1368,12 @@ function horariosLivres(profId, data, duracao){
 
 // Varre os próximos dias procurando vaga. Para no limite pedido para não
 // ficar rodando 365 dias à toa quando o profissional está de férias.
-function proximosDiasComVaga(profId, aPartirDe, duracao, quantos, alcance){
+function proximosDiasComVaga(profId, aPartirDe, duracao, quantos, alcance, ignorar){
   const achados = [];
   const limite = alcance || 21;
   for(let i = 1; i <= limite && achados.length < (quantos||3); i++){
     const d = somarDias(aPartirDe, i);
-    const n = horariosLivres(profId, d, duracao).length;
+    const n = horariosLivres(profId, d, duracao, ignorar).length;
     if(n) achados.push({data:d, qtd:n});
   }
   return achados;
@@ -2111,7 +2112,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.65f6b8';
+const VERSAO_APP = 'v9.4d9b87';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6740,21 +6741,26 @@ function horaDoCampo(){
 }
 function digitarHora(el){
   mascaraHora(el);
-  recalcularFim();
+  refazerFormDeHorario();
 }
 function escolherHoraNoForm(t){
   document.getElementById('fInicio').value = hm(t);
-  recalcularFim();
+  refazerFormDeHorario();
 }
 function irParaDiaNoForm(d){
   document.getElementById('fData').value = d;
-  recalcularFim();
+  refazerFormDeHorario();
+}
+// Os botões de horário servem ao "+ Novo" e ao Remarcar: cada um tem a sua conta.
+function refazerFormDeHorario(){
+  if(document.getElementById('rmAviso')) recalcularRemarcar();
+  else recalcularFim();
 }
 /* Os horários livres de quem atende, no dia escolhido, para a duração dos
    serviços marcados — a mesma conta da agenda (`horariosLivres`). Hoje, só
    o que ainda não passou, na hora do salão. Dia sem vaga mostra os próximos
    dias que têm. */
-function pintarLivresDoForm(profId, data, dur, ini){
+function pintarLivresDoForm(profId, data, dur, ini, ignorar){
   const alvo = document.getElementById('fLivres');
   if(!alvo) return;
   if(!dur){
@@ -6764,7 +6770,7 @@ function pintarLivresDoForm(profId, data, dur, ini){
   }
   const p = acharProf(profId);
   const com = p ? ' com ' + escapar(p.nome) : '';
-  let livres = data ? horariosLivres(profId, data, dur) : [];
+  let livres = data ? horariosLivres(profId, data, dur, ignorar) : [];
   const sl = acharSalao(salaoAtual);
   const agora = sl && sl.fuso
     ? instanteParaTela(new Date().toISOString(), sl.fuso)
@@ -6788,7 +6794,7 @@ function pintarLivresDoForm(profId, data, dur, ini){
   alvo.dataset.chave = livres.length ? chave : '';
 
   if(!livres.length){
-    const prox = data ? proximosDiasComVaga(profId, data, dur, 3) : [];
+    const prox = data ? proximosDiasComVaga(profId, data, dur, 3, null, ignorar) : [];
     alvo.innerHTML = `<p class="ajuda hl-nota"><b>Sem horário livre${com} neste dia.</b>
         ${prox.length ? 'Próximos dias com vaga:' : 'Para um encaixe, digite a hora abaixo.'}</p>`
       + (prox.length ? `<div class="hl-dias">${prox.map(d => `
@@ -7053,6 +7059,10 @@ function abrirDetalhe(agId){
     </div>
   `, [
     ['Arquivar', `excluirAgendamento('${agId}')`, ''],
+    /* "Em vez de mudar status, colocar cancelar perto do arquivar, em
+       vermelho, e uma mensagem perguntando se tem certeza." Um toque e a
+       pergunta — o seletor continua lá para o resto. */
+    ...(podeCancelar(a) ? [['Cancelar horário', `cancelarHorario('${agId}')`, 'btn-perigo']] : []),
     /* O WhatsApp só aparece quando há para onde ligar. Botão que existe e
        avisa "esta ficha não tem telefone" depois do clique é pior que botão
        que não está lá. */
@@ -7089,8 +7099,162 @@ function abrirDetalhe(agId){
     ...(a.status === 'pendente'
         ? [['Confirmar horário', `confirmarHorario('${agId}');fecharModal()`, 'btn-p']]
         : []),
+    // Mover o horário: outro dia, outra hora, outra profissional (49_remarcar.sql).
+    ...(podeRemarcar(a) ? [['Remarcar', `abrirRemarcar('${agId}')`, '']] : []),
     ['Salvar', `salvarStatus('${agId}')`, 'btn-p'],
   ]);
+}
+
+/* ── REMARCAR ──────────────────────────────────────────────────────────────
+   "Na onde entro para remarcar caso precise?" — não havia onde. A janela do
+   atendimento só mudava a situação; o que sobrava era cancelar e marcar outro
+   no "+ Novo", e para sessão de pacote isso estragava: o horário novo nascia
+   como atendimento comum, cobrando o serviço, solto do pacote.
+
+   Remarcar MOVE o próprio horário: o mesmo atendimento, com o mesmo pacote,
+   os mesmos serviços, o mesmo valor e a mesma duração. Quem confere e grava é
+   o banco (`remarcar_pelo_salao`): a agenda (choque, bloqueio, jornada — esta
+   com encaixe confirmado), as regras do pacote e quem pode. A tela mostra os
+   horários livres com a mesma conta da agenda, sem contar o próprio horário
+   como ocupado. */
+let remarcandoId = null;
+function podeRemarcar(a){
+  if(!a || a.arquivadoEm || !['pendente', 'confirmado'].includes(a.status)) return false;
+  if(a.data < hoje()) return false;
+  const eu = minhaFichaDeProf();
+  return vejoTudo() || (!!eu && a.profissionalId === eu.id);
+}
+function abrirRemarcar(agId){
+  const a = bd.agendamentos.find(x => x.id === agId);
+  if(!podeRemarcar(a)) return;
+  remarcandoId = agId;
+  const so = vejoTudo() ? null : minhaFichaDeProf();
+  const profs = so ? [so] : profsAtivos();
+  const c = acharCliente(a.clienteId);
+  abrirModal('Remarcar horário', `
+    <div class="aviso info"><b>${escapar(c ? c.nome : 'Cliente')}</b> · ${escapar(rotuloServicos(a))}<br>
+      Marcado para ${escapar(porExtenso(a.data))}, às ${hm(a.inicio)}${a.pacoteClienteId
+        ? ' · sessão do pacote' : ''}</div>
+    <div id="rmAviso"></div>
+    <div class="campo"><label for="fProf">Profissional</label>
+      <select id="fProf" onchange="recalcularRemarcar()">
+        ${profs.map(p => `<option value="${p.id}"${p.id === a.profissionalId ? ' selected' : ''}>${escapar(p.nome)}</option>`).join('')}
+      </select></div>
+    <div class="campo"><label for="fData">Novo dia</label>
+      <input type="date" id="fData" value="${a.data}" min="${hoje()}" onchange="recalcularRemarcar()"></div>
+    <div class="campo"><label for="fInicio">Novo horário</label>
+      <div id="fLivres" aria-live="polite"></div>
+      <input id="fInicio" class="hora-digitada" inputmode="numeric" maxlength="5"
+             autocomplete="off" placeholder="ou digite a hora, ex.: 14:30" oninput="digitarHora(this)"
+             onchange="this.value = horaNormal(this.value); recalcularRemarcar()"></div>
+    <p class="ajuda" style="margin:0">O horário muda de lugar com os mesmos serviços e o mesmo
+      valor${a.pacoteClienteId ? ', e continua no pacote' : ''}. O lembrete da cliente vai para a
+      data nova.</p>`,
+    [['Cancelar', 'fecharModal()'], ['Remarcar', 'confirmarRemarcar()', 'btn-p']]);
+  recalcularRemarcar();
+}
+function recalcularRemarcar(){
+  const aviso = document.getElementById('rmAviso');
+  const a = bd.agendamentos.find(x => x.id === remarcandoId);
+  if(!aviso || !a) return;
+  const profId = document.getElementById('fProf').value;
+  const data = document.getElementById('fData').value;
+  const ini = horaDoCampo();
+  const dur = a.fim - a.inicio;
+  pintarLivresDoForm(profId, data, dur, ini, a.id);
+  if(ini === null){
+    aviso.innerHTML = `<div class="aviso info"><b>Escolha o novo horário:</b> toque num dos
+      horários livres abaixo, ou digite a hora. · ${dur} min</div>`;
+    return;
+  }
+  const r = avaliarHorario(profId, data, ini, ini + dur, a.id);
+  let html = `<div class="aviso ok">${escapar(porExtenso(data))} · ${hm(ini)} às ${hm(ini + dur)}</div>`;
+  if(!r.cabe){
+    html += r.encaixavel
+      ? `<div class="aviso atencao"><b>${escapar(r.motivo)}</b><br>
+         Dá para encaixar, e o sistema vai pedir sua confirmação.</div>`
+      : `<div class="aviso"><b>${escapar(r.motivo)}</b><br>
+         Escolha outro horário — este o sistema não aceita.</div>`;
+  }
+  aviso.innerHTML = html;
+}
+async function confirmarRemarcar(){
+  const a = bd.agendamentos.find(x => x.id === remarcandoId);
+  if(!a) return;
+  const profId = document.getElementById('fProf').value;
+  const data = document.getElementById('fData').value;
+  const ini = horaDoCampo();
+  if(!data || ini === null){ alert('Escolha o novo dia e o horário.'); return; }
+  if(data === a.data && ini === a.inicio && profId === a.profissionalId){
+    alert('Esse já é o horário marcado. Escolha outro dia ou outra hora.');
+    return;
+  }
+  const dur = a.fim - a.inicio;
+  const PERGUNTA_ENCAIXE = '\n\nDá para encaixar assim mesmo. O horário fica marcado como '
+    + 'ENCAIXE, com o seu nome.\n\nConfirmar o encaixe?';
+
+  // Na demonstração não há banco: move aqui, com a mesma conta da agenda.
+  if(!NA_NUVEM){
+    const r = avaliarHorario(profId, data, ini, ini + dur, a.id);
+    if(!r.cabe && !r.encaixavel){ alert(r.motivo + '\n\nEscolha outro horário.'); return; }
+    if(!r.cabe && !confirm(r.motivo + PERGUNTA_ENCAIXE)) return;
+    Object.assign(a, { data, inicio: ini, fim: ini + dur, profissionalId: profId, encaixe: !r.cabe });
+    salvar(); fecharModal(); diaAtual = data; pintar();
+    return;
+  }
+
+  const bt = [...document.querySelectorAll('#modalPe .btn-p')].pop();
+  if(bt){ bt.disabled = true; bt.textContent = 'Remarcando…'; }
+  const chamar = encaixe => Dados.chamar('remarcar_pelo_salao', {
+    p_agendamento: a.id, p_inicio: telaParaInstante(data, ini, fusoDoSalaoAtual()),
+    p_profissional: profId, p_encaixe: encaixe }).then(r => Array.isArray(r) ? r[0] : r);
+  try{
+    // O que estava a caminho do banco chega antes da pergunta.
+    try{ await _filaGravacao; }catch(e){}
+    let res = await chamar(false);
+    if(res && res.ok === false && res.encaixavel && confirm(res.motivo + PERGUNTA_ENCAIXE))
+      res = await chamar(true);
+    if(res && res.ok === false){
+      const av = document.getElementById('rmAviso');
+      if(av) av.innerHTML = `<div class="aviso"><b>${escapar(res.motivo || 'Não deu para remarcar.')}</b><br>
+        Nada mudou. Escolha outro horário.</div>`;
+      return;
+    }
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+    fecharModal();
+    diaAtual = data;
+    pintar();
+  }catch(e){
+    alert('Não consegui remarcar.\n\n' + (e.message || e));
+  }finally{
+    if(bt && document.body.contains(bt)){ bt.disabled = false; bt.textContent = 'Remarcar'; }
+  }
+}
+
+/* ── CANCELAR EM UM TOQUE ─────────────────────────────────────────────────
+   O mesmo que escolher "Cancelado" no seletor e salvar — com a pergunta
+   antes, dizendo o que acontece. A linha fica, marcada como cancelada: a
+   cliente vê "Cancelado" no link, o horário fica livre, os lembretes saem da
+   fila (21) e, se for sessão de pacote, a sessão volta para ele (27). */
+function podeCancelar(a){
+  if(!a || a.arquivadoEm || !['pendente', 'confirmado'].includes(a.status)) return false;
+  const eu = minhaFichaDeProf();
+  return vejoTudo() || (!!eu && a.profissionalId === eu.id);
+}
+function cancelarHorario(agId){
+  const a = bd.agendamentos.find(x => x.id === agId);
+  if(!podeCancelar(a)) return;
+  const quem = nomeCliente(a.clienteId) || 'esta cliente';
+  if(!confirm('Tem certeza que quer cancelar o horário de ' + quem + '?\n\n'
+    + porExtenso(a.data) + ', às ' + hm(a.inicio) + '\n\n'
+    + 'O horário fica livre na agenda e os lembretes não são enviados'
+    + (a.pacoteClienteId ? '. A sessão volta para o pacote dela' : '')
+    + '. Ela vê "Cancelado" no link, mas não recebe mensagem: se quiser, '
+    + 'avise pelo WhatsApp.')) return;
+  a.status = 'cancelado';
+  a.canceladoMotivo = 'cancelado pelo salão';
+  salvar(); fecharModal(); pintar();
 }
 
 function salvarStatus(agId){
@@ -7121,8 +7285,8 @@ function excluirAgendamento(agId){
   if(!confirm(
       'Arquivar tira este atendimento da agenda e da tela de ' + quem
     + ' — ela pode vir ao salão achando que está marcada.\n\n'
-    + 'Para desmarcar alguém, feche esta janela e mude a situação para '
-    + '"Cancelado": aí ela vê o cancelamento no aplicativo.\n\n'
+    + 'Para desmarcar alguém, use o botão "Cancelar horário": aí ela vê o '
+    + 'cancelamento no aplicativo.\n\n'
     + 'Arquivar mesmo assim? (use para lançamento errado, teste ou duplicata)\n\n'
     + 'O registro fica guardado, e dá para desfazer.')) return;
 

@@ -256,7 +256,11 @@ async function marcar(){
   await p.click('#cfObs summary');
   await p.fill('#fRecado', 'tenho alergia a amônia');
   await p.click('#btPrincipal');
-  await p.waitForTimeout(4000);
+  /* Espera a tela "pronto" (até 20 s), e não 4 s fixos: com a suíte inteira
+     rodando, a confirmação passava dos 4 s e o teste lia a tela antes. */
+  await p.waitForFunction(() => tela === 'pronto'
+    && document.querySelector('#resumoPronto .cf-salao-txt'), null, { timeout: 20000 }).catch(() => {});
+  await p.waitForTimeout(600);
   const t = await p.evaluate(() => ({
     tela, titulo: document.querySelector('#p-pronto h2').textContent,
     sub: document.getElementById('prontoTexto').textContent.trim(),
@@ -299,7 +303,11 @@ await porCfg({ cor:'#B8356B', confirmaAuto:true });
 {
   const { p, fechar } = await marcar();
   await p.click('#btPrincipal');
-  await p.waitForTimeout(4000);
+  /* Espera a tela "pronto" (até 20 s), e não 4 s fixos: com a suíte inteira
+     rodando, a confirmação passava dos 4 s e o teste lia a tela antes. */
+  await p.waitForFunction(() => tela === 'pronto'
+    && document.querySelector('#resumoPronto .cf-salao-txt'), null, { timeout: 20000 }).catch(() => {});
+  await p.waitForTimeout(600);
   const t = await p.evaluate(() => ({ titulo: document.querySelector('#p-pronto h2').textContent,
     resumo: document.getElementById('resumoPronto').innerText,
     chip: (document.querySelector('#resumoPronto .cf-chip') || {}).className }));

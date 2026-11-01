@@ -54,6 +54,7 @@
 --   46_adicionais.sql        os módulos adicionais (o Crediário): a mensalidade é plano + adicionais
 --   47_crediario.sql         o Crediário: vender parcelado no fiado, as parcelas, o a receber
 --   48_cadastro_link.sql     a cliente se cadastra pelo link, sem agendar, e ganha a ficha
+--   49_remarcar.sql          o salão remarca um horário (move, mantendo pacote e serviços)
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -19963,3 +19964,134 @@ end $$;
 
 revoke all on function public.cadastrar_minha_ficha(uuid) from public, anon;
 grant execute on function public.cadastrar_minha_ficha(uuid) to authenticated;
+
+-- ###########################################################################
+-- ## 49_remarcar.sql
+-- ###########################################################################
+
+-- ===========================================================================
+-- 49_remarcar.sql — o salão remarca um horário
+--
+-- O pedido: "na onde entro para remarcar caso precise?" — e não havia onde.
+-- A janela do atendimento só mudava a situação e a forma de pagamento. O
+-- caminho que sobrava era cancelar e marcar outro no "+ Novo", e para sessão
+-- de pacote isso estraga: o horário novo nasce como atendimento comum,
+-- cobrando o serviço, solto do pacote.
+--
+-- Remarcar MOVE o próprio horário: o mesmo agendamento, com o mesmo pacote,
+-- os mesmos serviços, o mesmo valor e a mesma duração, em outro dia, outra
+-- hora ou com outra profissional. O lembrete da cliente e o da equipe vão
+-- junto (os gatilhos do 21 reescrevem quando a hora ou a pessoa mudam).
+--
+-- ── O QUE O BANCO CONFERE ─────────────────────────────────────────────────
+--   · quem: o balcão e a gestão remarcam qualquer horário; quem atende,
+--     só o próprio, e para si mesma;
+--   · o quê: só horário pendente ou confirmado, e para um instante que ainda
+--     vem;
+--   · onde: a mesma pergunta da agenda (`porque_nao_cabe`, 14), ignorando o
+--     próprio horário. Fora da jornada dá para encaixar, com a confirmação de
+--     quem remarca (e o encaixe fica com o nome dela); choque e bloqueio, não;
+--   · o pacote: dentro da validade e nos dias da semana em que ele vale — as
+--     mesmas regras de quando ele foi montado (43).
+-- ===========================================================================
+
+create or replace function public.remarcar_pelo_salao(
+  p_agendamento uuid, p_inicio timestamptz,
+  p_profissional uuid default null, p_encaixe boolean default false)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  a public.agendamentos%rowtype;
+  v_prof uuid; v_fim timestamptz; v_fuso text; v_dia date;
+  v_motivo text; v_encaixavel boolean := false; v_encaixe boolean := false;
+  v_vence date; v_dias smallint[];
+begin
+  if auth.uid() is null then
+    raise exception 'Entre de novo para remarcar.' using errcode = 'insufficient_privilege';
+  end if;
+  select * into a from public.agendamentos where id = p_agendamento for update;
+  if a.id is null then
+    raise exception 'Não achei este horário.' using errcode = 'check_violation';
+  end if;
+  v_prof := coalesce(p_profissional, a.profissional_id);
+  if not public.ve_agenda_toda(a.salao_id) then
+    if a.profissional_id is distinct from public.meu_profissional_id(a.salao_id)
+       or v_prof is distinct from a.profissional_id then
+      raise exception 'Só o balcão e a gestão remarcam o horário de outra pessoa.'
+        using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+  if a.arquivado_em is not null or a.status not in ('pendente', 'confirmado') then
+    raise exception 'Só dá para remarcar um horário pendente ou confirmado.'
+      using errcode = 'check_violation';
+  end if;
+  if p_inicio is null or p_inicio <= now() then
+    raise exception 'Escolha um horário que ainda vai acontecer.' using errcode = 'check_violation';
+  end if;
+  if not exists (select 1 from public.profissionais pr
+                  where pr.id = v_prof and pr.salao_id = a.salao_id and pr.ativo) then
+    raise exception 'Escolha quem vai atender.' using errcode = 'check_violation';
+  end if;
+
+  v_fim := p_inicio + (a.fim - a.inicio);
+  select coalesce(s.fuso, 'America/Sao_Paulo') into v_fuso from public.saloes s where s.id = a.salao_id;
+  v_dia := (p_inicio at time zone v_fuso)::date;
+
+  -- Sessão de pacote: a validade e os dias dele.
+  if a.pacote_cliente_id is not null then
+    select pc.vence_em, p.dias into v_vence, v_dias
+      from public.pacote_clientes pc join public.pacotes p on p.id = pc.pacote_id
+     where pc.id = a.pacote_cliente_id;
+    if v_vence is not null and v_dia > v_vence then
+      return jsonb_build_object('ok', false, 'encaixavel', false,
+        'motivo', 'Passa da validade do pacote (vence em ' || to_char(v_vence, 'DD/MM') || ').');
+    end if;
+    if coalesce(cardinality(v_dias), 0) > 0
+       and not (extract(dow from v_dia)::smallint = any(v_dias)) then
+      return jsonb_build_object('ok', false, 'encaixavel', false,
+        'motivo', 'O pacote vale só ' || public.dias_por_extenso(v_dias) || '.');
+    end if;
+  end if;
+
+  v_motivo := public.porque_nao_cabe(v_prof, p_inicio, v_fim, a.id);
+  if v_motivo is not null then
+    -- Só a jornada o encaixe afrouxa (a mesma régua do "+ Novo").
+    v_encaixavel := v_motivo like 'Fora da jornada%'
+      and public.ha_choque(v_prof, p_inicio, v_fim, a.id) is null
+      and public.ha_bloqueio(v_prof, p_inicio, v_fim) is null;
+    if not (v_encaixavel and coalesce(p_encaixe, false)) then
+      return jsonb_build_object('ok', false, 'motivo', v_motivo, 'encaixavel', v_encaixavel);
+    end if;
+    v_encaixe := true;
+  end if;
+
+  begin
+    update public.agendamentos
+       set inicio = p_inicio, fim = v_fim, profissional_id = v_prof,
+           encaixe = v_encaixe,
+           encaixe_por = case when v_encaixe then auth.uid() end
+     where id = a.id;
+  exception when exclusion_violation then
+    return jsonb_build_object('ok', false, 'encaixavel', false,
+      'motivo', 'Alguém acabou de marcar nesse horário. Escolha outro.');
+  end;
+
+  -- Outra profissional: a comissão passa a ser a dela (a do serviço, se
+  -- houver; senão a da ficha dela) — a mesma conta de quando se marca.
+  if v_prof is distinct from a.profissional_id then
+    update public.agendamento_servicos asv
+       set comissao_pct = coalesce(sv.comissao_pct, pr.comissao_pct, 0)
+      from public.servicos sv, public.profissionais pr
+     where asv.agendamento_id = a.id and sv.id = asv.servico_id and pr.id = v_prof;
+  end if;
+
+  -- O lembrete que tinha sido cancelado (remarcado em cima da hora, por
+  -- exemplo) volta, para a hora nova. O que já saiu não se repete.
+  perform public.refazer_lembrete_cliente(a.id);
+
+  return jsonb_build_object('ok', true, 'encaixe', v_encaixe,
+    'data', to_char(p_inicio at time zone v_fuso, 'DD/MM/YYYY'),
+    'hora', to_char(p_inicio at time zone v_fuso, 'HH24:MI'));
+end $$;
+
+revoke all on function public.remarcar_pelo_salao(uuid, timestamptz, uuid, boolean) from public, anon;
+grant execute on function public.remarcar_pelo_salao(uuid, timestamptz, uuid, boolean) to authenticated;
