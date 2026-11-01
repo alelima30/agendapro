@@ -4,14 +4,16 @@
 -- "Ela paga mensal e vai toda terça às 14h: na primeira faz mão, na segunda
 --  mão e pé, na terceira só mão, na quarta mão e pé."
 --
---   1. a recepção monta: o vínculo e as 4 terças, cada uma com o seu serviço
---      e a sua duração, já confirmadas e cobertas pelo pacote;
---   2. uma mensagem só, com as 4 datas; o lembrete de cada uma fica;
+--   1. a recepção monta, a receber: o vínculo e as 4 terças, cada uma com o
+--      seu serviço e a sua duração, RESERVADAS (pendentes) e cobertas pelo
+--      pacote — "o pacote precisa estar pago para marcar";
+--   2. reservadas: a cliente ainda não recebe nada; quem atende, um aviso só;
 --   3. "a receber": a mensagem não diz "já pago", e leva o valor do pacote;
 --   4. tudo ou nada: uma semana que não cabe devolve o porquê e não grava
 --      nada; dia fora do pacote; mais semanas que sessões;
---   5. receber vira comanda fechada (o faturamento vê); não recebe duas
---      vezes; desfazer é da gestão;
+--   5. receber vira comanda fechada (o faturamento vê) e CONFIRMA as terças:
+--      uma mensagem só, com as 4 datas, e o lembrete de cada uma; não recebe
+--      duas vezes; desfazer é da gestão, e as terças voltam a ser reserva;
 --   6. só vincular, já pago; quem atende não monta; a cliente não monta;
 --   7. tirar do pacote tira as terças que ainda vão acontecer.
 -- ===========================================================================
@@ -92,15 +94,18 @@ begin;
                 order by n) from semanas)) as r;
   do $$ begin
     perform t_verdade('montou', (select (r->>'ok')::boolean from r1));
+    perform t_verdade('e diz que as semanas ficaram reservadas, esperando o pagamento',
+      (select (r->>'reservadas')::boolean from r1));
   end $$;
 commit;
 
 do $$
 declare v_pc uuid := (select id from public.pacote_clientes where cliente_id = 'c4310000-0000-0000-0000-00000000000a');
 begin
-  perform t_igual('as 4 terças estão na agenda, confirmadas e cobertas pelo pacote',
+  perform t_igual('as 4 terças estão na agenda, RESERVADAS (esperando o pagamento) e cobertas pelo pacote',
     (select count(*) from public.agendamentos where pacote_cliente_id = v_pc
-       and status = 'confirmado' and valor_previsto = 0 and origem = 'recepcao'), 4);
+       and status = 'pendente' and valor_previsto = 0 and origem = 'recepcao'), 4);
+
   perform t_texto('na ordem: mão, mão e pé, mão, mão e pé',
     (select string_agg(x.s, ' | ' order by x.inicio) from (
        select a.inicio, string_agg(sv.nome, ' + ' order by asv.ordem) s
@@ -125,13 +130,25 @@ begin
 end $$;
 
 \echo ''
-\echo '2. Uma mensagem só, com as 4 datas'
+\echo '2. Reservadas: a cliente ainda não recebe nada; quem atende, um aviso só'
 do $$
+declare v_pc uuid := (select id from public.pacote_clientes where cliente_id = 'c4310000-0000-0000-0000-00000000000a');
+begin
+  perform t_igual('nenhuma confirmação nem lembrete para a cliente enquanto não paga',
+    (select count(*) from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
+      where a.pacote_cliente_id = v_pc and n.tipo in ('confirmacao', 'lembrete')), 0);
+  perform t_igual('quem atende recebe um aviso só (as quatro datas juntas)',
+    (select count(*) from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
+      where a.pacote_cliente_id = v_pc and n.tipo = 'novo' and n.status = 'pendente'), 1);
+end $$;
+create or replace function t_conferir_confirmacoes() returns void language plpgsql as $f$
 declare v_pc uuid := (select id from public.pacote_clientes where cliente_id = 'c4310000-0000-0000-0000-00000000000a');
   v_datas text := (select string_agg(to_char(inicio at time zone 'America/Sao_Paulo', 'DD/MM'), ', ' order by inicio)
                      from public.agendamentos where pacote_cliente_id = v_pc);
 begin
   v_datas := regexp_replace(v_datas, ', ([^,]*)$', ' e \1');
+  perform t_igual('as 4 terças viram confirmadas',
+    (select count(*) from public.agendamentos where pacote_cliente_id = v_pc and status = 'confirmado'), 4);
   perform t_igual('uma confirmação na fila para a cliente, e não quatro',
     (select count(*) from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
       where a.pacote_cliente_id = v_pc and n.tipo = 'confirmacao' and n.status = 'pendente'), 1);
@@ -153,7 +170,7 @@ begin
   perform t_igual('e o lembrete da véspera fica para cada terça',
     (select count(*) from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
       where a.pacote_cliente_id = v_pc and n.tipo = 'lembrete' and n.status = 'pendente'), 4);
-end $$;
+end $f$;
 
 \echo ''
 \echo '3. A receber: a mensagem não diz "já pago"'
@@ -255,6 +272,8 @@ begin
         and n.variaveis::text like '%Pacote já pago (Pix)%'), 4);
 end $$;
 delete from public.plataforma_ajustes where chave = 'mensagensComPagamento';
+\echo '   … e, pago, as terças são confirmadas, com uma mensagem só:'
+select t_conferir_confirmacoes();
 
 begin;
   set local role authenticated;
@@ -283,8 +302,26 @@ begin;
       not exists (select 1 from public.comandas where id = (select comanda_id from cm))
       and (select pago_em is null and valor = 300 from public.pacote_clientes
             where cliente_id = 'c4310000-0000-0000-0000-00000000000a'));
+    perform t_igual('e as terças que ainda vêm voltam a ser reserva, sem lembrete na fila',
+      (select count(*) from public.agendamentos a join public.pacote_clientes pc on pc.id = a.pacote_cliente_id
+        where pc.cliente_id = 'c4310000-0000-0000-0000-00000000000a' and a.status = 'pendente'
+          and not exists (select 1 from public.notificacoes n where n.agendamento_id = a.id
+                           and n.tipo = 'lembrete' and n.status = 'pendente')), 4);
   end $$;
 commit;
+
+-- Pago de novo: confirmadas outra vez, e os lembretes voltam.
+begin;
+  set local role authenticated;
+  set local request.jwt.claim.sub = 'b4300000-0000-0000-0000-00000000000b';
+  select public.receber_pacote((select id from public.pacote_clientes
+                                 where cliente_id = 'c4310000-0000-0000-0000-00000000000a'), 'dinheiro');
+commit;
+select t_igual('pago de novo: confirmadas outra vez, e os lembretes voltam para a fila',
+  (select count(*) from public.agendamentos a join public.pacote_clientes pc on pc.id = a.pacote_cliente_id
+    where pc.cliente_id = 'c4310000-0000-0000-0000-00000000000a' and a.status = 'confirmado'
+      and exists (select 1 from public.notificacoes n where n.agendamento_id = a.id
+                   and n.tipo = 'lembrete' and n.status = 'pendente')), 4);
 
 \echo ''
 \echo '6. Só vincular, já pago; quem atende e a cliente não montam'

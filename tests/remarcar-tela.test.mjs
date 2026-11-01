@@ -15,7 +15,10 @@
      4. atendimento concluído não oferece "Remarcar";
      5. "Cancelar horário", vermelho, ao lado do Arquivar: pergunta antes; com
         o não nada muda, com o sim cancela (e a sessão do pacote volta);
-     6. a 390px a janela cabe; nenhum erro de JavaScript.
+     6. o lembrete da cliente (marcas E texto) aparece no cartão do dia, na
+        grade e na lista do que espera confirmação — "para eu saber quem é";
+     7. vender o pacote "Já pagou" pergunta antes: com o não, nada é gravado;
+     8. a 390px a janela cabe; nenhum erro de JavaScript.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -215,6 +218,54 @@ verdade('na sessão do pacote, a pergunta diz que a sessão volta para ele',
   dialogos.some(d => /A sessão volta para o pacote dela/.test(d)), dialogos.join(' | '));
 const r5 = await linha(`select public.pacote_sessoes_restantes(pacote_cliente_id) n, status from public.agendamentos where id = $1`, [SESSAO]);
 igual('e volta: as 4 sessões livres de novo', [r5.status, r5.n], ['cancelado', 4]);
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('6. O lembrete da cliente aparece onde ela aparece');
+await banco.query(`insert into public.clientes_lembretes (salao_id, cliente_id, marcas, texto)
+  values ($1, $2, '{"Atenção no pagamento"}', 'muito chata')`, [SALAO, MARIA]);
+const PEND = await horario('09:00', 'pendente');
+await banco.query(`update public.agendamentos set origem = 'online' where id = $1`, [PEND]);
+await p.evaluate(async () => { const novo = await carregarTudo(); if(novo) bd = novo; });
+const l6 = await p.evaluate(([id, d]) => {
+  const a = bd.agendamentos.find(x => x.id === id);
+  irPara('agenda'); diaAtual = d; pintar(); pintarAConfirmar();
+  return { cartao: cartaoDoDia(a),
+           fila: (document.getElementById('aConfirmar') || {}).innerText || '' };
+}, [PEND, D]);
+verdade('no cartão do dia: as marcas e o texto ("muito chata")',
+  l6.cartao.includes('class="dc-lembrete">Atenção no pagamento · muito chata<'), l6.cartao);
+verdade('na lista do que espera sua confirmação, junto do nome',
+  /Maria Souza[\s\S]*Atenção no pagamento · muito chata/.test(l6.fila), l6.fila);
+await p.evaluate(() => { trocarVista('dia'); });
+await p.waitForTimeout(400);
+const g6 = await p.evaluate(() => [...document.querySelectorAll('.ag .ag-lembrete')].map(e => e.textContent.trim()));
+verdade('e na grade do dia, no bloco do horário', g6.includes('Atenção no pagamento · muito chata'), JSON.stringify(g6));
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('7. Vender o pacote "Já pagou" pergunta antes');
+const JOANA = (await linha(`insert into public.clientes (salao_id, nome, telefone) values ($1, 'Joana Lima', $2)
+  returning id`, [SALAO, '119' + String(10000000 + Math.floor(Math.random() * 89999999))])).id;
+await p.evaluate(async () => { const novo = await carregarTudo(); if(novo) bd = novo; });
+const venderJaPago = async () => {
+  await p.evaluate(pid => { fecharModal(); abrirVenderPacote(pid); }, pacote.id);
+  await p.waitForSelector('#pkCliente');
+  await p.selectOption('#pkCliente', JOANA);
+  await p.fill('#pkValor', '150');
+  await p.selectOption('#pkForma', 'pix');
+  await p.click('#modalPe .btn-p:has-text("Vincular")');
+  await p.waitForTimeout(2500);
+};
+responder = false; dialogos.length = 0;
+await venderJaPago();
+verdade('pergunta: "Confirma que recebeu R$ 150,00 (Pix) de Joana Lima?"',
+  dialogos.some(d => /^Confirma que recebeu R\$\s?150,00 \(Pix\) de Joana Lima\?/.test(d)), dialogos.join(' | '));
+igual('com o não, nada é gravado',
+  (await linha(`select count(*)::int n from public.pacote_clientes where cliente_id = $1`, [JOANA])).n, 0);
+responder = true; dialogos.length = 0;
+await venderJaPago();
+igual('com o sim, o pacote fica pago no Pix',
+  await linha(`select pago_em is not null as pago, forma_pagamento f from public.pacote_clientes where cliente_id = $1`, [JOANA]),
+  { pago: true, f: 'pix' });
 
 igual('\nnenhum erro de JavaScript', erros, []);
 await nav.close();

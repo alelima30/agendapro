@@ -7016,7 +7016,7 @@ end $$;
 create or replace function public.receber_pacote(
   p_pacote_cliente uuid, p_forma text, p_valor numeric default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
-declare r record; v_valor numeric(10,2); v_comanda uuid;
+declare r record; v_valor numeric(10,2); v_comanda uuid; v_ids uuid[]; v_id uuid;
 begin
   select pc.*, p.salao_id, p.nome as pacote_nome into r
     from public.pacote_clientes pc
@@ -7054,8 +7054,21 @@ begin
   update public.pacote_clientes
      set valor = v_valor, pago_em = now(), forma_pagamento = p_forma, comanda_id = v_comanda
    where id = p_pacote_cliente;
+  select coalesce(array_agg(a.id order by a.inicio), '{}') into v_ids
+    from public.agendamentos a
+   where a.pacote_cliente_id = p_pacote_cliente and a.status = 'pendente'
+     and a.arquivado_em is null and a.inicio > now();
+  if cardinality(v_ids) > 0 then
+    update public.agendamentos set status = 'confirmado' where id = any(v_ids);
+    foreach v_id in array v_ids loop
+      perform public.refazer_lembrete_cliente(v_id);
+      perform public.refazer_lembrete_equipe(v_id);
+    end loop;
+    perform public.juntar_mensagens_do_pacote(v_ids, r.pacote_nome);
+  end if;
   perform public.refazer_textos_do_pacote(p_pacote_cliente);
-  return jsonb_build_object('ok', true, 'comanda', v_comanda, 'valor', v_valor);
+  return jsonb_build_object('ok', true, 'comanda', v_comanda, 'valor', v_valor,
+                            'confirmadas', cardinality(v_ids));
 end $$;
 create or replace function public.desfazer_recebimento_pacote(p_pacote_cliente uuid)
 returns jsonb language plpgsql security definer set search_path = public as $$
@@ -7078,6 +7091,17 @@ begin
      set pago_em = null, forma_pagamento = null, comanda_id = null
    where id = p_pacote_cliente;
   delete from public.comandas where id = r.comanda_id and automatica;
+  update public.agendamentos set status = 'pendente'
+   where pacote_cliente_id = p_pacote_cliente and status = 'confirmado'
+     and arquivado_em is null and inicio > now();
+  update public.notificacoes n
+     set status = 'cancelado', motivo = 'o pagamento do pacote foi desfeito'
+   where n.status = 'pendente'
+     and (n.chave = 'pacote_agenda:' || p_pacote_cliente
+          or (n.tipo in ('lembrete', 'lembrete_equipe', 'confirmacao')
+              and n.agendamento_id in (select a.id from public.agendamentos a
+                                        where a.pacote_cliente_id = p_pacote_cliente
+                                          and a.status = 'pendente')));
   perform public.refazer_textos_do_pacote(p_pacote_cliente);
   return jsonb_build_object('ok', true);
 end $$;
@@ -7124,7 +7148,9 @@ begin
      set status = 'cancelado', motivo = 'pacote: uma mensagem só, com todas as datas'
    where agendamento_id = any(p_ids[2:])
      and tipo in ('confirmacao', 'novo') and status = 'pendente';
-  if public.agenda_do_pacote(p_ids, p_pacote) then
+  if exists (select 1 from public.agendamentos a where a.id = p_ids[1] and a.status = 'pendente') then
+    null;
+  elsif public.agenda_do_pacote(p_ids, p_pacote) then
     update public.notificacoes
        set status = 'cancelado', motivo = 'pacote: a lista de horários vai numa mensagem só'
      where agendamento_id = p_ids[1] and tipo = 'confirmacao' and status = 'pendente';
@@ -7155,6 +7181,7 @@ declare
   v_semanas jsonb := '[]'::jsonb; v_problema boolean := false;
   v_primeiro date; v_vence date; v_dia date;
   v_pc uuid; v_ag uuid; v_ids uuid[] := '{}'; v_ordem int; s record;
+  v_reserva boolean;
 begin
   select * into v_pac from public.pacotes p where p.id = p_pacote and p.ativo;
   if v_pac.id is null then
@@ -7240,6 +7267,7 @@ begin
   else
     v_vence := public.hoje_no_salao(v_pac.salao_id) + v_pac.validade_dias;
   end if;
+  v_reserva := p_forma is null and coalesce(p_valor, 0) > 0;
   insert into public.pacote_clientes (pacote_id, cliente_id, sessoes, vence_em, valor)
        values (p_pacote, p_cliente, v_pac.sessoes, v_vence, nullif(round(coalesce(p_valor, 0), 2), 0))
     returning id into v_pc;
@@ -7254,7 +7282,7 @@ begin
         (salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
          valor_previsto, criado_por, pacote_cliente_id)
       values (v_pac.salao_id, p_cliente, p_profissional, v_inis[i + 1], v_fins[i + 1],
-              'confirmado', 'recepcao', 0, auth.uid(), v_pc)
+              case when v_reserva then 'pendente' else 'confirmado' end, 'recepcao', 0, auth.uid(), v_pc)
       returning id into v_ag;
     exception when exclusion_violation then
       raise exception 'Alguém acabou de marcar no horário da semana %. Confira e tente de novo.', i + 1
@@ -7280,7 +7308,7 @@ begin
   end loop;
   perform public.juntar_mensagens_do_pacote(v_ids, v_pac.nome);
   return jsonb_build_object('ok', true, 'pacoteCliente', v_pc, 'agendamentos', to_jsonb(v_ids),
-                            'venceEm', v_vence,
+                            'venceEm', v_vence, 'reservadas', v_reserva and v_n > 0,
                             'datas', case when v_n > 0 then public.datas_do_pacote(v_ids) end);
 end $$;
 revoke all on function public.receber_pacote(uuid, text, numeric) from public, anon;
@@ -8888,6 +8916,7 @@ begin
   v_sinal := public.sinal_do_salao(v_salao, v_valor, p_servicos, p_profissional, p_inicio);
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
+     and a.origem = 'online'
      and a.status in ('pendente','confirmado')
      and a.arquivado_em is null
      and a.inicio > now();

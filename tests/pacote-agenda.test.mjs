@@ -103,12 +103,15 @@ const maisDias = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(
 const ddmm = d => d.slice(8, 10) + '/' + d.slice(5, 7);
 
 const nav = await chromium.launch({ executablePath: CHROMIUM });
-const erros = [];
+const erros = [], perguntas = [];
 async function abrirPainel(dados, rotulo){
   const ctx = await nav.newContext({ viewport:{ width:390, height:860 }, isMobile:true, hasTouch:true });
   const p = await ctx.newPage();
   p.on('pageerror', e => erros.push(rotulo + ': ' + e.message));
-  p.on('dialog', d => { erros.push(rotulo + ' (alerta): ' + d.message()); d.accept(); });
+  /* As perguntas de pagamento ("Confirma que…") são esperadas e ficam
+     guardadas para conferir; qualquer outro alerta é erro. */
+  p.on('dialog', d => { (/^Confirma que/.test(d.message()) ? perguntas : erros)
+    .push(rotulo + ' (alerta): ' + d.message()); d.accept(); });
   await p.addInitScript(([b, s]) => { window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
     localStorage.setItem('agendapro.sessao', JSON.stringify(s));
     window.__abriu = []; window.open = u => { window.__abriu.push(String(u)); return null; }; }, [BASE, dados.sessao()]);
@@ -156,6 +159,8 @@ for(const n of [1, 3])
 await p.click('#fundo button:has-text("Agendar e vincular")');
 await p.waitForSelector('.pk-lista', { timeout: 15000 });
 const montado = await p.evaluate(() => document.querySelector('.modal').innerText.replace(/\s+/g, ' '));
+verdade('a receber: "Pacote montado" diz que ficaram reservadas, esperando o pagamento',
+  /Reservadas na agenda, esperando o pagamento/.test(montado), montado);
 verdade('"Pacote montado" lista as 4 terças com o serviço de cada uma',
   /ter \d\d\/\d\d às 14:00 · Mão ter \d\d\/\d\d às 14:00 · Mão \+ Pé ter \d\d\/\d\d às 14:00 · Mão ter \d\d\/\d\d às 14:00 · Mão \+ Pé/.test(montado),
   montado);
@@ -208,13 +213,26 @@ await p.evaluate(id => abrirDetalhe(id), agMaria);
 await p.waitForTimeout(300);
 verdade('o horário dela diz que o pacote ainda não foi pago',
   /ainda não foi pago: R\$\s?300,00 a receber/.test(await p.evaluate(() => document.querySelector('.modal').innerText)));
+igual('reservado: o selo "aguardando pagamento do pacote" e o botão "Recebi o pacote" no lugar do Confirmar',
+  await p.evaluate(() => [/aguardando pagamento do pacote/.test(document.querySelector('.modal').innerText),
+    [...document.querySelectorAll('#modalPe .btn')].map(b => b.textContent.trim())
+      .filter(t => /Recebi o pacote|Confirmar horário/.test(t))]), [true, ['Recebi o pacote']]);
+igual('no banco, as 4 terças reservadas (pendentes) até o pagamento',
+  (await linhas(`select count(*)::int n from public.agendamentos where pacote_cliente_id=$1 and status='pendente'`, [vMaria.id]))[0].n, 4);
 await p.evaluate(() => { fecharModal(); irPara('pacotes'); });
 await p.waitForTimeout(300);
 await p.click('.pk-receber-linha:has-text("Maria Souza") button:has-text("Recebi")');
 await p.waitForSelector('#rpForma');
 await p.selectOption('#rpForma', 'pix');
+perguntas.length = 0;
 await p.click('#fundo button:has-text("Receber")');
 await p.waitForTimeout(2500);
+verdade('"Receber" pergunta antes: o valor, a forma, e que as 4 sessões reservadas serão confirmadas',
+  perguntas.length === 1 && /Confirma que o pagamento foi feito\?/.test(perguntas[0])
+  && /300,00 \(Pix\) de Maria Souza/.test(perguntas[0]) && /As 4 sessões reservadas ficam confirmadas/.test(perguntas[0]),
+  perguntas.join(' | '));
+igual('pago: as 4 terças viram confirmadas',
+  (await linhas(`select count(*)::int n from public.agendamentos where pacote_cliente_id=$1 and status='confirmado'`, [vMaria.id]))[0].n, 4);
 const pago = (await linhas(`select pc.pago_em is not null as pago, pc.forma_pagamento, pg.valor
   from public.pacote_clientes pc join public.pagamentos pg on pg.comanda_id = pc.comanda_id where pc.id=$1`, [vMaria.id]))[0] || {};
 igual('recebido no Pix: pago, e a comanda do faturamento com R$ 300', [pago.pago, pago.forma_pagamento, pago.valor], [true, 'pix', '300.00']);
@@ -242,10 +260,13 @@ igual('abre as próximas 4 terças, no mesmo horário e com os mesmos serviços 
   [28, 35, 42, 49].map((n, i) => [maisDias(terca, n), '14:00', i % 2 ? 'Mão+Pé' : 'Mão']));
 await p.click('#fundo button:has-text("Agendar e vincular")');
 await p.waitForSelector('.pk-lista', { timeout: 15000 });
-igual('renovado: a Maria fica com 8 terças marcadas, em dois pacotes seguidos',
-  (await linhas(`select count(*)::int n, count(distinct a.pacote_cliente_id)::int v from public.agendamentos a
-     join public.pacote_clientes pc on pc.id = a.pacote_cliente_id where pc.cliente_id=$1 and a.status='confirmado'`, [MARIA.id]))[0],
-  { n:8, v:2 });
+igual('renovado (a receber): 8 terças em dois pacotes — as 4 pagas confirmadas, as 4 novas reservadas',
+  (await linhas(`select count(*)::int n, count(distinct a.pacote_cliente_id)::int v,
+       count(*) filter (where a.status = 'confirmado')::int c, count(*) filter (where a.status = 'pendente')::int r
+     from public.agendamentos a
+     join public.pacote_clientes pc on pc.id = a.pacote_cliente_id where pc.cliente_id=$1
+      and a.status in ('confirmado', 'pendente')`, [MARIA.id]))[0],
+  { n:8, v:2, c:4, r:4 });
 await ctxRita.close();
 
 /* ══════════════════════════════════════════════════════════════════════════ */

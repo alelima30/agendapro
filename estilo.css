@@ -3829,6 +3829,10 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 /* As marcas da cliente (41_ficha_equipe.sql), embaixo do horário. */
 .dia-cartao .dc-lembrete{ display:block; font-size:12.5px; font-weight:600; color:var(--txt); margin-top:3px }
 .lembrete-na-lista{ font-size:12px; font-weight:600; color:var(--txt) }
+/* Na grade do dia, dentro do bloco na cor da profissional: herda a letra
+   dele (a que dá leitura sobre aquela cor) e corta com reticências. */
+.ag .ag-lembrete{ display:block; font-size:11px; font-weight:700; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis }
 
 /* ── O QUE SÓ A EQUIPE SABE (41_ficha_equipe.sql) ───────────────────────── */
 .lembrete-marcas button{ height:auto; min-height:38px; padding:6px 12px; font-size:13.5px; text-align:left }

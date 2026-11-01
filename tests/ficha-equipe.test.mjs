@@ -200,8 +200,9 @@ secao('2. A Bia (profissional, outro login) abre o horário da Maria');
     && det.resumo === 'Como fazer · Coloração loiro perolado', JSON.stringify(det.resumo));
   igual('com o texto inteiro, com a quebra de linha', det.como, COMO);
   const cartao = await p.evaluate(id => cartaoDoDia(bd.agendamentos.find(a => a.id === id)), AG.id);
-  verdade('o cartão do dia mostra as marcas da cliente',
-    /class="dc-lembrete">Prefere não conversar · Atenção no pagamento</.test(cartao), cartao);
+  verdade('o cartão do dia mostra as marcas e o texto do lembrete',
+    cartao.includes('class="dc-lembrete">Prefere não conversar · Atenção no pagamento · ')
+    && cartao.includes(LEMBRETE.replace(/\s+/g, ' ').trim().slice(0, 20)), cartao);
   await ctx.close();
 }
 

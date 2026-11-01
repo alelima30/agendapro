@@ -2112,7 +2112,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.4d9b87';
+const VERSAO_APP = 'v9.bb417f';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2491,7 +2491,7 @@ function semDesfecho(){
 function esperandoResposta(){
   const agora = hoje();
   return agendaDoSalao()
-    .filter(a => a.status === 'pendente' && a.data >= agora)
+    .filter(a => a.status === 'pendente' && a.data >= agora && !aguardaPagamentoDoPacote(a))
     .sort((a, b) => (a.data + String(a.inicio).padStart(6, '0'))
       .localeCompare(b.data + String(b.inicio).padStart(6, '0')));
 }
@@ -2552,6 +2552,8 @@ function pintarAConfirmar(){
               escapar(rotuloServicos(a))} · ${
               escapar((acharProf(a.profissionalId) || {}).nome || '—')}</div>
             ${textoDoSinal(a) ? `<div class="sinal-linha">${escapar(textoDoSinal(a))}</div>` : ''}
+            ${resumoDoLembrete(a.clienteId) ? `<div class="lembrete-na-lista">${
+              escapar(resumoDoLembrete(a.clienteId))}</div>` : ''}
           </td>
           <td style="text-align:right;white-space:nowrap">
             <button class="btn btn-primario btn-peq"
@@ -2570,6 +2572,13 @@ function pintarAConfirmar(){
 function confirmarHorario(agId){
   const a = bd.agendamentos.find(x => x.id === agId);
   if(!a) return;
+  // Reservada pelo pacote: confirma quando o pacote é pago, e todas juntas.
+  if(aguardaPagamentoDoPacote(a)){
+    if(vejoTudo()) return abrirReceberPacote(vendaDoAgendamento(a).id);
+    alert('Esta sessão está reservada, esperando o pagamento do pacote. Quem registra '
+        + 'o pagamento é a recepção ou o dono, em Pacotes.');
+    return;
+  }
   a.status = 'confirmado';
   // O banco faz o mesmo (tg_sinal_confirmado); aqui é para a tela já dizer.
   const s = sinalDoHorario(a);
@@ -2823,11 +2832,14 @@ function pintarAgenda(){
       const zap = zapDoCliente(a.clienteId);
       html += `<div class="ag ${a.status}${curto}" style="top:${y(a.inicio)}px;height:${alt}px;
                     background:${corDoProf(p)};color:${letraSobre(corDoProf(p))}" title="${hm(a.inicio)} · ${escapar(nomeCliente(a.clienteId))} · ${escapar(rotuloServicos(a))}${
-                      a.status === 'pendente' ? ' · a confirmar' : ''}"
+                      a.status === 'pendente' ? ' · a confirmar' : ''}${
+                      resumoDoLembrete(a.clienteId) ? ' · ' + escapar(resumoDoLembrete(a.clienteId)) : ''}"
                     onclick="event.stopPropagation();abrirDetalhe('${a.id}')">
-                 ${a.status === 'pendente' ? '<i class="ag-pend">a confirmar</i>' : ''}
+                 ${a.status === 'pendente' ? `<i class="ag-pend">${aguardaPagamentoDoPacote(a)
+                   ? 'aguardando pagamento' : 'a confirmar'}</i>` : ''}
                  <b>${hm(a.inicio)} ${escapar(nomeCliente(a.clienteId))}</b>
-                 <span>${escapar(rotuloServicos(a))}</span>${zap ? `
+                 <span>${escapar(rotuloServicos(a))}</span>${resumoDoLembrete(a.clienteId) ? `
+                 <span class="ag-lembrete">${escapar(resumoDoLembrete(a.clienteId))}</span>` : ''}${zap ? `
                  <button class="ag-zap" aria-label="Falar no WhatsApp"
                          title="Falar com ${escapar(nomeCliente(a.clienteId))} no WhatsApp"
                          onclick="event.stopPropagation();falarNoWhatsapp('${a.id}')"
@@ -3001,12 +3013,13 @@ function cartaoDoDia(a){
         <span class="dc-txt">
           <span class="dc-nome">${escapar(nomeCliente(a.clienteId))}
             <span class="tag ${a.status === 'pendente' ? 't-pend' : CLASSE_STATUS[a.status] || ''}">${
-              a.status === 'pendente' ? 'A confirmar' : (ROTULO_STATUS[a.status] || a.status)}</span></span>
+              aguardaPagamentoDoPacote(a) ? 'Aguardando pagamento'
+              : a.status === 'pendente' ? 'A confirmar' : (ROTULO_STATUS[a.status] || a.status)}</span></span>
           <span class="dc-sub">${hm(a.inicio)}–${hm(a.fim)} · ${
             escapar(rotuloServicos(a))} · ${
             escapar((acharProf(a.profissionalId) || {}).nome || '—')}</span>
-          ${marcasDe(a.clienteId).length ? `<span class="dc-lembrete">${
-            escapar(marcasDe(a.clienteId).join(' · '))}</span>` : ''}
+          ${resumoDoLembrete(a.clienteId) ? `<span class="dc-lembrete">${
+            escapar(resumoDoLembrete(a.clienteId))}</span>` : ''}
         </span>
         <span class="dc-lado">
           <span class="dc-vlr">${real(totalDe(a))}</span>
@@ -3014,9 +3027,11 @@ function cartaoDoDia(a){
             ? `<span class="dc-pag">${escapar(nomeDaFormaPagamento(a.formaPagamento))}</span>` : ''}
           ${sinalDoHorario(a) ? `<span class="dc-pag">${sinalDoHorario(a).pago
             ? 'Sinal pago' : 'Aguardando sinal'}</span>` : ''}
-          ${a.status === 'pendente' ? `<button type="button" class="btn btn-primario btn-peq dc-confirmar"
+          ${a.status === 'pendente' && (vejoTudo() || !aguardaPagamentoDoPacote(a))
+            ? `<button type="button" class="btn btn-primario btn-peq dc-confirmar"
             onclick="event.stopPropagation();confirmarHorario('${a.id}')">${
-              sinalDoHorario(a) && !sinalDoHorario(a).pago ? 'Recebi o sinal' : 'Confirmar'}</button>` : ''}
+              aguardaPagamentoDoPacote(a) ? 'Recebi o pacote'
+              : sinalDoHorario(a) && !sinalDoHorario(a).pago ? 'Recebi o sinal' : 'Confirmar'}</button>` : ''}
         </span>
       </div>`;
 }
@@ -3162,7 +3177,8 @@ function pintarVariosDias(){
                width:calc(${larg}% - 6px);
                background:${corDoProf(p)};color:${letraSobre(corDoProf(p))}"
         title="${hm(a.inicio)} · ${escapar(nomeCliente(a.clienteId))} · ${escapar(p ? p.nome : '')}${
-          a.status === 'pendente' ? ' · a confirmar' : ''}"
+          a.status === 'pendente' ? ' · a confirmar' : ''}${
+          resumoDoLembrete(a.clienteId) ? ' · ' + escapar(resumoDoLembrete(a.clienteId)) : ''}"
         onclick="event.stopPropagation();abrirDetalhe('${a.id}')">
         ${a.status === 'pendente' ? '<i class="ag-pend">a confirmar</i>' : ''}
         <b>${hm(a.inicio)} ${escapar(nomeCliente(a.clienteId))}</b>
@@ -3290,7 +3306,7 @@ function pintarClientes(){
           ? ' <span class="tag t-conc" title="Ela mesma fez o cadastro pelo link do salão">cadastrou pelo link</span>' : ''}${c.exigeConfirmacao
           ? ' <span class="tag t-pend" title="O que ela marcar pelo link espera sua confirmação">confirma antes</span>' : ''}${
           c.obs ? `<br><span style="font-size:12px;color:var(--txt2)">${escapar(c.obs)}</span>` : ''}${
-          marcasDe(c.id).length ? `<br><span class="lembrete-na-lista">${escapar(marcasDe(c.id).join(' · '))}</span>` : ''}</td>
+          resumoDoLembrete(c.id) ? `<br><span class="lembrete-na-lista">${escapar(resumoDoLembrete(c.id))}</span>` : ''}</td>
         <td>${escapar(c.telefone || '—')}</td><td>${ult}</td><td>${dele.length}</td>
         <td>${f ? `<span class="tag ${f >= 2 ? 't-canc' : ''}">${f}</span>`
                 : '<span style="color:var(--txt3)">—</span>'}</td>
@@ -3968,6 +3984,11 @@ const vendaDoAgendamento = a => a && a.pacoteClienteId
   ? (bd.pacote_clientes || []).find(v => v.id === a.pacoteClienteId) || null : null;
 // "A receber": valor combinado, sem pagamento, e o pacote ainda vivo.
 const pacoteAReceber = v => !!v && Number(v.valor) > 0 && !v.pagoEm && !v.canceladoEm;
+/* Sessão RESERVADA: pacote vendido a receber com agenda fixa — o horário
+   fica guardado (pendente) e só é confirmado quando o pagamento é registrado
+   (43, `receber_pacote`). Não espera "sim" do salão: espera o dinheiro. */
+const aguardaPagamentoDoPacote = a => !!a && a.status === 'pendente'
+  && pacoteAReceber(vendaDoAgendamento(a));
 const sessoesDaVenda = vid => agendaDoSalao()
   .filter(a => a.pacoteClienteId === vid && a.status !== 'cancelado')
   .sort((x, y) => x.data.localeCompare(y.data) || x.inicio - y.inicio);
@@ -4032,7 +4053,8 @@ function abrirVenderPacote(pid, renovarDe){
         </select></div>
     </div>
     <p class="ajuda" style="margin:-4px 0 12px">Pago, entra no faturamento hoje. A receber,
-      aparece no topo de Pacotes até você tocar em <b>Recebi</b>.</p>
+      aparece no topo de Pacotes até você tocar em <b>Recebi</b> — e, com a agenda fixa, as
+      sessões ficam reservadas e só são confirmadas (e a cliente avisada) quando ela pagar.</p>
     <label class="check pk-fixa-chave"><input type="checkbox" id="pkFixa"${fixa ? ' checked' : ''}
            onchange="alternarAgendaFixa()">
       <span><b>Já deixar agendado (agenda fixa)</b><br>
@@ -4157,6 +4179,11 @@ async function montarPacote(){
     semanas = montagem.semanas.map(s => ({
       inicio: telaParaInstante(s.data, minDe(s.hora), fusoDoSalaoAtual()), servicos: s.servicos }));
   }
+  /* "Já pagou": a pergunta antes, com o valor e a forma — é dinheiro que
+     entra no faturamento de hoje, e as sessões já saem confirmadas. */
+  if(forma && !confirm('Confirma que recebeu ' + real(valor) + ' (' + nomeFormaDoPacote(forma) + ') de '
+      + nomeCliente(cliente) + '?' + (semanas.length ? '\n\nAs ' + semanas.length + ' sessões ficam '
+      + 'confirmadas e ela recebe a mensagem com as datas.' : ''))) return;
   const erro = document.getElementById('pkErro');
   const bt = [...document.querySelectorAll('.modal .btn-p')].pop();
   const rotulo = bt && bt.textContent;
@@ -4204,8 +4231,12 @@ function mostrarPacoteMontado(vid){
         : pacoteAReceber(venda) ? 'O pagamento ficou a receber, no topo de Pacotes.' : ''}</p>
     ${ss.length ? `<ul class="pk-lista">${ss.map(a => `<li><b>${diaDoPacote(a.data)} às ${hm(a.inicio)}</b> ·
         ${escapar(rotuloServicos(a))}</li>`).join('')}</ul>
-      <p class="ajuda">Já estão na agenda. A cliente recebe uma confirmação com todas as
-        datas e o lembrete na véspera de cada uma.</p>` : ''}`,
+      ${ss.some(aguardaPagamentoDoPacote)
+        ? `<p class="ajuda"><b>Reservadas na agenda, esperando o pagamento.</b> Quando ela pagar,
+            toque em <b>Recebi</b> em Pacotes: aí as sessões são confirmadas e ela recebe a
+            mensagem com todas as datas.</p>`
+        : `<p class="ajuda">Já estão na agenda. A cliente recebe uma confirmação com todas as
+            datas e o lembrete na véspera de cada uma.</p>`}` : ''}`,
     [['Fechar', 'fecharModal()'],
      ...(num ? [['Mandar no WhatsApp', `mandarPacoteNoZap('${vid}')`, 'btn-zap']] : [])]);
 }
@@ -4252,6 +4283,13 @@ function abrirReceberPacote(vid){
 async function receberPacote(vid){
   const valor = Math.round(Number(String(document.getElementById('rpValor').value).replace(',', '.')) * 100) / 100;
   if(!(valor > 0)){ alert('Diga quanto ela pagou.'); return; }
+  const venda = (bd.pacote_clientes || []).find(x => x.id === vid) || {};
+  const forma = document.getElementById('rpForma').value;
+  const reservadas = sessoesDaVenda(vid).filter(a => a.status === 'pendente' && a.data >= hoje()).length;
+  if(!confirm('Confirma que o pagamento foi feito?\n\n' + real(valor) + ' (' + nomeFormaDoPacote(forma)
+      + ') de ' + nomeCliente(venda.clienteId) + '.' + (reservadas ? '\n\nAs ' + reservadas
+      + (reservadas === 1 ? ' sessão reservada fica confirmada' : ' sessões reservadas ficam confirmadas')
+      + ' e ela recebe a mensagem com as datas.' : ''))) return;
   try{
     await Dados.chamar('receber_pacote', { p_pacote_cliente: vid,
       p_forma: document.getElementById('rpForma').value, p_valor: valor });
@@ -4266,7 +4304,8 @@ async function receberPacote(vid){
 async function desfazerRecebimento(vid){
   if(!souGestor()) return;
   if(!confirm('Desfazer o pagamento deste pacote?\n\nO valor sai do faturamento e o pacote '
-            + 'volta a ficar a receber.')) return;
+            + 'volta a ficar a receber. As sessões que ainda vão acontecer voltam a ficar '
+            + 'reservadas, sem lembrete, até o pagamento ser registrado de novo.')) return;
   try{
     await Dados.chamar('desfazer_recebimento_pacote', { p_pacote_cliente: vid });
     const novo = await carregarTudo();
@@ -6999,6 +7038,7 @@ function abrirDetalhe(agId){
       ${a.status === 'cancelado' && /^remarcado/.test(a.canceladoMotivo || '')
         ? '<span class="tag t-conc" style="margin-left:5px">remarcado pela cliente</span>' : ''}
       ${a.origem === 'online' ? '<span class="tag t-conc" style="margin-left:5px">veio pelo link</span>' : ''}
+      ${aguardaPagamentoDoPacote(a) ? '<span class="tag t-pend" style="margin-left:5px">aguardando pagamento do pacote</span>' : ''}
       <!-- Exceção que não aparece volta a ser buraco: o encaixe precisa ser
            visível para quem abre o atendimento depois. -->
       ${a.encaixe ? '<span class="tag t-pend" style="margin-left:5px">encaixe</span>' : ''}
@@ -7026,7 +7066,8 @@ function abrirDetalhe(agId){
         <td><b>Coberto pelo pacote da cliente</b><br>
         <span style="font-size:12px;color:var(--txt2)">${pacoteAReceber(vendaDoAgendamento(a))
           ? 'o pacote ainda não foi pago: ' + real(Number(vendaDoAgendamento(a).valor))
-            + ' a receber, em Pacotes'
+            + ' a receber, em Pacotes' + (a.status === 'pendente'
+              ? '. O horário está reservado e é confirmado quando o pagamento for registrado' : '')
           : 'esta sessão já foi paga — não cobre de novo'}</span></td></tr>` : ''}
       ${Number(a.desconto) > 0 ? `<tr><td style="color:var(--txt2)">Cupom</td>
         <td><b>${escapar(codigoDoCupom(a.cupomId) || 'Desconto')}</b> · − ${real(Number(a.desconto))}<br>
@@ -7096,7 +7137,9 @@ function abrirDetalhe(agId){
 
        Só aparece quando há o que confirmar: num salão que confirma
        automático, nenhum atendimento chega em `pendente`. */
-    ...(a.status === 'pendente'
+    ...(aguardaPagamentoDoPacote(a)
+        ? (vejoTudo() ? [['Recebi o pacote', `fecharModal();abrirReceberPacote('${vendaDoAgendamento(a).id}')`, 'btn-p']] : [])
+        : a.status === 'pendente'
         ? [['Confirmar horário', `confirmarHorario('${agId}');fecharModal()`, 'btn-p']]
         : []),
     // Mover o horário: outro dia, outra hora, outra profissional (49_remarcar.sql).
@@ -8085,6 +8128,16 @@ function lembreteDe(cid){
 function marcasDe(cid){
   const l = lembreteDe(cid);
   return l && Array.isArray(l.marcas) ? l.marcas : [];
+}
+/* O lembrete numa linha só: as marcas E o que foi escrito ("Muito chata").
+   Só as marcas apareciam fora da ficha, e o dono escreveu o dele no texto:
+   "tem que aparecer aí, e quando aparece para eu confirmar o agendamento —
+   lembrete para eu saber quem é". */
+function resumoDoLembrete(cid){
+  const l = lembreteDe(cid);
+  if(!l) return '';
+  const texto = String(l.texto || '').replace(/\s+/g, ' ').trim();
+  return marcasDe(cid).concat(texto ? [texto] : []).join(' · ');
 }
 function marcasParaEscolher(cid){
   const tem = marcasDe(cid);

@@ -396,6 +396,23 @@ select t_igual('depois de cancelar uma, cabe outra',
      array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
      'Joana Ribeiro', '51998876655')), 1);
 
+-- O que o SALÃO marcou para ela não é spam: as sessões do pacote com agenda
+-- fixa, marcadas pela recepção, travavam a cliente no link ("Você já tem 3
+-- horários marcados aqui" — visto pelo dono no teste).
+insert into public.agendamentos (salao_id, cliente_id, profissional_id, inicio, fim, status, origem)
+select 'aaaaaaaa-0000-0000-0000-000000000001', c.id, 'bbbbbbbb-0000-0000-0000-000000000001',
+       (dia_teste() + time '17:00') at time zone 'America/Sao_Paulo',
+       (dia_teste() + time '17:40') at time zone 'America/Sao_Paulo', 'confirmado', 'recepcao'
+  from public.clientes c where c.nome = 'Joana Ribeiro';
+update public.agendamentos set status = 'cancelado'
+ where inicio = (dia_teste() + time '16:00') at time zone 'America/Sao_Paulo' and origem = 'online';
+select t_igual('o que o salão marcou para ela não conta no freio',
+  (select count(*) from public.agendar(
+     'bbbbbbbb-0000-0000-0000-000000000001'::uuid,
+     (dia_teste() + time '16:00') at time zone 'America/Sao_Paulo',
+     array['cccccccc-0000-0000-0000-000000000001'::uuid]::uuid[],
+     'Joana Ribeiro', '51998876655')), 1);
+
 -- ---------------------------------------------------------------------------
 -- 10) Salão suspenso
 --

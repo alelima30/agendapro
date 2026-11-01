@@ -1060,6 +1060,26 @@ with conferencia(ordem, item, veredito, detalhe) as (
   union all
   /* O Crediário (47_crediario): a venda a prazo, as parcelas e o que entra
      no caixa, no relatório e na comissão. */
+  /* O freio do link (09): conta só o que a cliente marcou pelo link — as
+     sessões que o salão marcou (pacote com agenda fixa) não travam mais. */
+  select 57, 'Freio do link conta só o que a cliente marcou',
+         case when not exists (select 1 from pg_proc where proname = 'agendar'
+                                 and prosrc like '%origem = ''online''%v_abertos >= 3%')
+              then 'FALTA' else 'certo' end,
+         case when not exists (select 1 from pg_proc where proname = 'agendar'
+                                 and prosrc like '%origem = ''online''%v_abertos >= 3%')
+              then 'cole o 00_tudo.sql de novo (09_cliente)' else '' end
+  union all
+  /* Pacote a receber (43): as sessões ficam reservadas até o pagamento, e o
+     "Recebi" as confirma. */
+  select 58, 'Pacote a receber reserva as sessões até o pagamento',
+         case when not exists (select 1 from pg_proc where proname = 'montar_pacote' and prosrc like '%v_reserva%')
+                or not exists (select 1 from pg_proc where proname = 'receber_pacote' and prosrc like '%confirmadas%')
+              then 'FALTA' else 'certo' end,
+         case when not exists (select 1 from pg_proc where proname = 'montar_pacote' and prosrc like '%v_reserva%')
+                or not exists (select 1 from pg_proc where proname = 'receber_pacote' and prosrc like '%confirmadas%')
+              then 'cole o 00_tudo.sql de novo (43_pacote_agenda)' else '' end
+  union all
   /* Remarcar pelo painel (49_remarcar): o salão move o horário, mantendo o
      pacote, os serviços e o valor. */
   select 56, 'Remarcar pelo painel',

@@ -50,14 +50,14 @@ PY
 
 echo "1. a lista diz \"Pendente\" em vez de \"A confirmar\""
 troca app.html \
-  "              a.status === 'pendente' ? 'A confirmar' : (ROTULO_STATUS[a.status] || a.status)}</span></span>" \
-  "              ROTULO_STATUS[a.status] || a.status}</span></span>" \
+  "              : a.status === 'pendente' ? 'A confirmar' : (ROTULO_STATUS[a.status] || a.status)}</span></span>" \
+  "              : ROTULO_STATUS[a.status] || a.status}</span></span>" \
   && rodar "a etiqueta não diz o que fazer"
 
 echo "2. sem o Confirmar no cartão"
 troca app.html \
-  "          \${a.status === 'pendente' ? \`<button type=\"button\" class=\"btn btn-primario btn-peq dc-confirmar\"" \
-  "          \${false ? \`<button type=\"button\" class=\"btn btn-primario btn-peq dc-confirmar\"" \
+  "          \${a.status === 'pendente' && (vejoTudo() || !aguardaPagamentoDoPacote(a))" \
+  "          \${false && (vejoTudo() || !aguardaPagamentoDoPacote(a))" \
   && rodar "tem que abrir a ficha para confirmar"
 
 echo "3. Confirmar abre a ficha por cima"
@@ -74,8 +74,8 @@ troca app.html \
 
 echo "5. a grade do dia sem a etiqueta"
 troca app.html \
-  "                 \${a.status === 'pendente' ? '<i class=\"ag-pend\">a confirmar</i>' : ''}" \
-  "" \
+  "                 \${a.status === 'pendente' ? \`<i class=\"ag-pend\">\${aguardaPagamentoDoPacote(a)" \
+  "                 \${false ? \`<i class=\"ag-pend\">\${aguardaPagamentoDoPacote(a)" \
   && rodar "bloco pendente igual ao confirmado"
 
 echo "6. o recado não fala da confirmação"

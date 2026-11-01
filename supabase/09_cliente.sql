@@ -584,8 +584,14 @@ begin
      quem confirma é o dono, quando o comprovante chega. */
   v_sinal := public.sinal_do_salao(v_salao, v_valor, p_servicos, p_profissional, p_inicio);
 
+  /* ⚠ SÓ O QUE ELA MESMA MARCOU PELO LINK (`origem = 'online'`). O freio é
+     contra spam no formulário aberto; o que o SALÃO marcou para ela não é
+     spam. Contando tudo, a cliente do pacote com agenda fixa (43: as quatro
+     terças já marcadas pela recepção) nunca mais marcava nada pelo link —
+     "Você já tem 3 horários marcados aqui", visto pelo dono no teste. */
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
+     and a.origem = 'online'
      and a.status in ('pendente','confirmado')
      and a.arquivado_em is null
      and a.inicio > now();

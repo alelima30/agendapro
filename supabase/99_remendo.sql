@@ -1647,6 +1647,7 @@ begin
   v_sinal := public.sinal_do_salao(v_salao, v_valor, p_servicos, p_profissional, p_inicio);
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
+     and a.origem = 'online'
      and a.status in ('pendente','confirmado')
      and a.arquivado_em is null
      and a.inicio > now();

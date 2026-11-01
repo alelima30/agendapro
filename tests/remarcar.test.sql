@@ -80,7 +80,7 @@ $$;
 select set_config('request.jwt.claim.sub', 'b4900000-0000-0000-0000-00000000000b', false);
 set role authenticated;
 select public.montar_pacote('54920000-0000-0000-0000-0000000000b1', 'c4910000-0000-0000-0000-00000000000a',
-  300, null, '94900000-0000-0000-0000-00000000000d',
+  300, 'pix', '94900000-0000-0000-0000-00000000000d',
   jsonb_build_array(
     jsonb_build_object('inicio', t_em(:'terca'::date, '14:00'),
                        'servicos', '["54910000-0000-0000-0000-0000000000a1","54910000-0000-0000-0000-0000000000a2"]'::jsonb),

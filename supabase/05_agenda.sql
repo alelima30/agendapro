@@ -638,8 +638,10 @@ begin
   -- Três marcações futuras em aberto atende a cliente de verdade (o corte
   -- desta semana, a escova do casamento, a manutenção do mês) e trava quem
   -- está brincando. Cancelou ou foi atendida, libera vaga na conta.
+  -- Só o que ela marcou pelo link: o que o salão marcou não é spam (ver o 09).
   select count(*) into v_abertos from public.agendamentos a
    where a.cliente_id = v_cliente
+     and a.origem = 'online'
      and a.status in ('pendente','confirmado')
      and a.arquivado_em is null
      and a.inicio > now();
