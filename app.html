@@ -2112,7 +2112,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.a649b8';
+const VERSAO_APP = 'v9.c75cfc';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -10833,15 +10833,9 @@ function pintarSalao(){
            a cliente ja comprou. Saem quando a plataforma libera os modelos. -->
       <div class="campo">
         <label class="check"><input type="checkbox" id="nPacoteRenova">
-          <span><b>Pacote: aviso de renovação</b> — seis dias antes da última
-          sessão do pacote, às 10h, a cliente recebe a data dela e o convite
-          para combinar a renovação. Se ela renovar antes, não sai.</span></label>
-      </div>
-      <div class="campo" style="margin-top:12px">
-        <label class="check"><input type="checkbox" id="nPacotePaga">
-          <span><b>Pacote: lembrete do pagamento</b> — na véspera da primeira
-          sessão, às 10h, quem está com o pacote "a receber" recebe o valor e a
-          sua chave Pix. Se você registrar o pagamento antes, não sai.</span></label>
+          <span><b>Pacote: aviso da última sessão</b> — seis dias antes da
+          última sessão do pacote, às 10h, a cliente recebe a data dela e fica
+          sabendo que o pacote se encerra ali. Se ela renovar antes, não sai.</span></label>
       </div>
       <div id="avisoPacoteMsg"></div>
 
@@ -10969,8 +10963,8 @@ function pintarSalao(){
      notifResumo        false   o resumo do dia começa DESLIGADO
      notifResumoHora    8
      notifResumoPeriodo 'dia'
-     notifPacoteRenova  true    o aviso de renovação do pacote (45)
-     notifPacotePaga    true    o lembrete do pagamento do pacote (45)
+     notifPacoteRenova  true    o aviso da última sessão do pacote (45)
+     notifPacotePaga    true    (o lembrete do pagamento do pacote saiu: 45)
 
    ⚠ O resumo nasce desligado de propósito, e é o único. Confirmação e
    lembrete a cliente espera receber; o resumo é uma mensagem por dia para o
@@ -11009,7 +11003,6 @@ function pintarNotificacoes(soVisibilidade){
         ? cfg.notifLembreteEquipePara : 'atende');
     marcar('nResumo', cfg.notifResumo === true);
     marcar('nPacoteRenova', cfg.notifPacoteRenova !== false);
-    marcar('nPacotePaga', cfg.notifPacotePaga !== false);
     escolher('nResumoPeriodo', cfg.notifResumoPeriodo || 'dia');
     horasDoDia('nResumoHora', Number(cfg.notifResumoHora ?? 8));
     horasDoDia('nManhaIni',  Number(cfg.notifManhaIni  ?? 0));
@@ -11112,7 +11105,6 @@ function salvarNotificacoes(){
     notifLembreteEquipePara: (document.getElementById('nLembEquipePara') || {}).value || 'atende',
     notifResumo: liga('nResumo'),
     notifPacoteRenova: liga('nPacoteRenova'),
-    notifPacotePaga: liga('nPacotePaga'),
     notifResumoHora: num('nResumoHora') || 0,
     notifResumoPeriodo: (document.getElementById('nResumoPeriodo') || {}).value || 'dia',
     notifManhaIni: num('nManhaIni') || 0,
@@ -11144,7 +11136,7 @@ const ROTULO_NOTIF = { confirmacao:'Confirmação', lembrete:'Lembrete para o cl
                        pedido_a_caminho:'Pedido saiu para entrega', pedido_pronto:'Pedido pronto para retirar',
                        pedido_cancelado:'Pedido cancelado',
                        // As do pacote (45_pacote_mensagens).
-                       pacote_renovar:'Pacote: aviso de renovação',
+                       pacote_renovar:'Pacote: aviso da última sessão',
                        pacote_pagamento:'Pacote: lembrete do pagamento',
                        pacote_agenda:'Pacote: lista de horários' };
 const ROTULO_ESTADO = { pendente:['pendente','t-pend'], enviando:['enviando','t-pend'],

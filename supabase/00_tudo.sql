@@ -13035,13 +13035,18 @@ create index if not exists ix_agend_pacote
 -- Contado, nunca guardado. Os mesmos status que o resto do sistema considera
 -- vivos — cancelado devolve a sessão porque deixa de contar, e não porque
 -- alguém lembrou de decrementar.
+--
+-- E a FALTA também gasta: "quando a cliente falta, a sessão do pacote deve
+-- ser descontada? Sim." O horário ficou guardado para ela e ninguém mais
+-- pôde usar. Cancelar continua devolvendo — e, se o salão quiser perdoar
+-- uma falta, é só mudar o status para cancelado em vez de "faltou".
 -- ---------------------------------------------------------------------------
 create or replace function public.pacote_sessoes_restantes(p_pacote_cliente uuid)
 returns int language sql stable security definer set search_path = public as $$
   select greatest(0, pc.sessoes - (
       select count(*) from public.agendamentos a
        where a.pacote_cliente_id = pc.id
-         and a.status in ('pendente','confirmado','em_atendimento','concluido')
+         and a.status in ('pendente','confirmado','em_atendimento','concluido','faltou')
          and a.arquivado_em is null))
     from public.pacote_clientes pc
    where pc.id = p_pacote_cliente
@@ -16031,7 +16036,10 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_pronto'     then 'agendapro_pedido_pronto'
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
     -- Os do pacote (45). Só saem com o interruptor da plataforma ligado.
-    when 'pacote_renovar'    then 'agendapro_pacote_renovacao'
+    -- A última sessão (tipo `pacote_renovar`, o nome antigo do aviso): o
+    -- `agendapro_pacote_renovacao` a Meta aprovou como Marketing, e categoria
+    -- não se troca. O de pagamento não sai mais (45), mas o nome fica aqui.
+    when 'pacote_renovar'    then 'agendapro_pacote_ultima_sessao'
     when 'pacote_pagamento'  then 'agendapro_pacote_pagamento'
     when 'pacote_agenda'     then 'agendapro_pacote_agenda'
   end
@@ -18408,14 +18416,15 @@ revoke all on function public.tg_pacote_comissao() from public, anon, authentica
 -- O pedido: depois do pacote com agenda fixa (43), "sim" para as duas
 -- mensagens automáticas que faltavam:
 --
---   · RENOVAÇÃO: seis dias antes da última sessão, às 10h do salão, a cliente
---     recebe "Aviso sobre o seu pacote: a última sessão é terça, 01/12 às
---     14:00 — para continuar, combine a renovação com o salão". Só quando
---     todas as sessões estão na agenda (antes disso, "a última" não é a
---     última). Renovou antes? O aviso do pacote anterior sai da fila.
---   · PAGAMENTO: na véspera da primeira sessão, às 10h, quem está "a receber"
---     recebe o lembrete com o valor e a chave Pix. Tocou em "Recebi" antes?
---     O lembrete sai da fila.
+--   · ÚLTIMA SESSÃO (era "renovação"): seis dias antes da última sessão, às
+--     10h do salão, a cliente recebe "Informação sobre o seu pacote: última
+--     sessão incluída terça, 01/12 às 14:00". Só quando todas as sessões
+--     estão na agenda (antes disso, "a última" não é a última). Renovou
+--     antes? O aviso do pacote anterior sai da fila. Sem convite para
+--     renovar: com ele, a Meta aprovou o modelo como Marketing.
+--   · PAGAMENTO: existiu (véspera da primeira sessão, para quem estava "a
+--     receber") e saiu: o pacote a receber fica reservado até o "Recebi", e
+--     aí a cliente recebe a lista de horários. Não há o que lembrar antes.
 --
 -- ── ⚠ SÓ SAEM COM OS MODELOS APROVADOS NA META ────────────────────────────
 -- O número que manda é o do AgendaPro, e ele só manda modelo aprovado. Os
@@ -18512,7 +18521,7 @@ create or replace function public.avisos_do_pacote(p_pacote_cliente uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare
   r record; v_tel text; v_fuso text; v_prim record; v_ult record; v_quando timestamptz;
-  v_nome text; v_quando_txt text; v_pix text; v_motivo text; v_comum text;
+  v_nome text; v_quando_txt text; v_motivo text; v_comum text;
   v_dias text[] := array['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
 begin
   select pc.id, pc.cliente_id, pc.pacote_id, pc.valor, pc.pago_em, pc.cancelado_em, pc.criado_em,
@@ -18575,41 +18584,27 @@ begin
     -- Pacote curto (tudo numa semana): o aviso cairia antes de ele começar.
     when v_quando <= v_prim.inicio then 'pacote curto demais para o aviso'
   end);
+  /* "Combine a renovação com o salão" fez a Meta aprovar o modelo como
+     MARKETING (custa umas 8 vezes mais e é segurado para quem nunca falou com
+     o número). Agora é só a informação — a última sessão e onde — com outro
+     nome de modelo (`agendapro_pacote_ultima_sessao`, no modelo_de do 37). */
   perform public.gravar_aviso_do_pacote(r.salao_id, 'pacote_renovar', 'pacote_renovar:' || r.id,
     v_motivo, v_quando, interval '0', v_ult.inicio, v_tel, r.cliente_id, v_ult.id,
-    'Olá, ' || v_nome || '. Aviso sobre o seu pacote ' || r.pacote || ' no ' || r.casa || '.'
-      || E'\n\n📅 Última sessão do pacote: ' || v_quando_txt
-      || E'\n\nDepois dessa data o pacote termina. Para manter os seus horários, '
-      || 'combine a renovação com o salão.'
-      || E'\n\nAviso automático do sistema de agendamento.',
+    'Olá, ' || v_nome || '. Informação sobre o seu pacote ' || r.pacote || '.'
+      || E'\n\n📅 Última sessão incluída: ' || v_quando_txt
+      || E'\n🏪 Local: ' || r.casa
+      || E'\n\nDepois dessa sessão, o pacote se encerra. Aviso automático do sistema de agendamento.',
     jsonb_build_array(v_nome, public.variavel_limpa(r.pacote),
-                      public.variavel_limpa(r.casa), public.variavel_limpa(v_quando_txt)));
+                      public.variavel_limpa(v_quando_txt), public.variavel_limpa(r.casa)));
 
-  -- PAGAMENTO: véspera da primeira sessão, às 10h, enquanto estiver a receber.
-  -- Montado em cima da hora (folga de uma hora), o dono acabou de combinar
-  -- com ela: sem lembrete.
-  if v_comum is null then
-    v_quando := ((((v_prim.inicio at time zone v_fuso)::date - 1) + time '10:00') at time zone v_fuso);
-  end if;
-  -- A chave Pix só quando o salão aceita Pix (como o sinal, no 09).
-  v_pix := case when coalesce(r.cfg->'pagamentos'->'formas', '[]'::jsonb) ? 'pix'
-                then 'Pix (chave: ' || nullif(btrim(coalesce(r.cfg->'pagamentos'->>'pix', '')), '') || ')' end;
-  v_motivo := coalesce(v_comum, case
-    when not public.notif_liga(r.salao_id, 'notifPacotePaga', true) then 'desligado pelo salão'
-    when coalesce(r.valor, 0) <= 0 then 'pacote sem valor a receber'
-    when r.pago_em is not null then 'pacote pago'
-  end);
+  /* PAGAMENTO: não sai mais. "O pacote só é confirmado com o pagamento" —
+     as sessões ficam reservadas até o salão tocar em "Recebi" (43), e aí a
+     cliente recebe a lista de horários. Um lembrete de pagar antes disso
+     sobrava. A chamada fica só para tirar da fila o que estivesse pendente;
+     o painel continua mostrando "a receber" para o salão. */
   perform public.gravar_aviso_do_pacote(r.salao_id, 'pacote_pagamento', 'pacote_pagamento:' || r.id,
-    v_motivo, v_quando, interval '1 hour', v_prim.inicio, v_tel, r.cliente_id, v_prim.id,
-    'Olá, ' || v_nome || '. Lembrete do pagamento do seu pacote ' || r.pacote
-      || ' no ' || r.casa || '.'
-      || E'\n\n💰 Valor: ' || public.reais(r.valor)
-      || E'\n💳 Pagamento: ' || coalesce(v_pix, 'combine com o salão')
-      || E'\n\nSe você já pagou, desconsidere esta mensagem.'
-      || E'\n\nAviso automático do sistema de agendamento.',
-    jsonb_build_array(v_nome, public.variavel_limpa(r.pacote), public.variavel_limpa(r.casa),
-                      public.variavel_limpa(public.reais(r.valor)),
-                      public.variavel_limpa(coalesce(v_pix, 'combine com o salão'))));
+    'sem lembrete de pagamento: o pacote confirma quando o salão registra o pagamento',
+    null, interval '1 hour', v_prim.inicio, v_tel, r.cliente_id, v_prim.id, null, null);
 end $$;
 
 /* Os pacotes de um salão (ou de todos) que ainda têm sessão pela frente:
@@ -18673,14 +18668,17 @@ begin
   insert into public.notificacoes
     (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo, chave, modelo, variaveis)
   values (r.salao_id, 'pacote_agenda', v_tel, r.cliente_id, p_ids[1], now(),
-          'Olá, ' || v_nome || '. Seu pacote ' || p_pacote || ' no ' || r.casa
+          /* Sem o nome da profissional: "vai que no pacote muda o
+             profissional". No lugar, o salão (Local) — e ele sai da
+             primeira linha para não aparecer duas vezes. */
+          'Olá, ' || v_nome || '. Seu pacote ' || p_pacote
             || ' está com os horários marcados.'
             || E'\n\n📅 Horários: ' || v_lista
-            || E'\n👤 Profissional: ' || r.prof
+            || E'\n🏪 Local: ' || r.casa
             || E'\n\nVocê recebe um lembrete antes de cada sessão. Aviso automático do sistema de agendamento.',
           'pacote_agenda:' || r.pacote_cliente_id, public.modelo_de('pacote_agenda'),
-          jsonb_build_array(v_nome, public.variavel_limpa(p_pacote), public.variavel_limpa(r.casa),
-                            public.variavel_limpa(v_lista), public.variavel_limpa(r.prof)))
+          jsonb_build_array(v_nome, public.variavel_limpa(p_pacote),
+                            public.variavel_limpa(v_lista), public.variavel_limpa(r.casa)))
   on conflict (salao_id, chave) do nothing;
   return true;
 end $$;

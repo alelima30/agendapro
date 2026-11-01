@@ -143,11 +143,12 @@ igual('em 2 horas antes', await p.inputValue('#nLembreteMin'), '120');
    mandar mensagem que ninguém pediu e cobrar a cota dele por ela. */
 igual('e o resumo do dia vem DESLIGADO', await p.isChecked('#nResumo'), false);
 
-/* As duas do pacote vêm ligadas (falam do que a cliente já comprou) — e,
-   enquanto a plataforma não libera os modelos novos, a tela diz que elas
-   ainda não estão saindo, em vez de deixar o dono achar que avisou. */
-igual('as duas do pacote vêm ligadas', JSON.stringify(
-  [await p.isChecked('#nPacoteRenova'), await p.isChecked('#nPacotePaga')]), '[true,true]');
+/* O aviso do pacote vem ligado (fala do que a cliente já comprou) — e,
+   enquanto a plataforma não libera os modelos novos, a tela diz que ainda
+   não está saindo, em vez de deixar o dono achar que avisou. O lembrete de
+   pagamento do pacote saiu ("o pacote só é confirmado com o pagamento"). */
+igual('o aviso da última sessão vem ligado, e a chave do lembrete de pagamento não existe mais', JSON.stringify(
+  [await p.isChecked('#nPacoteRenova'), (await p.$('#nPacotePaga')) === null]), '[true,true]');
 await p.waitForFunction(() => (document.getElementById('avisoPacoteMsg') || {}).innerText,
   null, { timeout: 8000 }).catch(() => {});
 verdade('e a tela diz que ainda não estão saindo (os modelos esperam a Meta)',
@@ -204,7 +205,7 @@ igual('o banco passa a usar 24 horas',
 igual('e o resumo passa a estar ligado',
   (await banco.query(`select public.notif_liga($1,'notifResumo',false) as l`,
     [SALAO])).rows[0].l, true);
-igual('o aviso de renovação do pacote chega desligado ao banco, o do pagamento segue ligado',
+igual('o aviso da última sessão do pacote chega desligado ao banco (o lembrete de pagamento, que saiu, fica como estava)',
   (await banco.query(`select public.notif_liga($1,'notifPacoteRenova',true) as r,
      public.notif_liga($1,'notifPacotePaga',true) as p`, [SALAO])).rows.map(x => JSON.stringify([x.r, x.p]))[0],
   '[false,true]');
@@ -251,8 +252,8 @@ await abrirNotif();
 
 igual('o lembrete volta em 24 horas', await p.inputValue('#nLembreteMin'), '1440');
 igual('o resumo volta ligado', await p.isChecked('#nResumo'), true);
-igual('a renovação do pacote volta desligada, o pagamento ligado', JSON.stringify(
-  [await p.isChecked('#nPacoteRenova'), await p.isChecked('#nPacotePaga')]), '[false,true]');
+igual('o aviso da última sessão do pacote volta desligado (e a chave do pagamento continua fora)', JSON.stringify(
+  [await p.isChecked('#nPacoteRenova'), (await p.$('#nPacotePaga')) === null]), '[false,true]');
 igual('na hora escolhida', await p.inputValue('#nResumoHora'), '7');
 igual('e no período escolhido', await p.inputValue('#nResumoPeriodo'), 'manha');
 igual('o lembrete para o salão volta ligado, 2h, para os dois',

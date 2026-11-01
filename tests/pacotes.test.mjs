@@ -274,7 +274,27 @@ const depoisDoCancel = await marcar(maria, [manutencao.id], daquiA(13, 13),
   'Maria Pacote', TEL_MARIA);
 igual('cancelando uma, a sessão volta e a próxima sai de graça de novo',
   Number(depoisDoCancel[0].valor), 0);
+
+/* ⚠ A FALTA GASTA. "Quando a cliente falta, a sessão do pacote deve ser
+   descontada? Sim." A que voltou com o cancelamento está nesta marcação; se
+   ela faltar, a sessão não volta: a próxima já custa os R$ 40. */
+await dona.atualizar('agendamentos', depoisDoCancel[0].id, { status:'faltou' });
+const depoisDaFalta = await marcar(maria, [manutencao.id], daquiA(14, 13),
+  'Maria Pacote', TEL_MARIA);
+igual('faltou: a sessão foi gasta, e a próxima custa R$ 40',
+  Number(depoisDaFalta[0].valor), 40);
+await desmarcar(depoisDaFalta[0].id);
+const naListaDela = await maria.chamar('meus_pacotes', { p_salao: SALAO });
+igual('e no link ela vê 0 sessões restantes',
+  Number(((Array.isArray(naListaDela) ? naListaDela : [])[0] || {}).restantes || 0), 0);
+
+/* E perdoar a falta é mudar para cancelado: a sessão volta. */
 await desmarcar(depoisDoCancel[0].id);
+const perdoada = await marcar(maria, [manutencao.id], daquiA(15, 13),
+  'Maria Pacote', TEL_MARIA);
+igual('falta perdoada (cancelada): a sessão volta e sai por R$ 0,00',
+  Number(perdoada[0].valor), 0);
+await desmarcar(perdoada[0].id);
 
 /* ══════════════════════════════════════════════════════════════════════════
    5 — OS DIAS DA SEMANA

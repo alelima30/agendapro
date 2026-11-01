@@ -436,36 +436,45 @@ Qualquer dúvida, fale com o estabelecimento.
 
 ---
 
-# Os três do pacote
+# Os dois do pacote
 
-A lista de horários ao montar o pacote, o aviso de que ele está acabando e o
-lembrete do pagamento de quem está "a receber" (`45_pacote_mensagens.sql`). Mesmas regras: **Utilidade**,
-**Português (BR)**, sem cabeçalho e sem botão — e o formato dos que a Meta
-aprovou como Utilidade: sem "!" e fechando com "Aviso automático do sistema de
-agendamento."
+A lista de horários ao montar o pacote e o aviso da última sessão
+(`45_pacote_mensagens.sql`). Mesmas regras: **Utilidade**, **Português (BR)**,
+sem cabeçalho e sem botão — e o formato dos que a Meta aprovou como Utilidade:
+sem "!", sem convite para comprar nada, e fechando com "Aviso automático do
+sistema de agendamento."
 
 > **⚠ CATEGORIA: UTILIDADE.** A tela da Meta abre com "Marketing" marcado:
-> troque antes de avançar. Se ela reclassificar algum dos dois para
-> Marketing, não ligue — me avise, que o texto é ajustado e vai com outro
-> nome.
+> troque antes de avançar. Se ela reclassificar algum para Marketing, não
+> ligue — me avise, que o texto é ajustado e vai com outro nome.
 
-> **⚠ A ordem para ligar.** Enquanto os três não estiverem **aprovados**,
+> **⚠ A ordem para ligar.** Enquanto os dois não estiverem **aprovados**,
 > nada do pacote vai para a fila — o painel do salão mostra "ainda não estão
 > saindo" (e a cliente continua recebendo a confirmação de sempre, com as
 > datas juntas). Depois da aprovação, ligue em **admin → Mensagens do
 > WhatsApp → Ligar as mensagens do pacote**.
 
+> **Os que saíram.** O `agendapro_pacote_renovacao` a Meta aprovou como
+> **Marketing** — o "combine a renovação com o salão" foi lido como convite
+> para comprar — e categoria não se troca: o aviso agora é o
+> `agendapro_pacote_ultima_sessao`, só com a informação. O
+> `agendapro_pacote_pagamento` (lembrete de pagar o pacote "a receber") saiu:
+> o pacote a receber fica reservado até o salão tocar em "Recebi", e aí a
+> cliente recebe a lista de horários — não há o que lembrar antes. Os dois
+> podem ser apagados na Meta.
+
 ## 10b. `agendapro_pacote_agenda`
 
-Vai para a cliente quando o salão monta o pacote com agenda fixa: cada data,
-a hora e o que ela faz naquele dia. Sai **no lugar da confirmação** (com a
-chave da confirmação ligada em Notificações).
+Vai para a cliente quando o salão monta o pacote com agenda fixa já pago, ou
+quando registra o pagamento do pacote a receber: cada data, a hora e o que ela
+faz naquele dia. Sai **no lugar da confirmação** (com a chave da confirmação
+ligada em Notificações).
 
 ```
-Olá, {{1}}. Seu pacote {{2}} no {{3}} está com os horários marcados.
+Olá, {{1}}. Seu pacote {{2}} está com os horários marcados.
 
-📅 Horários: {{4}}
-👤 Profissional: {{5}}
+📅 Horários: {{3}}
+🏪 Local: {{4}}
 
 Você recebe um lembrete antes de cada sessão. Aviso automático do sistema de agendamento.
 ```
@@ -474,56 +483,34 @@ Você recebe um lembrete antes de cada sessão. Aviso automático do sistema de 
 |---|---|---|
 | `{{1}}` | primeiro nome da cliente | Maria |
 | `{{2}}` | nome do pacote | Mão e pé mensal |
-| `{{3}}` | nome do salão | Salão da Ana |
-| `{{4}}` | as sessões, numa linha só | ter 04/11 às 14:00 (Mão); ter 11/11 às 14:00 (Mão + Pé) |
-| `{{5}}` | quem atende | Ju |
+| `{{3}}` | as sessões, numa linha só | ter 04/11 às 14:00 (Mão); ter 11/11 às 14:00 (Mão + Pé) |
+| `{{4}}` | nome do salão | Salão Megatop |
 
-## 11. `agendapro_pacote_renovacao`
+> **Por que sem a profissional.** "Vai que no pacote muda o profissional": a
+> lista vale para o pacote inteiro, e o nome de quem atende pode mudar no
+> meio. O salão não muda.
+
+## 11. `agendapro_pacote_ultima_sessao`
 
 Vai para a cliente **seis dias antes da última sessão do pacote**, às 10h
 (hora do salão) — só quando todas as sessões do pacote estão na agenda. Se ela
 renovar antes, não sai.
 
 ```
-Olá, {{1}}. Aviso sobre o seu pacote {{2}} no {{3}}.
+Olá, {{1}}. Informação sobre o seu pacote {{2}}.
 
-📅 Última sessão do pacote: {{4}}
+📅 Última sessão incluída: {{3}}
+🏪 Local: {{4}}
 
-Depois dessa data o pacote termina. Para manter os seus horários, combine a renovação com o salão.
-
-Aviso automático do sistema de agendamento.
+Depois dessa sessão, o pacote se encerra. Aviso automático do sistema de agendamento.
 ```
 
 | variável | conteúdo | exemplo |
 |---|---|---|
 | `{{1}}` | primeiro nome da cliente | Maria |
 | `{{2}}` | nome do pacote | Mão e pé mensal |
-| `{{3}}` | nome do salão | Salão da Ana |
-| `{{4}}` | dia da semana, data e hora da última sessão | terça, 01/12 às 14:00 |
-
-## 12. `agendapro_pacote_pagamento`
-
-Vai para a cliente com o pacote **a receber**, na **véspera da primeira
-sessão**, às 10h. Se o salão registrar o pagamento antes, não sai.
-
-```
-Olá, {{1}}. Lembrete do pagamento do seu pacote {{2}} no {{3}}.
-
-💰 Valor: {{4}}
-💳 Pagamento: {{5}}
-
-Se você já pagou, desconsidere esta mensagem.
-
-Aviso automático do sistema de agendamento.
-```
-
-| variável | conteúdo | exemplo |
-|---|---|---|
-| `{{1}}` | primeiro nome da cliente | Maria |
-| `{{2}}` | nome do pacote | Mão e pé mensal |
-| `{{3}}` | nome do salão | Salão da Ana |
-| `{{4}}` | valor do pacote | R$ 220,00 |
-| `{{5}}` | a chave Pix do salão, ou "combine com o salão" sem Pix | Pix (chave: ana@salao.com) |
+| `{{3}}` | dia da semana, data e hora da última sessão | terça, 01/12 às 14:00 |
+| `{{4}}` | nome do salão | Salão Megatop |
 
 ---
 
@@ -663,6 +650,6 @@ select tipo, modelo, variaveis, corpo
 profissional, 4 no resumo e 7 no lembrete para o salão — na ordem das tabelas acima.
 Nos do pedido: 5 no pedido novo e no confirmado, 3 no "a caminho" e no
 "pronto", e 4 no cancelado. Os nomes deles estão no `modelo_de()` do
-`37_pedidos.sql`. Nos do pacote: 5 na lista de horários, 4 na renovação e 5 no lembrete do pagamento.
+`37_pedidos.sql`. Nos do pacote: 4 na lista de horários e 4 no aviso da última sessão.
 Nos do crediário: 4 no resumo da compra, 6 no lembrete, 5 no "vence hoje" e 6
 no atraso.

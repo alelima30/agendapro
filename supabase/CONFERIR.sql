@@ -1085,6 +1085,22 @@ with conferencia(ordem, item, veredito, detalhe) as (
                 or has_function_privilege('anon', 'public.completar_meu_cadastro(text,date)', 'execute')
               then 'cole as duas partes de novo (51_google)' else '' end
   union all
+  /* Pacote (27 e 45): a falta gasta a sessão; a lista sai sem a profissional
+     (com o salão); o lembrete de pagamento não sai mais. */
+  select 63, 'Pacote: falta desconta a sessão, mensagens novas',
+         case when not exists (select 1 from pg_proc where proname = 'pacote_sessoes_restantes' and prosrc like '%faltou%')
+                or not exists (select 1 from pg_proc where proname = 'agenda_do_pacote' and prosrc like '%Local: %'
+                                 and prosrc not like '%Profissional: %')
+                or not exists (select 1 from pg_proc where proname = 'avisos_do_pacote'
+                                 and prosrc like '%sem lembrete de pagamento%')
+              then 'FALTA' else 'certo' end,
+         case when not exists (select 1 from pg_proc where proname = 'pacote_sessoes_restantes' and prosrc like '%faltou%')
+                or not exists (select 1 from pg_proc where proname = 'agenda_do_pacote' and prosrc like '%Local: %'
+                                 and prosrc not like '%Profissional: %')
+                or not exists (select 1 from pg_proc where proname = 'avisos_do_pacote'
+                                 and prosrc like '%sem lembrete de pagamento%')
+              then 'cole as duas partes de novo (27_pacotes e 45_pacote_mensagens)' else '' end
+  union all
   /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
      o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
   select 59, 'Aniversário do cadastro chega à ficha',
@@ -1220,10 +1236,10 @@ with conferencia(ordem, item, veredito, detalhe) as (
              then 'cole o 00_tudo.sql de novo (46_adicionais, 13 e 23)'
            else '' end
   union all
-  /* As mensagens do pacote (45_pacote_mensagens): o aviso de renovação e o
-     lembrete do pagamento, que acompanham a agenda do pacote. Saem só depois
-     que a plataforma liga, no admin — "certo" aqui é a peça instalada. */
-  select 52, 'Mensagens do pacote (renovação e pagamento)',
+  /* As mensagens do pacote (45_pacote_mensagens): a lista de horários e o
+     aviso da última sessão (o modelo novo, que não é Marketing). Saem só
+     depois que a plataforma liga, no admin — "certo" aqui é a peça instalada. */
+  select 52, 'Mensagens do pacote (lista e última sessão)',
          case
            when to_regprocedure('public.avisos_do_pacote(uuid)') is null
              or not exists (select 1 from pg_trigger where tgname = 'tg_pacote_avisos'
@@ -1232,7 +1248,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
                               and tgrelid = 'public.pacote_clientes'::regclass)
              or not exists (select 1 from pg_constraint where conname = 'notificacoes_tipo_check'
                               and pg_get_constraintdef(oid) like '%pacote_pagamento%')
-             or public.modelo_de('pacote_renovar') is distinct from 'agendapro_pacote_renovacao'
+             or public.modelo_de('pacote_renovar') is distinct from 'agendapro_pacote_ultima_sessao'
              or public.modelo_de('pacote_agenda') is distinct from 'agendapro_pacote_agenda'
              or not exists (select 1 from pg_proc where proname = 'montar_pacote'
                               and strpos(prosrc, 'perform public.receber_pacote') between 1
@@ -1247,7 +1263,7 @@ with conferencia(ordem, item, veredito, detalhe) as (
                               and tgrelid = 'public.pacote_clientes'::regclass)
              or not exists (select 1 from pg_constraint where conname = 'notificacoes_tipo_check'
                               and pg_get_constraintdef(oid) like '%pacote_pagamento%')
-             or public.modelo_de('pacote_renovar') is distinct from 'agendapro_pacote_renovacao'
+             or public.modelo_de('pacote_renovar') is distinct from 'agendapro_pacote_ultima_sessao'
              or public.modelo_de('pacote_agenda') is distinct from 'agendapro_pacote_agenda'
              or not exists (select 1 from pg_proc where proname = 'montar_pacote'
                               and strpos(prosrc, 'perform public.receber_pacote') between 1

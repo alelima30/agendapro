@@ -378,19 +378,17 @@ function desenhar(){
             ${ligado ? 'Desligar' : 'Ligar a forma de pagamento'}</button>
         </div>
       </div>`;
-    /* As duas do pacote (45): o aviso de renovação e o lembrete do
-       pagamento. Desligadas até os dois modelos novos estarem aprovados. */
+    /* As duas do pacote (45): a lista de horários e o aviso da última
+       sessão. Desligadas até os dois modelos estarem aprovados. */
     const pacote = !!painel.ajustes.mensagensPacote;
     h += `<div class="recado" id="ajustePacote" style="margin-top:12px">
         <b>Mensagens do pacote: ${pacote ? 'ligadas' : 'desligadas'}</b>
         A lista de horários (cada data, a hora e o procedimento, ao montar o
-        pacote), o aviso de renovação (seis dias antes da última sessão) e o
-        lembrete do pagamento (na véspera da primeira, para quem está "a
-        receber"). Usam os três modelos do pacote do MODELOS.md
-        (<code>agendapro_pacote_agenda</code>, <code>agendapro_pacote_renovacao</code> e
-        <code>agendapro_pacote_pagamento</code>):
+        pacote pago ou ao registrar o pagamento) e o aviso da última sessão
+        (seis dias antes dela). Usam os dois modelos do pacote do MODELOS.md
+        (<code>agendapro_pacote_agenda</code> e <code>agendapro_pacote_ultima_sessao</code>):
         ${pacote ? 'desligando, o que estava na fila sai na hora.'
-                 : 'ligue só depois que os três estiverem <b style="display:inline">aprovados</b> na Meta. Ligando, os pacotes que já estão na agenda ganham o aviso de renovação e o lembrete.'}
+                 : 'ligue só depois que os dois estiverem <b style="display:inline">aprovados</b> na Meta. Ligando, os pacotes que já estão na agenda ganham o aviso da última sessão.'}
         <div style="margin-top:10px">
           <button class="acao ${pacote ? 'perigo' : ''}" onclick="ligarMensagensDoPacote(${!pacote})">
             ${pacote ? 'Desligar' : 'Ligar as mensagens do pacote'}</button>
@@ -626,7 +624,7 @@ async function ligarPagamentoNasMensagens(ligar){
 
 /* ── As mensagens do pacote ──────────────────────────────────────────────── */
 async function ligarMensagensDoPacote(ligar){
-  if(ligar && !confirm('Os três modelos do pacote (agendapro_pacote_agenda, agendapro_pacote_renovacao e agendapro_pacote_pagamento) já estão APROVADOS na Meta?\n\n'
+  if(ligar && !confirm('Os dois modelos do pacote (agendapro_pacote_agenda e agendapro_pacote_ultima_sessao) já estão APROVADOS na Meta?\n\n'
       + 'Ligado antes da aprovação, as mensagens vão para um modelo '
       + 'que não existe e não chegam a ninguém.')) return;
   try{

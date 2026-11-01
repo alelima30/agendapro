@@ -159,7 +159,10 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_pronto'     then 'agendapro_pedido_pronto'
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
     -- Os do pacote (45). Só saem com o interruptor da plataforma ligado.
-    when 'pacote_renovar'    then 'agendapro_pacote_renovacao'
+    -- A última sessão (tipo `pacote_renovar`, o nome antigo do aviso): o
+    -- `agendapro_pacote_renovacao` a Meta aprovou como Marketing, e categoria
+    -- não se troca. O de pagamento não sai mais (45), mas o nome fica aqui.
+    when 'pacote_renovar'    then 'agendapro_pacote_ultima_sessao'
     when 'pacote_pagamento'  then 'agendapro_pacote_pagamento'
     when 'pacote_agenda'     then 'agendapro_pacote_agenda'
   end

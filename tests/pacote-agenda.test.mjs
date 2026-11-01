@@ -310,26 +310,25 @@ secao('8. As mensagens do pacote (45), no histórico e nas chaves da dona');
   const fila = async () => (await linhas(`select c.nome || ' ' || n.tipo || ' ' || n.status as l
       from public.notificacoes n join public.clientes c on c.id = n.cliente_id
      where n.salao_id = $1 and n.tipo like 'pacote%' order by 1`, [SALAO])).map(r => r.l);
-  igual('ligado: a Joana e a Maria (a renovação, a receber) com o lembrete do pagamento; a Maria com o aviso de renovação',
-    await fila(), ['Joana Lima pacote_pagamento pendente', 'Maria Souza pacote_pagamento pendente',
-                   'Maria Souza pacote_renovar pendente']);
+  /* Lembrete de pagamento não existe mais: "o pacote só é confirmado com o
+     pagamento" — a receber, as sessões esperam o "Recebi". */
+  igual('ligado: só a Maria (a renovação) com o aviso da última sessão; lembrete de pagamento, nenhum',
+    await fila(), ['Maria Souza pacote_renovar pendente']);
   const { ctx, p: pd } = await abrirPainel(dDona, 'dona');
   await pd.evaluate(() => { irPara('salao'); trocarAbaSalao('notificacoes'); });
   await pd.waitForFunction(() => /Pacote:/.test((document.getElementById('historicoNotif') || {}).innerText || ''),
     null, { timeout: 15000 }).catch(() => {});
   const hist = await pd.evaluate(() => document.getElementById('historicoNotif').innerText);
-  verdade('o histórico diz o que cada uma é', /Pacote: aviso de renovação/.test(hist)
-    && /Pacote: lembrete do pagamento/.test(hist), hist.slice(0, 400));
+  verdade('o histórico diz o que é', /Pacote: aviso da última sessão/.test(hist), hist.slice(0, 400));
   igual('liberadas pela plataforma, a tela não diz que "ainda não estão saindo"',
     await pd.evaluate(() => document.getElementById('avisoPacoteMsg').innerText.trim()), '');
-  igual('as duas chaves vêm ligadas', [await pd.isChecked('#nPacoteRenova'), await pd.isChecked('#nPacotePaga')],
-    [true, true]);
-  await pd.uncheck('#nPacotePaga');
+  igual('a chave do aviso vem ligada, e a do lembrete de pagamento não existe mais',
+    [await pd.isChecked('#nPacoteRenova'), await pd.$('#nPacotePaga') === null], [true, true]);
+  await pd.uncheck('#nPacoteRenova');
   await pd.click('button:has-text("Salvar notificações")');
   await pd.waitForTimeout(2500);
-  igual('a dona desliga o lembrete do pagamento: os dois saem da fila, a renovação fica',
-    await fila(), ['Joana Lima pacote_pagamento cancelado', 'Maria Souza pacote_pagamento cancelado',
-                   'Maria Souza pacote_renovar pendente']);
+  igual('a dona desliga o aviso da última sessão: sai da fila',
+    await fila(), ['Maria Souza pacote_renovar cancelado']);
   await ctx.close();
   await banco.query(`delete from public.plataforma_ajustes where chave = 'mensagensPacote'`);
   await banco.query(`update public.notificacoes set status = 'cancelado', motivo = 'teste'

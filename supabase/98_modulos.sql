@@ -4297,7 +4297,7 @@ returns int language sql stable security definer set search_path = public as $$
   select greatest(0, pc.sessoes - (
       select count(*) from public.agendamentos a
        where a.pacote_cliente_id = pc.id
-         and a.status in ('pendente','confirmado','em_atendimento','concluido')
+         and a.status in ('pendente','confirmado','em_atendimento','concluido','faltou')
          and a.arquivado_em is null))
     from public.pacote_clientes pc
    where pc.id = p_pacote_cliente
@@ -5737,7 +5737,7 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_a_caminho'  then 'agendapro_pedido_a_caminho'
     when 'pedido_pronto'     then 'agendapro_pedido_pronto'
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
-    when 'pacote_renovar'    then 'agendapro_pacote_renovacao'
+    when 'pacote_renovar'    then 'agendapro_pacote_ultima_sessao'
     when 'pacote_pagamento'  then 'agendapro_pacote_pagamento'
     when 'pacote_agenda'     then 'agendapro_pacote_agenda'
   end
@@ -7450,7 +7450,7 @@ create or replace function public.avisos_do_pacote(p_pacote_cliente uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare
   r record; v_tel text; v_fuso text; v_prim record; v_ult record; v_quando timestamptz;
-  v_nome text; v_quando_txt text; v_pix text; v_motivo text; v_comum text;
+  v_nome text; v_quando_txt text; v_motivo text; v_comum text;
   v_dias text[] := array['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
 begin
   select pc.id, pc.cliente_id, pc.pacote_id, pc.valor, pc.pago_em, pc.cancelado_em, pc.criado_em,
@@ -7505,34 +7505,15 @@ begin
   end);
   perform public.gravar_aviso_do_pacote(r.salao_id, 'pacote_renovar', 'pacote_renovar:' || r.id,
     v_motivo, v_quando, interval '0', v_ult.inicio, v_tel, r.cliente_id, v_ult.id,
-    'Olá, ' || v_nome || '. Aviso sobre o seu pacote ' || r.pacote || ' no ' || r.casa || '.'
-      || E'\n\n📅 Última sessão do pacote: ' || v_quando_txt
-      || E'\n\nDepois dessa data o pacote termina. Para manter os seus horários, '
-      || 'combine a renovação com o salão.'
-      || E'\n\nAviso automático do sistema de agendamento.',
+    'Olá, ' || v_nome || '. Informação sobre o seu pacote ' || r.pacote || '.'
+      || E'\n\n📅 Última sessão incluída: ' || v_quando_txt
+      || E'\n🏪 Local: ' || r.casa
+      || E'\n\nDepois dessa sessão, o pacote se encerra. Aviso automático do sistema de agendamento.',
     jsonb_build_array(v_nome, public.variavel_limpa(r.pacote),
-                      public.variavel_limpa(r.casa), public.variavel_limpa(v_quando_txt)));
-  if v_comum is null then
-    v_quando := ((((v_prim.inicio at time zone v_fuso)::date - 1) + time '10:00') at time zone v_fuso);
-  end if;
-  v_pix := case when coalesce(r.cfg->'pagamentos'->'formas', '[]'::jsonb) ? 'pix'
-                then 'Pix (chave: ' || nullif(btrim(coalesce(r.cfg->'pagamentos'->>'pix', '')), '') || ')' end;
-  v_motivo := coalesce(v_comum, case
-    when not public.notif_liga(r.salao_id, 'notifPacotePaga', true) then 'desligado pelo salão'
-    when coalesce(r.valor, 0) <= 0 then 'pacote sem valor a receber'
-    when r.pago_em is not null then 'pacote pago'
-  end);
+                      public.variavel_limpa(v_quando_txt), public.variavel_limpa(r.casa)));
   perform public.gravar_aviso_do_pacote(r.salao_id, 'pacote_pagamento', 'pacote_pagamento:' || r.id,
-    v_motivo, v_quando, interval '1 hour', v_prim.inicio, v_tel, r.cliente_id, v_prim.id,
-    'Olá, ' || v_nome || '. Lembrete do pagamento do seu pacote ' || r.pacote
-      || ' no ' || r.casa || '.'
-      || E'\n\n💰 Valor: ' || public.reais(r.valor)
-      || E'\n💳 Pagamento: ' || coalesce(v_pix, 'combine com o salão')
-      || E'\n\nSe você já pagou, desconsidere esta mensagem.'
-      || E'\n\nAviso automático do sistema de agendamento.',
-    jsonb_build_array(v_nome, public.variavel_limpa(r.pacote), public.variavel_limpa(r.casa),
-                      public.variavel_limpa(public.reais(r.valor)),
-                      public.variavel_limpa(coalesce(v_pix, 'combine com o salão'))));
+    'sem lembrete de pagamento: o pacote confirma quando o salão registra o pagamento',
+    null, interval '1 hour', v_prim.inicio, v_tel, r.cliente_id, v_prim.id, null, null);
 end $$;
 create or replace function public.refazer_avisos_de_pacote(p_salao uuid default null)
 returns int language plpgsql security definer set search_path = public as $$
@@ -7584,14 +7565,14 @@ begin
   insert into public.notificacoes
     (salao_id, tipo, destino, cliente_id, agendamento_id, quando, corpo, chave, modelo, variaveis)
   values (r.salao_id, 'pacote_agenda', v_tel, r.cliente_id, p_ids[1], now(),
-          'Olá, ' || v_nome || '. Seu pacote ' || p_pacote || ' no ' || r.casa
+          'Olá, ' || v_nome || '. Seu pacote ' || p_pacote
             || ' está com os horários marcados.'
             || E'\n\n📅 Horários: ' || v_lista
-            || E'\n👤 Profissional: ' || r.prof
+            || E'\n🏪 Local: ' || r.casa
             || E'\n\nVocê recebe um lembrete antes de cada sessão. Aviso automático do sistema de agendamento.',
           'pacote_agenda:' || r.pacote_cliente_id, public.modelo_de('pacote_agenda'),
-          jsonb_build_array(v_nome, public.variavel_limpa(p_pacote), public.variavel_limpa(r.casa),
-                            public.variavel_limpa(v_lista), public.variavel_limpa(r.prof)))
+          jsonb_build_array(v_nome, public.variavel_limpa(p_pacote),
+                            public.variavel_limpa(v_lista), public.variavel_limpa(r.casa)))
   on conflict (salao_id, chave) do nothing;
   return true;
 end $$;

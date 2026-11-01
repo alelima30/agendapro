@@ -600,7 +600,7 @@ returns int language sql stable security definer set search_path = public as $$
   select greatest(0, pc.sessoes - (
       select count(*) from public.agendamentos a
        where a.pacote_cliente_id = pc.id
-         and a.status in ('pendente','confirmado','em_atendimento','concluido')
+         and a.status in ('pendente','confirmado','em_atendimento','concluido','faltou')
          and a.arquivado_em is null))
     from public.pacote_clientes pc
    where pc.id = p_pacote_cliente
@@ -2680,7 +2680,7 @@ returns text language sql stable set search_path = public as $$
     when 'pedido_a_caminho'  then 'agendapro_pedido_a_caminho'
     when 'pedido_pronto'     then 'agendapro_pedido_pronto'
     when 'pedido_cancelado'  then 'agendapro_pedido_cancelado'
-    when 'pacote_renovar'    then 'agendapro_pacote_renovacao'
+    when 'pacote_renovar'    then 'agendapro_pacote_ultima_sessao'
     when 'pacote_pagamento'  then 'agendapro_pacote_pagamento'
     when 'pacote_agenda'     then 'agendapro_pacote_agenda'
   end

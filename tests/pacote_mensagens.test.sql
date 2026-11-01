@@ -5,15 +5,16 @@
 --
 --   1. com a plataforma desligada (os modelos ainda não aprovados), nada vai
 --      para a fila; a dona não liga, a plataforma liga;
---   2. ligado: o aviso de renovação seis dias antes da última terça, às 10h;
---      o lembrete de pagamento na véspera da primeira, com valor e Pix;
+--   2. ligado: o aviso da última sessão seis dias antes da última terça, às
+--      10h, pelo modelo que não é Marketing; lembrete de pagamento, nenhum
+--      ("o pacote só é confirmado com o pagamento");
 --   3. a última terça muda de dia: o aviso muda junto (hora e texto);
 --   4. a última terça cai e volta: o aviso cai e volta, sem linha nova;
---   5. "Recebi" tira o lembrete; desfazer o recebimento devolve;
---   6. a chave do salão desliga e religa;
---   7. a primeira sessão passa para daqui a pouco: o lembrete sai da fila;
---   8. renovou: o aviso do pacote antigo sai; o novo, pago no balcão, nem
---      chega a ter lembrete de pagamento; cancelar o pacote tira o aviso;
+--   5. "Recebi" e desfazer: o aviso fica, e lembrete de pagamento não nasce;
+--   6. a chave do salão desliga e religa o aviso;
+--   7. a primeira sessão chega perto: nem assim nasce lembrete de pagamento;
+--   8. renovou: o aviso do pacote antigo sai; o novo tem a lista de horários
+--      com o salão (e não a profissional); cancelar o pacote tira o aviso;
 --   9. agenda incompleta não tem "última sessão"; cliente sem telefone, nada;
 --  10. a plataforma desliga: tudo o que estava na fila sai; e as peças de
 --      dentro não abrem para ninguém.
@@ -102,29 +103,25 @@ select t_verdade('a plataforma liga, e o pacote que já estava na agenda ganha a
 select set_config('request.jwt.claim.sub', '', false);
 
 \echo ''
-\echo '2. As duas, na hora certa e com o texto certo'
-select t_texto('renovação: seis dias antes da última terça, às 10h do salão',
+\echo '2. O aviso da última sessão, na hora certa e com o texto certo'
+select t_texto('última sessão: seis dias antes da última terça, às 10h do salão',
   to_char((t_msg(:'pc', 'pacote_renovar')).quando at time zone 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI'),
   to_char(:'terca'::date + 21 - 6, 'YYYY-MM-DD') || ' 10:00');
-select t_texto('   pelo modelo novo, com o nome, o pacote, o salão e a última sessão',
+select t_texto('   pelo modelo novo (o de renovação a Meta aprovou como Marketing): nome, pacote, última sessão e salão',
   (t_msg(:'pc', 'pacote_renovar')).modelo || ' | ' || (t_msg(:'pc', 'pacote_renovar')).variaveis::text,
-  'agendapro_pacote_renovacao | ["Maria", "Mão e pé mensal", "Salão Recado", "terça, '
-    || to_char(:'terca'::date + 21, 'DD/MM') || ' às 14:00"]');
+  'agendapro_pacote_ultima_sessao | ["Maria", "Mão e pé mensal", "terça, '
+    || to_char(:'terca'::date + 21, 'DD/MM') || ' às 14:00", "Salão Recado"]');
+select t_verdade('   sem convite para renovar, no texto do histórico',
+  (t_msg(:'pc', 'pacote_renovar')).corpo like 'Olá, Maria. Informação sobre o seu pacote Mão e pé mensal.%Última sessão incluída: terça, %Local: Salão Recado%Depois dessa sessão, o pacote se encerra.%'
+  and (t_msg(:'pc', 'pacote_renovar')).corpo not like '%renova%');
 select t_verdade('   presa à última terça, para o número da Maria',
   (t_msg(:'pc', 'pacote_renovar')).agendamento_id = t_sessao(:'pc', 4)
   and (t_msg(:'pc', 'pacote_renovar')).destino = '5511945000003'
   and (t_msg(:'pc', 'pacote_renovar')).status = 'pendente');
-select t_texto('pagamento: na véspera da primeira terça, às 10h',
-  to_char((t_msg(:'pc', 'pacote_pagamento')).quando at time zone 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI'),
-  to_char(:'terca'::date - 1, 'YYYY-MM-DD') || ' 10:00');
-select t_texto('   com o valor e a chave Pix do salão',
-  (t_msg(:'pc', 'pacote_pagamento')).modelo || ' | ' || (t_msg(:'pc', 'pacote_pagamento')).variaveis::text,
-  'agendapro_pacote_pagamento | ["Maria", "Mão e pé mensal", "Salão Recado", "R$ 220,00", "Pix (chave: pix@recado.com)"]');
-select t_verdade('   e o texto do histórico diz o mesmo',
-  (t_msg(:'pc', 'pacote_pagamento')).corpo like '%Valor: R$ 220,00%Pagamento: Pix (chave: pix@recado.com)%');
-select t_verdade('as duas contam na franquia como as mensagens da cliente',
-  public.pode_enviar_tipo('54500000-0000-0000-0000-00000000000a', 'pacote_renovar')
-  and public.pode_enviar_tipo('54500000-0000-0000-0000-00000000000a', 'pacote_pagamento'));
+select t_igual('lembrete de pagamento: não nasce (a receber, as sessões esperam o "Recebi")',
+  (select count(*) from public.notificacoes where chave = 'pacote_pagamento:' || :'pc'), 0);
+select t_verdade('o aviso conta na franquia como as mensagens da cliente',
+  public.pode_enviar_tipo('54500000-0000-0000-0000-00000000000a', 'pacote_renovar'));
 
 \echo ''
 \echo '3. A última terça vira quarta, às 15h'
@@ -134,10 +131,10 @@ select t_texto('o aviso anda um dia junto',
   to_char((t_msg(:'pc', 'pacote_renovar')).quando at time zone 'America/Sao_Paulo', 'YYYY-MM-DD HH24:MI'),
   to_char(:'terca'::date + 22 - 6, 'YYYY-MM-DD') || ' 10:00');
 select t_texto('   e o texto diz a nova data (e não a velha)',
-  (t_msg(:'pc', 'pacote_renovar')).variaveis->>3,
+  (t_msg(:'pc', 'pacote_renovar')).variaveis->>2,
   'quarta, ' || to_char(:'terca'::date + 22, 'DD/MM') || ' às 15:00');
 select t_verdade('   no corpo também',
-  (t_msg(:'pc', 'pacote_renovar')).corpo like '%Última sessão do pacote: quarta, ' || to_char(:'terca'::date + 22, 'DD/MM') || ' às 15:00%');
+  (t_msg(:'pc', 'pacote_renovar')).corpo like '%Última sessão incluída: quarta, ' || to_char(:'terca'::date + 22, 'DD/MM') || ' às 15:00%');
 
 \echo ''
 \echo '4. A última cai e volta'
@@ -158,26 +155,23 @@ begin;
   set local request.jwt.claim.sub = 'a4500000-0000-0000-0000-00000000000a';
   select public.receber_pacote(:'pc', 'pix');
 commit;
-select t_texto('pagou: o lembrete sai da fila',
-  (t_msg(:'pc', 'pacote_pagamento')).status || ' | ' || (t_msg(:'pc', 'pacote_pagamento')).motivo,
-  'cancelado | pacote pago');
-select t_texto('   e o aviso de renovação fica', (t_msg(:'pc', 'pacote_renovar')).status, 'pendente');
+select t_texto('pagou: o aviso da última sessão fica', (t_msg(:'pc', 'pacote_renovar')).status, 'pendente');
 begin;
   set local role authenticated;
   set local request.jwt.claim.sub = 'a4500000-0000-0000-0000-00000000000a';
   select public.desfazer_recebimento_pacote(:'pc');
 commit;
-select t_texto('desfez o recebimento: o lembrete volta', (t_msg(:'pc', 'pacote_pagamento')).status, 'pendente');
+select t_igual('desfez o recebimento: e lembrete de pagamento continua sem nascer',
+  (select count(*) from public.notificacoes where chave = 'pacote_pagamento:' || :'pc'), 0);
 
 \echo ''
 \echo '6. A chave do salão'
-update public.saloes set cfg = cfg || '{"notifPacotePaga": false}' where id = '54500000-0000-0000-0000-00000000000a';
-select t_texto('desligou o lembrete de pagamento em Notificações: sai da fila',
-  (t_msg(:'pc', 'pacote_pagamento')).status || ' | ' || (t_msg(:'pc', 'pacote_pagamento')).motivo,
+update public.saloes set cfg = cfg || '{"notifPacoteRenova": false}' where id = '54500000-0000-0000-0000-00000000000a';
+select t_texto('desligou o aviso da última sessão em Notificações: sai da fila',
+  (t_msg(:'pc', 'pacote_renovar')).status || ' | ' || (t_msg(:'pc', 'pacote_renovar')).motivo,
   'cancelado | desligado pelo salão');
-select t_texto('   a renovação, com a chave dela ligada, fica', (t_msg(:'pc', 'pacote_renovar')).status, 'pendente');
-update public.saloes set cfg = cfg || '{"notifPacotePaga": true}' where id = '54500000-0000-0000-0000-00000000000a';
-select t_texto('religou: volta', (t_msg(:'pc', 'pacote_pagamento')).status, 'pendente');
+update public.saloes set cfg = cfg || '{"notifPacoteRenova": true}' where id = '54500000-0000-0000-0000-00000000000a';
+select t_texto('religou: volta', (t_msg(:'pc', 'pacote_renovar')).status, 'pendente');
 
 \echo ''
 \echo '7. A primeira sessão passa para daqui a pouco'
@@ -194,9 +188,8 @@ update public.agendamentos
                        else (now() at time zone 'America/Sao_Paulo')::date end + time '14:45')
                  at time zone 'America/Sao_Paulo')
  where id = t_sessao(:'pc', 1);
-select t_texto('a véspera já passou: o lembrete sai, em vez de chegar depois da sessão',
-  (t_msg(:'pc', 'pacote_pagamento')).status || ' | ' || (t_msg(:'pc', 'pacote_pagamento')).motivo,
-  'cancelado | a sessão passou para antes do aviso');
+select t_igual('a primeira chegou perto, ainda a receber: nem assim nasce lembrete de pagamento',
+  (select count(*) from public.notificacoes where chave = 'pacote_pagamento:' || :'pc'), 0);
 
 \echo ''
 \echo '8. Renovou'
@@ -229,7 +222,7 @@ select t_verdade('   e as mensagens das terças novas dizem "já pago (Pix)", e 
                where a.pacote_cliente_id = :'pc2' and n.tipo = 'lembrete' and n.status = 'pendente')
   and public.pecas_agendamento(t_sessao(:'pc', 1))->>'pagamento' = 'Pacote a pagar no salão');
 select t_texto('com o modelo do pacote ligado, a cliente recebe a lista: cada data, a hora e o procedimento',
-  (t_msg(:'pc2', 'pacote_agenda')).modelo || ' | ' || ((t_msg(:'pc2', 'pacote_agenda')).variaveis->>3),
+  (t_msg(:'pc2', 'pacote_agenda')).modelo || ' | ' || ((t_msg(:'pc2', 'pacote_agenda')).variaveis->>2),
   'agendapro_pacote_agenda | ter ' || to_char(:'terca'::date + 28, 'DD/MM') || ' às 14:00 (Mão); ter '
     || to_char(:'terca'::date + 35, 'DD/MM') || ' às 14:00 (Mão + Pé); ter '
     || to_char(:'terca'::date + 42, 'DD/MM') || ' às 14:00 (Mão); ter '
@@ -237,9 +230,13 @@ select t_texto('com o modelo do pacote ligado, a cliente recebe a lista: cada da
 select t_igual('   no lugar da confirmação (nenhuma confirmação do pacote fica na fila)',
   (select count(*) from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
     where a.pacote_cliente_id = :'pc2' and n.tipo = 'confirmacao' and n.status = 'pendente'), 0);
-select t_texto('   com quem atende, e saindo agora',
-  ((t_msg(:'pc2', 'pacote_agenda')).variaveis->>4) || ' | '
-    || ((t_msg(:'pc2', 'pacote_agenda')).quando <= now() + interval '1 minute')::text, 'Ju | true');
+select t_texto('   com o salão no lugar da profissional ("vai que muda"), quatro variáveis, e saindo agora',
+  ((t_msg(:'pc2', 'pacote_agenda')).variaveis->>3) || ' | '
+    || jsonb_array_length((t_msg(:'pc2', 'pacote_agenda')).variaveis) || ' | '
+    || ((t_msg(:'pc2', 'pacote_agenda')).quando <= now() + interval '1 minute')::text, 'Salão Recado | 4 | true');
+select t_verdade('   e o texto do histórico: sem a profissional, com o Local',
+  (t_msg(:'pc2', 'pacote_agenda')).corpo like 'Olá, Maria. Seu pacote Mão e pé mensal está com os horários marcados.%Local: Salão Recado%'
+  and (t_msg(:'pc2', 'pacote_agenda')).corpo not like '%Profissional%');
 begin;
   set local role authenticated;
   set local request.jwt.claim.sub = 'a4500000-0000-0000-0000-00000000000a';
@@ -262,8 +259,19 @@ begin;
 commit;
 select t_igual('duas das quatro sessões marcadas: não há "última sessão" para avisar',
   (select count(*) from public.notificacoes where chave = 'pacote_renovar:' || :'pc3'), 0);
-select t_texto('   o lembrete de pagamento, sim, com o valor dela',
-  (t_msg(:'pc3', 'pacote_pagamento')).variaveis->>3, 'R$ 200,00');
+select t_igual('   e lembrete de pagamento também não',
+  (select count(*) from public.notificacoes where chave = 'pacote_pagamento:' || :'pc3'), 0);
+-- Um pacote inteiro e pago da Lia, nas sextas: o aviso dele fica na fila
+-- para a seção 10 ver a plataforma desligar.
+begin;
+  set local role authenticated;
+  set local request.jwt.claim.sub = 'a4500000-0000-0000-0000-00000000000a';
+  select (public.montar_pacote('54520000-0000-0000-0000-0000000000b1', 'c4510000-0000-0000-0000-00000000000b',
+            200, 'pix', '94500000-0000-0000-0000-00000000000d',
+            t_semanas(:'terca'::date + 3, 4))->>'pacoteCliente') as pc5 \gset
+commit;
+select t_texto('   o pacote inteiro da Lia, pago: aviso da última sessão na fila',
+  (t_msg(:'pc5', 'pacote_renovar')).status, 'pendente');
 select t_igual('cliente sem telefone: nenhuma das duas',
   (select count(*) from public.notificacoes where chave in ('pacote_renovar:' || :'pc4', 'pacote_pagamento:' || :'pc4')), 0);
 
@@ -275,7 +283,7 @@ select set_config('request.jwt.claim.sub', '', false);
 select t_igual('desligou: nada do pacote fica pendente',
   (select count(*) from public.notificacoes
     where tipo in ('pacote_renovar', 'pacote_pagamento') and status = 'pendente'), 0);
-select t_texto('   com o motivo escrito', (t_msg(:'pc3', 'pacote_pagamento')).motivo,
+select t_texto('   com o motivo escrito', (t_msg(:'pc5', 'pacote_renovar')).motivo,
   'mensagens do pacote desligadas');
 select set_config('request.jwt.claim.sub', 'a4500000-0000-0000-0000-00000000000a', false);
 set role authenticated;

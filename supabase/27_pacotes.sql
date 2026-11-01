@@ -168,13 +168,18 @@ create index if not exists ix_agend_pacote
 -- Contado, nunca guardado. Os mesmos status que o resto do sistema considera
 -- vivos — cancelado devolve a sessão porque deixa de contar, e não porque
 -- alguém lembrou de decrementar.
+--
+-- E a FALTA também gasta: "quando a cliente falta, a sessão do pacote deve
+-- ser descontada? Sim." O horário ficou guardado para ela e ninguém mais
+-- pôde usar. Cancelar continua devolvendo — e, se o salão quiser perdoar
+-- uma falta, é só mudar o status para cancelado em vez de "faltou".
 -- ---------------------------------------------------------------------------
 create or replace function public.pacote_sessoes_restantes(p_pacote_cliente uuid)
 returns int language sql stable security definer set search_path = public as $$
   select greatest(0, pc.sessoes - (
       select count(*) from public.agendamentos a
        where a.pacote_cliente_id = pc.id
-         and a.status in ('pendente','confirmado','em_atendimento','concluido')
+         and a.status in ('pendente','confirmado','em_atendimento','concluido','faltou')
          and a.arquivado_em is null))
     from public.pacote_clientes pc
    where pc.id = p_pacote_cliente
