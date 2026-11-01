@@ -450,7 +450,7 @@ secao('8. A loja do link');
       [...document.querySelectorAll('#lojaCupomCaixa button')].map(b => b.textContent.trim())]),
     [true, false, ['Entrar', 'Criar conta']]);
   await p.click('#lojaCupomCaixa button:has-text("Criar conta")'); await p.waitForTimeout(300);
-  await p.fill('#cNome', 'Gal Prado'); await p.fill('#cTel', masc(tel('97')));
+  await p.fill('#cNome', 'Gal Prado'); await p.fill('#cTel', masc(tel('97'))); await p.fill('#cNasc', '1990-05-04');
   await p.fill('#cEmail', `gal-${m}@t.com`); await p.fill('#cSenha', 'senhadagal1');
   await p.click('#btPrincipal'); await p.waitForTimeout(2500);
   igual('criou a conta e voltou para a loja, com o carrinho e o campo do código',

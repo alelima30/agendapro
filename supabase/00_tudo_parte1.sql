@@ -3433,6 +3433,7 @@ declare
   v_meta jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
   v_nome text;
   v_tel  text;
+  v_nasc date;
 begin
   -- Nome: vem do cadastro. Conta criada pelo painel do Supabase não tem
   -- metadado nenhum, e aí o começo do e-mail serve — é melhor que barrar a
@@ -3454,8 +3455,19 @@ begin
     v_tel := null;
   end if;
 
-  insert into public.perfis (id, nome, telefone, email)
-       values (new.id, v_nome, v_tel, new.email)
+  /* O aniversário, quando veio no cadastro (o "Criar conta" do link pede).
+     Data torta ou impossível vira nula: este gatilho não pode ser o motivo
+     de um cadastro falhar. */
+  begin
+    if coalesce(v_meta->>'nascimento', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+      v_nasc := (v_meta->>'nascimento')::date;
+      if v_nasc > current_date or v_nasc < date '1900-01-01' then v_nasc := null; end if;
+    end if;
+  exception when others then v_nasc := null;
+  end;
+
+  insert into public.perfis (id, nome, telefone, email, nascimento)
+       values (new.id, v_nome, v_tel, new.email, v_nasc)
   -- `do nothing` porque este gatilho não pode ser o motivo de um cadastro
   -- falhar. Se a linha já existe, ela já existe.
   on conflict (id) do nothing;

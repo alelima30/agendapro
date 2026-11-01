@@ -1060,6 +1060,18 @@ with conferencia(ordem, item, veredito, detalhe) as (
   union all
   /* O Crediário (47_crediario): a venda a prazo, as parcelas e o que entra
      no caixa, no relatório e na comissão. */
+  /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
+     o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
+  select 59, 'Aniversário do cadastro chega à ficha',
+         case when not exists (select 1 from pg_proc where proname = 'perfil_ao_criar_conta' and prosrc like '%v_nasc%')
+                or not exists (select 1 from pg_proc where proname = 'cadastrar_minha_ficha'
+                                 and prosrc like '%nascimento = coalesce(c.nascimento%')
+              then 'FALTA' else 'certo' end,
+         case when not exists (select 1 from pg_proc where proname = 'perfil_ao_criar_conta' and prosrc like '%v_nasc%')
+                or not exists (select 1 from pg_proc where proname = 'cadastrar_minha_ficha'
+                                 and prosrc like '%nascimento = coalesce(c.nascimento%')
+              then 'cole o 00_tudo.sql de novo (08_conta e 48_cadastro_link)' else '' end
+  union all
   /* O freio do link (09): conta só o que a cliente marcou pelo link — as
      sessões que o salão marcou (pacote com agenda fixa) não travam mais. */
   select 57, 'Freio do link conta só o que a cliente marcou',

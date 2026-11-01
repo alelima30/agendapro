@@ -120,6 +120,7 @@ rodar() {
 # arquivo. Custa menos de um segundo.
 rodar "sintaxe"           node "$AQUI/sintaxe.test.js"
 rodar "banco (SQL)"        bash "$AQUI/rodar.sh"
+rodar "as duas partes do 00_tudo" bash "$AQUI/partes.test.sh"
 # Logo depois do banco, e de propósito: o `rodar.sh` instala tudo do zero
 # antes de cada arquivo, e por isso é CEGO para o que só quebra em quem
 # atualiza. Este confere que os dois caminhos terminam no mesmo banco.

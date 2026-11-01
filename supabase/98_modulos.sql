@@ -8542,6 +8542,10 @@ begin
   end if;
   v_ficha := public.ligar_minha_ficha(p_salao);
   if v_ficha->>'ficha' is not null then
+    update public.clientes c
+       set nascimento = coalesce(c.nascimento, nullif(v_ficha->>'nascimento', '')::date),
+           email      = coalesce(c.email, nullif(btrim(coalesce(v_ficha->>'email', '')), ''))
+     where c.id = (v_ficha->>'ficha')::uuid and (c.nascimento is null or c.email is null);
     return v_ficha || jsonb_build_object('criada', false);
   end if;
   select p.nome, p.telefone, p.email, p.nascimento into v_nome, v_tel, v_email, v_nasc

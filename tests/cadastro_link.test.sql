@@ -167,4 +167,31 @@ select t_verdade('sem ficha que bata, não cria', :'r7'::jsonb->>'ficha' is null
 select t_igual('a Outra Pessoa não ganhou ficha',
   (select count(*)::int from public.clientes
     where salao_id = '54800000-0000-0000-0000-00000000000a' and perfil_id = 'c4800000-0000-0000-0000-000000000006'), 0);
+\echo ''
+\echo '10. O aniversário que vem no cadastro chega ao perfil e à ficha'
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('c4800000-0000-0000-0000-000000000007', 'nina@cadlink.com',
+   '{"nome":"Nina Rosa","telefone":"+5511948000007","nascimento":"1991-04-12"}'),
+  ('c4800000-0000-0000-0000-000000000008', 'torta@cadlink.com',
+   '{"nome":"Data Torta","telefone":"+5511948000008","nascimento":"2023-02-30"}');
+select t_texto('a conta nasce com o aniversário no perfil',
+  (select nascimento::text from public.perfis where id = 'c4800000-0000-0000-0000-000000000007'), '1991-04-12');
+select t_verdade('data impossível não derruba o cadastro: o perfil nasce sem ela',
+  (select nascimento is null and nome = 'Data Torta' from public.perfis where id = 'c4800000-0000-0000-0000-000000000008'));
+select t_como('c4800000-0000-0000-0000-000000000007');
+set role authenticated;
+select public.cadastrar_minha_ficha('54800000-0000-0000-0000-00000000000a') as r10 \gset
+reset role;
+select t_texto('e a ficha que nasce leva o aniversário (é dele que sai Aniversariantes)',
+  (select nascimento::text from public.clientes where id = (:'r10'::jsonb->>'ficha')::uuid), '1991-04-12');
+-- A ficha do balcão sem aniversário: ligando, ganha o da conta.
+update public.assinaturas set plano = 'individual' where salao_id = '54800000-0000-0000-0000-00000000000b';
+insert into public.clientes (salao_id, nome, telefone) values
+  ('54800000-0000-0000-0000-00000000000b', 'Nina', '11948000007');
+set role authenticated;
+select public.cadastrar_minha_ficha('54800000-0000-0000-0000-00000000000b') as r11 \gset
+reset role;
+select t_texto('ligando a ficha do balcão, ela ganha o aniversário que não tinha',
+  (select nascimento::text || ' | ' || (perfil_id is not null) from public.clientes
+    where id = (:'r11'::jsonb->>'ficha')::uuid), '1991-04-12 | true');
 select t_como(null);

@@ -658,6 +658,11 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
                  autocomplete="tel" oninput="mascaraTelefone(this)">
           <p class="pista">O mesmo número que o salão tem de você: é por ele
             que achamos o seu cadastro e os seus pacotes.</p></div>
+        <!-- O aniversário entra na conta: sem ele, quem se cadastra pelo link
+             (sem marcar) nunca aparecia em Aniversariantes no painel. -->
+        <div class="campo"><label for="cNasc">Aniversário</label>
+          <input id="cNasc" type="date" autocomplete="bday">
+          <p class="pista">Só o dia — o salão usa para o agrado do seu mês.</p></div>
       </div>
       <div class="campo"><label for="cEmail">E-mail</label>
         <input id="cEmail" type="email" inputmode="email" autocomplete="email"
@@ -7495,6 +7500,9 @@ function desenharConta(){
   lembra('cEmail', dEmail || (sessao && sessao.email));
   lembra('cNome', (document.getElementById('dNome') || {}).value || (sessao && sessao.nome));
   lembra('cTel', (document.getElementById('dTel') || {}).value || (sessao && sessao.telefone));
+  const cNasc = document.getElementById('cNasc');
+  if(cNasc && window.Documento) Documento.dataDigitavel(cNasc);
+  lembra('cNasc', (document.getElementById('dNasc') || {}).value || (sessao && sessao.nascimento));
   if(window.aplicarIcones) aplicarIcones(document.getElementById('p-conta'));
 }
 
@@ -7562,6 +7570,14 @@ async function criarContaCliente(){
   const email = valorDe('cEmail').trim(), senha = valorDe('cSenha');
   if(nome.length < 2) return avisarConta('Escreva seu nome para o salão saber quem é.');
   if(soDigitos(tel).length < 10) return avisarConta('Falta o WhatsApp com DDD.');
+  /* O aniversário, com as mesmas regras do cadastro da marcação: é dele que
+     sai a lista de Aniversariantes do salão. */
+  const nasc = valorDe('cNasc');
+  if(!nasc && Documento.dataIncompleta(document.getElementById('cNasc')))
+    return avisarConta('Confira a data do aniversário — escreva dia, mês e ano, como 04/10/1990.');
+  if(!nasc) return avisarConta('Falta o seu aniversário. É só o dia — o salão usa para o agrado do seu mês.');
+  if(nasc > hoje()) return avisarConta('Essa data de aniversário ainda não chegou. Confira o ano.');
+  if(nasc < '1900-01-01') return avisarConta('Confira o ano do seu aniversário.');
   if(!EMAIL_PLAUSIVEL.test(email)) return avisarConta('Confira o e-mail — parece incompleto.');
   if(senha.length < 8) return avisarConta('A senha precisa de pelo menos 8 caracteres.');
   const bp = document.getElementById('btPrincipal');
@@ -7569,7 +7585,8 @@ async function criarContaCliente(){
   contaEmail = email;
   let r;
   try{
-    r = await Dados.criarConta({ email, senha, nome, telefone: paraE164(tel), volta: voltaDaContaNova() });
+    r = await Dados.criarConta({ email, senha, nome, telefone: paraE164(tel), nascimento: nasc,
+                                 volta: voltaDaContaNova() });
   }catch(e){
     console.info('[AgendaPro] criar conta:', e.message);
     bp.disabled = false; bp.textContent = contaDoCadastro ? 'Fazer meu cadastro' : 'Criar conta';
@@ -7577,7 +7594,7 @@ async function criarContaCliente(){
   }
   document.getElementById('cSenha').value = '';
   // O aparelho passa a lembrar dela, com conta confirmada ou não.
-  sessao = Object.assign({}, sessao || {}, { nome, telefone: tel, email });
+  sessao = Object.assign({}, sessao || {}, { nome, telefone: tel, email, nascimento: nasc });
   guardarSessao();
   bp.disabled = false; bp.textContent = contaDoCadastro ? 'Fazer meu cadastro' : 'Criar conta';
   /* ⚠ PROJETO QUE EXIGE CONFIRMAR O E-MAIL: a conta nasce sem sessão. O link

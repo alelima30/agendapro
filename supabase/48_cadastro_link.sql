@@ -39,6 +39,13 @@ begin
   -- Primeiro, o caminho de sempre: a ficha que já é dela, ou a que bate.
   v_ficha := public.ligar_minha_ficha(p_salao);
   if v_ficha->>'ficha' is not null then
+    /* A ficha do balcão ganha o que a conta tem e ela não: o aniversário (é
+       dele que sai Aniversariantes) e o e-mail. Só o VAZIO — a mesma regra
+       do `agendar()` (09): quem manda na ficha é o salão. */
+    update public.clientes c
+       set nascimento = coalesce(c.nascimento, nullif(v_ficha->>'nascimento', '')::date),
+           email      = coalesce(c.email, nullif(btrim(coalesce(v_ficha->>'email', '')), ''))
+     where c.id = (v_ficha->>'ficha')::uuid and (c.nascimento is null or c.email is null);
     return v_ficha || jsonb_build_object('criada', false);
   end if;
 

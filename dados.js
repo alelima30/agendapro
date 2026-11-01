@@ -643,9 +643,10 @@ const Nuvem = {
   /* `volta`: para onde o link de confirmação do e-mail devolve a pessoa.
      Sem ele, vale o "Site URL" do projeto — que é o painel. A cliente que
      cria conta no link do salão tem que voltar para o link do salão. */
-  async criarConta({ email, senha, nome, telefone, volta }){
+  async criarConta({ email, senha, nome, telefone, nascimento, volta }){
     const r = await auth('signup' + (volta ? '?redirect_to=' + encodeURIComponent(volta) : ''),
-      { email, password: senha, data: { nome, telefone } });
+      { email, password: senha,
+        data: Object.assign({ nome, telefone }, nascimento ? { nascimento } : {}) });
     if(r.access_token){
       guardarSessao({ token: r.access_token, refresh: r.refresh_token,
                       usuarioId: r.user && r.user.id, expiraEm: quandoVence(r) });

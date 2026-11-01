@@ -103,3 +103,6 @@ for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql
   } >> "$SAIDA"
 done
 echo "00_tudo.sql: $(wc -l < "$SAIDA") linhas"
+# E as duas metades, para o SQL Editor do Supabase (que recusa arquivo de mais
+# de 1 MB). Ver montar-partes.sh.
+bash "$AQUI/montar-partes.sh"

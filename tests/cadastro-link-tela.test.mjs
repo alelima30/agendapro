@@ -21,7 +21,9 @@
         salão não é se cadastrar nele);
      6. o painel: a marca "cadastrou pelo link" em Clientes, e o botão "Link
         de cadastro" com o link, copiar e mandar no WhatsApp;
-     7. a 360px cabe; nenhum erro de JavaScript.
+     7. o aniversário: obrigatório no cadastro, vai para a ficha e aparece
+        em Aniversariantes (pela tela e pela volta do e-mail);
+     8. a 360px cabe; nenhum erro de JavaScript.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -59,7 +61,8 @@ const banco = new pgLib.Client({ host: process.env.PGHOST || '/tmp',
   database: process.env.PGBANCO || 'app' });
 await banco.connect();
 const fichas = async () => (await banco.query(
-  `select nome, telefone, perfil_id, pelo_link from public.clientes where salao_id = $1 order by nome`, [SALAO])).rows;
+  `select nome, telefone, perfil_id, pelo_link, to_char(nascimento, 'YYYY-MM-DD') nasc
+     from public.clientes where salao_id = $1 order by nome`, [SALAO])).rows;
 
 const m = Date.now().toString(36) + Math.floor(Math.random() * 1000);
 const n8 = String(Date.now() % 100000000).padStart(8, '0');
@@ -84,9 +87,9 @@ await dona.atualizar('saloes', SALAO, { cfg:{ diasLiberados:30, cor:'#B8356B', f
 await dona.inserir('clientes', { salaoId: SALAO, nome:'Maria Souza', telefone: TEL.maria });
 
 // Uma conta pronta, feita fora do navegador (o "já tenho conta" e a volta do e-mail).
-async function conta(nome, t, email){
+async function conta(nome, t, email, nascimento){
   const d = aba();
-  await d.criarConta({ email, senha:'senhaboa123', nome, telefone:'+55' + t });
+  await d.criarConta({ email, senha:'senhaboa123', nome, telefone:'+55' + t, nascimento });
   return d.sessao();
 }
 
@@ -125,6 +128,11 @@ secao('1. O link de cadastro: a conta nova vira ficha no salão');
   await p.fill('#cTel', masc(TEL.lu));
   await p.fill('#cEmail', `lu-${m}@t.com`);
   await p.fill('#cSenha', 'senhaboa123');
+  verdade('o cadastro pede o aniversário', await p.isVisible('#cNascTxt'));
+  await p.click('#btPrincipal'); await p.waitForTimeout(300);
+  verdade('sem ele, não cadastra, e diz o que falta',
+    /Falta o seu aniversário/.test(await p.evaluate(() => document.getElementById('avisoConta').innerText)));
+  await p.fill('#cNascTxt', '15/03/1992'); await p.dispatchEvent('#cNascTxt', 'input');
   await p.click('#btPrincipal');
   await p.waitForFunction(() => tela === 'cadastro', null, { timeout: 10000 }).catch(() => {});
   const f = await estado(p);
@@ -135,6 +143,7 @@ secao('1. O link de cadastro: a conta nova vira ficha no salão');
   const lu = (await fichas()).find(x => x.nome === 'Luana Teste');
   igual('no banco: a ficha nasceu, ligada à conta, com o WhatsApp sem o 55 e a marca',
     lu && [lu.telefone, !!lu.perfil_id, lu.pelo_link], [TEL.lu, true, true]);
+  igual('e com o aniversário', lu && lu.nasc, '1992-03-15');
   await p.click('#btPrincipal'); await p.waitForTimeout(500);
   igual('"Marcar um horário" leva aos serviços, e o voltar vai para a capa', await p.evaluate(() =>
     [tela, (voltar(), tela)]), ['servico', 'capa']);
@@ -165,14 +174,15 @@ secao('2. Quem já tem conta entra pelo mesmo link: liga a ficha do balcão');
 /* ══════════════════════════════════════════════════════════════════════════ */
 secao('3. A volta do e-mail de confirmação');
 {
-  const s = await conta('Carla Dias', TEL.carla, `carla-${m}@t.com`);
+  const s = await conta('Carla Dias', TEL.carla, `carla-${m}@t.com`, '1988-07-21');
   const { p, ctx } = await aparelho('&cadastro=1#access_token=' + s.token + '&refresh_token=' + (s.refresh || '')
     + '&expires_in=3600&token_type=bearer&type=signup', 390, 'cadastro');
   const e = await estado(p);
   igual('cadastro=1: volta já em "Cadastro feito", e o endereço fica limpo',
     [e.tela, e.titulo, e.endereco, await p.evaluate(() => location.hash)], ['cadastro', 'Cadastro feito', '?salao=' + SLUG, '']);
   const carla = (await fichas()).find(x => x.nome === 'Carla Dias');
-  igual('a ficha dela nasceu, marcada', carla && [!!carla.perfil_id, carla.pelo_link], [true, true]);
+  igual('a ficha dela nasceu, marcada, com o aniversário que veio na conta',
+    carla && [!!carla.perfil_id, carla.pelo_link, carla.nasc], [true, true, '1988-07-21']);
   await ctx.close();
 
   const s2 = await conta('Dani Rocha', TEL.dani, `dani-${m}@t.com`);
@@ -197,7 +207,7 @@ secao('4. Criar a conta pela tela de sempre também faz a ficha');
   await p.click('#abaCriar'); await p.waitForTimeout(200);
   const e = await estado(p);
   igual('a tela de conta de sempre não fala em cadastro', [e.titulo, e.bp], ['Criar conta', 'Criar conta']);
-  await p.fill('#cNome', 'Eva Lima'); await p.fill('#cTel', masc(TEL.eva));
+  await p.fill('#cNome', 'Eva Lima'); await p.fill('#cTel', masc(TEL.eva)); await p.fill('#cNasc', '1995-11-09');
   await p.fill('#cEmail', `eva-${m}@t.com`); await p.fill('#cSenha', 'senhaboa123');
   await p.click('#btPrincipal'); await p.waitForTimeout(2500);
   igual('volta para onde estava (os serviços)', await p.evaluate(() => tela), 'servico');
@@ -243,6 +253,9 @@ secao('6. O painel: a marca em Clientes e o botão do link');
   const de = n => (linhas.find(l => l[0] === n) || [n, null])[1];
   igual('quem se cadastrou pelo link tem a marca; a ficha do balcão, não',
     [de('Luana Teste'), de('Carla Dias'), de('Maria Souza')], [true, true, false]);
+  igual('e o aniversário dela aparece em Aniversariantes, no mês dele',
+    await p.evaluate(() => [aniversariantesNoMes(3).map(x => x.chamada).includes('Luana Teste'),
+      aniversariantesNoMes(7).map(x => x.chamada).includes('Carla Dias')]), [true, true]);
   await p.click('button:has-text("Link de cadastro")');
   await p.waitForSelector('#linkCadastro');
   const link = await p.inputValue('#linkCadastro');

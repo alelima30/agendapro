@@ -129,7 +129,7 @@ const A = await aparelho();
      !!document.getElementById('linhaEsqueci').offsetParent, document.getElementById('btPrincipal').textContent.trim()]),
     ['Criar conta', true, false, 'Criar conta']);
   await p.fill('#cNome', 'Maria');
-  await p.fill('#cTel', masc(TEL_MARIA));
+  await p.fill('#cTel', masc(TEL_MARIA)); await p.fill('#cNasc', '1990-05-04');
   await p.fill('#cEmail', `maria-${m}@t.com`);
   await p.fill('#cSenha', 'curta');
   await p.click('#btPrincipal'); await p.waitForTimeout(300);
@@ -164,20 +164,21 @@ const A = await aparelho();
     nome: document.getElementById('dNome').value, tel: document.getElementById('dTel').value }));
   igual('o cadastro já sabe quem ela é, e não pede senha', [dados.tela, /Você está na sua conta/.test(dados.conta),
     dados.senha, dados.nome, dados.tel], ['dados', true, false, 'Maria', masc(TEL_MARIA)]);
-  /* LOGADA: só confirmar o nome. Dos outros, só o que a conta não tem — e a
-     conta nasce sem aniversário. WhatsApp e e-mail ela já deu. */
+  /* LOGADA: só confirmar o nome. Dos outros, só o que a conta não tem —
+     e a conta já deu WhatsApp, e-mail e aniversário. */
   const vis = () => p.evaluate(() => ({
     titulo: document.getElementById('dadosTitulo').textContent,
     campos: ['campoNome','campoTel','campoNasc','campoCpf','campoEmail']
       .filter(id => !!document.getElementById(id).offsetParent),
     conta: document.getElementById('dadosConta').innerText.replace(/\s+/g, ' ') }));
   const v1 = await vis();
-  igual('logada: "Confirme seu cadastro", e só o que falta vira campo (o aniversário) — o nome não',
-    [v1.titulo, v1.campos], ['Confirme seu cadastro', ['campoNasc']]);
+  /* A conta passou a nascer COM o aniversário (o "Criar conta" pede): aqui
+     não falta nada, e nenhum campo aparece — só o cartão para conferir. */
+  igual('logada: "Confirme seu cadastro", e nada vira campo — o aniversário já veio na conta',
+    [v1.titulo, v1.campos], ['Confirme seu cadastro', []]);
   verdade('o cartão mostra nome, WhatsApp e e-mail da conta, e o jeito de trocar de conta',
     /Nome Maria/.test(v1.conta) && v1.conta.includes(masc(TEL_MARIA)) && v1.conta.includes(`maria-${m}@t.com`)
     && /Entrar com outra conta/.test(v1.conta), v1.conta);
-  await p.fill('#dNasc', '1990-05-04');
   await p.click('#btPrincipal'); await p.waitForTimeout(1200);
   // O `toLocaleString` separa "R$" do número com espaço que não quebra.
   const total = await p.evaluate(() => document.querySelector('#resumoFinal .cf-total b').textContent.trim().replace(/\s/g, ' '));
@@ -250,7 +251,7 @@ secao('2b. E-mail que já tem conta');
   const cadastros = [];
   p.on('request', r => { if(/\/auth\/v1\/signup/.test(r.url())) cadastros.push(decodeURIComponent(r.url())); });
   await p.evaluate(() => abrirConta('criar')); await p.waitForTimeout(200);
-  await p.fill('#cNome', 'Maria'); await p.fill('#cTel', masc(TEL_MARIA));
+  await p.fill('#cNome', 'Maria'); await p.fill('#cTel', masc(TEL_MARIA)); await p.fill('#cNasc', '1990-05-04');
   await p.fill('#cEmail', `maria-${m}@t.com`); await p.fill('#cSenha', 'outrasenha1');
   await p.click('#btPrincipal'); await p.waitForTimeout(1200);
   verdade('diz que o e-mail já tem conta, e oferece entrar', /Este e-mail já tem conta/.test(await aviso(p))
@@ -297,7 +298,7 @@ secao('8. Primeiro nome diferente não liga');
 {
   const { p, ctx } = await aparelho();
   await p.evaluate(() => abrirConta('criar')); await p.waitForTimeout(200);
-  await p.fill('#cNome', 'Bia'); await p.fill('#cTel', masc(TEL_BEA));
+  await p.fill('#cNome', 'Bia'); await p.fill('#cTel', masc(TEL_BEA)); await p.fill('#cNasc', '1990-05-04');
   await p.fill('#cEmail', `bia-${m}@t.com`); await p.fill('#cSenha', 'senhadabia1');
   await p.click('#btPrincipal'); await p.waitForTimeout(2500);
   igual('"Bia" com a ficha de "Beatriz Lima": a conta entra, a ficha não liga, e o pacote não aparece',
@@ -394,7 +395,7 @@ secao('12b. Criar conta com um WhatsApp que já é de outra conta');
 {
   const { p, ctx } = await aparelho();
   await p.evaluate(() => abrirConta('criar')); await p.waitForTimeout(200);
-  await p.fill('#cNome', 'Maria'); await p.fill('#cTel', masc(TEL_MARIA));
+  await p.fill('#cNome', 'Maria'); await p.fill('#cTel', masc(TEL_MARIA)); await p.fill('#cNasc', '1990-05-04');
   await p.fill('#cEmail', `esqueci-${m}@t.com`); await p.fill('#cSenha', 'senhanova12');
   await p.click('#btPrincipal'); await p.waitForTimeout(2500);
   const t = await p.evaluate(() => ({ tela, titulo: document.getElementById('contaTitulo').textContent,

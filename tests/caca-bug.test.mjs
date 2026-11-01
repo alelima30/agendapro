@@ -272,7 +272,7 @@ secao('9. A loja: sem acento, e o pedido corrigido não gasta outro uso');
   // Cupom na loja só dentro da conta: cria a conta pela própria caixa do cupom.
   await p.click('#lojaCupomCaixa summary');
   await p.click('#lojaCupomCaixa button:has-text("Criar conta")'); await p.waitForTimeout(300);
-  await p.fill('#cNome', 'Dri Loja'); await p.fill('#cTel', masc(tel('85')));
+  await p.fill('#cNome', 'Dri Loja'); await p.fill('#cTel', masc(tel('85'))); await p.fill('#cNasc', '1990-05-04');
   await p.fill('#cEmail', `dri-${m}@t.com`); await p.fill('#cSenha', 'senhadadri1');
   await p.click('#btPrincipal'); await p.waitForTimeout(2500);
   if(!(await p.isVisible('#cupomLojaTxt'))) await p.click('#lojaCupomCaixa summary');
