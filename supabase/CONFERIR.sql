@@ -1132,6 +1132,18 @@ with conferencia(ordem, item, veredito, detalhe) as (
                 or not exists (select 1 from pg_proc where proname = 'conta_do_adicional' and prosrc like '%trocou%')
               then 'cole as duas partes de novo (46_adicionais)' else '' end
   union all
+  /* Quem atendeu (49): trocar a profissional depois da hora, sem mensagem
+     para a cliente; e o aviso de remarcado só quando muda o dia ou a hora. */
+  select 66, 'Quem atendeu (trocar a profissional depois da hora)',
+         case when to_regprocedure('public.trocar_quem_atende(uuid,uuid)') is null
+                or not exists (select 1 from pg_proc where proname = 'avisar_remarcado'
+                                 and prosrc like '%if a.inicio = p_antes then return false%')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.trocar_quem_atende(uuid,uuid)') is null
+                or not exists (select 1 from pg_proc where proname = 'avisar_remarcado'
+                                 and prosrc like '%if a.inicio = p_antes then return false%')
+              then 'cole as duas partes de novo (49_remarcar e 52_mensagens_novas)' else '' end
+  union all
   /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
      o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
   select 59, 'Aniversário do cadastro chega à ficha',

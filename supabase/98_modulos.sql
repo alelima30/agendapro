@@ -8684,6 +8684,62 @@ begin
 end $$;
 revoke all on function public.remarcar_pelo_salao(uuid, timestamptz, uuid, boolean) from public, anon;
 grant execute on function public.remarcar_pelo_salao(uuid, timestamptz, uuid, boolean) to authenticated;
+create or replace function public.trocar_quem_atende(p_agendamento uuid, p_profissional uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare a public.agendamentos%rowtype; v_fuso text; v_nome text; v_encaixe boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'Entre de novo para trocar quem atendeu.' using errcode = 'insufficient_privilege';
+  end if;
+  select * into a from public.agendamentos where id = p_agendamento for update;
+  if a.id is null then
+    raise exception 'Não achei este horário.' using errcode = 'check_violation';
+  end if;
+  if not public.ve_agenda_toda(a.salao_id) then
+    raise exception 'Só o balcão e a gestão trocam quem atendeu.' using errcode = 'insufficient_privilege';
+  end if;
+  if a.arquivado_em is not null or a.status not in ('pendente', 'confirmado', 'em_atendimento') then
+    raise exception 'Só dá para trocar quem atendeu antes de concluir o horário.'
+      using errcode = 'check_violation';
+  end if;
+  select coalesce(s.fuso, 'America/Sao_Paulo') into v_fuso from public.saloes s where s.id = a.salao_id;
+  if (a.inicio at time zone v_fuso)::date > public.hoje_no_salao(a.salao_id) then
+    raise exception 'Este horário é de outro dia: use Remarcar para escolher quem vai atender.'
+      using errcode = 'check_violation';
+  end if;
+  select pr.nome into v_nome from public.profissionais pr
+   where pr.id = p_profissional and pr.salao_id = a.salao_id and pr.ativo;
+  if v_nome is null then
+    raise exception 'Escolha quem atendeu.' using errcode = 'check_violation';
+  end if;
+  if p_profissional = a.profissional_id then
+    return jsonb_build_object('ok', true, 'mudou', false, 'profissional', v_nome);
+  end if;
+  if public.ha_choque(p_profissional, a.inicio, a.fim, a.id) is not null then
+    raise exception '% tem outro horário marcado nesse mesmo horário.', v_nome
+      using errcode = 'check_violation';
+  end if;
+  v_encaixe := a.encaixe
+    or not public.cabe_na_jornada(p_profissional, a.inicio, a.fim)
+    or public.ha_bloqueio(p_profissional, a.inicio, a.fim) is not null;
+  begin
+    update public.agendamentos
+       set profissional_id = p_profissional, encaixe = v_encaixe,
+           encaixe_por = case when v_encaixe and not a.encaixe then auth.uid() else a.encaixe_por end
+     where id = a.id;
+  exception when exclusion_violation then
+    raise exception '% tem outro horário marcado nesse mesmo horário.', v_nome
+      using errcode = 'check_violation';
+  end;
+  update public.agendamento_servicos asv
+     set comissao_pct = coalesce(sv.comissao_pct, pr.comissao_pct, 0)
+    from public.servicos sv, public.profissionais pr
+   where asv.agendamento_id = a.id and sv.id = asv.servico_id and pr.id = p_profissional;
+  perform public.refazer_lembrete_cliente(a.id);
+  return jsonb_build_object('ok', true, 'mudou', true, 'profissional', v_nome, 'encaixe', v_encaixe);
+end $$;
+revoke all on function public.trocar_quem_atende(uuid, uuid) from public, anon;
+grant execute on function public.trocar_quem_atende(uuid, uuid) to authenticated;
 
 alter table public.pacotes add column if not exists arquivado_em timestamptz;
 create or replace function public.clientes_no_pacote(p_pacote uuid)
@@ -9039,7 +9095,7 @@ begin
   if a.id is null or a.inicio <= now() or a.status not in ('pendente', 'confirmado') then
     return false;
   end if;
-  if a.inicio = p_antes and a.profissional_id is not distinct from p_prof_antes then return false; end if;
+  if a.inicio = p_antes then return false; end if;
   if not public.mensagem_remarcado() or not public.notif_liga(a.salao_id, 'notifRemarcado', true) then
     return false;
   end if;

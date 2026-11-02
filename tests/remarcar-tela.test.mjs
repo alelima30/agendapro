@@ -293,6 +293,57 @@ verdade('o que nunca foi vendido: pergunta, e diz que será apagado',
 igual('e some do banco e da lista', [(await linha(`select count(*)::int n from public.pacotes where id = $1`, [solto.id])).n,
   await p.evaluate(() => /Nunca vendido/.test(document.getElementById('listaPacotes').innerText))], [0, false]);
 
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('9. Quem atendeu: a troca depois da hora');
+{
+  // Ontem às 10h a Maria estava com a Ju; quem atendeu foi a Bia.
+  const ONTEM = (await linha(`select to_char((now() at time zone 'America/Sao_Paulo')::date - 1, 'YYYY-MM-DD') d`)).d;
+  // Duas profissionais: o teste grátis aceita uma só — o salão passa para o plano de equipe.
+  await banco.query(`update public.assinaturas set plano = 'time', status = 'ativa', trial_ate = null,
+    vence_em = current_date + 20 where salao_id = $1`, [SALAO]);
+  const bia = await dona.inserir('profissionais', { salaoId: SALAO, nome:'Bia Lima', ativo:true, comissaoPct:50 });
+  for(let i = 0; i <= 6; i++)
+    await dona.inserir('jornadas', { profissionalId: bia.id, diaSemana:i, inicio:'08:00', fim:'19:00' });
+  const ONT = (await linha(`insert into public.agendamentos (salao_id, cliente_id, profissional_id, inicio, fim,
+      status, origem, valor_previsto)
+    values ($1, $2, $3, ($4::date + time '10:00') at time zone 'America/Sao_Paulo',
+            ($4::date + time '11:00') at time zone 'America/Sao_Paulo', 'confirmado', 'recepcao', 50)
+    returning id`, [SALAO, MARIA, prof.id, ONTEM])).id;
+  await banco.query(`insert into public.agendamento_servicos (agendamento_id, servico_id, ordem, duracao_min, preco, comissao_pct)
+    values ($1, $2, 1, 60, 50, 0)`, [ONT, escova.id]);
+  await p.reload();
+  await p.waitForFunction(() => typeof bd !== 'undefined' && bd && Array.isArray(bd.saloes)
+    && bd.agendamentos && bd.agendamentos.length, null, { timeout: 20000 });
+  await p.waitForTimeout(1200);
+  await p.evaluate(() => { try{ fecharModal(); }catch(e){} if(typeof pdFechar === 'function') pdFechar(true); });
+  await p.evaluate(id => abrirDetalhe(id), ONT);
+  const bts = await botoes();
+  verdade('o horário de ontem (já passou) tem "Quem atendeu", e não "Remarcar"',
+    bts.includes('Quem atendeu') && !bts.includes('Remarcar'), bts.join(' | '));
+  await p.click('#modalPe .btn:has-text("Quem atendeu")');
+  await p.waitForSelector('#fQuemAtendeu');
+  igual('abre "Quem atendeu", com quem estava marcada', await p.evaluate(() =>
+    [document.getElementById('modalTitulo').textContent, document.getElementById('fQuemAtendeu').value]),
+    ['Quem atendeu', prof.id]);
+  verdade('   dizendo que a comissão vai junto e que a cliente não recebe mensagem',
+    /comissão vai para quem atendeu/.test(await p.evaluate(() => document.getElementById('modalCorpo').innerText))
+    && /não recebe mensagem/.test(await p.evaluate(() => document.getElementById('modalCorpo').innerText)));
+  await p.selectOption('#fQuemAtendeu', bia.id);
+  await p.click('#modalPe .btn-p:has-text("Salvar")');
+  await p.waitForFunction(() => !document.getElementById('fundo').classList.contains('on'), null, { timeout: 10000 }).catch(() => {});
+  igual('no banco: o horário passou para a Bia, com a comissão dela, e nenhuma mensagem para a cliente',
+    await linha(`select a.profissional_id = $2 as bia, (select comissao_pct::int from public.agendamento_servicos
+        where agendamento_id = a.id) as pct,
+        (select count(*)::int from public.notificacoes where agendamento_id = a.id and tipo = 'remarcado') as avisos
+      from public.agendamentos a where a.id = $1`, [ONT, bia.id]),
+    { bia: true, pct: 50, avisos: 0 });
+  igual('   e a tela também', await p.evaluate(id => bd.agendamentos.find(x => x.id === id).profissionalId, ONT), bia.id);
+  await p.evaluate(id => abrirDetalhe(id), PEND);
+  verdade('horário de outro dia por vir: "Remarcar", e não "Quem atendeu"',
+    (await botoes()).includes('Remarcar') && !(await botoes()).includes('Quem atendeu'), (await botoes()).join(' | '));
+  await p.evaluate(() => fecharModal());
+}
+
 igual('\nnenhum erro de JavaScript', erros, []);
 await nav.close();
 await banco.end();

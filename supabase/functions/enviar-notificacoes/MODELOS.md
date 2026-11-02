@@ -626,8 +626,9 @@ Se você já pagou, desconsidere esta mensagem. Em caso de dúvida, fale com o s
 
 ## 17. `agendapro_remarcado`
 
-Vai para a cliente quando o salão **remarca pelo painel** (o dia, a hora ou a
-profissional). Remarcou de novo antes de sair, só a última vai. Mesmas regras:
+Vai para a cliente quando o salão **remarca pelo painel** o dia ou a hora
+(trocar só a profissional não manda mensagem). Remarcou de novo antes de sair,
+só a última vai. Mesmas regras:
 **Utilidade**, **Português (BR)**, sem cabeçalho e sem botão. Depois de
 aprovado, ligue em **admin → Mensagens do WhatsApp → Ligar o aviso de
 remarcado**; o dono desliga em **Notificações → Horário remarcado**.

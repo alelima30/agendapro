@@ -23,9 +23,9 @@
 -- Crediário esperam o mês seguinte.
 --
 -- ── O HORÁRIO REMARCADO (49) ─────────────────────────────────────────────
--- O salão remarcou pelo painel (dia, hora ou profissional): a cliente
--- recebe o horário de antes e o novo. Remarcou de novo antes de sair, só a
--- última vai.
+-- O salão remarcou pelo painel (o dia ou a hora): a cliente recebe o
+-- horário de antes e o novo. Trocar só a profissional não avisa. Remarcou de
+-- novo antes de sair, só a última vai.
 --
 -- ── ⚠ SÓ SAEM COM OS MODELOS APROVADOS NA META ────────────────────────────
 -- Como as do pacote (45): até a plataforma ver os modelos aprovados e ligar
@@ -359,7 +359,7 @@ end $$;
 -- 4) O HORÁRIO REMARCADO
 --
 -- Chamado pelo `remarcar_pelo_salao` (49), com o horário e a profissional
--- de antes. Mudou alguma coisa e o horário novo é no futuro: vai agora.
+-- de antes. Mudou o dia ou a hora, e o horário novo é no futuro: vai agora.
 -- Remarcou de novo antes de sair, a anterior sai da fila — só a última vale.
 -- ---------------------------------------------------------------------------
 create or replace function public.avisar_remarcado(p_agendamento uuid, p_antes timestamptz,
@@ -378,7 +378,9 @@ begin
   if a.id is null or a.inicio <= now() or a.status not in ('pendente', 'confirmado') then
     return false;
   end if;
-  if a.inicio = p_antes and a.profissional_id is not distinct from p_prof_antes then return false; end if;
+  -- Só quando muda o DIA ou a HORA: trocar só a profissional (num pacote, a
+  -- Bia no lugar da Ju) não é motivo para mensagem — o horário dela é o mesmo.
+  if a.inicio = p_antes then return false; end if;
   if not public.mensagem_remarcado() or not public.notif_liga(a.salao_id, 'notifRemarcado', true) then
     return false;
   end if;

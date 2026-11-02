@@ -2112,7 +2112,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.f18df8';
+const VERSAO_APP = 'v9.076663';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7189,6 +7189,8 @@ function abrirDetalhe(agId){
         : []),
     // Mover o horário: outro dia, outra hora, outra profissional (49_remarcar.sql).
     ...(podeRemarcar(a) ? [['Remarcar', `abrirRemarcar('${agId}')`, '']] : []),
+    // Quem atendeu de verdade — também depois da hora (49, `trocar_quem_atende`).
+    ...(podeTrocarQuemAtende(a) ? [['Quem atendeu', `abrirQuemAtendeu('${agId}')`, '']] : []),
     ['Salvar', `salvarStatus('${agId}')`, 'btn-p'],
   ]);
 }
@@ -7317,6 +7319,62 @@ async function confirmarRemarcar(){
     alert('Não consegui remarcar.\n\n' + (e.message || e));
   }finally{
     if(bt && document.body.contains(bt)){ bt.disabled = false; bt.textContent = 'Remarcar'; }
+  }
+}
+
+/* ── QUEM ATENDEU ──────────────────────────────────────────────────────────
+   "Como administrar para saber quem atendeu?" A comissão vai para a
+   profissional do horário quando ele é concluído. Se a Ju faltou e a Bia
+   atendeu, o balcão troca aqui — também depois da hora, enquanto o horário
+   não foi concluído. Horário de outro dia ainda por vir é com o Remarcar.
+   A cliente não recebe mensagem: o horário dela não mudou. Quem confere é o
+   banco (a Bia com outra cliente no mesmo horário não atendeu esta). */
+function podeTrocarQuemAtende(a){
+  return !!a && vejoTudo() && !a.arquivadoEm
+    && ['pendente', 'confirmado', 'em_atendimento'].includes(a.status)
+    && a.data <= hoje() && profsAtivos().length > 1;
+}
+function abrirQuemAtendeu(agId){
+  const a = bd.agendamentos.find(x => x.id === agId);
+  if(!podeTrocarQuemAtende(a)) return;
+  const c = acharCliente(a.clienteId);
+  abrirModal('Quem atendeu', `
+    <p style="line-height:1.55;margin-bottom:12px">${escapar((c && c.nome) || 'Cliente')} ·
+      ${a.data === hoje() ? 'hoje' : porExtenso(a.data)} às ${hm(a.inicio)}.<br>
+      A comissão vai para quem atendeu, quando o horário for concluído.
+      A cliente não recebe mensagem.</p>
+    <div class="campo"><label for="fQuemAtendeu">Quem atendeu</label>
+      <select id="fQuemAtendeu">${profsAtivos().map(p =>
+        `<option value="${p.id}"${p.id === a.profissionalId ? ' selected' : ''}>${escapar(p.nome)}</option>`).join('')}</select></div>
+    <div id="avisoQuemAtendeu"></div>`, [
+    ['Cancelar', 'fecharModal()', ''],
+    ['Salvar', `confirmarQuemAtendeu('${agId}')`, 'btn-p']]);
+}
+async function confirmarQuemAtendeu(agId){
+  const a = bd.agendamentos.find(x => x.id === agId);
+  if(!a) return;
+  const profId = (document.getElementById('fQuemAtendeu') || {}).value;
+  if(!profId || profId === a.profissionalId){ fecharModal(); return; }
+  // Na demonstração não há banco: troca aqui.
+  if(!NA_NUVEM){
+    a.profissionalId = profId;
+    salvar(); fecharModal(); pintar();
+    return;
+  }
+  const bt = [...document.querySelectorAll('#modalPe .btn-p')].pop();
+  if(bt){ bt.disabled = true; bt.textContent = 'Salvando…'; }
+  try{
+    try{ await _filaGravacao; }catch(e){}
+    await Dados.chamar('trocar_quem_atende', { p_agendamento: agId, p_profissional: profId });
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+    fecharModal();
+    pintar();
+  }catch(e){
+    const av = document.getElementById('avisoQuemAtendeu');
+    if(av) av.innerHTML = `<div class="aviso" style="margin-top:12px"><b>${escapar(e.message || 'Não deu para trocar.')}</b><br>Nada mudou.</div>`;
+  }finally{
+    if(bt && document.body.contains(bt)){ bt.disabled = false; bt.textContent = 'Salvar'; }
   }
 }
 
@@ -10842,9 +10900,9 @@ function pintarSalao(){
            dela que mudou. Sai quando a plataforma libera o modelo. -->
       <div class="campo" style="margin-top:14px">
         <label class="check"><input type="checkbox" id="nRemarcado">
-          <span><b>Horário remarcado</b> — quando você remarca pelo painel
-          (dia, hora ou profissional), a cliente recebe o horário de antes e o
-          novo.</span></label>
+          <span><b>Horário remarcado</b> — quando você muda o dia ou a hora
+          pelo Remarcar, a cliente recebe o horário de antes e o novo. Trocar só
+          a profissional não manda mensagem.</span></label>
       </div>
       <div id="avisoRemarcadoMsg"></div>
 

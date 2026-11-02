@@ -11,7 +11,10 @@
 --   5. fora da jornada: só com a confirmação, e fica como encaixe com nome;
 --   6. outra profissional: a comissão passa a ser a dela;
 --   7. quem atende remarca o próprio horário, para si — e só;
---   8. o que não se remarca: horário que já passou, cancelado, e a cliente.
+--   8. o que não se remarca: horário que já passou, cancelado, e a cliente;
+--   9. quem atendeu: a troca depois da hora (a comissão vai junto, a cliente
+--      não recebe nada); a agenda dela ainda vale; concluído e outro dia, não;
+--  10. o aviso de remarcado: só quando muda o dia ou a hora.
 -- ===========================================================================
 \set ON_ERROR_STOP on
 
@@ -225,4 +228,87 @@ select t_texto('o cancelado, não',
 select t_texto('a cliente não remarca por aqui (pelo link, sim)',
   erro_de(format($$select t_remarcar('c4900000-0000-0000-0000-00000000000c', %L, now() + interval '9 days')$$, :'s1')),
   'Só o balcão e a gestão remarcam o horário de outra pessoa.');
+select set_config('request.jwt.claim.sub', '', false);
+
+\echo ''
+\echo '9. Quem atendeu: a troca depois da hora'
+-- Ontem às 10h a Joana estava com a Ju; quem atendeu foi a Bia.
+select (current_date - 1) as ontem \gset
+insert into public.agendamentos (id, salao_id, cliente_id, profissional_id, inicio, fim, status, origem, valor_previsto)
+  values ('a4910000-0000-0000-0000-0000000000f2', '54900000-0000-0000-0000-00000000000a',
+          'c4910000-0000-0000-0000-00000000000b', '94900000-0000-0000-0000-00000000000d',
+          t_em(:'ontem'::date, '10:00'), t_em(:'ontem'::date, '10:45'), 'confirmado', 'recepcao', 40);
+insert into public.agendamento_servicos (agendamento_id, servico_id, ordem, preco, duracao_min, comissao_pct)
+  values ('a4910000-0000-0000-0000-0000000000f2', '54910000-0000-0000-0000-0000000000a1', 1, 40, 45, 40);
+create or replace function t_quem(p_quem uuid, p_ag uuid, p_prof uuid) returns jsonb language plpgsql as $$
+declare r jsonb;
+begin
+  perform set_config('request.jwt.claim.sub', p_quem::text, true);
+  perform set_config('role', 'authenticated', true);
+  r := public.trocar_quem_atende(p_ag, p_prof);
+  perform set_config('role', 'postgres', true);
+  return r;
+end $$;
+select t_verdade('o anon nem chama',
+  not has_function_privilege('anon', 'public.trocar_quem_atende(uuid,uuid)', 'execute'));
+select t_texto('quem atende não troca quem atendeu',
+  erro_de($$select t_quem('d4900000-0000-0000-0000-00000000000d', 'a4910000-0000-0000-0000-0000000000f2',
+    '94900000-0000-0000-0000-00000000000e')$$), 'Só o balcão e a gestão trocam quem atendeu.');
+select (select count(*) from public.notificacoes where agendamento_id = 'a4910000-0000-0000-0000-0000000000f2') as msgs_antes \gset
+select t_quem('b4900000-0000-0000-0000-00000000000b', 'a4910000-0000-0000-0000-0000000000f2',
+  '94900000-0000-0000-0000-00000000000e') as q1 \gset
+select t_texto('a recepção diz que foi a Bia, depois da hora: o horário passa a ser dela',
+  (:'q1'::jsonb->>'profissional') || ' | ' || (select p.nome from public.agendamentos a
+    join public.profissionais p on p.id = a.profissional_id where a.id = 'a4910000-0000-0000-0000-0000000000f2'),
+  'Bia | Bia');
+select t_texto('   a comissão passa a ser a dela (50%), e não fica como encaixe (ela trabalha nesse horário)',
+  (select comissao_pct::int || ' | ' || a.encaixe from public.agendamento_servicos s
+     join public.agendamentos a on a.id = s.agendamento_id where s.agendamento_id = 'a4910000-0000-0000-0000-0000000000f2'),
+  '50 | false');
+select t_igual('   e a cliente não recebe mensagem nenhuma',
+  (select count(*) from public.notificacoes where agendamento_id = 'a4910000-0000-0000-0000-0000000000f2'), :msgs_antes);
+-- A Bia tinha outra cliente às 15h, ontem: não atendeu a das 15h da Ju.
+insert into public.agendamentos (id, salao_id, cliente_id, profissional_id, inicio, fim, status, origem, valor_previsto)
+  values ('a4910000-0000-0000-0000-0000000000f3', '54900000-0000-0000-0000-00000000000a',
+          'c4910000-0000-0000-0000-00000000000b', '94900000-0000-0000-0000-00000000000e',
+          t_em(:'ontem'::date, '15:00'), t_em(:'ontem'::date, '15:45'), 'confirmado', 'recepcao', 40),
+         ('a4910000-0000-0000-0000-0000000000f4', '54900000-0000-0000-0000-00000000000a',
+          'c4910000-0000-0000-0000-00000000000a', '94900000-0000-0000-0000-00000000000d',
+          t_em(:'ontem'::date, '15:00'), t_em(:'ontem'::date, '15:45'), 'confirmado', 'recepcao', 40);
+select t_texto('a Bia tinha outra cliente no mesmo horário: recusa, e diz por quê',
+  erro_de($$select t_quem('b4900000-0000-0000-0000-00000000000b', 'a4910000-0000-0000-0000-0000000000f4',
+    '94900000-0000-0000-0000-00000000000e')$$), 'Bia tem outro horário marcado nesse mesmo horário.');
+-- Num dia em que a Bia não trabalha: atendeu assim mesmo — fica como encaixe.
+delete from public.jornadas where profissional_id = '94900000-0000-0000-0000-00000000000e'
+   and dia_semana = extract(dow from :'ontem'::date)::int;
+update public.agendamentos set status = 'cancelado' where id = 'a4910000-0000-0000-0000-0000000000f3';
+select t_quem('a4900000-0000-0000-0000-00000000000a', 'a4910000-0000-0000-0000-0000000000f4',
+  '94900000-0000-0000-0000-00000000000e') as q3 \gset
+select t_texto('fora da jornada dela: troca, e fica como encaixe com o nome de quem trocou',
+  (:'q3'::jsonb->>'encaixe') || ' | ' || (select a.encaixe::text || ' ' || (a.encaixe_por = 'a4900000-0000-0000-0000-00000000000a')::text
+     from public.agendamentos a where a.id = 'a4910000-0000-0000-0000-0000000000f4'), 'true | true true');
+update public.agendamentos set status = 'concluido' where id = 'a4910000-0000-0000-0000-0000000000f2';
+select t_texto('concluído, não (a comissão já foi contada)',
+  erro_de($$select t_quem('b4900000-0000-0000-0000-00000000000b', 'a4910000-0000-0000-0000-0000000000f2',
+    '94900000-0000-0000-0000-00000000000d')$$), 'Só dá para trocar quem atendeu antes de concluir o horário.');
+select t_texto('horário de outro dia ainda por vir é com o Remarcar',
+  erro_de(format($$select t_quem('b4900000-0000-0000-0000-00000000000b', %L, '94900000-0000-0000-0000-00000000000e')$$, :'s1')),
+  'Este horário é de outro dia: use Remarcar para escolher quem vai atender.');
+
+\echo ''
+\echo '10. O aviso de remarcado: só quando muda o dia ou a hora'
+insert into public.plataforma_ajustes (chave, valor) values ('mensagemRemarcado', 'true')
+  on conflict (chave) do update set valor = excluded.valor;
+select inicio as ini_s1, profissional_id as prof_s1 from public.agendamentos where id = :'s1' \gset
+select t_remarcar('b4900000-0000-0000-0000-00000000000b', :'s1', :'ini_s1'::timestamptz,
+  case when :'prof_s1' = '94900000-0000-0000-0000-00000000000d' then '94900000-0000-0000-0000-00000000000e'::uuid
+       else '94900000-0000-0000-0000-00000000000d'::uuid end) as so_prof \gset
+select t_verdade('trocou só a profissional (mesmo dia e hora): a cliente não recebe aviso',
+  (:'so_prof'::jsonb->>'ok')::boolean
+  and not exists (select 1 from public.notificacoes where agendamento_id = :'s1' and tipo = 'remarcado'));
+select t_remarcar('b4900000-0000-0000-0000-00000000000b', :'s1', :'ini_s1'::timestamptz + interval '1 hour') as outra_hora \gset
+select t_verdade('mudou a hora: aí, sim, um aviso',
+  (:'outra_hora'::jsonb->>'ok')::boolean
+  and (select count(*) from public.notificacoes where agendamento_id = :'s1' and tipo = 'remarcado') = 1);
+delete from public.plataforma_ajustes where chave = 'mensagemRemarcado';
 select set_config('request.jwt.claim.sub', '', false);
