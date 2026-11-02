@@ -3974,6 +3974,9 @@ let cupomAgendaConferindo = false;
 let cupomLoja = null;            // idem, e `usado` depois que o banco registrou
 let cupomLojaErro = '';
 let cupomLojaConferindo = false;
+/* O pedido da loja GRAVADO (53_pedidos_loja): o número que o banco deu, o
+   erro de quem tentou, e o "faça o cadastro antes" esperando a volta. */
+let pedidoLojaEnviando = false, pedidoLojaErro = '', pedidoLojaFeito = null, pedidoLojaEsperaConta = false;
 
 async function carregarCuponsDoSalao(){
   salaoTemCupom = { agendamento: false, produtos: false };
@@ -5299,8 +5302,10 @@ function desenharLoja(){
     ? 'Escolha o que vai pedir. No fim você confere tudo, escolhe entrega ou retirada e confirma.'
     : 'Monte o pedido e mande pelo WhatsApp. O salão confirma o que tem e combina com você o pagamento e a retirada.';
   const aviso = document.getElementById('lojaAviso');
-  if(aviso) aviso.innerHTML = pedidos && !pedidosAbertos()
-    ? '<div class="recado erro"><b>Fechado agora.</b> Você pode ver o cardápio; os pedidos voltam quando abrir.</div>' : '';
+  if(aviso) aviso.innerHTML = pedidos
+    ? (!pedidosAbertos()
+       ? '<div class="recado erro"><b>Fechado agora.</b> Você pode ver o cardápio; os pedidos voltam quando abrir.</div>' : '')
+    : avisoDoPedidoLoja();
   const busca0 = document.getElementById('buscaProduto');
   if(busca0) busca0.placeholder = pedidos ? 'Buscar no cardápio…' : 'Buscar produto…';
   // Como a busca de serviços: sem acento e sem pontuação — "mascara" acha
@@ -5431,6 +5436,7 @@ function esvaziarCarrinho(){
 
    Escrito com `+`, o trecho para de parecer marcação, o varredor não tem o
    que apontar, e quem lê vê na hora que isto é uma string e não uma tela. */
+let pedidoLojaNumero = null;   // entra no texto do WhatsApp depois de gravado
 function textoDoPedido(){
   const itens = produtosDaLoja()
     .filter(p => carrinho[p.id] > 0)
@@ -5443,7 +5449,8 @@ function textoDoPedido(){
     ? '\nCupom ' + cupomLoja.codigo + (cupomLoja.rotulo ? ' (' + cupomLoja.rotulo + ')' : '')
       + ': desconto de ' + real(descontoDoCupomLoja())
     : '';
-  return 'Olá! Vim pela página do ' + salao.nome + ' e quero estes produtos:'
+  return 'Olá! Vim pela página do ' + salao.nome + ' e quero estes produtos'
+       + (pedidoLojaNumero ? ' (pedido nº ' + pedidoLojaNumero + ')' : '') + ':'
        + '\n\n' + itens.join('\n')
        + (cupom ? '\n' + cupom : '')
        + '\n\nTotal estimado: ' + totalEscrito()
@@ -5452,7 +5459,7 @@ function textoDoPedido(){
 
 async function enviarPedido(){
   const zap = zapDoSalao();
-  if(!zap || !itensNoCarrinho() || cupomLojaConferindo) return;
+  if(!zap || !itensNoCarrinho() || cupomLojaConferindo || pedidoLojaEnviando) return;
   /* ⚠ O CARRINHO MUDOU FORA DA LOJA (pelo botão da capa) com um cupom
      aceito: a prévia é de outro pedido, e só a loja pergunta de novo. Mandar
      daqui saía SEM o cupom e sem aviso nenhum. Então confere antes — na loja,
@@ -5465,48 +5472,167 @@ async function enviarPedido(){
     await aplicarCupomLoja(cupomLoja.codigo);
     return;
   }
+  /* ── O PEDIDO GRAVADO (53) ────────────────────────────────────────────
+     "A pessoa tem que fazer seu cadastro e depois enviar no WhatsApp do
+     jeito que está, e quando clicar enviar vai aparecer no painel." Na
+     nuvem, o pedido fica no banco, com número, ANTES de o WhatsApp abrir: é
+     dele que o salão vende (inclusive no crediário). Sem conta, o cadastro
+     vem antes — e a volta traz para a loja, com o carrinho como estava. */
+  const gravar = NA_NUVEM && !modoPedidos();
+  if(gravar && !logada()){
+    pedidoLojaEsperaConta = true;
+    abrirConta('criar');
+    avisarConta('<b>Para enviar o pedido, faça seu cadastro.</b> É rápido, e o salão '
+      + 'recebe o pedido com o seu nome. Já tem conta? Toque em Entrar.', 'ok');
+    return;
+  }
+  pedidoLojaErro = '';
+  const anterior = gravar ? pedidoLojaGuardado() : null;
+  pedidoLojaNumero = anterior && anterior.numero ? anterior.numero : null;
   const endereco = () => 'https://wa.me/' + zap + '?text=' + encodeURIComponent(textoDoPedido());
+  const itensDoPedidoLoja = () => produtosDaLoja().filter(p => carrinho[p.id] > 0)
+    .map(p => ({ id: p.id, qtd: carrinho[p.id] }));
   /* `_blank` e não `location.href`: no computador o `wa.me` abre o WhatsApp
      Web numa aba, e trocar a página atual faria a cliente perder a página do
      salão — junto com o carrinho que ela acabou de montar. */
   const comCupom = mostraCupomLoja() && cupomLojaVale() && !cupomLoja.usado;
-  if(!comCupom){
+  if(!comCupom && !gravar){
     window.open(endereco(), '_blank', 'noopener');
     return;
   }
-
-  /* ── COM CUPOM: O BANCO REGISTRA O USO ANTES DE A MENSAGEM SAIR ────────
-     É o uso registrado que conta para o limite do cupom; a mensagem só leva
-     o cupom se o banco aceitou. A aba é aberta JÁ, no toque: depois de
-     esperar a rede, o navegador do celular trata a abertura como pop-up e
-     bloqueia. */
-  const janela = window.open('', '_blank');
-  if(janela) janela.opener = null;
-  cupomLojaConferindo = true;
-  desenhar();
-  let r;
-  try{
-    r = respostaDoCupom(await Dados.chamar('usar_cupom_no_pedido', {
-      p_salao: salao.id, p_codigo: cupomLoja.codigo, p_itens: itensDoCupomLoja(),
-    }));
-  }catch(e){
-    console.info('[AgendaPro] usar_cupom_no_pedido:', e.message);
-    r = { ok: false, motivo: 'Não consegui conferir o cupom agora.' };
-  }
-  cupomLojaConferindo = false;
-  if(!r.ok){
-    if(janela) janela.close();
-    cupomLoja = null;
-    cupomLojaErro = (r.motivo || 'Este cupom não vale.')
-      + ' O pedido não foi enviado: toque em Enviar de novo para mandar sem o cupom.';
+  /* ── CORRIGIU E MANDOU DE NOVO ────────────────────────────────────────
+     O pedido já tem número: a mensagem sai DIRETO (uma janela, no toque) e o
+     banco troca os itens do mesmo pedido em seguida. Se o salão já tinha
+     vendido ou cancelado aquele, nasce outro — e a loja diz o número novo,
+     com o WhatsApp à mão para mandar certo. */
+  if(gravar && anterior && anterior.numero && !comCupom){
+    const url = endereco();
+    window.open(url, '_blank', 'noopener');
+    pedidoLojaFeito = { numero: anterior.numero, url };
+    pedidoLojaEsperaConta = false;
+    desenhar();
+    try{
+      let r = await Dados.chamar('fazer_pedido_loja', { p_salao: salao.id, p_itens: itensDoPedidoLoja(),
+        p_cupom: cupomLoja && cupomLoja.usado ? cupomLoja.codigo : null, p_pedido: anterior.id });
+      r = Array.isArray(r) ? r[0] : r;
+      if(r && r.pedido){
+        guardarPedidoLoja(r.pedido, r.numero);
+        if(r.numero !== anterior.numero){
+          pedidoLojaNumero = r.numero;
+          pedidoLojaFeito = { numero: r.numero, url: endereco(), novo: true };
+        }
+      }
+    }catch(e){
+      console.info('[AgendaPro] fazer_pedido_loja:', e.message);
+      pedidoLojaFeito = null;
+      pedidoLojaErro = (e.message || 'Não consegui atualizar o pedido agora.') + ' O salão recebeu só a mensagem.';
+    }
     desenhar();
     return;
   }
-  cupomLoja = Object.assign({}, cupomLoja, {
-    desconto: Number(r.desconto) || 0, rotulo: r.rotulo || cupomLoja.rotulo, usado: true });
-  desenhar();
-  if(janela) janela.location.href = endereco();
-  else window.open(endereco(), '_blank', 'noopener');
+
+  /* A aba é aberta JÁ, no toque: depois de esperar a rede, o navegador do
+     celular trata a abertura como pop-up e bloqueia. */
+  const janela = window.open('', '_blank');
+  if(janela) janela.opener = null;
+
+  /* ── COM CUPOM: O BANCO REGISTRA O USO ANTES DE A MENSAGEM SAIR ────────
+     É o uso registrado que conta para o limite do cupom; a mensagem só leva
+     o cupom se o banco aceitou. */
+  if(comCupom){
+    cupomLojaConferindo = true;
+    desenhar();
+    let r;
+    try{
+      r = respostaDoCupom(await Dados.chamar('usar_cupom_no_pedido', {
+        p_salao: salao.id, p_codigo: cupomLoja.codigo, p_itens: itensDoCupomLoja(),
+      }));
+    }catch(e){
+      console.info('[AgendaPro] usar_cupom_no_pedido:', e.message);
+      r = { ok: false, motivo: 'Não consegui conferir o cupom agora.' };
+    }
+    cupomLojaConferindo = false;
+    if(!r.ok){
+      if(janela) janela.close();
+      cupomLoja = null;
+      cupomLojaErro = (r.motivo || 'Este cupom não vale.')
+        + ' O pedido não foi enviado: toque em Enviar de novo para mandar sem o cupom.';
+      desenhar();
+      return;
+    }
+    cupomLoja = Object.assign({}, cupomLoja, {
+      desconto: Number(r.desconto) || 0, rotulo: r.rotulo || cupomLoja.rotulo, usado: true });
+    desenhar();
+  }
+
+  if(gravar){
+    pedidoLojaEnviando = true;
+    desenhar();
+    let r;
+    try{
+      r = await Dados.chamar('fazer_pedido_loja', {
+        p_salao: salao.id, p_itens: itensDoPedidoLoja(),
+        p_cupom: cupomLoja && cupomLoja.usado ? cupomLoja.codigo : null,
+        p_pedido: anterior ? anterior.id : null });
+      r = Array.isArray(r) ? r[0] : r;
+    }catch(e){
+      console.info('[AgendaPro] fazer_pedido_loja:', e.message);
+      pedidoLojaEnviando = false;
+      if(janela) janela.close();
+      pedidoLojaErro = (e.message || 'Não consegui enviar o pedido agora.') + ' O pedido não foi enviado.';
+      if(tela !== 'loja') irPara('loja'); else desenhar();
+      return;
+    }
+    pedidoLojaEnviando = false;
+    pedidoLojaNumero = (r && r.numero) || null;
+    if(r && r.pedido) guardarPedidoLoja(r.pedido, r.numero);
+  }
+
+  const url = endereco();
+  if(janela) janela.location.href = url;
+  else window.open(url, '_blank', 'noopener');
+
+  if(gravar){
+    /* Gravado: a loja diz o número — com o WhatsApp à mão, se ele não abriu.
+       O carrinho fica: corrigir e mandar de novo atualiza o mesmo pedido. */
+    pedidoLojaFeito = { numero: pedidoLojaNumero, url };
+    pedidoLojaEsperaConta = false;
+    if(tela !== 'loja') irPara('loja'); else desenhar();
+  }
+}
+
+/* O pedido que este aparelho mandou, por salão e por conta: mandar de novo
+   (corrigido) atualiza ESTE, enquanto o salão não vende nem cancela. */
+function chaveDoPedidoLoja(){
+  const s = window.Dados && Dados.sessaoAtual && Dados.sessaoAtual();
+  return 'agendapro.pedidoLoja.' + (salao ? salao.id : '') + '.' + ((s && s.usuarioId) || '');
+}
+function pedidoLojaGuardado(){
+  try{ return JSON.parse(localStorage.getItem(chaveDoPedidoLoja()) || 'null'); }catch(e){ return null; }
+}
+function guardarPedidoLoja(id, numero){
+  try{ localStorage.setItem(chaveDoPedidoLoja(), JSON.stringify({ id, numero })); }catch(e){}
+}
+
+/* O recado da loja sobre o pedido gravado: enviado (com o número), o erro,
+   ou "cadastro feito, agora é só enviar". */
+function avisoDoPedidoLoja(){
+  if(pedidoLojaFeito){
+    const n = pedidoLojaFeito.numero ? ' nº ' + pedidoLojaFeito.numero : '';
+    return '<div class="recado ok" id="pedidoLojaFeito">' + (pedidoLojaFeito.novo
+      ? '<b>O pedido anterior já tinha sido atendido pelo salão: este virou o pedido' + n + '.</b> '
+        + '<a href="' + escapar(pedidoLojaFeito.url) + '" target="_blank" rel="noopener">Mandar no WhatsApp com o número certo</a>'
+      : '<b>Pedido' + n + ' enviado.</b> O salão confere o que tem e responde pelo WhatsApp. '
+        + 'Mudou alguma coisa? Ajuste e envie de novo: o pedido' + n + ' é atualizado. '
+        + '<a href="' + escapar(pedidoLojaFeito.url) + '" target="_blank" rel="noopener">Abrir o WhatsApp de novo</a>')
+      + '</div>';
+  }
+  if(pedidoLojaErro) return '<div class="recado erro" role="alert">' + escapar(pedidoLojaErro) + '</div>';
+  if(pedidoLojaEsperaConta && logada() && itensNoCarrinho()){
+    return '<div class="recado ok" id="pedidoLojaPronto"><b>Cadastro feito.</b> Agora toque em '
+      + '<b>Enviar pelo WhatsApp</b> para mandar o pedido.</div>';
+  }
+  return '';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -7770,6 +7896,8 @@ async function aposEntrar(op){
 }
 
 function voltarDaConta(){
+  // Veio do "Enviar pelo WhatsApp" da loja: volta para ela, com o carrinho.
+  if(pedidoLojaEsperaConta && itensNoCarrinho()) return irPara('loja', true);
   if(historico.length) voltar();
   else irPara('capa', true);
 }

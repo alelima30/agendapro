@@ -1144,6 +1144,22 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                  and prosrc like '%if a.inicio = p_antes then return false%')
               then 'cole as duas partes de novo (49_remarcar e 52_mensagens_novas)' else '' end
   union all
+  /* Os pedidos da loja (53): o carrinho gravado, com cadastro antes, e a
+     venda no painel (Pix, dinheiro, cartão ou crediário). */
+  select 67, 'Pedidos da loja (gravados, e a venda no painel)',
+         case when to_regclass('public.pedidos_loja') is null
+                or to_regprocedure('public.fazer_pedido_loja(uuid,jsonb,text,uuid)') is null
+                or to_regprocedure('public.vender_pedido_no_crediario(uuid,jsonb,uuid,numeric,numeric,text,integer,date)') is null
+                or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.pedidos_loja')), false)
+                or has_function_privilege('anon', 'public.fazer_pedido_loja(uuid,jsonb,text,uuid)', 'execute')
+              then 'FALTA' else 'certo' end,
+         case when to_regclass('public.pedidos_loja') is null
+                or to_regprocedure('public.fazer_pedido_loja(uuid,jsonb,text,uuid)') is null
+                or to_regprocedure('public.vender_pedido_no_crediario(uuid,jsonb,uuid,numeric,numeric,text,integer,date)') is null
+                or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.pedidos_loja')), false)
+                or has_function_privilege('anon', 'public.fazer_pedido_loja(uuid,jsonb,text,uuid)', 'execute')
+              then 'cole as duas partes de novo (53_pedidos_loja)' else '' end
+  union all
   /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
      o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
   select 59, 'Aniversário do cadastro chega à ficha',

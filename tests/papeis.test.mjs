@@ -167,8 +167,12 @@ const abasDona = await abasDe(pgDona);
    gestão, quando ele está à venda, para poder contratar. A regra é a da
    própria tela (`crediarioNaAba`); a aba tem o teste dela, no
    crediario-tela.test.mjs. */
+/* E os Pedidos da loja (53_pedidos_loja) só aparecem com produto à venda no
+   link (`lojaRecebePedidos`); a aba tem o teste dela, no
+   pedidos-loja-tela.test.mjs. */
 const totalDeTelas = await pgDona.evaluate(() => TELAS.filter(t => t[0] !== 'pedidos'
-  && (t[0] !== 'crediario' || crediarioNaAba())).length);
+  && (t[0] !== 'crediario' || crediarioNaAba())
+  && (t[0] !== 'pedidosloja' || lojaRecebePedidos())).length);
 igual('vê todas as abas do sistema', abasDona.length, totalDeTelas);
 verdade('inclusive Plano e Meu negócio',
   abasDona.includes('plano') && abasDona.includes('salao'));

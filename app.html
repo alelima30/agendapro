@@ -832,6 +832,11 @@ span.ajuda{display:block;margin-top:5px}
   </section>
 
   <!-- ══════════ CAIXA ══════════ -->
+  <!-- ══════════ PEDIDOS DA LOJA (53_pedidos_loja) ══════════ -->
+  <section class="tela" id="tela-pedidosloja">
+    <div id="plCorpo"></div>
+  </section>
+
   <!-- ══════════ CREDIÁRIO (47_crediario) ══════════ -->
   <section class="tela" id="tela-crediario">
     <div id="crCorpo"></div>
@@ -1816,6 +1821,10 @@ const TELAS = [
      primeiro da lista — é a tela que ele deixa aberta o dia inteiro. A
      equipe toda vê, como a agenda: quem atende o balcão é quem aceita. */
   ['pedidos',  'Pedidos',          'carrinho',   'Dia a dia', EQUIPE],
+  /* Os pedidos da LOJA (53_pedidos_loja): o carrinho que a cliente mandou
+     pelo link, gravado, para o balcão conferir e vender (no crediário
+     também). Dos outros tipos; é BALCAO porque é venda — dinheiro da casa. */
+  ['pedidosloja', 'Pedidos',       'carrinho',   'Dia a dia', BALCAO],
   ['agenda',   'Agenda',           'calendario', 'Dia a dia', EQUIPE],
   /* ⚠ CAIXA É BALCÃO, e estava EQUIPE — quem atende via a aba.
 
@@ -1943,6 +1952,7 @@ const minhasTelas = () => {
                         // é feita na própria aba (47, `nova_venda_no_crediario`).
                         && (t[0] !== 'crediario' || crediarioNaAba())
                         && (restaurante || t[0] !== 'pedidos')
+                        && (t[0] !== 'pedidosloja' || (!restaurante && lojaRecebePedidos()))
                         && (!restaurante || t[0] !== 'procedimentos'));
 };
 
@@ -2112,7 +2122,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.076663';
+const VERSAO_APP = 'v9.8c9011';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -9745,6 +9755,7 @@ function pintar(){
   aplicarTravaDaTela(telaAtual);
   if(telaAtual === 'agenda')   pintarAgenda();
   if(telaAtual === 'pedidos')  pintarPedidos();
+  if(telaAtual === 'pedidosloja') pintarPedidosLoja();
   if(telaAtual === 'clientes') pintarClientes();
   if(telaAtual === 'aniversarios') pintarAniversarios();
   if(telaAtual === 'servicos') pintarServicos();
@@ -16404,7 +16415,7 @@ function cobrarParcela(vendaId, parcelaId){
    preço do cadastro e monta a comanda por baixo. */
 let vendaNova = null;
 
-function abrirNovaVendaCrediario(){
+function abrirNovaVendaCrediario(doPedido){
   if(emSuporte()) return avisoDoSuporte('vender no crediário');
   if(!crediarioLiberado()){
     abrirModal('Crediário', avisoDoCrediario(), [['Fechar', 'fecharModal()', '']]);
@@ -16457,6 +16468,18 @@ function abrirNovaVendaCrediario(){
     </div>
     <div id="vnPrevia"></div>`,
     [['Cancelar', 'fecharModal()', ''], ['Vender no crediário', 'confirmarNovaVendaCrediario()', 'btn-p']]);
+  /* Veio de um pedido da loja (53): a cliente e os itens já vêm escolhidos,
+     e a venda fecha o pedido junto (`vender_pedido_no_crediario`). */
+  if(doPedido){
+    vendaNova.pedido = doPedido.pedidoId;
+    vendaNova.itens = doPedido.itens.map(i => ({ tipo: 'produto', id: i.id, qtd: i.qtd }));
+    const cl = acharCliente(doPedido.clienteId);
+    const sel = document.getElementById('vnCliente');
+    if(cl && sel){ sel.innerHTML = opcoesDeClienteDaVenda([cl], cl.id); sel.value = cl.id; clienteDaVendaNova(); }
+    if(doPedido.desconto > 0) document.getElementById('vnDesc').value = doPedido.desconto;
+    if(doPedido.profissional) document.getElementById('vnProf').value = doPedido.profissional;
+    document.getElementById('modalTitulo').textContent = 'Pedido nº ' + doPedido.numero + ' no crediário';
+  }
   pintarVendaNova();
 }
 
@@ -16568,13 +16591,15 @@ async function confirmarNovaVendaCrediario(){
   await _filaGravacao;
   let r;
   try{
-    r = await Dados.chamar('nova_venda_no_crediario', {
-      p_salao: salaoAtual, p_cliente: cl.id,
+    const comum = {
       p_itens: vendaNova.itens.map(i => ({ tipo: i.tipo, id: i.id, qtd: i.qtd })),
       p_profissional: (document.getElementById('vnProf') || {}).value || null,
       p_desconto: k.desc, p_entrada: k.ent,
       p_forma_entrada: k.ent > 0 ? document.getElementById('vnFormaEntrada').value : null,
-      p_parcelas: n, p_primeiro: data });
+      p_parcelas: n, p_primeiro: data };
+    r = vendaNova.pedido
+      ? await Dados.chamar('vender_pedido_no_crediario', Object.assign({ p_pedido: vendaNova.pedido }, comum))
+      : await Dados.chamar('nova_venda_no_crediario', Object.assign({ p_salao: salaoAtual, p_cliente: cl.id }, comum));
   }catch(e){
     if(botao) botao.disabled = false;
     alert('Não consegui vender no crediário.\n\n' + (e.message || e));
@@ -16583,9 +16608,12 @@ async function confirmarNovaVendaCrediario(){
   const novo = await carregarTudo();
   if(novo) bd = novo;
   crediarioDados = null;
+  const doPedido = !!(vendaNova && vendaNova.pedido);
   vendaNova = null;
+  if(doPedido) pedidosLojaDados = null;
   mostrarVendaCrediario(r.comanda, r);
   if(telaAtual === 'crediario') pintarCrediario();
+  if(telaAtual === 'pedidosloja') pintarPedidosLoja();
 }
 
 /* ── Vender no crediário, de dentro da comanda ─────────────────────────── */
@@ -16759,6 +16787,206 @@ function relatorioDoCrediario(cr){
       <div class="kpi"><div class="v">${real(n(cr.aReceber))}</div><div class="r">a receber</div></div>
       <div class="kpi"><div class="v">${real(n(cr.atrasado))}</div><div class="r">atrasado</div></div>
     </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   OS PEDIDOS DA LOJA (53_pedidos_loja)
+   ---------------------------------------------------------------------------
+   "Quando clicar enviar vai aparecer no painel, no módulo pedidos, que aí eu
+   tenho que confirmar a lista e como será o pagamento — e o crediário, se
+   tiver o módulo." O carrinho que a cliente mandou pelo link chega aqui com
+   número. O balcão confere com ela no WhatsApp, ajusta os itens e VENDE: Pix,
+   dinheiro ou cartão (a comanda fecha e o estoque baixa, no banco) ou
+   Crediário (abre a venda a prazo já com a cliente e os itens). O preço é
+   sempre o do cadastro, lido pelo banco — a tela só mostra a conta.
+   ═══════════════════════════════════════════════════════════════════════════ */
+// `var`: a lista de abas pergunta por isto antes de esta linha rodar.
+var pedidosLojaDados = null, plVenda = null;
+
+function lojaRecebePedidos(){
+  return NA_NUVEM && (doSalao(bd.produtos || []).some(p => p.ativo !== false && p.vendaOnline)
+    || (Array.isArray(pedidosLojaDados) && pedidosLojaDados.length > 0));
+}
+
+async function pintarPedidosLoja(){
+  const alvo = document.getElementById('plCorpo');
+  if(!alvo) return;
+  if(!NA_NUVEM){
+    alvo.innerHTML = '<div class="vazio"><b>Os pedidos precisam do banco</b>Na demonstração o pedido vai só pelo WhatsApp.</div>';
+    return;
+  }
+  if(!pedidosLojaDados) alvo.innerHTML = '<div class="vazio">Carregando os pedidos…</div>';
+  try{
+    const r = await Dados.chamar('pedidos_loja_painel', { p_salao: salaoAtual });
+    pedidosLojaDados = Array.isArray(r) ? r : [];
+  }catch(e){
+    pedidosLojaDados = { erro: e.message || 'Não consegui ler os pedidos agora.' };
+  }
+  desenharPedidosLoja();
+}
+
+function quandoDoPedidoLoja(ts){
+  const d = new Date(ts), fuso = fusoDoSalaoAtual();
+  if(isNaN(d)) return '';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: fuso }) + ' às '
+    + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: fuso });
+}
+function zapDoPedidoLoja(p){
+  const z = String(p.telefone || '').replace(/\D/g, '');
+  return z.length >= 10 ? 'https://wa.me/' + (z.length > 11 ? z : '55' + z) : '';
+}
+
+function desenharPedidosLoja(){
+  const alvo = document.getElementById('plCorpo');
+  if(!alvo) return;
+  const d = pedidosLojaDados;
+  if(d && d.erro){ alvo.innerHTML = `<div class="vazio">${escapar(d.erro)}</div>`; return; }
+  const lista = Array.isArray(d) ? d : [];
+  const novos = lista.filter(p => p.status === 'novo');
+  const outros = lista.filter(p => p.status !== 'novo');
+  const itens = p => (p.itens || []).map(i => `${Number(i.qtd)}× ${escapar(i.descricao)}`).join(' · ');
+  alvo.innerHTML = `
+    <p style="color:var(--txt2);font-size:14px;margin-bottom:14px">Os carrinhos que as clientes mandaram pelo
+      link. Confira com ela no WhatsApp o que tem, ajuste e venda aqui.</p>
+    ${novos.length ? novos.map(p => {
+      const zap = zapDoPedidoLoja(p);
+      return `<div class="card pl-pedido" id="pl-${escapar(p.id)}" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="min-width:0">
+            <h3 style="font-size:16px">Pedido nº ${Number(p.numero)} · ${escapar(p.cliente || 'Cliente')}</h3>
+            <p style="font-size:13px;color:var(--txt2)">${quandoDoPedidoLoja(p.criadoEm)}${
+              p.cupom ? ` · cupom <b>${escapar(p.cupom)}</b>` : ''}</p>
+          </div>
+          <div style="font-size:18px;font-weight:800">${real(Number(p.total) || 0)}</div>
+        </div>
+        <p style="margin-top:8px;font-size:14px;line-height:1.5">${itens(p)}</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn btn-p btn-peq" onclick="abrirVenderPedidoLoja('${escapar(p.id)}')">Vender</button>
+          ${zap ? `<a class="btn btn-peq btn-zap" style="text-decoration:none" href="${escapar(zap)}" target="_blank" rel="noopener">${ico('whatsapp')} WhatsApp</a>` : ''}
+          <button class="btn btn-peq btn-perigo" onclick="cancelarPedidoLoja('${escapar(p.id)}')">Cancelar</button>
+        </div>
+      </div>`;
+    }).join('') : `<div class="vazio" id="plVazio"><b>Nenhum pedido esperando</b>Quando uma cliente enviar o
+        carrinho pelo link, o pedido aparece aqui com o número dele.</div>`}
+    ${outros.length ? `<h2 style="font-size:15px;margin:20px 0 8px">Últimos 30 dias</h2>
+      <div class="card" id="plHistorico">${outros.map(p => `
+        <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--borda);font-size:14px">
+          <span style="min-width:0">nº ${Number(p.numero)} · ${escapar(p.cliente || '')}
+            <span style="color:var(--txt2)">· ${itens(p)}</span></span>
+          <span class="tag ${p.status === 'vendido' ? 't-conf' : 't-canc'}">${p.status === 'vendido'
+            ? (p.crediarioId ? 'Vendido no crediário' : 'Vendido') : 'Cancelado'}</span>
+        </div>`).join('')}</div>` : ''}`;
+}
+
+function abrirVenderPedidoLoja(id){
+  if(emSuporte()) return avisoDoSuporte('vender');
+  const p = (Array.isArray(pedidosLojaDados) ? pedidosLojaDados : []).find(x => x.id === id);
+  if(!p || p.status !== 'novo') return;
+  plVenda = { pedido: p, itens: (p.itens || []).filter(i => i.produtoId)
+    .map(i => ({ id: i.produtoId, nome: i.descricao, qtd: Math.max(1, Math.round(Number(i.qtd) || 1)) })) };
+  abrirModal('Vender o pedido nº ' + Number(p.numero), `
+    <p style="margin-bottom:10px;line-height:1.5">${escapar(p.cliente || 'Cliente')}. Confira com ela o que tem
+      e ajuste as quantidades. O preço é o do cadastro.</p>
+    <div id="plItens"></div>
+    <div class="dupla" style="margin-top:10px">
+      <div class="campo"><label for="plDesc">Desconto</label>
+        <input type="number" id="plDesc" value="0" min="0" step="0.01" oninput="pintarVendaPedidoLoja()"></div>
+      <div class="campo"><label for="plProf">Quem vendeu</label>
+        <select id="plProf"><option value="">Ninguém (sem comissão)</option>${profsAtivos().map(x =>
+          `<option value="${escapar(x.id)}">${escapar(x.nome)}</option>`).join('')}</select></div>
+    </div>
+    <div class="campo"><label for="plForma">Como vai pagar</label>
+      <select id="plForma" onchange="pintarVendaPedidoLoja()">${FORMAS_DO_PACOTE.map(([k, r]) =>
+        `<option value="${k}">${r}</option>`).join('')}${crediarioLiberado()
+        ? '<option value="crediario">Crediário (parcelado)</option>' : ''}</select></div>
+    <div id="plConta"></div>`, [
+    ['Cancelar', 'fecharModal()', ''],
+    ['Vender', 'confirmarVendaPedidoLoja()', 'btn-p']]);
+  pintarVendaPedidoLoja();
+}
+
+function mudarQtdPedidoLoja(ix, delta){
+  if(!plVenda || !plVenda.itens[ix]) return;
+  plVenda.itens[ix].qtd = Math.max(0, plVenda.itens[ix].qtd + delta);
+  pintarVendaPedidoLoja();
+}
+function contaDoPedidoLoja(){
+  const sub = plVenda.itens.reduce((s, i) => s + Number((itemDoCatalogo('produto', i.id) || {}).preco || 0) * i.qtd, 0);
+  const desc = Math.max(0, Number((document.getElementById('plDesc') || {}).value) || 0);
+  return { sub, desc, total: Math.round((sub - desc) * 100) / 100 };
+}
+function pintarVendaPedidoLoja(){
+  if(!plVenda) return;
+  const lista = document.getElementById('plItens'), conta = document.getElementById('plConta');
+  if(!lista || !conta) return;
+  lista.innerHTML = plVenda.itens.map((i, ix) => {
+    const it = itemDoCatalogo('produto', i.id);
+    return `<div class="pl-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--borda)">
+      <span style="min-width:0${i.qtd ? '' : ';color:var(--txt3);text-decoration:line-through'}">${escapar(i.nome)}${
+        it ? '' : ' <small>(não está mais no cadastro)</small>'}</span>
+      <span style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <button class="btn btn-peq" onclick="mudarQtdPedidoLoja(${ix}, -1)" aria-label="Menos um">−</button>
+        <b style="min-width:22px;text-align:center" class="pl-qtd">${i.qtd}</b>
+        <button class="btn btn-peq" onclick="mudarQtdPedidoLoja(${ix}, 1)" aria-label="Mais um"${it ? '' : ' disabled'}>+</button>
+        <span style="min-width:78px;text-align:right">${real(Number((it || {}).preco || 0) * i.qtd)}</span>
+      </span></div>`;
+  }).join('');
+  const k = contaDoPedidoLoja();
+  const forma = (document.getElementById('plForma') || {}).value;
+  conta.innerHTML = `<div class="aviso info" style="margin-top:10px;margin-bottom:0" id="plTotal">Total <b>${real(Math.max(k.total, 0))}</b>${
+    forma === 'crediario' ? '. Na próxima tela: a entrada, as parcelas e o primeiro vencimento.' : ''}</div>`;
+}
+
+async function confirmarVendaPedidoLoja(){
+  if(!plVenda) return;
+  const p = plVenda.pedido;
+  const itens = plVenda.itens.filter(i => i.qtd > 0 && itemDoCatalogo('produto', i.id));
+  if(!itens.length){ alert('Deixe pelo menos um item na venda.'); return; }
+  const k = contaDoPedidoLoja();
+  if(k.total < 0){ alert('O desconto passa do total.'); return; }
+  const forma = document.getElementById('plForma').value;
+  const prof = document.getElementById('plProf').value || null;
+  if(forma === 'crediario'){
+    // A cliente precisa estar no painel (a ficha nasceu com o pedido).
+    if(!acharCliente(p.clienteId)){ const novo = await carregarTudo(); if(novo) bd = novo; }
+    fecharModal();
+    abrirNovaVendaCrediario({ pedidoId: p.id, clienteId: p.clienteId, numero: p.numero,
+      itens: itens.map(i => ({ id: i.id, qtd: i.qtd })), desconto: k.desc, profissional: prof });
+    return;
+  }
+  const bt = [...document.querySelectorAll('#modalPe .btn-p')].pop();
+  if(bt){ bt.disabled = true; bt.textContent = 'Vendendo…'; }
+  try{
+    try{ await _filaGravacao; }catch(e){}
+    await Dados.chamar('vender_pedido_loja', { p_pedido: p.id,
+      p_itens: itens.map(i => ({ id: i.id, qtd: i.qtd })), p_forma: forma,
+      p_desconto: k.desc, p_profissional: prof });
+    const novo = await carregarTudo();
+    if(novo) bd = novo;
+    plVenda = null;
+    pedidosLojaDados = null;
+    fecharModal();
+    pintar();
+  }catch(e){
+    alert('Não consegui vender.\n\n' + (e.message || e));
+  }finally{
+    if(bt && document.body.contains(bt)){ bt.disabled = false; bt.textContent = 'Vender'; }
+  }
+}
+
+async function cancelarPedidoLoja(id){
+  if(emSuporte()) return avisoDoSuporte('cancelar pedido');
+  const p = (Array.isArray(pedidosLojaDados) ? pedidosLojaDados : []).find(x => x.id === id);
+  if(!p) return;
+  if(!confirm('Cancelar o pedido nº ' + p.numero + ' de ' + (p.cliente || 'cliente') + '?\n\n'
+      + 'Ele sai da lista. Nada é cobrado e o estoque não muda.')) return;
+  try{
+    await Dados.chamar('cancelar_pedido_loja', { p_pedido: id, p_motivo: null });
+    pedidosLojaDados = null;
+    pintarPedidosLoja();
+  }catch(e){
+    alert('Não consegui cancelar.\n\n' + (e.message || e));
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
