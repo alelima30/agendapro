@@ -196,6 +196,8 @@ await p.waitForTimeout(200);
 await p.selectOption('#nResumoHora', '7');
 await p.selectOption('#nResumoPeriodo', 'manha');
 await p.uncheck('#nPacoteRenova');
+verdade('o aviso de horário remarcado vem ligado', await p.isChecked('#nRemarcado'));
+await p.uncheck('#nRemarcado');
 await p.click('button:has-text("Salvar notificações")');
 await p.waitForTimeout(2500);
 
@@ -209,6 +211,8 @@ igual('o aviso da última sessão do pacote chega desligado ao banco (o lembrete
   (await banco.query(`select public.notif_liga($1,'notifPacoteRenova',true) as r,
      public.notif_liga($1,'notifPacotePaga',true) as p`, [SALAO])).rows.map(x => JSON.stringify([x.r, x.p]))[0],
   '[false,true]');
+igual('o aviso de remarcado chega desligado ao banco',
+  (await banco.query(`select public.notif_liga($1,'notifRemarcado',true) as r`, [SALAO])).rows[0].r, false);
 igual('às 7h', Number((await banco.query(
   `select public.notif_num($1,'notifResumoHora',8) as h`, [SALAO])).rows[0].h), 7);
 const lembSalao = (await banco.query(
@@ -254,6 +258,7 @@ igual('o lembrete volta em 24 horas', await p.inputValue('#nLembreteMin'), '1440
 igual('o resumo volta ligado', await p.isChecked('#nResumo'), true);
 igual('o aviso da última sessão do pacote volta desligado (e a chave do pagamento continua fora)', JSON.stringify(
   [await p.isChecked('#nPacoteRenova'), (await p.$('#nPacotePaga')) === null]), '[false,true]');
+igual('o remarcado volta desligado', await p.isChecked('#nRemarcado'), false);
 igual('na hora escolhida', await p.inputValue('#nResumoHora'), '7');
 igual('e no período escolhido', await p.inputValue('#nResumoPeriodo'), 'manha');
 igual('o lembrete para o salão volta ligado, 2h, para os dois',

@@ -394,6 +394,33 @@ function desenhar(){
             ${pacote ? 'Desligar' : 'Ligar as mensagens do pacote'}</button>
         </div>
       </div>`;
+    /* As quatro do Crediário e o remarcado (52): o mesmo cuidado — cada
+       grupo liga quando os modelos dele estiverem aprovados. */
+    const cred = !!painel.ajustes.mensagensCrediario;
+    h += `<div class="recado" id="ajusteCrediarioMsg" style="margin-top:12px">
+        <b>Mensagens do Crediário: ${cred ? 'ligadas' : 'desligadas'}</b>
+        O resumo da compra, o lembrete dois dias antes, o "vence hoje" e o aviso
+        de atraso, com a franquia própria do Crediário. Usam os quatro modelos
+        <code>agendapro_crediario_*</code> do MODELOS.md:
+        ${cred ? 'desligando, o que estava na fila sai na hora.'
+               : 'ligue só depois que os quatro estiverem <b style="display:inline">aprovados</b> na Meta. Ligando, as parcelas em aberto ganham os avisos que ainda vêm.'}
+        <div style="margin-top:10px">
+          <button class="acao ${cred ? 'perigo' : ''}" onclick="ligarMensagensDoCrediario(${!cred})">
+            ${cred ? 'Desligar' : 'Ligar as mensagens do Crediário'}</button>
+        </div>
+      </div>`;
+    const rem = !!painel.ajustes.mensagemRemarcado;
+    h += `<div class="recado" id="ajusteRemarcado" style="margin-top:12px">
+        <b>Aviso de horário remarcado: ${rem ? 'ligado' : 'desligado'}</b>
+        Quando o salão remarca pelo painel, a cliente recebe o horário de antes e o
+        novo. Usa o modelo <code>agendapro_remarcado</code> do MODELOS.md:
+        ${rem ? 'desligando, o que estava na fila sai na hora.'
+              : 'ligue só depois que ele estiver <b style="display:inline">aprovado</b> na Meta.'}
+        <div style="margin-top:10px">
+          <button class="acao ${rem ? 'perigo' : ''}" onclick="ligarMensagemRemarcado(${!rem})">
+            ${rem ? 'Desligar' : 'Ligar o aviso de remarcado'}</button>
+        </div>
+      </div>`;
   }
 
   /* Os módulos adicionais (o Crediário): quem tem, quanto rende, e a
@@ -636,6 +663,38 @@ async function ligarMensagensDoPacote(ligar){
     await carregar();
   }catch(e){
     console.error('[plataforma] mensagens do pacote:', e);
+    alert('Não consegui mudar.\n\n' + e.message);
+  }
+}
+
+/* ── As mensagens do Crediário e o remarcado (52) ─────────────────────────── */
+async function ligarMensagensDoCrediario(ligar){
+  if(ligar && !confirm('Os quatro modelos do Crediário (agendapro_crediario_compra, _lembrete, _vence_hoje e _atraso) já estão APROVADOS na Meta?\n\n'
+      + 'Ligado antes da aprovação, as mensagens vão para um modelo '
+      + 'que não existe e não chegam a ninguém.')) return;
+  try{
+    const r = await Dados.chamar('definir_mensagens_do_crediario', { p_ligar: ligar });
+    const v = (Array.isArray(r) ? r[0] : r) || {};
+    alert(v.ligado
+      ? 'Ligadas. ' + (Number(v.vendas) || 0) + ' venda(s) com parcela em aberto foram conferidas.'
+      : 'Desligadas. O que estava na fila saiu.');
+    await carregar();
+  }catch(e){
+    console.error('[plataforma] mensagens do crediário:', e);
+    alert('Não consegui mudar.\n\n' + e.message);
+  }
+}
+async function ligarMensagemRemarcado(ligar){
+  if(ligar && !confirm('O modelo agendapro_remarcado já está APROVADO na Meta?\n\n'
+      + 'Ligado antes da aprovação, o aviso vai para um modelo '
+      + 'que não existe e não chega a ninguém.')) return;
+  try{
+    const r = await Dados.chamar('definir_mensagem_remarcado', { p_ligar: ligar });
+    const v = (Array.isArray(r) ? r[0] : r) || {};
+    alert(v.ligado ? 'Ligado.' : 'Desligado. O que estava na fila saiu.');
+    await carregar();
+  }catch(e){
+    console.error('[plataforma] aviso de remarcado:', e);
     alert('Não consegui mudar.\n\n' + e.message);
   }
 }

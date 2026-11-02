@@ -2267,7 +2267,8 @@ create or replace function public.recurso_bool(p_salao uuid, p_chave text)
 returns boolean language sql stable security definer set search_path = public as $$
   select (coalesce((select (pl.recursos ->> p_chave)::boolean
                       from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)), false)
-          and not exists (select 1 from public.adicionais ad where ad.recurso = p_chave and not ad.ativo))
+          and (not exists (select 1 from public.adicionais ad where ad.recurso = p_chave)
+               or exists (select 1 from public.adicionais ad where ad.recurso = p_chave and ad.ativo)))
       or exists (select 1 from public.adicionais ad
                   where ad.recurso = p_chave and public.adicional_ativo(p_salao, ad.codigo))
 $$;
@@ -2683,6 +2684,11 @@ returns text language sql stable set search_path = public as $$
     when 'pacote_renovar'    then 'agendapro_pacote_ultima_sessao'
     when 'pacote_pagamento'  then 'agendapro_pacote_pagamento'
     when 'pacote_agenda'     then 'agendapro_pacote_agenda'
+    when 'crediario_compra'     then 'agendapro_crediario_compra'
+    when 'crediario_lembrete'   then 'agendapro_crediario_lembrete'
+    when 'crediario_vence_hoje' then 'agendapro_crediario_vence_hoje'
+    when 'crediario_atraso'     then 'agendapro_crediario_atraso'
+    when 'remarcado'            then 'agendapro_remarcado'
   end
   || case when p_tipo in ('confirmacao', 'lembrete', 'novo', 'lembrete_equipe')
                and public.mensagens_com_pagamento()

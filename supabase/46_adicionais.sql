@@ -66,6 +66,24 @@ values ('crediario', 'Crediário',
 on conflict (codigo) do update
   set nome = excluded.nome, descricao = excluded.descricao, recurso = excluded.recurso;
 
+/* OS PLANOS DO CREDIÁRIO. "200 mensagens é para uma loja menor — e a loja
+   maior? Precisamos de diversos planos." O mesmo módulo (a mesma chave
+   `crediario`), com mais mensagens por mês: 200 por R$ 49,90, 500 por
+   R$ 79,90 e 1.000 por R$ 119,90. Trocar de um para o outro é TROCA — o
+   novo assume e o de antes sai da mensalidade (`conta_do_adicional`), nunca
+   os dois cobrados juntos. Nascem fora da venda, como o primeiro. */
+insert into public.adicionais (codigo, nome, descricao, preco_mes, recurso, planos, recursos, ativo, ordem)
+values ('crediario_500', 'Crediário 500',
+        'O Crediário para a loja maior: as mesmas telas, com mais mensagens para as clientes.',
+        79.90, 'crediario', array['individual', 'duo', 'time', 'equipe', 'salao'],
+        '{"mensagens_crediario": 500}'::jsonb, false, 2),
+       ('crediario_1000', 'Crediário 1.000',
+        'O Crediário para quem vende muito no fiado: as mesmas telas, com mais mensagens para as clientes.',
+        119.90, 'crediario', array['individual', 'duo', 'time', 'equipe', 'salao'],
+        '{"mensagens_crediario": 1000}'::jsonb, false, 3)
+on conflict (codigo) do update
+  set nome = excluded.nome, descricao = excluded.descricao, recurso = excluded.recurso;
+
 -- No teste grátis, o Crediário vem liberado: é para experimentar e querer.
 update public.planos set recursos = recursos || '{"crediario": true}'::jsonb
  where codigo = 'trial';
@@ -133,12 +151,14 @@ $$;
 -- A trava de módulo: o plano inclui, OU um adicional ativo libera a chave.
 -- ⚠ A chave de um adicional que o plano dá (o Crediário no teste grátis) só
 -- vale com o adicional À VENDA: experimentar o que ainda não se pode comprar
--- não é teste, é brinde.
+-- não é teste, é brinde. Com vários planos do mesmo módulo (o Crediário 200,
+-- 500 e 1.000), basta um deles à venda.
 create or replace function public.recurso_bool(p_salao uuid, p_chave text)
 returns boolean language sql stable security definer set search_path = public as $$
   select (coalesce((select (pl.recursos ->> p_chave)::boolean
                       from public.planos pl where pl.codigo = public.plano_efetivo(p_salao)), false)
-          and not exists (select 1 from public.adicionais ad where ad.recurso = p_chave and not ad.ativo))
+          and (not exists (select 1 from public.adicionais ad where ad.recurso = p_chave)
+               or exists (select 1 from public.adicionais ad where ad.recurso = p_chave and ad.ativo)))
       or exists (select 1 from public.adicionais ad
                   where ad.recurso = p_chave and public.adicional_ativo(p_salao, ad.codigo))
 $$;
@@ -304,6 +324,7 @@ declare
   ad public.adicionais%rowtype; r public.salao_adicionais%rowtype; a public.assinaturas%rowtype;
   v_super boolean; v_em_dia boolean; v_trial boolean; v_aceita boolean;
   n jsonb; v_efeito text; v_antes numeric; v_depois numeric; v_contrib_r numeric; v_contrib_n numeric;
+  v_irmao record; v_contrib_i numeric := 0; v_troca text; v_troca_nome text;
 begin
   if p_quem is null then
     raise exception 'Pedido sem responsável.' using errcode = 'check_violation';
@@ -344,12 +365,35 @@ begin
   n := jsonb_build_object('status', r.status, 'cortesia', coalesce(r.cortesia, false),
          'preco_especial', r.preco_especial, 'vale_ate', r.vale_ate, 'ja_teve', coalesce(r.ja_teve, false));
 
+  -- O IRMÃO: outro plano do mesmo módulo (o Crediário 200 de quem pede o
+  -- 500), valendo ou pedido. Contratar este é TROCAR: o novo assume no
+  -- mesmo estado do de antes, e o de antes sai da mensalidade.
+  if p_acao = 'contratar' then
+    select sa.adicional, sa.status, sa.cortesia, sa.preco_especial, ad2.nome,
+           ad2.preco_mes as preco_cat, a.plano = any(ad2.planos) as aceita
+      into v_irmao
+      from public.salao_adicionais sa join public.adicionais ad2 on ad2.codigo = sa.adicional
+     where sa.salao_id = p_salao and ad2.recurso = ad.recurso and sa.adicional <> ad.codigo
+       and sa.status in ('ativo', 'aguardando')
+     order by ad2.ordem limit 1;
+  end if;
+
   if p_acao = 'contratar' then
     if not ad.ativo then
       raise exception 'Este módulo não está à venda.' using errcode = 'check_violation';
     end if;
     if r.status in ('ativo', 'aguardando') then
       v_efeito := 'ja_contratado';
+    elsif v_irmao.adicional is not null then
+      if not v_em_dia and not v_trial then
+        raise exception 'Regularize a mensalidade primeiro: com ela em dia, a troca é feita na hora.'
+          using errcode = 'check_violation';
+      end if;
+      n := n || jsonb_build_object('status', v_irmao.status, 'vale_ate', null, 'cortesia', false);
+      v_efeito := 'trocou';
+      v_troca := v_irmao.adicional; v_troca_nome := v_irmao.nome;
+      v_contrib_i := case when not coalesce(v_irmao.cortesia, false) and v_irmao.aceita
+                          then greatest(coalesce(v_irmao.preco_especial, v_irmao.preco_cat), 0) else 0 end;
     elsif r.status = 'cancelado' and r.vale_ate >= current_date and v_em_dia and v_aceita then
       -- Cancelou e voltou atrás dentro do mês que já estava pago.
       n := n || jsonb_build_object('status', 'ativo', 'vale_ate', null);
@@ -411,7 +455,7 @@ begin
   v_contrib_n := case when n->>'status' in ('ativo', 'aguardando') and not (n->>'cortesia')::boolean and v_aceita
                       then greatest(coalesce((n->>'preco_especial')::numeric, ad.preco_mes), 0) else 0 end;
   v_antes := coalesce(public.valor_da_mensalidade(p_salao, a.plano), 0);
-  v_depois := v_antes - v_contrib_r + v_contrib_n;
+  v_depois := v_antes - v_contrib_r - v_contrib_i + v_contrib_n;
 
   return jsonb_build_object(
     'efeito', v_efeito,
@@ -420,7 +464,8 @@ begin
     'antes', v_antes, 'depois', v_depois,
     'proxima', a.vence_em, 'plano', a.plano,
     'preapproval', a.mp_preapproval,
-    'nome', ad.nome, 'preco', coalesce(r.preco_especial, ad.preco_mes));
+    'nome', ad.nome, 'preco', coalesce(r.preco_especial, ad.preco_mes),
+    'troca', v_troca, 'trocaNome', v_troca_nome);
 end $$;
 
 -- Para a borda: a conta, com o id do cartão (que nunca vai para a tela).
@@ -480,6 +525,15 @@ begin
                               when excluded.status = 'cancelado' then sa.cancelado_em end,
         atualizado_em  = now();
 
+  -- Trocou de plano no mesmo módulo: o de antes sai agora (não "vale até":
+  -- o novo já está valendo no lugar dele).
+  if c->>'efeito' = 'trocou' and c->>'troca' is not null then
+    update public.salao_adicionais
+       set status = 'cancelado', vale_ate = null, cancelado_em = now(),
+           ja_teve = true, atualizado_em = now()
+     where salao_id = p_salao and adicional = c->>'troca';
+  end if;
+
   /* A mensalidade mudou: o Pix que estava aberto é do valor velho. Sai do
      caminho, e o próximo nasce certo. (Pago assim mesmo, vale: o
      `registrar_pagamento` credita o plano, e o adicional entra no outro.) */
@@ -530,6 +584,8 @@ begin
     'catalogo', coalesce((
       select jsonb_agg(jsonb_build_object(
                'codigo', ad.codigo, 'nome', ad.nome, 'descricao', ad.descricao,
+               'recurso', ad.recurso,
+               'mensagens', nullif(ad.recursos->>'mensagens_crediario', '')::int,
                'preco', coalesce(sa.preco_especial, ad.preco_mes), 'precoNormal', ad.preco_mes,
                'planos', to_jsonb(ad.planos),
                'planoMinimo', (select pl.nome from public.planos pl where pl.codigo = any(ad.planos)

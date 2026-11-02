@@ -61,7 +61,7 @@ await banco.query(`update public.adicionais set ativo = true where codigo = 'cre
 const marca = Date.now().toString(36) + Math.floor(Math.random() * 1000);
 async function salaoNoPlano(nome, plano){
   const d = novaAba();
-  await d.criarConta({ email:`adic-${plano}-${marca}@teste.com`, senha:'minhasenhaboa', nome,
+  await d.criarConta({ email:`adic-${plano}-${nome.split(' ')[0].toLowerCase()}-${marca}@teste.com`, senha:'minhasenhaboa', nome,
     telefone:'+5511' + (100000000 + Math.floor(Math.random() * 89999999)) });
   const cr = await d.chamar('criar_salao', { p_nome_salao:'Salão ' + nome + ' ' + marca,
     p_tipo:'salao', p_telefone:'(11) 3333-4444', p_documento:'11222333000181', p_origem:null });
@@ -202,6 +202,43 @@ secao('5. No Básico');
   verdade('o Pix do Essencial já vem com o Crediário: R$ 146,90',
     /Essencial \+ Crediário · R\$\s?146,90 por mês/.test(await texto(pb, '#pgtoCorpo')), await texto(pb, '#pgtoCorpo'));
   await ctx.close();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('6. Os planos do Crediário: a loja cresceu, troca para o de 500');
+{
+  const carla = await salaoNoPlano('Carla Loja', 'individual');
+  await banco.query(`insert into public.salao_adicionais (salao_id, adicional, status, ativo_desde)
+    values ($1, 'crediario', 'ativo', now())`, [carla.salao]);
+  await banco.query(`update public.adicionais set ativo = true where recurso = 'crediario'`);
+  const { ctx, p: pc } = await abrirPainel(carla.d, 'carla');
+  await pc.waitForSelector('#adicional-crediario_500', { timeout: 15000 });
+  const c500 = await texto(pc, '#adicional-crediario_500');
+  verdade('o de 500: o preço, as mensagens, e "Trocar" (ela já tem o de 200)',
+    /R\$\s?79,90/.test(c500) && /500 mensagens por mês/.test(c500) && /Você tem o Crediário\./.test(c500)
+    && /Trocar para o Crediário 500/.test(c500), c500);
+  verdade('   o de 200 diz as dele', /200 mensagens por mês/.test(await texto(pc, '#adicional-crediario')));
+  await pc.click('#adicional-crediario_500 button:has-text("Trocar para o Crediário 500")');
+  await pc.waitForSelector('#contaAdicional');
+  const conta = await texto(pc, '#contaAdicional');
+  verdade('a conta antes: troca o Crediário pelo Crediário 500, de R$ 146,90 para R$ 176,90 (um só)',
+    /Você troca o Crediário pelo Crediário 500/.test(conta) && /R\$\s?146,90/.test(conta) && /R\$\s?176,90/.test(conta), conta);
+  verdade('   e o título diz que é troca', /Trocar para o Crediário 500/.test(await texto(pc, '#fundo .modal')));
+  await pc.click('#fundo button:has-text("Confirmar")');
+  await pc.waitForFunction(() => /Ativo\. Entra na sua mensalidade/.test(
+    (document.getElementById('adicional-crediario_500') || {}).innerText || ''), null, { timeout: 15000 }).catch(() => {});
+  verdade('trocou: o de 500 ativo, e o de 200 oferece voltar',
+    /Ativo\. Entra na sua mensalidade/.test(await texto(pc, '#adicional-crediario_500'))
+    && /Trocar para o Crediário$|Trocar para o Crediário\b/.test(await texto(pc, '#adicional-crediario')),
+    await texto(pc, '#adicional-crediario'));
+  verdade('a mensalidade: Essencial + Crediário 500 = R$ 176,90',
+    /Essencial R\$\s?97,00 \+ Crediário 500 R\$\s?79,90 = R\$\s?176,90/.test(await texto(pc, '#somaMensalidade')),
+    await texto(pc, '#somaMensalidade'));
+  igual('no banco: 500 mensagens por mês, e o Crediário vale',
+    await linha(`select public.crediario_teto_mensagens($1) t, public.recurso_bool($1, 'crediario') v`, [carla.salao]),
+    { t: 500, v: true });
+  await ctx.close();
+  await banco.query(`update public.adicionais set ativo = false where codigo in ('crediario_500', 'crediario_1000')`);
 }
 
 verdade('sem erro de JavaScript nem alerta', erros.length === 0, erros.join(' | '));

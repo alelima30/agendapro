@@ -216,6 +216,23 @@ console.log('\nQuem é');
   await pa.waitForTimeout(1200);
   diz(/desligadas/.test(await ajPac()), 'e desliga de novo (a bancada volta como estava)');
 
+  /* As do Crediário e o remarcado (52): um interruptor para cada grupo. */
+  for(const [id, rotulo, desligado, ligado] of [
+    ['ajusteCrediarioMsg', 'mensagens do Crediário', /desligadas/, /ligadas/],
+    ['ajusteRemarcado', 'aviso de remarcado', /desligado/, /ligado/]]){
+    const aj = () => pa.textContent('#' + id).catch(() => '');
+    diz(desligado.test(await aj()) && /aprovad/.test(await aj()),
+      `o admin mostra o ${rotulo} desligado, e quando ligar`, (await aj()).replace(/\s+/g, ' ').slice(0, 160));
+    pa.dialogos = [];
+    await pa.click('#' + id + ' button');
+    await pa.waitForTimeout(1200);
+    diz(pa.dialogos.some(m => /APROVAD/.test(m)), `ligar o ${rotulo} pergunta antes se o modelo foi aprovado`, pa.dialogos.join(' | '));
+    diz(ligado.test(await aj()) && !desligado.test(await aj()), `e liga o ${rotulo}`, (await aj()).replace(/\s+/g, ' ').slice(0, 120));
+    await pa.click('#' + id + ' button');
+    await pa.waitForTimeout(1200);
+    diz(desligado.test(await aj()), `e desliga de novo o ${rotulo}`);
+  }
+
   /* Os módulos adicionais (46): quem tem, quanto rende, e a cortesia — que
      vai pela borda `adicional` (interceptada: só o pedido importa aqui). */
   const ajAd = () => pa.textContent('#ajusteAdicionais').catch(() => '');

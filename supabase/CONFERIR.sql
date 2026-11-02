@@ -1101,6 +1101,37 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                  and prosrc like '%sem lembrete de pagamento%')
               then 'cole as duas partes de novo (27_pacotes e 45_pacote_mensagens)' else '' end
   union all
+  /* As mensagens do Crediário e o remarcado (52): a fila, os gatilhos, os
+     modelos e a franquia própria. Saem só depois que a plataforma liga. */
+  select 64, 'Mensagens do Crediário e de horário remarcado',
+         case when to_regprocedure('public.avisos_do_crediario(uuid)') is null
+                or to_regprocedure('public.crediario_teto_mensagens(uuid)') is null
+                or not exists (select 1 from pg_trigger where tgname = 'tg_crediario_avisos')
+                or not exists (select 1 from pg_trigger where tgname = 'tg_crediario_receb_avisos')
+                or public.modelo_de('remarcado') is distinct from 'agendapro_remarcado'
+                or public.modelo_de('crediario_atraso') is distinct from 'agendapro_crediario_atraso'
+                or not exists (select 1 from pg_proc where proname = 'remarcar_pelo_salao' and prosrc like '%avisar_remarcado%')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.avisos_do_crediario(uuid)') is null
+                or to_regprocedure('public.crediario_teto_mensagens(uuid)') is null
+                or not exists (select 1 from pg_trigger where tgname = 'tg_crediario_avisos')
+                or not exists (select 1 from pg_trigger where tgname = 'tg_crediario_receb_avisos')
+                or public.modelo_de('remarcado') is distinct from 'agendapro_remarcado'
+                or public.modelo_de('crediario_atraso') is distinct from 'agendapro_crediario_atraso'
+                or not exists (select 1 from pg_proc where proname = 'remarcar_pelo_salao' and prosrc like '%avisar_remarcado%')
+              then 'cole as duas partes de novo (52_mensagens_novas e 49_remarcar)' else '' end
+  union all
+  /* Os planos do Crediário (46): 200, 500 e 1.000 mensagens, e a troca. */
+  select 65, 'Planos do Crediário (200, 500 e 1.000 mensagens)',
+         case when (select count(*) from public.adicionais where recurso = 'crediario'
+                     and codigo in ('crediario', 'crediario_500', 'crediario_1000')) <> 3
+                or not exists (select 1 from pg_proc where proname = 'conta_do_adicional' and prosrc like '%trocou%')
+              then 'FALTA' else 'certo' end,
+         case when (select count(*) from public.adicionais where recurso = 'crediario'
+                     and codigo in ('crediario', 'crediario_500', 'crediario_1000')) <> 3
+                or not exists (select 1 from pg_proc where proname = 'conta_do_adicional' and prosrc like '%trocou%')
+              then 'cole as duas partes de novo (46_adicionais)' else '' end
+  union all
   /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
      o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
   select 59, 'Aniversário do cadastro chega à ficha',

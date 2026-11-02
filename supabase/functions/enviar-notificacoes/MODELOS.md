@@ -522,9 +522,15 @@ regras: **Utilidade**, **Português (BR)**, sem cabeçalho e sem botão. O texto
 é de aviso puro, sem cobrança agressiva (Código de Defesa do Consumidor,
 art. 42): nada de ameaça, nada de "nome sujo".
 
-> **⚠ Cadastre já, junto com os do pacote** — a aprovação demora, e o
-> sistema passa a usar estes quatro quando o Crediário for posto à venda.
-> Até lá, cadastrados e aprovados, eles só esperam.
+> **⚠ A ordem para ligar.** Enquanto os quatro não estiverem **aprovados**,
+> nada do Crediário vai para a fila (`52_mensagens_novas.sql`) — a aba
+> **Mensagens** do Crediário mostra "ainda não estão saindo". Depois da
+> aprovação, ligue em **admin → Mensagens do WhatsApp → Ligar as mensagens do
+> Crediário**. O dono desliga cada uma na aba Mensagens do Crediário.
+
+> **Franquia própria.** Estas não gastam as mensagens do plano: o Crediário
+> tem as dele — 200, 500 ou 1.000 por mês, conforme o plano do Crediário
+> contratado. Passou do limite no mês, esperam o mês seguinte.
 
 ## 13. `agendapro_crediario_compra`
 
@@ -616,6 +622,40 @@ Se você já pagou, desconsidere esta mensagem. Em caso de dúvida, fale com o s
 
 ---
 
+# O de horário remarcado
+
+## 17. `agendapro_remarcado`
+
+Vai para a cliente quando o salão **remarca pelo painel** (o dia, a hora ou a
+profissional). Remarcou de novo antes de sair, só a última vai. Mesmas regras:
+**Utilidade**, **Português (BR)**, sem cabeçalho e sem botão. Depois de
+aprovado, ligue em **admin → Mensagens do WhatsApp → Ligar o aviso de
+remarcado**; o dono desliga em **Notificações → Horário remarcado**.
+
+```
+Olá, {{1}}. Seu horário no {{2}} foi remarcado.
+
+🔁 Antes: {{3}}
+📅 Nova data: {{4}}
+🕐 Novo horário: {{5}}
+✂️ Serviço: {{6}}
+👤 Profissional: {{7}}
+
+Se o novo horário não for bom para você, fale com o salão. Aviso automático do sistema de agendamento.
+```
+
+| variável | conteúdo | exemplo |
+|---|---|---|
+| `{{1}}` | primeiro nome da cliente | Maria |
+| `{{2}}` | nome do salão | Salão da Ana |
+| `{{3}}` | dia e hora de antes | terça, 04/11 às 14:00 |
+| `{{4}}` | nova data | 06/11/2026 |
+| `{{5}}` | novo horário | 15:30 |
+| `{{6}}` | serviço | Corte + Escova |
+| `{{7}}` | profissional | Ana |
+
+---
+
 ## As regras que quebram o envio sem avisar direito
 
 | regra | o que acontece se quebrar |
@@ -652,4 +692,4 @@ Nos do pedido: 5 no pedido novo e no confirmado, 3 no "a caminho" e no
 "pronto", e 4 no cancelado. Os nomes deles estão no `modelo_de()` do
 `37_pedidos.sql`. Nos do pacote: 4 na lista de horários e 4 no aviso da última sessão.
 Nos do crediário: 4 no resumo da compra, 6 no lembrete, 5 no "vence hoje" e 6
-no atraso.
+no atraso. No remarcado: 7.

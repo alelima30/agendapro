@@ -294,3 +294,86 @@ select t_verdade('quem está logado lê o catálogo (o preço aparece no painel)
   (select count(*) from public.adicionais where codigo = 'crediario') = 1);
 reset role;
 select set_config('request.jwt.claim.sub', '', false);
+
+\echo ''
+\echo '11. Os planos do Crediário: 200, 500 e 1.000 mensagens, e a troca'
+-- "200 mensagens é para uma loja menor — e a loja maior?" A Fê, no Essencial.
+insert into auth.users (id, email) values ('a4600000-0000-0000-0000-0000000000f0', 'fe@adicional.com');
+insert into public.perfis (id, nome, telefone) values ('a4600000-0000-0000-0000-0000000000f0', 'Fê', '+5511946000010')
+on conflict (id) do update set nome = excluded.nome;
+insert into public.saloes (id, slug, nome, tipo, fuso) values
+  ('54600000-0000-0000-0000-0000000000f0', 'adic-fe', 'Loja da Fê', 'salao', 'America/Sao_Paulo');
+insert into public.assinaturas (salao_id, plano, status, vence_em) values
+  ('54600000-0000-0000-0000-0000000000f0', 'individual', 'ativa', current_date + 20);
+insert into public.vinculos (perfil_id, salao_id, papel, status) values
+  ('a4600000-0000-0000-0000-0000000000f0', '54600000-0000-0000-0000-0000000000f0', 'dono', 'ativo');
+update public.adicionais set ativo = true where recurso = 'crediario';
+create or replace function t_plano_cred(p_ad text, p_acao text) returns jsonb language plpgsql as $$
+declare c jsonb;
+begin
+  c := public.preparar_adicional('54600000-0000-0000-0000-0000000000f0', p_ad, p_acao, 'a4600000-0000-0000-0000-0000000000f0');
+  return public.aplicar_adicional('54600000-0000-0000-0000-0000000000f0', p_ad, p_acao,
+    'a4600000-0000-0000-0000-0000000000f0', null, (c->>'depois')::numeric);
+end $$;
+create or replace function t_cred_da_fe() returns text language sql as $$
+  select string_agg(sa.adicional || ' ' || sa.status, ', ' order by ad.ordem)
+    from public.salao_adicionais sa join public.adicionais ad on ad.codigo = sa.adicional
+   where sa.salao_id = '54600000-0000-0000-0000-0000000000f0'
+$$;
+
+select t_texto('os três planos do Crediário: o mesmo módulo, mais mensagens',
+  (select string_agg(nome || ' ' || preco_mes || ' ' || (recursos->>'mensagens_crediario') || ' ' || recurso, ' | ' order by ordem)
+     from public.adicionais where recurso = 'crediario'),
+  'Crediário 49.90 200 crediario | Crediário 500 79.90 500 crediario | Crediário 1.000 119.90 1000 crediario');
+select t_plano_cred('crediario', 'contratar') as tc1 \gset
+select t_texto('a Fê contrata o de 200: liberado, R$ 97 + R$ 49,90',
+  (:'tc1'::jsonb->>'efeito') || ' | '
+    || public.valor_da_mensalidade('54600000-0000-0000-0000-0000000000f0', 'individual')
+    || ' | ' || public.crediario_teto_mensagens('54600000-0000-0000-0000-0000000000f0'),
+  'liberado | 146.90 | 200');
+
+select set_config('request.jwt.claim.sub', 'a4600000-0000-0000-0000-0000000000f0', false);
+set role authenticated;
+select public.simular_adicional('54600000-0000-0000-0000-0000000000f0', 'crediario_500', 'contratar') as sim500 \gset
+select public.meus_adicionais('54600000-0000-0000-0000-0000000000f0') as meus \gset
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+select t_texto('a loja cresceu: pedir o de 500 é TROCA, e a tela mostra a conta (sem cobrar os dois)',
+  (:'sim500'::jsonb->>'efeito') || ' | ' || (:'sim500'::jsonb->>'trocaNome') || ' | '
+    || (:'sim500'::jsonb->>'antes') || ' → ' || (:'sim500'::jsonb->>'depois'),
+  'trocou | Crediário | 146.90 → 176.90');
+select t_texto('   Meu plano mostra as mensagens de cada plano',
+  (select string_agg((x->>'codigo') || ' ' || (x->>'mensagens'), ', ')
+     from jsonb_array_elements(:'meus'::jsonb->'catalogo') x where x->>'recurso' = 'crediario'),
+  'crediario 200, crediario_500 500, crediario_1000 1000');
+select t_plano_cred('crediario_500', 'contratar') as tc2 \gset
+select t_texto('trocou para o de 500: vale na hora, o de 200 sai da mensalidade',
+  (:'tc2'::jsonb->>'efeito') || ' | ' || t_cred_da_fe() || ' | '
+    || public.valor_da_mensalidade('54600000-0000-0000-0000-0000000000f0', 'individual'),
+  'trocou | crediario cancelado, crediario_500 ativo | 176.90');
+select t_texto('   500 mensagens por mês, e o crediário continua valendo',
+  public.crediario_teto_mensagens('54600000-0000-0000-0000-0000000000f0') || ' | '
+    || public.recurso_bool('54600000-0000-0000-0000-0000000000f0', 'crediario')
+    || ' | ' || coalesce((select vale_ate::text from public.salao_adicionais
+                           where salao_id = '54600000-0000-0000-0000-0000000000f0' and adicional = 'crediario'), 'sem vale_até'),
+  '500 | true | sem vale_até');
+select t_texto('   a mensalidade lista o plano novo, uma vez',
+  (select string_agg(x->>'nome', ' + ') from jsonb_array_elements(
+     public.itens_da_mensalidade('54600000-0000-0000-0000-0000000000f0', 'individual')) x),
+  'Essencial + Crediário 500');
+select t_plano_cred('crediario_1000', 'contratar') as tc3 \gset
+select t_texto('para o de 1.000: o mesmo, R$ 97 + R$ 119,90',
+  (:'tc3'::jsonb->>'efeito') || ' | ' || t_cred_da_fe() || ' | '
+    || public.valor_da_mensalidade('54600000-0000-0000-0000-0000000000f0', 'individual') || ' | '
+    || public.crediario_teto_mensagens('54600000-0000-0000-0000-0000000000f0'),
+  'trocou | crediario cancelado, crediario_500 cancelado, crediario_1000 ativo | 216.90 | 1000');
+select t_plano_cred('crediario', 'contratar') as tc4 \gset
+select t_texto('e de volta ao de 200 (a loja diminuiu): troca também, sem esperar pagamento',
+  (:'tc4'::jsonb->>'efeito') || ' | ' || t_cred_da_fe() || ' | '
+    || public.valor_da_mensalidade('54600000-0000-0000-0000-0000000000f0', 'individual'),
+  'trocou | crediario ativo, crediario_500 cancelado, crediario_1000 cancelado | 146.90');
+select t_plano_cred('crediario', 'contratar') as tc5 \gset
+select t_texto('pedir o mesmo que já tem: nada muda',
+  :'tc5'::jsonb->>'efeito', 'ja_contratado');
+select t_verdade('no teste grátis, com os planos do Crediário à venda, o Crediário vem liberado',
+  public.recurso_bool('54600000-0000-0000-0000-00000000000c', 'crediario'));

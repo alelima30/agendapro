@@ -214,6 +214,55 @@ secao('6. Sem o módulo');
   await c2.close();
 }
 
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('7. A aba Mensagens: o dono desliga cada uma');
+{
+  const { ctx: c3, p: pm } = await abrirPainel(ana.d, 'ana-msg');
+  await pm.waitForFunction(() => [...document.querySelectorAll('#abas .aba')].some(b => b.dataset.chave === 'crediario'),
+    null, { timeout: 15000 }).catch(() => {});
+  await pm.evaluate(() => irPara('crediario'));
+  await pm.waitForSelector('#crAbas button[data-sub="mensagens"]', { timeout: 15000 });
+  igual('o Crediário tem duas abas: Vendas e Mensagens',
+    await pm.evaluate(() => [...document.querySelectorAll('#crAbas button')].map(b => b.textContent.trim())), ['Vendas', 'Mensagens']);
+  await pm.click('#crAbas button[data-sub="mensagens"]');
+  await pm.waitForFunction(() => /de 200/.test((document.getElementById('crMsgUso') || {}).innerText || ''),
+    null, { timeout: 15000 }).catch(() => {});
+  igual('as quatro mensagens, ligadas', await pm.evaluate(() =>
+    ['crMsgCompra', 'crMsgLembrete', 'crMsgVenceHoje', 'crMsgAtraso'].map(id => (document.getElementById(id) || {}).checked)),
+    [true, true, true, true]);
+  verdade('diz que ainda não estão saindo (os modelos esperam a Meta), e quanto da franquia foi usado',
+    /ainda não estão saindo/.test(await texto(pm, '#crMsgAguardando'))
+    && /0 de 200/.test(await texto(pm, '#crMsgUso')) && /não gastam as mensagens do seu plano/.test(await texto(pm, '#crMsgUso')),
+    (await texto(pm, '#crMsgCorpo')).slice(0, 300));
+  await pm.uncheck('#crMsgAtraso');
+  await pm.click('button:has-text("Salvar mensagens")');
+  await pm.waitForTimeout(2500);
+  igual('desligou o aviso de atraso: o banco passa a saber (e só ele mudou)',
+    (await linha(`select public.notif_liga($1,'notifCredAtraso',true) a, public.notif_liga($1,'notifCredLembrete',true) l,
+                         public.notif_liga($1,'notifCredCompra',true) c, public.notif_liga($1,'notifCredVenceHoje',true) h`, [ana.salao])),
+    { a: false, l: true, c: true, h: true });
+  // A plataforma liberou os modelos: o aviso sai da tela.
+  await banco.query(`insert into public.plataforma_ajustes (chave, valor) values ('mensagensCrediario', 'true')
+    on conflict (chave) do update set valor = excluded.valor`);
+  await pm.reload();
+  await pm.waitForFunction(() => typeof bd !== 'undefined' && bd && Array.isArray(bd.saloes), null, { timeout: 20000 });
+  await pm.waitForTimeout(1200);
+  await pm.evaluate(() => { try{ fecharModal(); }catch(e){} if(typeof pdFechar === 'function') pdFechar(true);
+    irPara('crediario'); trocarAbaCrediario('mensagens'); });
+  await pm.waitForFunction(() => /de 200/.test((document.getElementById('crMsgUso') || {}).innerText || ''),
+    null, { timeout: 15000 }).catch(() => {});
+  igual('liberadas: sem o aviso, e o atraso continua desligado depois de recarregar',
+    await pm.evaluate(() => [!!document.getElementById('crMsgAguardando'), document.getElementById('crMsgAtraso').checked]),
+    [false, false]);
+  await pm.click('#crAbas button[data-sub="vendas"]');
+  await pm.waitForSelector('#crResumo', { timeout: 15000 }).catch(() => {});
+  verdade('e a aba Vendas volta com o resumo', await pm.isVisible('#crResumo'));
+  await banco.query(`delete from public.plataforma_ajustes where chave = 'mensagensCrediario'`);
+  await banco.query(`update public.notificacoes set status = 'cancelado', motivo = 'teste'
+    where salao_id = $1 and tipo like 'crediario%' and status = 'pendente'`, [ana.salao]);
+  await c3.close();
+}
+
 verdade('sem erro de JavaScript nem alerta', erros.length === 0, erros.join(' | '));
 await nav.close();
 await banco.end();

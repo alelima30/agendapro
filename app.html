@@ -2112,7 +2112,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.c75cfc';
+const VERSAO_APP = 'v9.f18df8';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -10838,6 +10838,15 @@ function pintarSalao(){
           sabendo que o pacote se encerra ali. Se ela renovar antes, não sai.</span></label>
       </div>
       <div id="avisoPacoteMsg"></div>
+      <!-- O REMARCADO (52_mensagens_novas). Ligado de fabrica: e o horario
+           dela que mudou. Sai quando a plataforma libera o modelo. -->
+      <div class="campo" style="margin-top:14px">
+        <label class="check"><input type="checkbox" id="nRemarcado">
+          <span><b>Horário remarcado</b> — quando você remarca pelo painel
+          (dia, hora ou profissional), a cliente recebe o horário de antes e o
+          novo.</span></label>
+      </div>
+      <div id="avisoRemarcadoMsg"></div>
 
       <div class="linha-fina" style="margin:18px 0"></div>
 
@@ -10965,6 +10974,7 @@ function pintarSalao(){
      notifResumoPeriodo 'dia'
      notifPacoteRenova  true    o aviso da última sessão do pacote (45)
      notifPacotePaga    true    (o lembrete do pagamento do pacote saiu: 45)
+     notifRemarcado     true    o aviso de horário remarcado (52)
 
    ⚠ O resumo nasce desligado de propósito, e é o único. Confirmação e
    lembrete a cliente espera receber; o resumo é uma mensagem por dia para o
@@ -10975,7 +10985,7 @@ const NOTIF_PADRAO = { notifConfirma:true, notifProfNovo:true,
   notifLembrete:true, notifLembreteMin:120, notifResumo:false,
   notifLembreteEquipe:false, notifLembreteEquipeMin:60, notifLembreteEquipePara:'atende',
   notifResumoHora:8, notifResumoPeriodo:'dia',
-  notifPacoteRenova:true, notifPacotePaga:true,
+  notifPacoteRenova:true, notifPacotePaga:true, notifRemarcado:true,
   notifManhaIni:0, notifManhaFim:12, notifTardeIni:12, notifTardeFim:24 };
 
 const horasDoDia = (sel, val) => {
@@ -11003,6 +11013,7 @@ function pintarNotificacoes(soVisibilidade){
         ? cfg.notifLembreteEquipePara : 'atende');
     marcar('nResumo', cfg.notifResumo === true);
     marcar('nPacoteRenova', cfg.notifPacoteRenova !== false);
+    marcar('nRemarcado', cfg.notifRemarcado !== false);
     escolher('nResumoPeriodo', cfg.notifResumoPeriodo || 'dia');
     horasDoDia('nResumoHora', Number(cfg.notifResumoHora ?? 8));
     horasDoDia('nManhaIni',  Number(cfg.notifManhaIni  ?? 0));
@@ -11105,6 +11116,7 @@ function salvarNotificacoes(){
     notifLembreteEquipePara: (document.getElementById('nLembEquipePara') || {}).value || 'atende',
     notifResumo: liga('nResumo'),
     notifPacoteRenova: liga('nPacoteRenova'),
+    notifRemarcado: liga('nRemarcado'),
     notifResumoHora: num('nResumoHora') || 0,
     notifResumoPeriodo: (document.getElementById('nResumoPeriodo') || {}).value || 'dia',
     notifManhaIni: num('nManhaIni') || 0,
@@ -11138,7 +11150,13 @@ const ROTULO_NOTIF = { confirmacao:'Confirmação', lembrete:'Lembrete para o cl
                        // As do pacote (45_pacote_mensagens).
                        pacote_renovar:'Pacote: aviso da última sessão',
                        pacote_pagamento:'Pacote: lembrete do pagamento',
-                       pacote_agenda:'Pacote: lista de horários' };
+                       pacote_agenda:'Pacote: lista de horários',
+                       // As do Crediário e o remarcado (52_mensagens_novas).
+                       crediario_compra:'Crediário: resumo da compra',
+                       crediario_lembrete:'Crediário: lembrete da parcela',
+                       crediario_vence_hoje:'Crediário: parcela vence hoje',
+                       crediario_atraso:'Crediário: parcela em atraso',
+                       remarcado:'Horário remarcado' };
 const ROTULO_ESTADO = { pendente:['pendente','t-pend'], enviando:['enviando','t-pend'],
   enviado:['enviado','t-conf'], entregue:['entregue','t-conf'],
   lido:['lido','t-conc'], falhou:['falhou','t-falt'],
@@ -11168,6 +11186,25 @@ async function pintarAvisoPacoteMsg(){
     : '';
 }
 
+/* O mesmo para o remarcado (52): o modelo é novo na Meta. */
+async function pintarAvisoRemarcadoMsg(){
+  const alvo = document.getElementById('avisoRemarcadoMsg');
+  if(!alvo) return;
+  let liberada = null;
+  try{
+    const r = await Dados.chamar('mensagem_remarcado', {});
+    liberada = (Array.isArray(r) ? r[0] : r) === true;
+  }catch(e){
+    console.error('[notificações] mensagem de remarcado:', e);
+  }
+  alvo.innerHTML = liberada === false
+    ? `<div class="aviso info" style="margin-top:12px;margin-bottom:0">
+        <b>O aviso de horário remarcado ainda não está saindo.</b> Ele usa um texto
+        novo que o WhatsApp precisa aprovar; assim que o AgendaPro liberar,
+        começa sozinho. Pode deixar ligado.</div>`
+    : '';
+}
+
 async function pintarHistoricoNotif(){
   const alvo = document.getElementById('historicoNotif');
   if(!alvo) return;
@@ -11186,6 +11223,7 @@ async function pintarHistoricoNotif(){
     String(b.criadoEm || '').localeCompare(String(a.criadoEm || ''))).slice(0, 20);
   pintarAvisoWhats(linhas.some(n => ['enviado', 'entregue', 'lido'].includes(n.status)));
   pintarAvisoPacoteMsg();
+  pintarAvisoRemarcadoMsg();
 
   if(!linhas.length){
     alvo.innerHTML = '<div class="vazio"><b>Nada preparado ainda</b>'
@@ -15946,6 +15984,10 @@ function reabrirCobranca(){
    mostra antes, para a recepção conferir com a cliente na frente.
    ═══════════════════════════════════════════════════════════════════════════ */
 let crediarioDados = null, crediarioFiltro = 'abertas';
+/* As duas abas do Crediário: as vendas, e as mensagens que o WhatsApp manda
+   sozinho para a cliente (52) — "uma aba se ele quiser desligar cada
+   mensagem". */
+let crediarioAba = 'vendas', crediarioMsgInfo = null;
 // A busca, o mês de vencimento e a página: com mil vendas, a lista não pode
 // vir inteira de uma vez (desenha 30, e "Ver mais").
 let crediarioBusca = '', crediarioMes = '', crediarioPagina = 1;
@@ -15979,13 +16021,16 @@ function parcelasDoCrediario(total, n, primeiro){
 }
 
 function avisoDoCrediario(){
-  const x = ((meusAdicionais || {}).catalogo || []).find(i => i.codigo === 'crediario');
+  const planosCred = ((meusAdicionais || {}).catalogo || []).filter(i => i.recurso === 'crediario' || i.codigo === 'crediario')
+    .sort((a, b) => Number(a.preco) - Number(b.preco));
+  const x = planosCred[0];
   return `<div class="card trava-plano">
     <h3 style="font-size:18px;margin-bottom:6px">Crediário — módulo adicional</h3>
     <p style="color:var(--txt2)">Venda parcelada no fiado: a cliente leva hoje e paga
       em parcelas. O sistema guarda as parcelas, mostra o que vence e o que
       atrasou, e prepara a cobrança no WhatsApp.</p>
-    ${x ? `<p><b>${real(Number(x.preco))} por mês</b>, a partir do plano ${escapar(x.planoMinimo || 'Essencial')}.</p>` : ''}
+    ${x ? `<p><b>${planosCred.length > 1 ? 'A partir de ' : ''}${real(Number(x.preco))} por mês</b>, a partir do plano ${escapar(x.planoMinimo || 'Essencial')}.${
+      planosCred.length > 1 ? ' Planos com ' + planosCred.map(p => Number(p.mensagens || 0).toLocaleString('pt-BR')).join(', ').replace(/, ([^,]*)$/, ' e $1') + ' mensagens por mês.' : ''}</p>` : ''}
     ${souGestor() && x && OFERTA_DE_PLANO
       ? `<button class="btn btn-p" onclick="fecharModal();irPara('plano')">Contratar em Meu plano</button>`
       : '<p style="font-size:13px">Fale com o proprietário do salão para contratar.</p>'}
@@ -16006,9 +16051,102 @@ async function pintarCrediario(){
     return;
   }
   if(!crediarioLiberado()){ alvo.innerHTML = avisoDoCrediario(); return; }
+  if(crediarioAba === 'mensagens'){ desenharCrediario(); return; }
   if(!crediarioDados) alvo.innerHTML = '<div class="vazio">Carregando o crediário…</div>';
   await carregarCrediario();
   desenharCrediario();
+}
+
+function abasDoCrediario(){
+  return `<div class="sub-abas" id="crAbas" style="margin-bottom:16px">${
+    [['vendas', 'Vendas'], ['mensagens', 'Mensagens']].map(([k, rot]) =>
+      `<button type="button" data-sub="${k}" class="${k === crediarioAba ? 'on' : ''}"${
+        k === crediarioAba ? ' aria-current="true"' : ''} onclick="trocarAbaCrediario('${k}')">${rot}</button>`).join('')
+  }</div>`;
+}
+
+function trocarAbaCrediario(qual){
+  crediarioAba = qual;
+  if(qual === 'vendas' && !crediarioDados){ pintarCrediario(); return; }
+  desenharCrediario();
+}
+
+/* ── A ABA MENSAGENS ──────────────────────────────────────────────────────
+   As quatro chaves moram no `cfg` do salão, como as de Notificações; quem
+   diz se já estão saindo e quanto da franquia foi usado é o banco
+   (`crediario_mensagens`). Só a gestão muda; o balcão vê. */
+const MENSAGENS_DO_CREDIARIO = [
+  ['crMsgCompra', 'notifCredCompra', 'Resumo da compra',
+   'Logo depois da venda, a cliente recebe o valor no crediário e as parcelas, com as datas.'],
+  ['crMsgLembrete', 'notifCredLembrete', 'Lembrete da parcela',
+   'Dois dias antes de cada vencimento, às 10h: o valor, a data e como pagar.'],
+  ['crMsgVenceHoje', 'notifCredVenceHoje', 'Parcela vence hoje',
+   'No dia do vencimento, às 10h, se a parcela ainda estiver em aberto.'],
+  ['crMsgAtraso', 'notifCredAtraso', 'Parcela em atraso',
+   'Um dia depois do vencimento, às 10h, se continuar em aberto. Uma vez só, sem cobrança agressiva.']];
+
+async function carregarMensagensDoCrediario(){
+  try{
+    const r = await Dados.chamar('crediario_mensagens', { p_salao: salaoAtual });
+    crediarioMsgInfo = (Array.isArray(r) ? r[0] : r) || {};
+  }catch(e){
+    console.error('[crediário] mensagens:', e);
+    crediarioMsgInfo = { erro: true };
+  }
+  if(crediarioAba === 'mensagens') desenharMensagensDoCrediario();
+}
+
+function desenharMensagensDoCrediario(){
+  const alvo = document.getElementById('crMsgCorpo');
+  if(!alvo) return;
+  const cfg = (acharSalao(salaoAtual) || {}).cfg || {};
+  const muda = souGestor();
+  const i = crediarioMsgInfo;
+  const aviso = !i ? ''
+    : i.erro ? '<div class="aviso info" style="margin-bottom:14px">Não consegui ver agora se as mensagens já estão saindo.</div>'
+    : i.liberadas === false
+      ? `<div class="aviso info" style="margin-bottom:14px" id="crMsgAguardando">
+          <b>As mensagens do Crediário ainda não estão saindo.</b> Elas usam textos
+          novos que o WhatsApp precisa aprovar; assim que o AgendaPro liberar,
+          começam sozinhas — inclusive para as parcelas que ainda vão vencer.
+          Pode deixar ligadas.</div>` : '';
+  const uso = i && !i.erro && Number(i.teto) > 0
+    ? `<p style="font-size:13px;color:var(--txt2);margin-top:14px" id="crMsgUso">
+        Neste mês: <b>${Number(i.usadas) || 0} de ${Number(i.teto)}</b> mensagens do
+        Crediário. Elas não gastam as mensagens do seu plano.</p>` : '';
+  alvo.innerHTML = `
+    <div class="card">
+      <h3 style="font-size:16px;margin-bottom:4px">Mensagens para a cliente</h3>
+      <p style="color:var(--txt2);font-size:14px;margin-bottom:14px">O WhatsApp avisa a
+        cliente sozinho. Desligue a que você não quiser mandar.</p>
+      ${aviso}
+      ${MENSAGENS_DO_CREDIARIO.map(([id, chave, titulo, texto], k) => `
+        <div class="campo"${k ? ' style="margin-top:12px"' : ''}>
+          <label class="check"><input type="checkbox" id="${id}"${cfg[chave] !== false ? ' checked' : ''}${muda ? '' : ' disabled'}>
+            <span><b>${titulo}</b> — ${texto}</span></label>
+        </div>`).join('')}
+      ${uso}
+      ${muda
+        ? `<div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+             <button class="btn btn-p" onclick="salvarMensagensDoCrediario()">Salvar mensagens</button>
+             <span id="crMsgSalvo" style="font-size:13px;color:var(--ok)"></span></div>`
+        : '<p style="font-size:13px;color:var(--txt2);margin-top:14px">Só o proprietário ou um administrador muda as mensagens.</p>'}
+    </div>`;
+}
+
+function salvarMensagensDoCrediario(){
+  if(!souGestor()) return;
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  const liga = id => !!(document.getElementById(id) || {}).checked;
+  sl.cfg = Object.assign({}, sl.cfg, Object.fromEntries(
+    MENSAGENS_DO_CREDIARIO.map(([id, chave]) => [chave, liga(id)])));
+  salvar();
+  const ok = document.getElementById('crMsgSalvo');
+  if(ok){
+    ok.textContent = 'Salvo';
+    setTimeout(() => { const ainda = document.getElementById('crMsgSalvo'); if(ainda) ainda.textContent = ''; }, 2600);
+  }
 }
 
 function situacaoDaParcela(pa, hojeIso){
@@ -16021,8 +16159,14 @@ function situacaoDaParcela(pa, hojeIso){
 function desenharCrediario(){
   const alvo = document.getElementById('crCorpo');
   if(!alvo) return;
+  if(crediarioAba === 'mensagens'){
+    alvo.innerHTML = abasDoCrediario() + '<div id="crMsgCorpo"></div>';
+    desenharMensagensDoCrediario();
+    carregarMensagensDoCrediario();
+    return;
+  }
   const d = crediarioDados || {};
-  if(d.erro){ alvo.innerHTML = `<div class="vazio">${escapar(d.erro)}</div>`; return; }
+  if(d.erro){ alvo.innerHTML = abasDoCrediario() + `<div class="vazio">${escapar(d.erro)}</div>`; return; }
   const r = d.resumo || {}, hj = d.hoje || hoje();
   const vendas = (d.vendas || []).map(v => {
     const ps = (v.parcelas || []).map(pa => ({ ...pa, sit: situacaoDaParcela(pa, hj) }));
@@ -16040,7 +16184,7 @@ function desenharCrediario(){
   if(crediarioMes && !meses.includes(crediarioMes)) crediarioMes = '';
   const rotuloDoMes = ym => { const [a, m] = ym.split('-').map(Number);
     return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][m - 1] + '/' + a; };
-  alvo.innerHTML = `
+  alvo.innerHTML = abasDoCrediario() + `
     <div class="kpis" id="crResumo">
       <div class="kpi"><div class="v">${real(Number(r.aReceber) || 0)}</div><div class="r">a receber</div></div>
       <div class="kpi"><div class="v" style="color:${Number(r.atrasado) > 0 ? 'var(--erro)' : 'inherit'}">${real(Number(r.atrasado) || 0)}</div><div class="r">atrasado</div></div>
@@ -16610,8 +16754,17 @@ function cartaoAdicional(x){
   const m = meusAdicionais;
   const cod = escapar(x.codigo);
   const alvoPlano = planoMinimoDoAdicional(x);
+  /* Outro plano do mesmo módulo (o Crediário 200 de quem olha o 500), já
+     contratado: este aqui é TROCA — o banco cobra um só (46). */
+  const irmao = (m.catalogo || []).find(y => y.recurso && y.recurso === x.recurso
+    && y.codigo !== x.codigo && ['ativo', 'aguardando'].includes(y.status));
   let situacao = '', botoes = '';
-  if(x.ativo && x.cortesia){
+  if(irmao && !['ativo', 'aguardando'].includes(x.status)){
+    situacao = `Você tem o ${escapar(irmao.nome)}. Trocando, este passa a valer no lugar dele, e só um entra na mensalidade.`;
+    if(OFERTA_DE_PLANO && (m.emDia || m.teste))
+      botoes = `<button class="btn btn-p btn-peq" onclick="pedirAdicional('${cod}','contratar')">Trocar para o ${escapar(x.nome)}</button>`;
+    else if(!m.emDia && !m.teste) situacao += ' Regularize a mensalidade primeiro.';
+  }else if(x.ativo && x.cortesia){
     situacao = 'Ativo — cortesia do AgendaPro.';
   }else if(x.status === 'ativo'){
     situacao = 'Ativo. Entra na sua mensalidade.';
@@ -16645,6 +16798,8 @@ function cartaoAdicional(x){
       <div style="min-width:0">
         <h3 style="font-size:17px">${escapar(x.nome)}</h3>
         <p style="font-size:13.5px;color:var(--txt2)">${escapar(x.descricao || '')}</p>
+        ${Number(x.mensagens) > 0 ? `<p class="ad-mensagens" style="font-size:13.5px;margin-top:4px"><b>${
+          Number(x.mensagens).toLocaleString('pt-BR')} mensagens por mês</b> do WhatsApp para as clientes, sem gastar as do seu plano.</p>` : ''}
       </div>
       <div class="ao-lado">
         <div style="font-size:20px;font-weight:800">${real(Number(x.preco))}</div>
@@ -16686,6 +16841,7 @@ async function pedirAdicional(codigo, acao, planoAlvo){
       : `Pronto para entrar: o ${oModulo} vem junto com a primeira mensalidade de um plano a partir do Essencial.`,
     cancelado: `O ${oModulo} continua valendo até <b>${quando}</b> (o mês que já está pago). Depois disso, as parcelas que estão em aberto continuam aparecendo e você continua registrando o que receber — só não dá para vender fiado novo.<br>A mensalidade volta para <b>${depois}</b>.`,
     desistiu: `O pedido do ${oModulo} é desfeito. Nada é cobrado.`,
+    trocou: `Você troca o ${escapar(s.trocaNome || 'plano de antes')} pelo ${oModulo}: sua mensalidade passa de <b>${antes}</b> para <b>${depois}</b>${quando ? ' a partir de ' + quando : ''}.<br>O ${oModulo} vale agora, no lugar do outro.`,
     ja_contratado: `O ${oModulo} já está contratado.`,
     ja_cancelado: `O ${oModulo} já está cancelado.`,
   };
@@ -16693,7 +16849,7 @@ async function pedirAdicional(codigo, acao, planoAlvo){
     abrirModal(s.nome || 'Módulo adicional', `<p>${textos[s.efeito]}</p>`, [['Fechar', 'fecharModal()', 'btn-p']]);
     return;
   }
-  const titulo = (acao === 'cancelar' ? 'Cancelar o ' : 'Contratar o ') + (s.nome || codigo);
+  const titulo = (acao === 'cancelar' ? 'Cancelar o ' : s.efeito === 'trocou' ? 'Trocar para o ' : 'Contratar o ') + (s.nome || codigo);
   const alvo = planoAlvo ? `,'${escapar(planoAlvo)}'` : '';
   abrirModal(titulo, `<p style="line-height:1.55" id="contaAdicional">${textos[s.efeito] || ''}</p>`, [
     ['Agora não', 'fecharModal()', ''],

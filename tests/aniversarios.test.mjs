@@ -286,7 +286,9 @@ if(noDash){
   verdade('amanhã escrito como "amanhã"', noDash.linhas.some(l => /Carla Dias amanhã/.test(l)),
     JSON.stringify(noDash.linhas));
   verdade('e daqui a 5 dias com o dia da semana e a data',
-    noDash.linhas.some(l => /Dani Rocha \w{3}, \d{2}\/\d{2}/.test(l)), JSON.stringify(noDash.linhas));
+    // \p{L} e não \w: "sáb" tem acento, e \w não casa o "á" — o teste caía
+    // justo nos dias em que daqui a 5 dias era sábado.
+    noDash.linhas.some(l => /Dani Rocha \p{L}{3}, \d{2}\/\d{2}/u.test(l)), JSON.stringify(noDash.linhas));
   igual('botão só para as de hoje — parabéns adiantado não', noDash.botoes, 2);
   igual('com a separação dos próximos dias', noDash.sub, 'Próximos dias');
 }

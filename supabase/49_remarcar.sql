@@ -117,6 +117,13 @@ begin
   -- exemplo) volta, para a hora nova. O que já saiu não se repete.
   perform public.refazer_lembrete_cliente(a.id);
 
+  -- E a cliente fica sabendo: o horário de antes e o novo (52, depois que
+  -- a plataforma liga o modelo e se o salão não desligou a chave). A guarda
+  -- é para o banco que ainda não tem o 52.
+  if to_regprocedure('public.avisar_remarcado(uuid,timestamptz,uuid)') is not null then
+    perform public.avisar_remarcado(a.id, a.inicio, a.profissional_id);
+  end if;
+
   return jsonb_build_object('ok', true, 'encaixe', v_encaixe,
     'data', to_char(p_inicio at time zone v_fuso, 'DD/MM/YYYY'),
     'hora', to_char(p_inicio at time zone v_fuso, 'HH24:MI'));
