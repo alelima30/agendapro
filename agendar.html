@@ -690,12 +690,12 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
     <!-- ══════ COMPLETAR O CADASTRO (entrou com o Google) ══════ -->
     <section class="passo" id="p-completar">
       <h2>Falta pouco</h2>
-      <p class="sub">Para o salão te encontrar e mandar as confirmações, informe seu
+      <p class="sub" id="subCompletar">Para o salão te encontrar e mandar as confirmações, informe seu
         WhatsApp e seu aniversário. É só desta vez.</p>
       <div class="campo"><label for="cpTel">WhatsApp</label>
         <input id="cpTel" type="tel" inputmode="numeric" placeholder="(11) 99999-9999"
                autocomplete="tel" oninput="mascaraTelefone(this)"></div>
-      <div class="campo"><label for="cpNasc">Aniversário</label>
+      <div class="campo" id="campoCpNasc"><label for="cpNasc">Aniversário</label>
         <input id="cpNasc" type="date" autocomplete="bday">
         <p class="pista">Só o dia — o salão usa para o agrado do seu mês.</p></div>
       <div id="avisoCompletar"></div>
@@ -840,6 +840,7 @@ viewBox='0 0 24 24' fill='none' stroke='%239AA1B2' stroke-width='2' stroke-linec
     <section class="passo" id="p-meus">
       <h2>Meus horários</h2>
       <p class="sub" id="subMeus">—</p>
+      <div id="meusFalta"></div>
       <div id="listaMeus"></div>
       <div id="outrosSaloes"></div>
       <p class="centro" style="margin-top:22px">
@@ -3977,6 +3978,12 @@ let cupomLojaConferindo = false;
 /* O pedido da loja GRAVADO (53_pedidos_loja): o número que o banco deu, o
    erro de quem tentou, e o "faça o cadastro antes" esperando a volta. */
 let pedidoLojaEnviando = false, pedidoLojaErro = '', pedidoLojaFeito = null, pedidoLojaEsperaConta = false;
+/* A conta logada sem WhatsApp (entrou com o Google, ou conta antiga): sem
+   ele não há ficha no salão, e o pedido não grava. `contaSemZap` vem da
+   abertura (aposEntrar); `pedidoLojaFaltaZap`, de um Enviar que parou nisso. */
+let contaSemZap = false, pedidoLojaFaltaZap = false;
+// O que a CONTA tem (nome, WhatsApp, e-mail, aniversário), como o banco diz.
+let contaDados = null;
 
 async function carregarCuponsDoSalao(){
   salaoTemCupom = { agendamento: false, produtos: false };
@@ -4628,6 +4635,14 @@ function desenharMeus(){
     (sessao ? sessao.nome + ' · ' : '') + salao.nome;
   const linhaExcluir = document.getElementById('linhaExcluirConta');
   if(linhaExcluir) linhaExcluir.style.display = logada() ? '' : 'none';
+  /* Falta o WhatsApp na conta: daqui ela chega ao "Falta pouco" quando
+     quiser — não só na abertura do link ou no Enviar da loja. */
+  const falta = document.getElementById('meusFalta');
+  if(falta) falta.innerHTML = logada() && contaSemZap
+    ? '<div class="recado erro" id="meusFaltaZap">Falta o seu WhatsApp no cadastro: sem ele o salão não te '
+      + 'encontra nem manda as confirmações. <button class="link" id="btCompletarDados" '
+      + 'onclick="pedirCompletar(false, null, \'meus\')">Completar meus dados</button></div>'
+    : '';
 
   const lista = meusAgendamentos();
   const alvo = document.getElementById('listaMeus');
@@ -5487,6 +5502,9 @@ async function enviarPedido(){
     return;
   }
   pedidoLojaErro = '';
+  /* Logada, mas sem WhatsApp na conta: completa primeiro (o "Falta pouco"),
+     antes de abrir janela nenhuma — e de lá volta para a loja. */
+  if(gravar && contaSemZap) return pedirCompletarParaPedido();
   const anterior = gravar ? pedidoLojaGuardado() : null;
   pedidoLojaNumero = anterior && anterior.numero ? anterior.numero : null;
   const endereco = () => 'https://wa.me/' + zap + '?text=' + encodeURIComponent(textoDoPedido());
@@ -5579,6 +5597,10 @@ async function enviarPedido(){
       console.info('[AgendaPro] fazer_pedido_loja:', e.message);
       pedidoLojaEnviando = false;
       if(janela) janela.close();
+      /* A conta não tem WhatsApp (entrou com o Google, ou a conta antiga
+         nasceu sem ele): sem ele não há ficha no salão. Em vez de só dizer,
+         leva ao "Falta pouco" — e de lá volta para a loja, com o carrinho. */
+      if(/Falta o seu WhatsApp/i.test(e.message || '')) return pedirCompletarParaPedido();
       pedidoLojaErro = (e.message || 'Não consegui enviar o pedido agora.') + ' O pedido não foi enviado.';
       if(tela !== 'loja') irPara('loja'); else desenhar();
       return;
@@ -5613,6 +5635,12 @@ function pedidoLojaGuardado(){
 function guardarPedidoLoja(id, numero){
   try{ localStorage.setItem(chaveDoPedidoLoja(), JSON.stringify({ id, numero })); }catch(e){}
 }
+function pedirCompletarParaPedido(){
+  pedidoLojaErro = '';
+  pedidoLojaEsperaConta = true;
+  pedidoLojaFaltaZap = true;
+  pedirCompletar(false, 'Para enviar o pedido, falta o seu WhatsApp no cadastro.', 'loja');
+}
 
 /* O recado da loja sobre o pedido gravado: enviado (com o número), o erro,
    ou "cadastro feito, agora é só enviar". */
@@ -5628,9 +5656,14 @@ function avisoDoPedidoLoja(){
       + '</div>';
   }
   if(pedidoLojaErro) return '<div class="recado erro" role="alert">' + escapar(pedidoLojaErro) + '</div>';
+  // Voltou do "Falta pouco" sem completar: o pedido não saiu.
+  if(pedidoLojaFaltaZap && logada() && itensNoCarrinho()){
+    return '<div class="recado erro" role="alert" id="pedidoLojaFaltaZap">O pedido não foi enviado: '
+      + 'falta o seu WhatsApp no cadastro. Toque em <b>Enviar pedido no WhatsApp</b> para completar.</div>';
+  }
   if(pedidoLojaEsperaConta && logada() && itensNoCarrinho()){
     return '<div class="recado ok" id="pedidoLojaPronto"><b>Cadastro feito.</b> Agora toque em '
-      + '<b>Enviar pelo WhatsApp</b> para mandar o pedido.</div>';
+      + '<b>Enviar pedido no WhatsApp</b> para mandar o pedido.</div>';
   }
   return '';
 }
@@ -6061,7 +6094,7 @@ function acaoSecundaria(){
   if(tela === 'confirmar') return irPara('quando');
   if(tela === 'conta') return voltarDaConta();
   if(tela === 'cadastro'){ historico = []; return irPara('capa', true); }
-  if(tela === 'completar'){ completarAdiado = true; historico = []; return irPara('capa', true); }
+  if(tela === 'completar') return adiarCompletar();
   if(VOLTAR_ESCRITO.includes(tela)) return voltar();
   /* "Voltar para a home": a capa, com a escolha zerada — era "Marcar outro",
      que abria a lista de serviços; da capa o Agendar horário faz o mesmo. */
@@ -7880,6 +7913,10 @@ async function aposEntrar(op){
     try{ f = await Dados.chamar('ligar_minha_ficha', { p_salao: salao.id }); }
     catch(e){ console.info('[AgendaPro] ligar_minha_ficha:', e.message); }
   }
+  // A conta tem WhatsApp? Sem ele, a loja completa antes de gravar o pedido.
+  contaDados = f && typeof f === 'object' && !Array.isArray(f) ? f : null;
+  contaSemZap = !!contaDados && !contaDados.telefone;
+  if(!contaSemZap) pedidoLojaFaltaZap = false;
   if(f && typeof f === 'object' && !Array.isArray(f)){
     const antes = sessao || {};
     sessao = Object.assign({}, antes, {
@@ -7970,39 +8007,80 @@ function entrarComGoogle(){
    perfil (`completar_meu_cadastro`, 51_google.sql). Também serve à conta
    antiga que nasceu sem WhatsApp. "Agora não" deixa para depois, sem
    insistir de novo nesta visita. */
-let completarAdiado = false, completarDoCadastro = false;
+let completarAdiado = false, completarDoCadastro = false, completarVolta = null;
 function precisaCompletar(f){
   return NA_NUVEM && logada() && !!f && typeof f === 'object' && !Array.isArray(f) && !f.telefone;
 }
-function pedirCompletar(doCadastro){
+/* `volta`: a tela de onde veio (a loja, no Enviar; Meus horários, no
+   "Completar meus dados") — o voltar, o "Agora não" e o salvar levam a ela. */
+function pedirCompletar(doCadastro, recado, volta){
   completarDoCadastro = !!doCadastro;
+  completarVolta = volta || null;
   const a = document.getElementById('avisoCompletar');
-  if(a) a.innerHTML = '';
+  if(a) a.innerHTML = recado ? '<div class="recado ok" id="completarDaLoja">' + escapar(recado) + '</div>' : '';
+  // O aniversário que a conta já tem não é pedido de novo.
+  const temNasc = !!(contaDados && contaDados.nascimento);
+  const cn = document.getElementById('campoCpNasc');
+  if(cn) cn.style.display = temNasc ? 'none' : '';
+  const sub = document.getElementById('subCompletar');
+  if(sub) sub.textContent = 'Para o salão te encontrar e mandar as confirmações, informe seu WhatsApp'
+    + (temNasc ? '' : ' e seu aniversário') + '. É só desta vez.';
   historico = ['capa'];
+  if(completarVolta) historico.push(completarVolta);
   irPara('completar', true);
+}
+function voltarDoCompletar(){
+  const v = completarVolta;
+  completarVolta = null;
+  if(v){ historico = ['capa']; return irPara(v, true); }
+  historico = [];
+  irPara('capa', true);
+}
+/* "Agora não" no Falta pouco: volta para onde estava (a loja diz que o
+   pedido não saiu); senão, a capa, sem insistir de novo nesta visita. */
+function adiarCompletar(){
+  completarAdiado = true;
+  voltarDoCompletar();
+}
+/* O WhatsApp que ela digitou já é de outra conta (a conta nasceu sem ele por
+   isso): o caminho é entrar com aquela — aqui mesmo, sem sair desta. */
+function entrarComAOutraConta(){
+  const v = completarVolta;
+  completarVolta = null;
+  abrirConta('entrar');
+  // Entrou (ou desistiu): volta para onde estava, não para o Falta pouco.
+  historico = ['capa'];
+  if(v) historico.push(v);
+  avisarConta('Entre com o e-mail e a senha da conta que tem este WhatsApp.', 'ok');
 }
 async function salvarCompletar(){
   const tel = valorDe('cpTel'), nasc = valorDe('cpNasc');
   const dizer = h => { document.getElementById('avisoCompletar').innerHTML =
     '<div class="recado erro">' + h + '</div>'; };
   if(soDigitos(tel).length < 10) return dizer('Falta o WhatsApp com DDD.');
-  if(!nasc && Documento.dataIncompleta(document.getElementById('cpNasc')))
-    return dizer('Confira a data do aniversário — escreva dia, mês e ano, como 04/10/1990.');
-  if(!nasc) return dizer('Falta o seu aniversário. É só o dia — o salão usa para o agrado do seu mês.');
-  if(nasc > hoje() || nasc < '1900-01-01') return dizer('Confira o ano do seu aniversário.');
+  const pedeNasc = !(contaDados && contaDados.nascimento);
+  if(pedeNasc){
+    if(!nasc && Documento.dataIncompleta(document.getElementById('cpNasc')))
+      return dizer('Confira a data do aniversário — escreva dia, mês e ano, como 04/10/1990.');
+    if(!nasc) return dizer('Falta o seu aniversário. É só o dia — o salão usa para o agrado do seu mês.');
+    if(nasc > hoje() || nasc < '1900-01-01') return dizer('Confira o ano do seu aniversário.');
+  }
   const bp = document.getElementById('btPrincipal');
   bp.disabled = true; bp.textContent = 'Salvando…';
   try{
-    await Dados.chamar('completar_meu_cadastro', { p_telefone: paraE164(tel), p_nascimento: nasc });
+    await Dados.chamar('completar_meu_cadastro', { p_telefone: paraE164(tel), p_nascimento: pedeNasc ? nasc : null });
   }catch(e){
     bp.disabled = false; bp.textContent = 'Continuar';
-    return dizer(escapar(e.message || 'Não consegui salvar agora. Tente de novo em instantes.'));
+    const msg = e.message || 'Não consegui salvar agora. Tente de novo em instantes.';
+    /* Já é de outra conta: o caso de quem criou esta conta com um WhatsApp
+       que já tinha conta — ela nasceu sem ele. Leva a entrar com a outra. */
+    return dizer(escapar(msg) + (/já está em outra conta/.test(msg)
+      ? '<br><button class="link" id="btOutraConta" onclick="entrarComAOutraConta()">Entrar com a outra conta</button>' : ''));
   }
   const f = await aposEntrar({ cadastrar: true });
   bp.disabled = false; bp.textContent = 'Continuar';
   if(completarDoCadastro) return mostrarCadastro(f);
-  historico = [];
-  irPara('capa', true);
+  voltarDoCompletar();
 }
 function mostrarCadastro(f){
   contaDoCadastro = false;

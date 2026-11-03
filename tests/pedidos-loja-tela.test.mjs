@@ -16,7 +16,10 @@
         Pix — a comanda fecha e o estoque baixa;
      3. o segundo pedido no Crediário: a venda a prazo abre com a cliente e os
         itens, e o pedido sai vendido;
-     4. o terceiro é cancelado.
+     4. o terceiro é cancelado;
+     5. a conta sem WhatsApp (criada com o número de outra conta, ou pelo
+        Google): o Enviar leva ao "Falta pouco", Meus horários tem o atalho,
+        e completar volta para a loja.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -221,6 +224,101 @@ igual('cancelado no banco, e a lista fica sem nenhum esperando',
    await pp.evaluate(() => !!document.getElementById('plVazio'))], ['cancelado', true]);
 verdade('a 390px a tela cabe', await pp.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
 await ctxP.close();
+
+/* ══════════════════════════════════════════════════════════════════════════
+   5. A conta SEM WhatsApp. O caso de produção: a conta foi criada com um
+   WhatsApp que JÁ ERA de outra conta (a da dona, por exemplo) — o banco não
+   deixa duas contas com o mesmo número, e esta nasceu sem ele. A loja só
+   dizia "Falta o seu WhatsApp no cadastro" e parava, sem caminho nenhum.
+   Agora: o Enviar leva ao "Falta pouco", Meus horários tem o atalho, o
+   número de outra conta é recusado com o botão para entrar com ela, e
+   completar volta para a loja com o carrinho. */
+secao('5. Conta sem WhatsApp: o caminho para completar, e de volta à loja');
+{
+  const lia = novaAba();
+  const telLia = tel();
+  await lia.criarConta({ email:`lia-${m}@t.com`, senha:'senhadalia1', nome:'Lia Sem Zap', telefone:'+5511' + tel() });
+  // Sem WhatsApp, e com o aniversário que já tinha: o Falta pouco não pede de novo.
+  await banco.query(`update public.perfis set telefone = null, nascimento = '1995-03-12' where email = $1`, [`lia-${m}@t.com`]);
+  const telDaDona = (await linha(`select public.telefone_nacional(telefone) t from public.perfis where email = $1`, [`pl-${m}@teste.com`])).t;
+  const masc = t => '(' + t.slice(0, 2) + ') ' + t.slice(2, 7) + '-' + t.slice(7);
+  const ctx = await nav.newContext({ viewport:{ width:390, height:860 }, isMobile:true, hasTouch:true });
+  const p = await ctx.newPage();
+  p.on('pageerror', e => erros.push('link sem zap: ' + e.message));
+  await p.addInitScript(([b, s]) => { window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
+    localStorage.setItem('agendapro.sessao', JSON.stringify(s));
+    window.__zap = []; window.__fechadas = 0;
+    window.open = u => { const w = { opener: 1, close(){ window.__fechadas++; },
+      location: { set href(v){ window.__zap.push(v); } } }; if(u) window.__zap.push(u); return w; };
+  }, [BASE, lia.sessao()]);
+  await p.goto(BASE + '/agendar.html?salao=' + SLUG);
+  await p.waitForFunction(() => typeof tela !== 'undefined' && tela === 'completar', null, { timeout: 15000 }).catch(() => {});
+  igual('ao abrir, logada e sem WhatsApp, o link pede para completar (só o WhatsApp: o aniversário ela já tem)',
+    await p.evaluate(() => [tela, getComputedStyle(document.getElementById('campoCpNasc')).display === 'none',
+      /aniversário/.test(document.getElementById('subCompletar').textContent)]), ['completar', true, false]);
+  await p.click('#btSecundario'); await p.waitForTimeout(400);
+
+  // Meus horários: o atalho para completar, a qualquer hora.
+  await p.evaluate(() => irPara('meus')); await p.waitForTimeout(600);
+  verdade('"Agora não" e depois Meus horários: o aviso de que falta o WhatsApp, com "Completar meus dados"',
+    await p.evaluate(() => !!document.getElementById('meusFaltaZap') && !!document.getElementById('btCompletarDados')));
+  await p.click('#btCompletarDados'); await p.waitForTimeout(400);
+  igual('   o botão abre o Falta pouco; "Agora não" volta para Meus horários',
+    [await p.evaluate(() => tela), await p.click('#btSecundario').then(() => p.waitForTimeout(400)).then(() => p.evaluate(() => tela))],
+    ['completar', 'meus']);
+
+  await p.waitForFunction(() => produtosDaLoja().length === 2, null, { timeout: 15000 });
+  await p.evaluate(b => { mudarNoCarrinho(b, 1); irPara('loja'); }, BATOM.id);
+  await p.waitForTimeout(300);
+  await p.evaluate(() => enviarPedido());
+  await p.waitForTimeout(600);
+  igual('na loja, Enviar: vai ao "Falta pouco", dizendo que é para o pedido, sem abrir o WhatsApp',
+    await p.evaluate(() => [tela, /Para enviar o pedido, falta o seu WhatsApp/.test(document.getElementById('avisoCompletar').innerText),
+      window.__zap.length]), ['completar', true, 0]);
+  await p.evaluate(() => voltar()); await p.waitForTimeout(400);
+  igual('voltou sem completar: a loja, com o carrinho, dizendo que o pedido não saiu (e não "Cadastro feito")',
+    await p.evaluate(() => [tela, itensNoCarrinho(), !!document.getElementById('pedidoLojaFaltaZap'),
+      !!document.getElementById('pedidoLojaPronto')]), ['loja', 1, true, false]);
+  // O banco é quem confere: mesmo sem a loja saber de antemão, a recusa leva ao mesmo lugar.
+  await p.evaluate(() => { contaSemZap = false; enviarPedido(); });
+  await p.waitForFunction(() => tela === 'completar', null, { timeout: 15000 }).catch(() => {});
+  igual('   e se só o banco souber: a janela em branco fecha e vai ao "Falta pouco"',
+    await p.evaluate(() => [tela, window.__fechadas, window.__zap.length]), ['completar', 1, 0]);
+
+  // O WhatsApp que já é de outra conta (o da dona): recusa, e o caminho é entrar com ela.
+  await p.fill('#cpTel', masc(telDaDona));
+  await p.click('#btPrincipal'); await p.waitForTimeout(1200);
+  verdade('o WhatsApp de outra conta: diz isso, com o botão "Entrar com a outra conta"',
+    /já está em outra conta/.test(await texto(p, '#avisoCompletar')) && await p.evaluate(() => !!document.getElementById('btOutraConta')),
+    await texto(p, '#avisoCompletar'));
+  await p.click('#btOutraConta'); await p.waitForTimeout(400);
+  igual('   que abre o Entrar, aqui mesmo; e o voltar leva à loja, não ao Falta pouco',
+    [await p.evaluate(() => [tela, contaModo, /conta que tem este WhatsApp/.test(document.getElementById('avisoConta').innerText)]),
+     await p.evaluate(() => { voltarDaConta(); return tela; })],
+    [['conta', 'entrar', true], 'loja']);
+
+  // Completa com o número dela.
+  await p.evaluate(() => enviarPedido());
+  await p.waitForFunction(() => tela === 'completar', null, { timeout: 15000 }).catch(() => {});
+  await p.fill('#cpTel', masc('11' + telLia));
+  await p.click('#btPrincipal');
+  await p.waitForFunction(() => tela === 'loja', null, { timeout: 15000 }).catch(() => {});
+  await p.waitForTimeout(500);
+  igual('completou: volta para a loja, com o carrinho, e a loja diz para enviar',
+    await p.evaluate(() => [tela, itensNoCarrinho(), !!document.getElementById('pedidoLojaPronto'),
+      !!document.getElementById('pedidoLojaFaltaZap')]), ['loja', 1, true, false]);
+  await p.evaluate(() => enviarPedido());
+  await p.waitForFunction(() => !!document.getElementById('pedidoLojaFeito'), null, { timeout: 15000 }).catch(() => {});
+  const pl4 = await linha(`select p.numero, c.telefone, c.nascimento::text n from public.pedidos_loja p
+    join public.clientes c on c.id = p.cliente_id where p.salao_id = $1 and c.nome = 'Lia Sem Zap'`, [SALAO]);
+  igual('enviou: o pedido nº 4 está no banco, na ficha nova dela, com o WhatsApp que ela deu e o aniversário da conta',
+    pl4 && [pl4.numero, pl4.telefone, pl4.n], [4, '11' + telLia, '1995-03-12']);
+  verdade('   e o WhatsApp abriu com o número do pedido',
+    /\(pedido nº 4\)/.test(await p.evaluate(() => decodeURIComponent((window.__zap.slice(-1)[0] || '').split('?text=')[1] || ''))));
+  await p.evaluate(() => irPara('meus')); await p.waitForTimeout(600);
+  verdade('   e Meus horários não diz mais que falta', await p.evaluate(() => !document.getElementById('meusFaltaZap')));
+  await ctx.close();
+}
 
 verdade('sem erro de JavaScript', erros.length === 0, erros.join(' | '));
 await nav.close();
