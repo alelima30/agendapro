@@ -296,6 +296,23 @@ secao('7. A comissão da sessão de pacote, no relatório da dona');
   igual('a Ju aparece no relatório com a terça atendida: vendeu R$ 40, comissão R$ 16',
     linhaJu, ['Ju Unhas', '1', 'R$ 40,00', 'R$ 16,00']);
   verdade('e a venda do pacote não vira linha "sem profissional"', !/sem profissional/.test(rel));
+  // O bloco Pacotes (55): vendidos, a receber, e a terça atendida como sessão feita.
+  const pk = await pd.evaluate(() => {
+    const kpi = rot => { const k = [...document.querySelectorAll('#relPacotes .kpi')].find(x => x.querySelector('.r').textContent.startsWith(rot));
+      return k ? k.querySelector('.v').textContent.trim() : null; };
+    return { vendidos: Number(kpi('pacotes vendidos')), sessoes: kpi('sessões feitas'), faltas: kpi('faltas'),
+      linhas: document.querySelectorAll('#relPacotesLista tbody tr').length,
+      grupos: [...document.querySelectorAll('#relCorpo .rel-grupo')].map(g => g.firstChild && g.childNodes[1].textContent.trim()) };
+  });
+  // As sessões contam pelo DIA do atendimento, no período da tela (a terça
+  // "atendida" aqui pode ser de outro mês): a conta de conferência é a do banco.
+  const periodo = await pd.evaluate(() => [relDe, relAte]);
+  const feitas = (await banco.query(`select count(*)::int n from public.agendamentos a
+     where a.salao_id = $1 and a.pacote_cliente_id is not null and a.status = 'concluido'
+       and (a.inicio at time zone 'America/Sao_Paulo')::date between $2 and $3`, [SALAO, periodo[0], periodo[1]])).rows[0].n;
+  verdade('no Relatórios, o bloco Pacotes: os vendidos no período, as sessões feitas no período, a lista por pacote',
+    pk.vendidos >= 1 && pk.sessoes === String(feitas) && pk.faltas === '0' && pk.linhas >= 1, JSON.stringify({ ...pk, feitas }));
+  igual('   e o relatório em cinco partes, na ordem', pk.grupos, ['A equipe', 'O dinheiro', 'O que foi vendido', 'As clientes', 'A agenda']);
   await ctx.close();
 }
 

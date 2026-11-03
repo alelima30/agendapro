@@ -74,7 +74,7 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare
   v_toda boolean; v_gestor boolean; v_prof uuid; v_hoje date; v_fuso text;
   v_itens jsonb := '[]'::jsonb; v_avisos jsonb; n int; v_valor numeric;
-  v_uso int; v_teto int; s record;
+  v_uso int; v_teto int; s record; v_cfg jsonb;
 begin
   if auth.uid() is null or p_salao is null or not public.e_equipe(p_salao) then
     raise exception 'Só a equipe do salão vê os avisos.' using errcode = 'insufficient_privilege';
@@ -83,7 +83,8 @@ begin
   v_gestor := public.e_gestor(p_salao);
   v_prof   := public.meu_profissional_id(p_salao);
   v_hoje   := public.hoje_no_salao(p_salao);
-  select coalesce(sa.fuso, 'America/Sao_Paulo') into v_fuso from public.saloes sa where sa.id = p_salao;
+  select coalesce(sa.fuso, 'America/Sao_Paulo'), coalesce(sa.cfg, '{}'::jsonb) into v_fuso, v_cfg
+    from public.saloes sa where sa.id = p_salao;
 
   -- Horários a confirmar. Para o balcão, os do sinal ficam no item deles.
   select count(*) into n
@@ -113,9 +114,11 @@ begin
       v_itens := v_itens || jsonb_build_object('tipo', 'sinal', 'qtd', n);
     end if;
 
-    -- Pedidos da loja esperando a venda.
+    -- Pedidos da loja esperando a venda — só com a loja ligada em Meu
+    -- negócio (Produtos à venda: Sim), a mesma chave da aba Pedidos.
     select count(*) into n from public.pedidos_loja pl
-     where pl.salao_id = p_salao and pl.status = 'novo';
+     where pl.salao_id = p_salao and pl.status = 'novo'
+       and lower(btrim(coalesce(v_cfg->>'loja', 'true'))) not in ('false', 'f', '0', 'no', 'nao', 'não');
     if n > 0 then
       v_itens := v_itens || jsonb_build_object('tipo', 'pedidos_loja', 'qtd', n);
     end if;

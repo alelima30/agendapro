@@ -397,6 +397,72 @@ secao('5. Conta sem WhatsApp: o caminho para completar, e de volta à loja');
   await ctx.close();
 }
 
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('6. No Relatórios: a loja pelo link');
+{
+  const ctxR = await nav.newContext({ viewport:{ width:390, height:860 }, isMobile:true, hasTouch:true });
+  const pr = await ctxR.newPage();
+  pr.on('pageerror', e => erros.push('relatório: ' + e.message));
+  await pr.addInitScript(([b, s]) => { window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
+    localStorage.setItem('agendapro.sessao', JSON.stringify(s)); }, [BASE, dona.sessao()]);
+  await pr.goto(BASE + '/app.html');
+  await pr.waitForFunction(() => typeof bd !== 'undefined' && bd && Array.isArray(bd.saloes) && bd.planos && bd.planos.length,
+    null, { timeout: 20000 });
+  await pr.waitForTimeout(1200);
+  await pr.evaluate(() => { try{ fecharModal(); }catch(e){} if(typeof pdFechar === 'function') pdFechar(true); irPara('relatorios'); });
+  await pr.waitForSelector('#relLoja', { timeout: 15000 }).catch(() => {});
+  const lj = await pr.evaluate(() => {
+    const kpi = rot => { const k = [...document.querySelectorAll('#relLoja .kpi')].find(x => x.querySelector('.r').textContent.startsWith(rot));
+      return k ? k.querySelector('.v').textContent.replace(/\s+/g, ' ').trim() : null; };
+    return { chegaram: kpi('pedidos que chegaram'), venda: kpi('viraram venda'),
+      vendaRot: ([...document.querySelectorAll('#relLoja .kpi .r')].find(r => r.textContent.startsWith('viraram venda')) || {}).textContent,
+      valor: kpi('vendido pela loja'), cancelados: kpi('cancelados'), esperando: kpi('esperando agora'),
+      produtos: [...document.querySelectorAll('#relLojaProdutos tbody tr')].map(t => [...t.children].map(td => td.textContent.replace(/\s+/g, ' ').trim())) };
+  });
+  igual('chegaram 4, viraram venda 2 (1 no crediário), R$ 90,00, 1 cancelado e 1 esperando',
+    [lj.chegaram, lj.venda, lj.vendaRot, lj.valor, lj.cancelados, lj.esperando],
+    ['4', '2', 'viraram venda (1 no crediário)', 'R$ 90,00', '1', '1']);
+  igual('   e o que saiu pela loja: os 2 cremes (R$ 50) e o batom (R$ 40)', lj.produtos,
+    [['Creme de mãos', '2', 'R$ 50,00'], ['Batom vermelho', '1', 'R$ 40,00']]);
+  await pr.click('#relIndice button:has-text("Vendas")');
+  await pr.waitForTimeout(900);
+  verdade('o índice do topo leva à parte "O que foi vendido"', await pr.evaluate(() => {
+    const r = document.getElementById('relGVendas').getBoundingClientRect(); return r.top >= 0 && r.top < 200; }));
+  verdade('   a 390px o relatório cabe (as tabelas rolam dentro delas)',
+    await pr.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  await ctxR.close();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('7. "Pedidos só se o comércio tiver colocado vendas no Meu negócio"');
+{
+  const abrirP = async () => {
+    const c = await nav.newContext({ viewport:{ width:390, height:860 }, isMobile:true, hasTouch:true });
+    const p = await c.newPage();
+    p.on('pageerror', e => erros.push('chave da loja: ' + e.message));
+    await p.addInitScript(([b, s]) => { window.AGENDAPRO = { url:b, chave:'k', ambiente:'bancada' };
+      localStorage.setItem('agendapro.sessao', JSON.stringify(s)); }, [BASE, dona.sessao()]);
+    await p.goto(BASE + '/app.html');
+    await p.waitForFunction(() => typeof bd !== 'undefined' && bd && Array.isArray(bd.saloes) && bd.planos && bd.planos.length,
+      null, { timeout: 20000 });
+    await p.waitForTimeout(2500);
+    return { c, p };
+  };
+  // Meu negócio → Dados → Produtos à venda: Não.
+  await banco.query(`update public.saloes set cfg = coalesce(cfg, '{}'::jsonb) || '{"loja": false}' where id = $1`, [SALAO]);
+  let { c, p } = await abrirP();
+  igual('com Produtos à venda: Não, não há aba Pedidos (nem pelo sino, mesmo com o pedido nº 4 esperando)',
+    await p.evaluate(() => [minhasTelas().some(t => t[0] === 'pedidosloja'),
+      ((sinoDados || {}).itens || []).some(i => i.tipo === 'pedidos_loja')]), [false, false]);
+  await c.close();
+  await banco.query(`update public.saloes set cfg = cfg - 'loja' where id = $1`, [SALAO]);
+  ({ c, p } = await abrirP());
+  igual('   com Sim, a aba volta, e o sino avisa do pedido esperando',
+    await p.evaluate(() => [minhasTelas().some(t => t[0] === 'pedidosloja'),
+      ((sinoDados || {}).itens || []).some(i => i.tipo === 'pedidos_loja')]), [true, true]);
+  await c.close();
+}
+
 verdade('sem erro de JavaScript', erros.length === 0, erros.join(' | '));
 await nav.close();
 await banco.end();

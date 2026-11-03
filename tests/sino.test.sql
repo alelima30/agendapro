@@ -153,6 +153,11 @@ select t_texto('o balcão: 1 pedido da loja (o vendido não), 1 parcela vencida 
   t_sino(:rita::uuid), 'a_confirmar:3 parcelas:1 pedidos_loja:1 sinal:1 | avisos 0');
 select t_texto('   com o que falta receber dela: R$ 70', t_item(:rita::uuid, 'parcelas')->>'valor', '70.00');
 select t_texto('quem atende não vê pedido nem parcela', t_sino(:ju::uuid), 'a_confirmar:2 | avisos 0');
+-- "Pedidos só se o comércio tiver colocado vendas no Meu negócio."
+update public.saloes set cfg = coalesce(cfg, '{}'::jsonb) || '{"loja": false}' where id = '55400000-0000-0000-0000-00000000000a';
+select t_texto('com Produtos à venda: Não (Meu negócio), o pedido da loja sai do sino',
+  t_sino(:rita::uuid), 'a_confirmar:3 parcelas:1 sinal:1 | avisos 0');
+update public.saloes set cfg = cfg - 'loja' where id = '55400000-0000-0000-0000-00000000000a';
 
 \echo ''
 \echo '5. Mensagens, franquia e assinatura: só a gestão'

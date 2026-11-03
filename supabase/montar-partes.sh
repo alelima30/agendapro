@@ -21,7 +21,7 @@ AQUI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FONTE="${1:-$AQUI}"
 
 PARTE1="01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql"
-PARTE2="22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql 36_excluir_conta.sql 37_pedidos.sql 38_suporte.sql 39_teste_unico.sql 40_saude.sql 41_ficha_equipe.sql 42_travas.sql 43_pacote_agenda.sql 44_pacote_comissao.sql 45_pacote_mensagens.sql 46_adicionais.sql 47_crediario.sql 48_cadastro_link.sql 49_remarcar.sql 50_pacote_excluir.sql 51_google.sql 52_mensagens_novas.sql 53_pedidos_loja.sql 54_sino.sql"
+PARTE2="22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql 36_excluir_conta.sql 37_pedidos.sql 38_suporte.sql 39_teste_unico.sql 40_saude.sql 41_ficha_equipe.sql 42_travas.sql 43_pacote_agenda.sql 44_pacote_comissao.sql 45_pacote_mensagens.sql 46_adicionais.sql 47_crediario.sql 48_cadastro_link.sql 49_remarcar.sql 50_pacote_excluir.sql 51_google.sql 52_mensagens_novas.sql 53_pedidos_loja.sql 54_sino.sql 55_relatorio_vendas.sql"
 
 cabeca() {
   cat <<CAB

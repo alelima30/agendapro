@@ -1188,6 +1188,15 @@ with conferencia(ordem, item, veredito, detalhe) as (
                 or not exists (select 1 from pg_proc where proname = 'pedidos_loja_painel' and prosrc like '%vendaTotal%')
               then 'cole as duas partes de novo (53_pedidos_loja)' else '' end
   union all
+  /* A loja pelo link e os pacotes no Relatórios (55). */
+  select 70, 'Relatórios: loja pelo link e pacotes',
+         case when to_regprocedure('public.relatorio_vendas(uuid,date,date)') is null
+                or has_function_privilege('anon', 'public.relatorio_vendas(uuid,date,date)', 'execute')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.relatorio_vendas(uuid,date,date)') is null
+                or has_function_privilege('anon', 'public.relatorio_vendas(uuid,date,date)', 'execute')
+              then 'cole as duas partes de novo (55_relatorio_vendas)' else '' end
+  union all
   /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
      o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
   select 59, 'Aniversário do cadastro chega à ficha',

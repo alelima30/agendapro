@@ -337,6 +337,20 @@ body.carregando-tudo .tela{ display:none }
 .rel-igual{color:var(--txt2)}
 .rel-secao{margin:24px 0 11px;font-size:16px}
 .rel-secao small{font-weight:500;color:var(--txt2);font-size:12.5px;display:block;margin-top:2px}
+/* O índice e os grupos do Relatórios. Só tokens do tema. */
+.rel-indice{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px}
+.rel-indice button{border:1px solid var(--borda);border-radius:var(--r-pill, 999px);background:var(--painel);
+  color:var(--txt);font:inherit;font-size:13px;font-weight:600;padding:6px 13px;cursor:pointer}
+.rel-indice button:hover{background:var(--painel2)}
+.rel-guia{font-size:13px;color:var(--txt2);line-height:1.5;margin:0 0 4px}
+.rel-grupo{margin:30px 0 2px;padding-top:16px;border-top:2px solid var(--borda);font-size:13px;font-weight:800;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--marca);scroll-margin-top:76px}
+.rel-grupo span{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;margin-right:6px;
+  background:var(--ac-soft);color:var(--ac-700);font-size:12px;letter-spacing:0}
+.rel-grupo small{display:block;margin-top:5px;text-transform:none;letter-spacing:0;font-weight:500;
+  font-size:13px;color:var(--txt2)}
+.rel-grupo + .rel-secao{margin-top:12px}
+@media (max-width:700px){ .rel-indice button{min-height:44px;padding:8px 14px} }
 /* A barra proporcional dentro da tabela: comparar 12 números é mais rápido
    com comprimento do que lendo dígito por dígito. */
 .rel-barra{height:6px;border-radius:3px;background:var(--lat-2);overflow:hidden;min-width:60px}
@@ -2148,7 +2162,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.cd3162';
+const VERSAO_APP = 'v9.0b181f';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -6208,10 +6222,17 @@ async function carregarRelatorio(){
   try{
     let r;
     if(NA_NUVEM){
-      r = await Dados.chamar('relatorio',
-        { p_salao: salaoAtual, p_de: relDe, p_ate: relAte });
+      const [rr, vv] = await Promise.all([
+        Dados.chamar('relatorio', { p_salao: salaoAtual, p_de: relDe, p_ate: relAte }),
+        /* A loja pelo link e os pacotes (55_relatorio_vendas). Banco sem ele
+           (o SQL não foi colado): os dois blocos só não aparecem. */
+        Dados.chamar('relatorio_vendas', { p_salao: salaoAtual, p_de: relDe, p_ate: relAte })
+          .catch(e => { console.info('[AgendaPro] relatório de vendas:', e.message); return null; }),
+      ]);
       // Função que devolve escalar vem crua; a de conjunto vem em lista.
-      if(Array.isArray(r)) r = r[0];
+      r = Array.isArray(rr) ? rr[0] : rr;
+      const vendas = Array.isArray(vv) ? vv[0] : vv;
+      if(r && vendas) r = Object.assign({}, r, { vendas });
     } else {
       r = relatorioLocal(relDe, relAte);
     }
@@ -6395,6 +6416,18 @@ function desenharRelatorio(r){
       <div class="kpi"><div class="v">${real(n(r.descontos))}</div><div class="r">descontos dados</div></div>
     </div>
 
+    <!-- O ÍNDICE: "deixar bem organizado de forma que todos entendam". Cada
+         grupo responde uma pergunta, e o toque leva até ele. -->
+    <nav class="rel-indice" id="relIndice" aria-label="Partes do relatório">
+      ${[['relGEquipe', 'Equipe'], ['relGDinheiro', 'Dinheiro'], ['relGVendas', 'Vendas'],
+         ['relGClientes', 'Clientes'], ['relGAgenda', 'Agenda']].map(([id, rot]) =>
+        `<button type="button" onclick="document.getElementById('${id}').scrollIntoView({ behavior:'smooth', block:'start' })">${rot}</button>`).join('')}
+    </nav>
+    <p class="rel-guia">Tudo aqui conta o período escolhido acima. Cada parte responde uma pergunta:
+      quanto cada pessoa vai receber, como o dinheiro entrou, o que foi vendido, quem veio e como foi a agenda.</p>
+
+    <div class="rel-grupo" id="relGEquipe" role="heading" aria-level="2"><span>1</span> A equipe
+      <small>Quanto cada pessoa vendeu e vai receber.</small></div>
     <h2 class="rel-secao">Comissão por profissional
       <small>Some o que cada uma vendeu no período. Sai do item, então uma
              cliente atendida por duas pessoas conta certo para as duas. A
@@ -6421,6 +6454,8 @@ function desenharRelatorio(r){
       </tr></tfoot>` : ''}</table></div>`
       : '<div class="vazio">Nenhum item com profissional no período.</div>'}
 
+    <div class="rel-grupo" id="relGDinheiro" role="heading" aria-level="2"><span>2</span> O dinheiro
+      <small>Por onde o dinheiro entrou, e o que ficou para receber.</small></div>
     <h2 class="rel-secao">Como o dinheiro entrou
       <small>A taxa da maquininha vem junto: o salão recebe menos do que a
              cliente pagou, e sem isso o faturamento mente sobre o que cai na
@@ -6443,6 +6478,8 @@ function desenharRelatorio(r){
 
     ${relatorioDoCrediario(r.crediario)}
 
+    <div class="rel-grupo" id="relGVendas" role="heading" aria-level="2"><span>3</span> O que foi vendido
+      <small>Serviços e produtos, a loja pelo link e os pacotes.</small></div>
     <h2 class="rel-secao">O que mais saiu
       <small>Os 12 que mais renderam. É o que decide preço, vitrine e o que
              vale ter na cadeira.</small></h2>
@@ -6462,6 +6499,11 @@ function desenharRelatorio(r){
       </tbody></table></div>`
       : '<div class="vazio">Nenhum item lançado no período.</div>'}
 
+    ${relatorioDaLoja(r.vendas && r.vendas.loja)}
+    ${relatorioDosPacotes(r.vendas && r.vendas.pacotes)}
+
+    <div class="rel-grupo" id="relGClientes" role="heading" aria-level="2"><span>4</span> As clientes
+      <small>Quem veio, e quantas eram novas.</small></div>
     <h2 class="rel-secao">Quem passou pela casa
       <small>Conta ${comanda ? 'pela comanda fechada' : 'pelo atendimento concluído'}, igual ao faturamento. Cliente nova é
              a que não tinha nenhum atendimento pago aqui antes deste
@@ -6472,6 +6514,8 @@ function desenharRelatorio(r){
       <div class="kpi"><div class="v">${n(cl.atendidas) - n(cl.novas)}</div><div class="r">que já eram de casa</div></div>
     </div>
 
+    <div class="rel-grupo" id="relGAgenda" role="heading" aria-level="2"><span>5</span> A agenda
+      <small>O que foi marcado, feito, faltado e cancelado.</small></div>
     <h2 class="rel-secao">A agenda
       <small>Estes contam pela data do ATENDIMENTO, não a do pagamento — falta
              é do dia em que a cadeira ficou parada. Por isso não batem com o
@@ -16824,6 +16868,65 @@ function relatorioDoCrediario(cr){
     </div>`;
 }
 
+/* A LOJA PELO LINK no Relatórios (55): os pedidos do período e o que
+   rendeu. O valor já está no faturamento — a venda da loja é uma comanda —,
+   e o texto diz isso para ninguém somar duas vezes. Salão que não usa a loja
+   não vê o bloco. */
+function relatorioDaLoja(l){
+  if(!l) return '';
+  const n = v => Number(v) || 0;
+  if(!n(l.recebidos) && !n(l.vendidos) && !n(l.cancelados) && !n(l.esperando)) return '';
+  const prods = l.produtos || [];
+  return `<h2 class="rel-secao">Loja pelo link
+      <small>Os pedidos que as clientes mandaram pelo link. Chegou conta pela data do pedido; vendido,
+             pela data da venda. O valor vendido já está no faturamento lá em cima.</small></h2>
+    <div class="kpis" id="relLoja">
+      <div class="kpi"><div class="v">${n(l.recebidos)}</div><div class="r">pedidos que chegaram</div></div>
+      <div class="kpi"><div class="v">${n(l.vendidos)}</div><div class="r">viraram venda${n(l.noCrediario)
+        ? ' (' + n(l.noCrediario) + ' no crediário)' : ''}</div></div>
+      <div class="kpi"><div class="v">${real(n(l.valor))}</div><div class="r">vendido pela loja</div></div>
+      <div class="kpi"><div class="v">${n(l.cancelados)}</div><div class="r">cancelados</div></div>
+      ${n(l.esperando) ? `<div class="kpi"><div class="v" style="color:var(--alerta)">${n(l.esperando)}</div>
+        <div class="r">esperando agora, em Pedidos</div></div>` : ''}
+    </div>
+    ${prods.length ? `<div class="tabela-rola"><table class="tabela" id="relLojaProdutos"><thead><tr>
+        <th>Produto</th><th style="text-align:right">Qtd</th><th style="text-align:right">Vendido</th>
+      </tr></thead><tbody>
+      ${prods.map(x => `<tr><td>${escapar(x.nome)}</td>
+        <td style="text-align:right;color:var(--txt2)">${n(x.qtd)}</td>
+        <td style="text-align:right"><b>${real(n(x.valor))}</b></td></tr>`).join('')}
+      </tbody></table></div>` : ''}`;
+}
+
+/* OS PACOTES no Relatórios (55): vendidos e por quanto, recebido, a receber,
+   e as sessões feitas e as faltas — que também gastam a sessão. */
+function relatorioDosPacotes(pk){
+  if(!pk) return '';
+  const n = v => Number(v) || 0;
+  if(!n(pk.vendidos) && !n(pk.recebido) && !n(pk.aReceber) && !n(pk.sessoesFeitas) && !n(pk.faltas)) return '';
+  const por = pk.porPacote || [];
+  return `<h2 class="rel-secao">Pacotes
+      <small>Vendido conta pela data da venda; recebido, pela do pagamento (e já está no faturamento).
+             O a receber é o que está em aberto hoje. As sessões contam pelo dia do atendimento — a
+             falta também gasta a sessão.</small></h2>
+    <div class="kpis" id="relPacotes">
+      <div class="kpi"><div class="v">${n(pk.vendidos)}</div><div class="r">pacotes vendidos</div></div>
+      <div class="kpi"><div class="v">${real(n(pk.valorVendido))}</div><div class="r">valor dos vendidos</div></div>
+      <div class="kpi"><div class="v">${real(n(pk.recebido))}</div><div class="r">recebido no período</div></div>
+      <div class="kpi"><div class="v"${n(pk.aReceber) ? ' style="color:var(--alerta)"' : ''}>${real(n(pk.aReceber))}</div>
+        <div class="r">a receber hoje</div></div>
+      <div class="kpi"><div class="v">${n(pk.sessoesFeitas)}</div><div class="r">sessões feitas</div></div>
+      <div class="kpi"><div class="v">${n(pk.faltas)}</div><div class="r">faltas (gastaram a sessão)</div></div>
+    </div>
+    ${por.length ? `<div class="tabela-rola"><table class="tabela" id="relPacotesLista"><thead><tr>
+        <th>Pacote</th><th style="text-align:right">Vendidos</th><th style="text-align:right">Valor</th>
+      </tr></thead><tbody>
+      ${por.map(x => `<tr><td>${escapar(x.nome)}</td>
+        <td style="text-align:right;color:var(--txt2)">${n(x.vendidos)}</td>
+        <td style="text-align:right"><b>${real(n(x.valor))}</b></td></tr>`).join('')}
+      </tbody></table></div>` : ''}`;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    OS PEDIDOS DA LOJA (53_pedidos_loja)
    ---------------------------------------------------------------------------
@@ -16839,7 +16942,12 @@ function relatorioDoCrediario(cr){
 var pedidosLojaDados = null, plVenda = null;
 
 function lojaRecebePedidos(){
-  return NA_NUVEM && (doSalao(bd.produtos || []).some(p => p.ativo !== false && p.vendaOnline)
+  /* "Pedidos só se o comércio tiver colocado vendas no Meu negócio." A chave
+     é Meu negócio → Dados → Produtos à venda: com "Não", não há aba Pedidos
+     (e o link nem recebe pedido: o banco recusa, 53). Com "Sim", a aba vem
+     quando há produto à venda no link ou pedido já feito. */
+  if(!NA_NUVEM || !usaLojaNoLink()) return false;
+  return (doSalao(bd.produtos || []).some(p => p.ativo !== false && p.vendaOnline)
     || (Array.isArray(pedidosLojaDados) && pedidosLojaDados.length > 0)
     // O sino avisou de pedido esperando (o produto pode ter saído da loja depois).
     || !!(typeof sinoDados !== 'undefined' && sinoDados && sinoDados.salao === salaoAtual
