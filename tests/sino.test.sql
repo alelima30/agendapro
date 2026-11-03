@@ -240,3 +240,25 @@ update public.avisos_plataforma set ate = :'hoje'::date - 1 where id = (:'av2'::
 select t_texto('passou do dia de saída: some também', t_sino(:ju::uuid), 'a_confirmar:1 | avisos 0');
 select t_verdade('   e o admin mostra os dois fora do ar',
   (select bool_and(not (a->>'noAr')::boolean) from jsonb_array_elements(t_como(:plat::uuid, 'select public.avisos_plataforma_admin()')) a));
+
+\echo ''
+\echo '8. O aviso para um salão só'
+-- "Como envio somente para um usuário?" — a prorrogação da cortesia de um dono.
+insert into public.saloes (id, slug, nome, tipo, status, fuso) values
+  ('55400000-0000-0000-0000-00000000000b', 'sino-outro', 'Outro Salão', 'salao', 'ativo', 'America/Sao_Paulo');
+select t_como(:plat::uuid, $$select public.publicar_aviso_plataforma('Sua cortesia foi prorrogada',
+  'Mais 15 dias de plano Essencial.', 'gestao', null, '55400000-0000-0000-0000-00000000000a')$$) as av3 \gset
+select t_como(:plat::uuid, $$select public.publicar_aviso_plataforma('Recado do outro salão',
+  'Só para o Outro Salão.', 'equipe', null, '55400000-0000-0000-0000-00000000000b')$$) as av4 \gset
+select t_texto('a Ana vê o aviso dela (e não o do outro salão)',
+  (select string_agg(a->>'titulo', ' / ') from jsonb_array_elements(
+    t_como(:ana::uuid, 'select public.sino_do_painel(''55400000-0000-0000-0000-00000000000a'')')->'avisos') a),
+  'Sua cortesia foi prorrogada');
+select t_texto('   a Ju (equipe) não vê nenhum dos dois: um é da gestão, o outro é de outro salão',
+  t_sino(:ju::uuid), 'a_confirmar:1 | avisos 0');
+select t_texto('   o admin mostra para qual salão foi',
+  (select a->>'salao' from jsonb_array_elements(t_como(:plat::uuid, 'select public.avisos_plataforma_admin()')) a
+    where a->>'id' = :'av3'::jsonb->>'id'), 'Salão da Ana');
+select t_texto('salão que não existe é recusado',
+  erro_de($$select t_como('f5400000-0000-0000-0000-00000000000f', 'select public.publicar_aviso_plataforma(''Aviso teste'', ''Texto do aviso'', ''gestao'', null, ''00000000-0000-0000-0000-000000000000'')')$$),
+  'Não achei esse salão.');

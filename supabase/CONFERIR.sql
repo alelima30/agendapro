@@ -1164,13 +1164,13 @@ with conferencia(ordem, item, veredito, detalhe) as (
      as tabelas fechadas e a função só para quem entra. */
   select 68, 'Sino do painel (notificações e avisos do AgendaPro)',
          case when to_regprocedure('public.sino_do_painel(uuid)') is null
-                or to_regprocedure('public.publicar_aviso_plataforma(text,text,text,date)') is null
+                or to_regprocedure('public.publicar_aviso_plataforma(text,text,text,date,uuid)') is null
                 or to_regclass('public.avisos_lidos') is null
                 or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.avisos_plataforma')), false)
                 or has_function_privilege('anon', 'public.sino_do_painel(uuid)', 'execute')
               then 'FALTA' else 'certo' end,
          case when to_regprocedure('public.sino_do_painel(uuid)') is null
-                or to_regprocedure('public.publicar_aviso_plataforma(text,text,text,date)') is null
+                or to_regprocedure('public.publicar_aviso_plataforma(text,text,text,date,uuid)') is null
                 or to_regclass('public.avisos_lidos') is null
                 or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.avisos_plataforma')), false)
                 or has_function_privilege('anon', 'public.sino_do_painel(uuid)', 'execute')

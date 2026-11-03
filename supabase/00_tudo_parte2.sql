@@ -10742,6 +10742,11 @@ create table if not exists public.avisos_plataforma (
 );
 create index if not exists ix_avisos_plataforma_vivos
   on public.avisos_plataforma(publicado_em desc) where arquivado_em is null;
+/* PARA UM SALÃO SÓ ("como envio somente para um usuário?"): com o salão
+   escolhido, o aviso aparece só no sino dele — a prorrogação da cortesia de
+   um dono, um recado para uma casa. Vazio: para todos os salões. */
+alter table public.avisos_plataforma
+  add column if not exists salao_id uuid references public.saloes(id) on delete cascade;
 
 create table if not exists public.avisos_lidos (
   aviso_id   uuid not null references public.avisos_plataforma(id) on delete cascade,
@@ -10879,6 +10884,7 @@ begin
            where ap.arquivado_em is null
              and (ap.ate is null or ap.ate >= (now() at time zone 'America/Sao_Paulo')::date)
              and (ap.para = 'equipe' or v_gestor)
+             and (ap.salao_id is null or ap.salao_id = p_salao)
              and not exists (select 1 from public.avisos_lidos al
                               where al.aviso_id = ap.id and al.perfil_id = auth.uid())
            order by ap.publicado_em desc limit 10) x;
@@ -10912,8 +10918,11 @@ grant execute on function public.marcar_aviso_lido(uuid) to authenticated;
 -- ---------------------------------------------------------------------------
 -- O admin: publicar, listar e arquivar os avisos. Só a plataforma.
 -- ---------------------------------------------------------------------------
+-- A versão de antes, sem o salão: sai, para não ficarem duas.
+drop function if exists public.publicar_aviso_plataforma(text, text, text, date);
 create or replace function public.publicar_aviso_plataforma(
-  p_titulo text, p_texto text, p_para text default 'gestao', p_ate date default null)
+  p_titulo text, p_texto text, p_para text default 'gestao', p_ate date default null,
+  p_salao uuid default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_id uuid; v_titulo text := btrim(coalesce(p_titulo, '')); v_texto text := btrim(coalesce(p_texto, ''));
 begin
@@ -10932,8 +10941,11 @@ begin
   if p_ate is not null and p_ate < (now() at time zone 'America/Sao_Paulo')::date then
     raise exception 'A data de saída já passou.' using errcode = 'check_violation';
   end if;
-  insert into public.avisos_plataforma (titulo, texto, para, ate, criado_por)
-       values (v_titulo, v_texto, coalesce(p_para, 'gestao'), p_ate, auth.uid())
+  if p_salao is not null and not exists (select 1 from public.saloes s where s.id = p_salao) then
+    raise exception 'Não achei esse salão.' using errcode = 'check_violation';
+  end if;
+  insert into public.avisos_plataforma (titulo, texto, para, ate, criado_por, salao_id)
+       values (v_titulo, v_texto, coalesce(p_para, 'gestao'), p_ate, auth.uid(), p_salao)
     returning id into v_id;
   return jsonb_build_object('ok', true, 'id', v_id);
 end $$;
@@ -10957,6 +10969,7 @@ begin
   end if;
   return coalesce((select jsonb_agg(jsonb_build_object('id', ap.id, 'titulo', ap.titulo, 'texto', ap.texto,
            'para', ap.para, 'publicadoEm', ap.publicado_em, 'ate', ap.ate,
+           'salaoId', ap.salao_id, 'salao', (select s.nome from public.saloes s where s.id = ap.salao_id),
            'noAr', ap.arquivado_em is null
                     and (ap.ate is null or ap.ate >= (now() at time zone 'America/Sao_Paulo')::date),
            'lidos', (select count(*) from public.avisos_lidos al where al.aviso_id = ap.id))
@@ -10964,10 +10977,10 @@ begin
       from (select * from public.avisos_plataforma order by publicado_em desc limit 30) ap), '[]'::jsonb);
 end $$;
 
-revoke all on function public.publicar_aviso_plataforma(text, text, text, date) from public, anon;
+revoke all on function public.publicar_aviso_plataforma(text, text, text, date, uuid) from public, anon;
 revoke all on function public.arquivar_aviso_plataforma(uuid) from public, anon;
 revoke all on function public.avisos_plataforma_admin() from public, anon;
-grant execute on function public.publicar_aviso_plataforma(text, text, text, date) to authenticated;
+grant execute on function public.publicar_aviso_plataforma(text, text, text, date, uuid) to authenticated;
 grant execute on function public.arquivar_aviso_plataforma(uuid) to authenticated;
 grant execute on function public.avisos_plataforma_admin() to authenticated;
 

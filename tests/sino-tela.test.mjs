@@ -116,6 +116,18 @@ secao('1. O admin publica um aviso para os salões');
     lista.includes('Novidade: o sino ' + m) && /donos e gerentes/.test(lista) && /no ar/.test(lista), lista);
   igual('   e está no banco', (await linha(`select para, arquivado_em is null as vivo from public.avisos_plataforma
     where titulo = $1`, ['Novidade: o sino ' + m])), { para: 'gestao', vivo: true });
+  // "Como envio somente para um usuário?": o aviso para um salão só.
+  await p.fill('#avTitulo', 'Só para o seu salão ' + m);
+  await p.fill('#avTexto', 'Sua cortesia do plano Essencial foi prorrogada por mais 15 dias.');
+  await p.selectOption('#avSalao', SALAO);
+  await p.click('#btPublicarAviso');
+  await p.waitForFunction(t => (document.getElementById('ajusteAvisos') || {}).innerText?.includes(t), 'Só para o seu salão ' + m,
+    { timeout: 15000 }).catch(() => {});
+  const linhaAv = await p.evaluate(t => { const tr = [...document.querySelectorAll('#ajusteAvisos tr')].find(x => x.innerText.includes(t));
+    return tr ? tr.children[1].textContent.trim() : null; }, 'Só para o seu salão ' + m);
+  igual('o aviso para um salão só: a lista diz para qual salão, e o banco guarda o salão',
+    [linhaAv, (await linha(`select salao_id from public.avisos_plataforma where titulo = $1`, ['Só para o seu salão ' + m])).salao_id],
+    ['Salão do Sino ' + m, SALAO]);
   await ctx.close();
 }
 
@@ -129,7 +141,8 @@ verdade('o sino aparece no topo, ao lado da Ajuda', await pc.evaluate(() => {
 }));
 // Pode haver avisos de outros testes na mesma bancada: conta os deste salão.
 const avisosVivos = Number((await linha(`select count(*) n from public.avisos_plataforma
-  where arquivado_em is null and para = 'gestao' and (ate is null or ate >= current_date)`)).n);
+  where arquivado_em is null and para = 'gestao' and (ate is null or ate >= current_date)
+    and (salao_id is null or salao_id = $1)`, [SALAO])).n);
 const esperado = 2 + avisosVivos;
 igual('o número: 1 horário a confirmar + 1 pedido da loja + os avisos do AgendaPro',
   await numeroDoSino(pc), esperado > 9 ? '9+' : String(esperado));
@@ -141,6 +154,7 @@ const painel = await texto(pc, '#sinoPainel');
 verdade('a lista diz: "1 horário espera sua confirmação", "1 pedido novo da loja" e o aviso, com "Marcar como lido"',
   /1 horário espera sua confirmação/.test(painel) && /1 pedido novo da loja/.test(painel)
   && painel.includes('Novidade: o sino ' + m) && /AVISO DO AGENDAPRO/.test(painel) && /Marcar como lido/.test(painel), painel);
+verdade('   e o aviso que foi só para este salão também está lá', painel.includes('Só para o seu salão ' + m), painel);
 verdade('   a 390px a lista cabe na tela', await pc.evaluate(() => {
   const r = document.getElementById('sinoPainel').getBoundingClientRect();
   return r.left >= 0 && r.right <= innerWidth + 1 && document.documentElement.scrollWidth <= innerWidth + 1;
@@ -153,6 +167,9 @@ verdade('marcou como lido: sai da lista, o número desce, e fica gravado',
   && await numeroDoSino(pc) === String(esperado - 1 > 9 ? '9+' : esperado - 1)
   && !!(await linha(`select 1 from public.avisos_lidos al join public.perfis pf on pf.id = al.perfil_id
       where al.aviso_id = $1 and pf.email = $2`, [idAviso, `sino-${m}@teste.com`])));
+const idAvisoSalao = (await linha(`select id from public.avisos_plataforma where titulo = $1`, ['Só para o seu salão ' + m])).id;
+await pc.click(`#sinoAviso-${idAvisoSalao} button:has-text("Marcar como lido")`);
+await pc.waitForTimeout(800);
 await pc.click('#sinoPainel .sino-item:has-text("pedido novo da loja")');
 await pc.waitForTimeout(600);
 igual('o pedido leva à aba Pedidos, e o sino fecha',
@@ -172,7 +189,7 @@ await banco.query(`update public.agendamentos set status = 'confirmado' where id
 await banco.query(`update public.pedidos_loja set status = 'cancelado' where salao_id = $1`, [SALAO]);
 await pc.evaluate(() => pedirSino(true));
 await pc.waitForTimeout(1500);
-const restam = avisosVivos - 1;
+const restam = avisosVivos - 2;
 igual('confirmou o horário e o pedido saiu: só os outros avisos (se houver) contam',
   await numeroDoSino(pc), restam > 0 ? (restam > 9 ? '9+' : String(restam)) : '');
 if(restam === 0){
@@ -226,7 +243,8 @@ secao('7. Tela estreita (320px): o topo cabe com o sino');
 }
 
 // Os avisos deste teste saem do ar: a bancada é dividida com os outros testes.
-await banco.query(`update public.avisos_plataforma set arquivado_em = now() where titulo like 'Novidade: o sino %'`);
+await banco.query(`update public.avisos_plataforma set arquivado_em = now()
+  where titulo like 'Novidade: o sino %' or titulo like 'Só para o seu salão %'`);
 
 verdade('sem erro de JavaScript', erros.length === 0, erros.join(' | '));
 await nav.close();

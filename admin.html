@@ -439,13 +439,19 @@ function desenhar(){
     const av = painel.avisos;
     h += `<h2>Avisos para os salões</h2>
       <div class="recado" id="ajusteAvisos">
-        <b>Escreva um aviso: ele aparece no sino do painel de todos os salões</b>
-        Novidade, manutenção marcada, um recado. Fica no sino até a pessoa marcar como
-        lido, ou até o dia de saída, se tiver.
+        <b>Escreva um aviso: ele aparece no sino do painel dos salões</b>
+        Novidade, manutenção marcada, um recado. Para todos os salões ou só para um
+        (a prorrogação da cortesia de um dono, por exemplo). Fica no sino até a pessoa
+        marcar como lido, ou até o dia de saída, se tiver.
         <div class="aviso-form">
           <input id="avTitulo" maxlength="120" placeholder="Título (ex.: Manutenção domingo, das 2h às 3h)">
           <textarea id="avTexto" maxlength="2000" rows="3" placeholder="O texto do aviso"></textarea>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="avSalao" class="plano" aria-label="Para qual salão">
+              <option value="">Todos os salões</option>
+              ${(painel.saloes || []).slice().sort((x, y) => String(x.nome).localeCompare(String(y.nome)))
+                .map(s => `<option value="${escapar(s.id)}">Só: ${escapar(s.nome)}</option>`).join('')}
+            </select>
             <select id="avPara" class="plano">
               <option value="gestao">Para donos e gerentes</option>
               <option value="equipe">Para toda a equipe</option>
@@ -455,9 +461,10 @@ function desenhar(){
           </div>
         </div>
         ${av.length ? `<div class="rolo" style="margin-top:12px"><table>
-          <thead><tr><th>Aviso</th><th>Para</th><th>Publicado</th><th>Situação</th><th class="num">Leram</th><th></th></tr></thead><tbody>
+          <thead><tr><th>Aviso</th><th>Salão</th><th>Para</th><th>Publicado</th><th>Situação</th><th class="num">Leram</th><th></th></tr></thead><tbody>
           ${av.map(a => `<tr>
             <td><div class="nome">${escapar(a.titulo)}</div><div class="slug">${escapar(a.texto)}</div></td>
+            <td>${a.salaoId ? escapar(a.salao || 'salão') : 'todos'}</td>
             <td>${a.para === 'equipe' ? 'toda a equipe' : 'donos e gerentes'}</td>
             <td class="num">${quando(a.publicadoEm)}</td>
             <td class="${a.noAr ? '' : 'morto'}">${a.noAr ? (a.ate ? 'no ar até ' + data(a.ate) : 'no ar') : 'fora do ar'}</td>
@@ -749,14 +756,17 @@ async function ligarMensagemRemarcado(ligar){
 async function publicarAviso(){
   const val = id => (document.getElementById(id) || {}).value || '';
   const titulo = val('avTitulo').trim(), texto = val('avTexto').trim();
-  const para = val('avPara') || 'gestao', ate = val('avAte') || null;
+  const para = val('avPara') || 'gestao', ate = val('avAte') || null, salao = val('avSalao') || null;
   if(titulo.length < 3) return alert('Escreva o título do aviso.');
   if(texto.length < 3) return alert('Escreva o texto do aviso.');
+  const nomeDoSalao = salao ? ((painel.saloes || []).find(s => s.id === salao) || {}).nome || 'o salão escolhido' : '';
   if(!confirm('Publicar este aviso para ' + (para === 'equipe' ? 'TODA A EQUIPE' : 'os DONOS E GERENTES')
-      + ' de todos os salões?\n\n' + titulo)) return;
+      + (salao ? ' SÓ do salão ' + nomeDoSalao : ' de TODOS os salões') + '?\n\n' + titulo)) return;
   try{
-    await Dados.chamar('publicar_aviso_plataforma', { p_titulo: titulo, p_texto: texto, p_para: para, p_ate: ate });
-    alert('Publicado. Aparece no sino dos salões em até um minuto.');
+    await Dados.chamar('publicar_aviso_plataforma', { p_titulo: titulo, p_texto: texto, p_para: para, p_ate: ate,
+      p_salao: salao });
+    alert(salao ? 'Publicado. Aparece no sino de ' + nomeDoSalao + ' em até um minuto.'
+                : 'Publicado. Aparece no sino dos salões em até um minuto.');
     await carregar();
   }catch(e){
     console.error('[plataforma] publicar aviso:', e);
