@@ -151,6 +151,7 @@ partes.append(limpar(open('supabase/50_pacote_excluir.sql', encoding='utf-8').re
 partes.append(limpar(open('supabase/51_google.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/52_mensagens_novas.sql', encoding='utf-8').read()))
 partes.append(limpar(open('supabase/53_pedidos_loja.sql', encoding='utf-8').read()))
+partes.append(limpar(open('supabase/54_sino.sql', encoding='utf-8').read()))
 
 # ⚠ E O 09_cliente.sql POR ÚLTIMO, porque é dele o `agendar()` que vale.
 #

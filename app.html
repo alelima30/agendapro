@@ -349,20 +349,40 @@ body.carregando-tudo .tela{ display:none }
   backdrop-filter:blur(2px);
 }
 .fundo.on{display:flex}
+/* ⚠ SÓ O MIOLO ROLA. A janela inteira rolava, com o título e os botões
+   "grudados" (sticky) DENTRO da área que rola. No celular, o toque que chega
+   enquanto a lista ainda desliza depois de rolar só PARA a rolagem — e o
+   primeiro toque em Gravar não gravava ("quando clico a primeira vez em
+   salvar está com bug", na Configuração do dashboard). Com o título e os
+   botões fora da área que rola, o toque neles é sempre um toque. */
 .modal{
   background:var(--painel);border-radius:15px;width:100%;max-width:520px;
-  max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);
+  max-height:90vh;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3);
+  display:flex;flex-direction:column;
 }
 .modal-h{
-  padding:15px 18px;border-bottom:1px solid var(--borda);
-  display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--painel);
+  padding:15px 18px;border-bottom:1px solid var(--borda);flex:none;
+  display:flex;align-items:center;gap:10px;background:var(--painel);
 }
 .modal-h h3{font-size:16px;font-weight:700;flex:1}
-.modal-c{padding:18px}
+.modal-c{padding:18px;overflow:auto;flex:1 1 auto;min-height:0;overscroll-behavior:contain}
 .modal-p{
-  padding:13px 18px;border-top:1px solid var(--borda);display:flex;gap:8px;
-  justify-content:flex-end;position:sticky;bottom:0;background:var(--painel);flex-wrap:wrap;
+  padding:13px 18px;border-top:1px solid var(--borda);display:flex;gap:8px;flex:none;
+  justify-content:flex-end;background:var(--painel);flex-wrap:wrap;
 }
+.modal-p:empty{display:none}
+/* Os pedidos da loja: a linha do histórico (o vendido com o total e o
+   Recibo) e o recibo em letra de máquina. Só tokens do tema. */
+.pl-hist{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+  padding:10px 0;border-top:1px solid var(--borda);font-size:14px}
+.pl-hist:first-child{border-top:0}
+.pl-hist .tag{margin-left:4px;vertical-align:1px}
+.pl-hist-sub{color:var(--txt2);font-size:13px;line-height:1.45;margin-top:3px}
+.pl-hist-dir{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.pl-hist-dir .btn .ic-svg{width:15px;height:15px;margin-right:5px;vertical-align:-3px}
+.pl-recibo{font:clamp(10px, 2.85vw, 12.5px)/1.45 ui-monospace,Menlo,Consolas,"Courier New",monospace;white-space:pre;
+  overflow-x:auto;margin:0;padding:10px;border:1px solid var(--borda);border-radius:10px;
+  background:var(--painel2);color:var(--txt)}
 .campo{margin-bottom:13px}
 .campo label{display:block;font-size:12px;font-weight:700;color:var(--txt2);margin-bottom:5px}
 /* A explicação miúda embaixo de um campo ou de um bloco. A classe aparecia
@@ -612,6 +632,12 @@ span.ajuda{display:block;margin-top:5px}
     </div>
     <span class="espaco"></span>
     <span class="tb-data" id="tbData"></span>
+    <!-- O SINO (54_sino.sql): o que pede ação agora, e os avisos do
+         AgendaPro. Escondido até o banco responder; sem o 54, fica escondido. -->
+    <button class="tb-sino" id="btSino" type="button" onclick="alternarSino()" style="display:none"
+            aria-label="Notificações" aria-expanded="false" aria-controls="sinoPainel">
+      <span data-ico="sino"></span><span class="sino-num" id="sinoNum" hidden></span></button>
+    <div class="sino-painel" id="sinoPainel" role="dialog" aria-label="Notificações" hidden></div>
     <a class="tb-ajuda" id="btAjuda" href="#" target="_blank" rel="noopener"
        onclick="return abrirAjuda(this)" aria-label="Precisa de ajuda? Fale no WhatsApp">
       <span data-ico="whatsapp"></span><span>Ajuda</span></a>
@@ -2122,7 +2148,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.40f72b';
+const VERSAO_APP = 'v9.cd3162';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -5891,8 +5917,13 @@ async function gravarConfigDash(){
   /* Mesmo cuidado da aparência e dos destaques: o `cfg` guarda mais coisa com
      o tempo, e sobrescrever o objeto inteiro apagaria o que outra tela puser
      lá — cor, tema, janela da agenda, tudo de uma vez. */
+  /* O toque responde na hora: o botão diz que está gravando e não aceita
+     um segundo toque enquanto a rede não volta. */
+  const bt = [...document.querySelectorAll('#modalPe .btn-p')].pop();
+  if(bt){ if(bt.disabled) return; bt.disabled = true; bt.textContent = 'Gravando…'; }
   sl.cfg = Object.assign({}, sl.cfg, { dashboard: dashDoRascunho() });
   await salvar();
+  if(bt){ bt.disabled = false; bt.textContent = 'Gravar'; }
   fecharModal();
   desenharDash();
 }
@@ -6681,6 +6712,8 @@ function confirmarPublico(profId, servId, data, min){
 function abrirModal(titulo, corpo, botoes){
   document.getElementById('modalTitulo').textContent = titulo;
   document.getElementById('modalCorpo').innerHTML = corpo;
+  // Janela nova começa do alto (a de antes podia ter ficado rolada).
+  document.getElementById('modalCorpo').scrollTop = 0;
   document.getElementById('modalPe').innerHTML = (botoes||[])
     .map(([r,acao,cls]) => `<button class="btn ${cls||''}" onclick="${acao}">`
        + (/whats/i.test(r) ? '<span data-ico="whatsapp"></span>' : '')
@@ -9751,6 +9784,8 @@ function rotularTabelas(raiz, soComCabecalho){
 
 function pintar(){
   pintarFaixaTeste();
+  // O sino pergunta de novo depois de tudo o que muda alguma coisa (no máximo a cada 10 s).
+  if(typeof pedirSino === 'function') pedirSino();
   pintarFaixaPrimeiroDia();
   aplicarTravaDaTela(telaAtual);
   if(telaAtual === 'agenda')   pintarAgenda();
@@ -16805,7 +16840,10 @@ var pedidosLojaDados = null, plVenda = null;
 
 function lojaRecebePedidos(){
   return NA_NUVEM && (doSalao(bd.produtos || []).some(p => p.ativo !== false && p.vendaOnline)
-    || (Array.isArray(pedidosLojaDados) && pedidosLojaDados.length > 0));
+    || (Array.isArray(pedidosLojaDados) && pedidosLojaDados.length > 0)
+    // O sino avisou de pedido esperando (o produto pode ter saído da loja depois).
+    || !!(typeof sinoDados !== 'undefined' && sinoDados && sinoDados.salao === salaoAtual
+          && (sinoDados.itens || []).some(i => i.tipo === 'pedidos_loja')));
 }
 
 async function pintarPedidosLoja(){
@@ -16869,13 +16907,266 @@ function desenharPedidosLoja(){
     }).join('') : `<div class="vazio" id="plVazio"><b>Nenhum pedido esperando</b>Quando uma cliente enviar o
         carrinho pelo link, o pedido aparece aqui com o número dele.</div>`}
     ${outros.length ? `<h2 style="font-size:15px;margin:20px 0 8px">Últimos 30 dias</h2>
-      <div class="card" id="plHistorico">${outros.map(p => `
-        <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--borda);font-size:14px">
-          <span style="min-width:0">nº ${Number(p.numero)} · ${escapar(p.cliente || '')}
-            <span style="color:var(--txt2)">· ${itens(p)}</span></span>
-          <span class="tag ${p.status === 'vendido' ? 't-conf' : 't-canc'}">${p.status === 'vendido'
-            ? (p.crediarioId ? 'Vendido no crediário' : 'Vendido') : 'Cancelado'}</span>
-        </div>`).join('')}</div>` : ''}`;
+      <div class="card" id="plHistorico">${outros.map(p => {
+        /* O vendido diz O QUE FOI VENDIDO: o total da comanda e como pagou —
+           e tem o recibo. Os itens aqui são os do pedido; os vendidos de
+           verdade (a lista conferida) estão no recibo. */
+        const vendido = p.status === 'vendido';
+        const formas = (p.vendaFormas || []).filter(f => f !== 'crediario').map(f => FORMA_NOME[f] || f);
+        const rotulo = !vendido ? 'Cancelado' : p.crediarioId ? 'Vendido no crediário'
+          : 'Vendido' + (formas.length ? ' · ' + formas.join(' + ') : '');
+        return `<div class="pl-hist" id="plh-${escapar(p.id)}">
+          <div style="min-width:0">
+            <b>nº ${Number(p.numero)} · ${escapar(p.cliente || '')}</b>
+            <span class="tag ${vendido ? 't-conf' : 't-canc'}">${escapar(rotulo)}</span>
+            <div class="pl-hist-sub">${vendido && p.vendidoEm ? 'vendido ' + quandoDoPedidoLoja(p.vendidoEm) + ' · '
+              : !vendido && p.canceladoEm ? 'cancelado ' + quandoDoPedidoLoja(p.canceladoEm)
+                + (p.motivo ? ' (' + escapar(p.motivo) + ')' : '') + ' · ' : ''}${itens(p)}</div>
+          </div>
+          ${vendido ? `<div class="pl-hist-dir">
+            ${p.vendaTotal != null ? `<b>${real(Number(p.vendaTotal) || 0)}</b>` : ''}
+            <button class="btn btn-peq" onclick="abrirReciboPedidoLoja('${escapar(p.id)}')">${ico('documento')} Recibo</button>
+          </div>` : ''}
+        </div>`;
+      }).join('')}</div>` : ''}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O RECIBO DO PEDIDO VENDIDO
+
+   "Nos pedidos preciso ver o que eu vendi, criar um recibo com todos os
+   itens, e mandar o PDF no WhatsApp ou imprimir." O recibo é o que foi
+   VENDIDO (a comanda, lida pelo banco em `recibo_do_pedido_loja`), com o
+   pagamento e as parcelas do crediário.
+
+   O PDF é montado aqui mesmo, sem biblioteca: uma página do tamanho de um
+   cupom, em letra de máquina (Courier, que já vem em todo leitor de PDF),
+   então as colunas alinham sem medir letra. No celular, "Mandar no
+   WhatsApp" abre o compartilhar do sistema com o PDF anexado — é só
+   escolher o WhatsApp e a conversa. No computador, o PDF é baixado e a
+   conversa abre com o recibo em texto.
+   ═══════════════════════════════════════════════════════════════════════════ */
+var plRecibo = null;
+const RECIBO_COLUNAS = 42;
+
+async function abrirReciboPedidoLoja(id){
+  plRecibo = null;
+  abrirModal('Recibo', '<div class="vazio" id="plReciboCarregando">Montando o recibo…</div>', [['Fechar', 'fecharModal()', '']]);
+  let r;
+  try{
+    r = await Dados.chamar('recibo_do_pedido_loja', { p_pedido: id });
+    r = Array.isArray(r) ? r[0] : r;
+  }catch(e){
+    document.getElementById('modalCorpo').innerHTML = `<div class="aviso">${escapar(e.message || 'Não consegui montar o recibo agora.')}</div>`;
+    return;
+  }
+  plRecibo = r;
+  document.getElementById('modalTitulo').textContent = 'Recibo do pedido nº ' + Number(r.numero);
+  document.getElementById('modalCorpo').innerHTML = `
+    <pre class="pl-recibo" id="plRecibo">${linhasDoRecibo(r).map(l =>
+      l.b ? '<b>' + escapar(textoDaLinha(l)) + '</b>' : escapar(textoDaLinha(l))).join('\n')}</pre>
+    <div id="plReciboAviso"></div>`;
+  document.getElementById('modalPe').innerHTML = `
+    <button class="btn btn-zap" id="btReciboZap" onclick="mandarReciboNoZap()">${ico('whatsapp')} Mandar no WhatsApp</button>
+    <button class="btn" id="btReciboPdf" onclick="baixarReciboPdf()">Baixar PDF</button>
+    <button class="btn" id="btReciboImprimir" onclick="imprimirRecibo()">Imprimir</button>
+    <button class="btn" onclick="fecharModal()">Fechar</button>`;
+}
+
+// "R$ 40,00" com espaço comum (o do navegador é o não separável).
+const reaisRecibo = v => real(Number(v) || 0).replace(/\s/g, ' ');
+function dataHoraRecibo(ts){
+  const d = new Date(ts), fuso = fusoDoSalaoAtual();
+  if(isNaN(d)) return '';
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: fuso })
+    + ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: fuso });
+}
+function enderecoDoRecibo(e){
+  e = e || {};
+  const rua = [e.logradouro, e.numero].filter(x => x && String(x).trim()).join(', ');
+  const cid = [e.cidade, e.uf].filter(x => x && String(x).trim()).join('/');
+  return [rua, e.bairro, cid].filter(x => x && String(x).trim()).join(' - ');
+}
+// Quebra um texto em pedaços de no máximo `n` letras, pelas palavras.
+function quebrarRecibo(t, n){
+  const saida = []; let linha = '';
+  for(const p of String(t || '').split(/\s+/).filter(Boolean)){
+    const palavra = p.length > n ? p.slice(0, n) : p;
+    if(!linha) linha = palavra;
+    else if(linha.length + 1 + palavra.length <= n) linha += ' ' + palavra;
+    else { saida.push(linha); linha = palavra; }
+  }
+  if(linha) saida.push(linha);
+  return saida.length ? saida : [''];
+}
+/* As linhas do recibo, uma vez só, para a tela, a impressão, o PDF e o
+   texto do WhatsApp: { t: texto, b: negrito, c: centralizada }. */
+function linhasDoRecibo(r){
+  const N = RECIBO_COLUNAS, L = [], traco = { t: '-'.repeat(N) };
+  const centro = (t, b) => quebrarRecibo(t, N).forEach(x => L.push({ t: x, b: !!b, c: true }));
+  // Esquerda e direita na mesma linha; não cabendo, o valor desce.
+  const ld = (esq, dir, b) => {
+    const partes = quebrarRecibo(esq, N);
+    const ult = partes.pop();
+    partes.forEach(x => L.push({ t: x, b: !!b }));
+    if(ult.length + 1 + dir.length <= N) L.push({ t: ult + ' '.repeat(N - ult.length - dir.length) + dir, b: !!b });
+    else { L.push({ t: ult, b: !!b }); L.push({ t: ' '.repeat(Math.max(0, N - dir.length)) + dir, b: !!b }); }
+  };
+  const s = r.salao || {};
+  centro(String(s.nome || '').toUpperCase(), true);
+  if(s.telefone) centro(telefoneNaTela(s.telefone));
+  const end = enderecoDoRecibo(s.endereco);
+  if(end) centro(end);
+  L.push(traco);
+  L.push({ t: 'RECIBO DE VENDA · PEDIDO Nº ' + Number(r.numero), b: true });
+  if(r.vendidoEm) L.push({ t: 'Data: ' + dataHoraRecibo(r.vendidoEm) });
+  quebrarRecibo('Cliente: ' + (r.cliente || ''), N).forEach(x => L.push({ t: x }));
+  if(r.telefone) L.push({ t: 'Telefone: ' + telefoneNaTela(r.telefone) });
+  if(r.vendidoPor) quebrarRecibo('Vendido por: ' + r.vendidoPor, N).forEach(x => L.push({ t: x }));
+  L.push(traco);
+  ld('ITEM', 'VALOR', true);
+  for(const i of (r.itens || [])){
+    const q = Number(i.qtd) || 0;
+    ld((Number.isInteger(q) ? q : q.toLocaleString('pt-BR')) + 'x ' + (i.descricao || ''), reaisRecibo(i.total));
+    if(q > 1) L.push({ t: '   ' + reaisRecibo(i.preco) + ' cada' });
+  }
+  L.push(traco);
+  const desc = Number(r.desconto) || 0, acr = Number(r.acrescimo) || 0;
+  if(desc || acr) ld('Subtotal', reaisRecibo(r.subtotal));
+  if(desc) ld('Desconto', '- ' + reaisRecibo(desc));
+  if(acr) ld('Acréscimo', reaisRecibo(acr));
+  ld('TOTAL', reaisRecibo(r.total), true);
+  L.push(traco);
+  L.push({ t: 'PAGAMENTO', b: true });
+  const pags = r.pagamentos || [];
+  const temCred = pags.some(p => p.forma === 'crediario');
+  for(const p of pags){
+    const nome = p.forma === 'crediario' ? 'Crediário (a prazo)'
+      : (temCred ? 'Entrada · ' : '') + (FORMA_NOME[p.forma] || p.forma);
+    ld(nome, reaisRecibo(p.valor));
+  }
+  const parc = r.parcelas || [];
+  if(parc.length){
+    L.push({ t: '  ' + parc.length + (parc.length === 1 ? ' parcela:' : ' parcelas:') });
+    for(const p of parc){
+      const v = String(p.venceEm || '').slice(0, 10).split('-').reverse().join('/');
+      ld('  ' + Number(p.numero) + 'ª vence ' + v, reaisRecibo(p.valor));
+    }
+  }
+  L.push(traco);
+  centro('Este recibo não substitui a nota fiscal.');
+  return L;
+}
+function textoDaLinha(l){
+  if(!l.c) return l.t;
+  const sobra = Math.max(0, RECIBO_COLUNAS - l.t.length);
+  return ' '.repeat(Math.floor(sobra / 2)) + l.t;
+}
+function reciboEmTexto(r){ return linhasDoRecibo(r).map(textoDaLinha).join('\n'); }
+
+/* O PDF, à mão. Courier (a letra de máquina que todo leitor de PDF tem) com
+   a codificação WinAnsi, que tem os acentos do português. Cada letra vira um
+   byte — o que não existe nela vira "?". */
+const PDF_ESPECIAIS = { '—': 0x97, '–': 0x96, '…': 0x85, '‘': 0x91, '’': 0x92, '“': 0x93, '”': 0x94, '•': 0x95, '€': 0x80 };
+function paraWinAnsi(t){
+  let s = '';
+  for(const ch of String(t)){
+    const c = ch.codePointAt(0);
+    if(ch === ' ') s += ' ';
+    else if(PDF_ESPECIAIS[ch]) s += String.fromCharCode(PDF_ESPECIAIS[ch]);
+    else if((c >= 0x20 && c < 0x7f) || (c >= 0xa0 && c <= 0xff)) s += ch;
+    else s += '?';
+  }
+  return s;
+}
+function pdfDoRecibo(r){
+  const linhas = linhasDoRecibo(r);
+  const TAM = 10, ALT = 13, MARGEM = 20;
+  const largura = Math.ceil(RECIBO_COLUNAS * TAM * 0.6 + MARGEM * 2);
+  const altura = Math.max(320, Math.ceil(MARGEM * 2 + linhas.length * ALT));
+  let y = altura - MARGEM - TAM;
+  const conteudo = linhas.map(l => {
+    const t = paraWinAnsi(textoDaLinha(l)).replace(/[\\()]/g, m => '\\' + m);
+    const op = `BT /${l.b ? 'F2' : 'F1'} ${TAM} Tf ${MARGEM} ${y} Td (${t}) Tj ET`;
+    y -= ALT;
+    return op;
+  }).join('\n');
+  const titulo = paraWinAnsi('Recibo do pedido nº ' + Number(r.numero)).replace(/[\\()]/g, m => '\\' + m);
+  const objetos = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${largura} ${altura}] `
+      + '/Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>',
+    `<< /Length ${conteudo.length} >>\nstream\n${conteudo}\nendstream`,
+    `<< /Title (${titulo}) /Producer (AgendaPro) >>`,
+  ];
+  let pdf = '%PDF-1.4\n%âãÏÓ\n';
+  const posicoes = [];
+  objetos.forEach((o, i) => { posicoes.push(pdf.length); pdf += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  const xref = pdf.length;
+  pdf += 'xref\n0 ' + (objetos.length + 1) + '\n0000000000 65535 f \n'
+    + posicoes.map(p => String(p).padStart(10, '0') + ' 00000 n \n').join('')
+    + 'trailer\n<< /Size ' + (objetos.length + 1) + ' /Root 1 0 R /Info 7 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  const bytes = new Uint8Array(pdf.length);
+  for(let i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xff;
+  return new Blob([bytes], { type: 'application/pdf' });
+}
+const nomeDoReciboPdf = r => 'recibo-pedido-' + Number(r.numero) + '.pdf';
+
+function baixarReciboPdf(){
+  const r = plRecibo;
+  if(!r) return;
+  const url = URL.createObjectURL(pdfDoRecibo(r));
+  const a = document.createElement('a');
+  a.href = url; a.download = nomeDoReciboPdf(r);
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+async function mandarReciboNoZap(){
+  const r = plRecibo;
+  if(!r) return;
+  const arquivo = new File([pdfDoRecibo(r)], nomeDoReciboPdf(r), { type: 'application/pdf' });
+  // Celular: o compartilhar do sistema, com o PDF anexado — escolhe o WhatsApp.
+  if(navigator.canShare && navigator.share && navigator.canShare({ files: [arquivo] })){
+    try{
+      await navigator.share({ files: [arquivo], title: 'Recibo do pedido nº ' + Number(r.numero) });
+      return;
+    }catch(e){
+      if(e && e.name === 'AbortError') return;   // ela fechou o compartilhar
+    }
+  }
+  /* Computador (ou celular sem compartilhar arquivo): o PDF é baixado e a
+     conversa com a cliente abre com o recibo em texto (em letra de máquina,
+     entre crases, para as colunas alinharem no WhatsApp). */
+  baixarReciboPdf();
+  const zap = zapDoPedidoLoja(r) || 'https://wa.me/';
+  window.open(zap + '?text=' + encodeURIComponent('```\n' + reciboEmTexto(r) + '\n```'), '_blank', 'noopener');
+  const av = document.getElementById('plReciboAviso');
+  if(av) av.innerHTML = '<div class="aviso ok" style="margin:10px 0 0">O PDF foi baixado. Na conversa do '
+    + 'WhatsApp, anexe pelo clipe (Documento) — o recibo também foi em texto.</div>';
+}
+
+/* A impressão: uma janela só com o recibo, em letra de máquina, e o imprimir
+   do navegador (que também salva em PDF). Texto montado com `textContent`. */
+function imprimirRecibo(){
+  const r = plRecibo;
+  if(!r) return;
+  const w = window.open('', '_blank', 'width=420,height=640');
+  if(!w) return alert('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.');
+  w.document.title = 'Recibo do pedido nº ' + Number(r.numero);
+  const pre = w.document.createElement('pre');
+  pre.style.cssText = 'font:13px/1.4 ui-monospace,Menlo,Consolas,"Courier New",monospace;white-space:pre;margin:14px';
+  for(const l of linhasDoRecibo(r)){
+    const el = w.document.createElement(l.b ? 'b' : 'span');
+    el.textContent = textoDaLinha(l) + '\n';
+    pre.appendChild(el);
+  }
+  w.document.body.appendChild(pre);
+  w.focus();
+  w.print();
 }
 
 function abrirVenderPedidoLoja(id){
@@ -16987,6 +17278,194 @@ async function cancelarPedidoLoja(id){
   }catch(e){
     alert('Não consegui cancelar.\n\n' + (e.message || e));
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   O SINO (54_sino.sql)
+
+   "Dentro do painel do dono, um ícone de sino para as notificações do
+   sistema." O que pede ação agora — horário esperando o "sim", sinal por Pix
+   a conferir, pedido da loja, parcela vencida, mensagem que não saiu,
+   franquia no fim, assinatura — e os avisos que o AgendaPro escreve no admin.
+
+   QUEM VÊ O QUÊ é o banco que decide (`sino_do_painel`): a tela só desenha o
+   que veio. Cada item leva à tela onde se resolve e some sozinho quando o
+   motivo some — não há "marcar como lido" no que é trabalho. Só o aviso do
+   AgendaPro se marca como lido.
+
+   QUANDO PERGUNTA: a cada redesenho do painel, no máximo uma vez a cada 10
+   segundos (o redesenho acontece depois de tudo o que muda alguma coisa), a
+   cada minuto com a aba aberta, e ao abrir o sino.
+   ═══════════════════════════════════════════════════════════════════════════ */
+// `var`: o `pintar()` pergunta por isto antes de esta linha rodar.
+var sinoDados = null, sinoUltima = 0, sinoTimer = null, sinoBuscando = false;
+var SINO_INTERVALO = 10000;
+
+function sinoLigado(){ return NA_NUVEM && !!salaoAtual; }
+function pedirSino(forcar){
+  if(!sinoLigado()) return desenharSino();
+  // Trocou de salão: o sino de antes não vale, pergunta já.
+  if(sinoDados && sinoDados.salao !== salaoAtual) forcar = true;
+  clearTimeout(sinoTimer);
+  const espera = forcar ? 0 : Math.max(800, SINO_INTERVALO - (Date.now() - sinoUltima));
+  sinoTimer = setTimeout(atualizarSino, espera);
+}
+async function atualizarSino(){
+  if(!sinoLigado() || sinoBuscando || document.hidden) return;
+  sinoBuscando = true;
+  sinoUltima = Date.now();
+  const deQuem = salaoAtual;
+  try{
+    const r = await Dados.chamar('sino_do_painel', { p_salao: deQuem });
+    if(deQuem === salaoAtual) sinoDados = Object.assign({ itens: [], avisos: [] }, Array.isArray(r) ? r[0] : r, { salao: deQuem });
+  }catch(e){
+    console.info('[AgendaPro] sino:', e.message);
+    /* O banco ainda sem o 54 (o SQL não foi colado): o sino fica escondido,
+       sem aviso nenhum na tela. Outro erro (sem rede): fica o de antes. */
+    if(/PGRST202|could not find|does not exist|not found/i.test(e.message || ''))
+      sinoDados = { semBanco: true, salao: deQuem, itens: [], avisos: [] };
+  }finally{
+    sinoBuscando = false;
+  }
+  desenharSino();
+}
+
+function sinoPlural(n, um, varios){ return n + ' ' + (n === 1 ? um : varios); }
+function sinoQuando(d){ return d <= 0 ? 'hoje' : d === 1 ? 'amanhã' : 'em ' + d + ' dias'; }
+/* Cada item do banco vira uma linha: o ícone, o que é, o que fazer e para
+   onde levar. Tipo que esta versão da tela não conhece fica de fora. */
+function linhasDoSino(d){
+  const L = [];
+  for(const i of (d && d.itens) || []){
+    const q = Number(i.qtd) || 0;
+    if(i.tipo === 'a_confirmar') L.push({ ic: 'calendario', tela: 'agenda', ancora: 'aConfirmar',
+      t: sinoPlural(q, 'horário espera', 'horários esperam') + ' sua confirmação',
+      s: 'A cliente já escolheu. Confirme ou recuse na agenda.' });
+    else if(i.tipo === 'sinal') L.push({ ic: 'pix', tela: 'agenda', ancora: 'aConfirmar',
+      t: sinoPlural(q, 'sinal por Pix', 'sinais por Pix') + ' para conferir',
+      s: 'Viu o comprovante? Confirme o horário: o sinal fica como recebido.' });
+    else if(i.tipo === 'pedidos_loja') L.push({ ic: 'carrinho', tela: 'pedidosloja',
+      t: sinoPlural(q, 'pedido novo', 'pedidos novos') + ' da loja',
+      s: 'Confira com a cliente o que tem e venda pelo painel.' });
+    else if(i.tipo === 'pedidos') L.push({ ic: 'carrinho', tela: 'pedidos',
+      t: sinoPlural(q, 'pedido novo', 'pedidos novos'), s: 'Aceite para começar o preparo.' });
+    else if(i.tipo === 'parcelas') L.push({ ic: 'dinheiro', tela: 'crediario', urgente: true,
+      t: sinoPlural(q, 'parcela vencida', 'parcelas vencidas') + ' no crediário',
+      s: 'Falta receber ' + real(Number(i.valor) || 0) + '.' });
+    else if(i.tipo === 'mensagens') L.push({ ic: 'whatsapp', tela: 'salao', aba: 'notificacoes', urgente: true,
+      t: sinoPlural(q, 'mensagem não saiu', 'mensagens não saíram') + ' nesta semana',
+      s: 'Veja o motivo em Meu negócio › Mensagens.' });
+    else if(i.tipo === 'franquia'){
+      const pct = Number(i.pct) || 0;
+      L.push({ ic: 'alerta', tela: 'plano', urgente: pct >= 90,
+        t: pct >= 100 ? 'As mensagens do mês acabaram' : 'Você já usou ' + pct + '% das mensagens do mês',
+        s: (Number(i.usado) || 0) + ' de ' + (Number(i.teto) || 0) + '. Veja em Plano como ter mais.' });
+    }
+    else if(i.tipo === 'assinatura'){
+      const dias = Number(i.dias) || 0;
+      const t = { inadimplente: 'Pagamento da assinatura pendente',
+                  teste: 'Seu teste grátis termina ' + sinoQuando(dias),
+                  vence: 'Sua assinatura vence ' + sinoQuando(dias),
+                  venceu: 'Sua assinatura venceu' }[i.situacao];
+      const s = { inadimplente: 'Regularize em Plano para continuar com tudo liberado.',
+                  teste: 'Veja em Plano como continuar com tudo liberado.',
+                  vence: 'Renove em Plano para não voltar aos limites do plano Grátis.',
+                  venceu: 'O salão voltou aos limites do plano Grátis. Renove em Plano.' }[i.situacao];
+      if(t) L.push({ ic: 'etiqueta', tela: 'plano', urgente: i.situacao !== 'teste' && i.situacao !== 'vence', t, s });
+    }
+  }
+  return L;
+}
+// O número do sino: cada horário, pedido e parcela conta; o resto, um.
+function contaDoSino(d){
+  if(!d) return 0;
+  const porUnidade = ['a_confirmar', 'sinal', 'pedidos_loja', 'pedidos', 'parcelas'];
+  return (d.itens || []).reduce((n, i) => n + (porUnidade.includes(i.tipo) ? (Number(i.qtd) || 0) : 1), 0)
+    + (d.avisos || []).length;
+}
+
+function desenharSino(){
+  const bt = document.getElementById('btSino');
+  if(!bt) return;
+  const d = sinoDados;
+  if(!sinoLigado() || !d || d.semBanco || d.salao !== salaoAtual){
+    bt.style.display = 'none';
+    fecharSino();
+    return;
+  }
+  bt.style.display = '';
+  const n = contaDoSino(d);
+  const num = document.getElementById('sinoNum');
+  num.hidden = !n;
+  num.textContent = n > 9 ? '9+' : String(n);
+  bt.setAttribute('aria-label', n ? 'Notificações: ' + sinoPlural(n, 'aviso', 'avisos') : 'Notificações: nada pendente');
+  const painel = document.getElementById('sinoPainel');
+  if(painel.hidden) return;
+  const linhas = linhasDoSino(d), avisos = d.avisos || [];
+  painel.innerHTML = `
+    <div class="sino-cab"><span>Notificações</span>${n ? `<small>${sinoPlural(n, 'pendente', 'pendentes')}</small>` : ''}</div>
+    ${linhas.map((l, k) => `<button type="button" class="sino-item${l.urgente ? ' urgente' : ''}" data-k="${k}"
+        onclick="sinoIr(${k})"><span class="sino-ic">${ico(l.ic)}</span>
+        <span><b>${escapar(l.t)}</b><small>${escapar(l.s)}</small></span></button>`).join('')}
+    ${avisos.map(a => `<div class="sino-aviso" id="sinoAviso-${escapar(a.id)}">
+        <span class="sino-de">AVISO DO AGENDAPRO${a.publicadoEm ? ' · ' + escapar(quandoDoPedidoLoja(a.publicadoEm)) : ''}</span>
+        <b>${escapar(a.titulo)}</b><p>${escapar(a.texto)}</p>
+        <button type="button" class="btn btn-peq" onclick="marcarAvisoLido('${escapar(a.id)}')">Marcar como lido</button>
+      </div>`).join('')}
+    ${!linhas.length && !avisos.length ? `<div class="sino-vazio" id="sinoVazio"><b>Tudo em dia</b>
+        Nada esperando por você agora. Quando algo pedir sua atenção, aparece aqui.</div>` : ''}`;
+  painel._linhas = linhas;
+}
+
+function alternarSino(){
+  const painel = document.getElementById('sinoPainel');
+  if(!painel) return;
+  if(!painel.hidden) return fecharSino();
+  painel.hidden = false;
+  document.getElementById('btSino').setAttribute('aria-expanded', 'true');
+  desenharSino();
+  pedirSino(true);
+}
+function fecharSino(){
+  const painel = document.getElementById('sinoPainel');
+  if(!painel || painel.hidden) return;
+  painel.hidden = true;
+  const bt = document.getElementById('btSino');
+  if(bt) bt.setAttribute('aria-expanded', 'false');
+}
+// Toque fora do sino, ou Esc: fecha.
+document.addEventListener('click', e => {
+  const painel = document.getElementById('sinoPainel');
+  if(!painel || painel.hidden) return;
+  /* O caminho do toque, e não `contains`: "Marcar como lido" redesenha a
+     lista, e o botão tocado já saiu da página quando o toque chega aqui. */
+  const caminho = e.composedPath ? e.composedPath() : [e.target];
+  if(caminho.includes(painel) || caminho.includes(document.getElementById('btSino'))) return;
+  fecharSino();
+});
+document.addEventListener('keydown', e => { if(e.key === 'Escape') fecharSino(); });
+
+// Leva à tela do item (e ao ponto dela, quando há).
+function sinoIr(k){
+  const painel = document.getElementById('sinoPainel');
+  const l = ((painel && painel._linhas) || [])[k];
+  fecharSino();
+  if(!l) return;
+  irPara(l.tela);
+  if(l.aba && typeof trocarAbaSalao === 'function') setTimeout(() => trocarAbaSalao(l.aba), 60);
+  if(l.ancora) setTimeout(() => {
+    const el = document.getElementById(l.ancora);
+    if(el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 250);
+}
+
+async function marcarAvisoLido(id){
+  if(!sinoDados) return;
+  // Sai na hora; se o banco recusar, volta na próxima pergunta.
+  sinoDados.avisos = (sinoDados.avisos || []).filter(a => a.id !== id);
+  desenharSino();
+  try{ await Dados.chamar('marcar_aviso_lido', { p_aviso: id }); }
+  catch(e){ console.info('[AgendaPro] marcar aviso:', e.message); pedirSino(true); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -18147,8 +18626,10 @@ function ligarSincronizacao(){
   if(!NA_NUVEM) return;
   clearInterval(_relogioAgenda);
   _relogioAgenda = setInterval(sincronizarAgenda, 40000);
+  // O sino, a cada minuto com a aba aberta (e ao voltar para ela).
+  setInterval(() => pedirSino(), 60000);
   document.addEventListener('visibilitychange', () => {
-    if(!document.hidden) sincronizarAgenda();
+    if(!document.hidden){ sincronizarAgenda(); pedirSino(); }
   });
   window.addEventListener('focus', sincronizarAgenda);
 }

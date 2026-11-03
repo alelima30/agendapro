@@ -1160,6 +1160,34 @@ with conferencia(ordem, item, veredito, detalhe) as (
                 or has_function_privilege('anon', 'public.fazer_pedido_loja(uuid,jsonb,text,uuid)', 'execute')
               then 'cole as duas partes de novo (53_pedidos_loja)' else '' end
   union all
+  /* O sino do painel (54): o que pede ação e os avisos do AgendaPro, com
+     as tabelas fechadas e a função só para quem entra. */
+  select 68, 'Sino do painel (notificações e avisos do AgendaPro)',
+         case when to_regprocedure('public.sino_do_painel(uuid)') is null
+                or to_regprocedure('public.publicar_aviso_plataforma(text,text,text,date)') is null
+                or to_regclass('public.avisos_lidos') is null
+                or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.avisos_plataforma')), false)
+                or has_function_privilege('anon', 'public.sino_do_painel(uuid)', 'execute')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.sino_do_painel(uuid)') is null
+                or to_regprocedure('public.publicar_aviso_plataforma(text,text,text,date)') is null
+                or to_regclass('public.avisos_lidos') is null
+                or not coalesce((select relrowsecurity from pg_class where oid = to_regclass('public.avisos_plataforma')), false)
+                or has_function_privilege('anon', 'public.sino_do_painel(uuid)', 'execute')
+              then 'cole as duas partes de novo (54_sino)' else '' end
+  union all
+  /* O recibo do pedido vendido (53): o que foi vendido, para imprimir ou
+     mandar em PDF no WhatsApp. */
+  select 69, 'Recibo do pedido da loja',
+         case when to_regprocedure('public.recibo_do_pedido_loja(uuid)') is null
+                or has_function_privilege('anon', 'public.recibo_do_pedido_loja(uuid)', 'execute')
+                or not exists (select 1 from pg_proc where proname = 'pedidos_loja_painel' and prosrc like '%vendaTotal%')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.recibo_do_pedido_loja(uuid)') is null
+                or has_function_privilege('anon', 'public.recibo_do_pedido_loja(uuid)', 'execute')
+                or not exists (select 1 from pg_proc where proname = 'pedidos_loja_painel' and prosrc like '%vendaTotal%')
+              then 'cole as duas partes de novo (53_pedidos_loja)' else '' end
+  union all
   /* O aniversário do cadastro (08 e 48): a conta criada pelo link nasce com
      o aniversário, e ele chega à ficha — é dele que sai Aniversariantes. */
   select 59, 'Aniversário do cadastro chega à ficha',

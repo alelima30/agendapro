@@ -190,6 +190,73 @@ verdade('   e o pedido nº 1 sai da lista de esperando, para o histórico',
     .some(h => /nº 1 /.test(h.textContent + ' '))))
   && /Vendido/.test(await texto(pp, '#plHistorico')), await texto(pp, '#plCorpo'));
 
+/* O recibo: "nos pedidos preciso ver o que eu vendi, um recibo com todos os
+   itens, e mandar o PDF no WhatsApp ou imprimir". */
+verdade('no histórico, o vendido diz quanto foi e como pagou (o que foi VENDIDO: R$ 40, no Pix)',
+  await pp.evaluate(id => { const l = document.getElementById('plh-' + id);
+    return !!l && /Vendido · Pix/.test(l.innerText) && /R\$\s?40,00/.test(l.innerText) && /Recibo/.test(l.innerText); }, ped1.id),
+  await texto(pp, '#plHistorico'));
+await pp.click(`#plh-${ped1.id} button:has-text("Recibo")`);
+await pp.waitForSelector('#plRecibo', { timeout: 10000 });
+const recibo1 = await pp.evaluate(() => document.getElementById('plRecibo').innerText);
+verdade('o recibo tem o que foi vendido (o batom; o creme que saiu, não), o total, o Pix e quem vendeu',
+  /Recibo do pedido nº 1/.test(await pp.evaluate(() => document.getElementById('modalTitulo').textContent))
+  && /RECIBO DE VENDA · PEDIDO Nº 1/.test(recibo1) && /1x Batom vermelho\s+R\$ 40,00/.test(recibo1)
+  && !/Creme/.test(recibo1) && /TOTAL\s+R\$ 40,00/.test(recibo1) && /Pix\s+R\$ 40,00/.test(recibo1)
+  && /Cliente: Gal Prado/.test(recibo1) && /Vendido por: Ana Loja/.test(recibo1)
+  && /não substitui a nota fiscal/.test(recibo1), recibo1);
+verdade('   com os botões: Mandar no WhatsApp, Baixar PDF e Imprimir',
+  await pp.evaluate(() => ['btReciboZap', 'btReciboPdf', 'btReciboImprimir'].every(id => !!document.getElementById(id))));
+// O PDF: o arquivo que vai no WhatsApp. As posições do índice (xref) têm de
+// cair no começo de cada objeto, senão o leitor de PDF reclama.
+const pdf1 = await pp.evaluate(async () => {
+  const b = new Uint8Array(await pdfDoRecibo(plRecibo).arrayBuffer());
+  let s = ''; for(const x of b) s += String.fromCharCode(x);
+  const xref = Number(/startxref\n(\d+)/.exec(s)[1]);
+  const offs = [...s.slice(xref).matchAll(/^(\d{10}) 00000 n $/gm)].map(m => Number(m[1]));
+  return { inicio: s.slice(0, 8), fim: s.trimEnd().endsWith('%%EOF'), xrefOk: s.slice(xref, xref + 4) === 'xref',
+    objetosOk: offs.length === 7 && offs.every((o, i) => s.startsWith((i + 1) + ' 0 obj', o)),
+    batom: s.includes('1x Batom vermelho'), b64: btoa(s) };
+});
+verdade('o PDF é um PDF de verdade: cabeçalho, índice certo, fim, e o batom escrito nele',
+  pdf1.inicio === '%PDF-1.4' && pdf1.fim && pdf1.xrefOk && pdf1.objetosOk && pdf1.batom, JSON.stringify({ ...pdf1, b64: undefined }));
+{
+  // Com o leitor de PDF da máquina (quando há), o texto sai com os acentos.
+  const { execFileSync } = await import('node:child_process');
+  let txt = null;
+  try{
+    const arq = path.join(fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'recibo-')), 'r.pdf');
+    fs.writeFileSync(arq, Buffer.from(pdf1.b64, 'base64'));
+    txt = execFileSync('pdftotext', ['-layout', arq, '-'], { encoding: 'utf8' });
+  }catch(e){ txt = null; }
+  if(txt === null) ok('   (sem pdftotext nesta máquina: a leitura do PDF fica para onde houver)');
+  else verdade('   e o leitor de PDF lê: "RECIBO DE VENDA · PEDIDO Nº 1", "Batom vermelho" e "Este recibo não substitui"',
+    /RECIBO DE VENDA · PEDIDO Nº 1/.test(txt) && /Batom vermelho/.test(txt) && /Este recibo não substitui a nota fiscal/.test(txt), txt);
+}
+// Mandar no WhatsApp, num computador (sem compartilhar arquivo): baixa o PDF
+// e abre a conversa com a cliente, com o recibo em texto.
+await pp.evaluate(() => { window.__abriu = []; window.open = u => { window.__abriu.push(String(u)); return null; };
+  Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true }); });
+const baixou = pp.waitForEvent('download', { timeout: 8000 }).catch(() => null);
+await pp.click('#btReciboZap');
+const arquivoBaixado = await baixou;
+await pp.waitForTimeout(400);
+const abriu = await pp.evaluate(() => window.__abriu.slice(-1)[0] || '');
+verdade('Mandar no WhatsApp (computador): baixa o PDF e abre a conversa da Gal com o recibo em texto',
+  !!arquivoBaixado && arquivoBaixado.suggestedFilename() === 'recibo-pedido-1.pdf'
+  && /^https:\/\/wa\.me\/55\d{10,11}\?text=/.test(abriu) && /Batom vermelho/.test(decodeURIComponent(abriu.split('?text=')[1] || ''))
+  && /O PDF foi baixado/.test(await texto(pp, '#plReciboAviso')), abriu);
+// No celular: o compartilhar do sistema recebe o PDF anexado.
+await pp.evaluate(() => { window.__partilhou = null;
+  Object.defineProperty(navigator, 'canShare', { value: d => !!(d && d.files), configurable: true });
+  Object.defineProperty(navigator, 'share', { value: async d => { window.__partilhou = { n: d.files.length,
+    nome: d.files[0].name, tipo: d.files[0].type }; }, configurable: true }); });
+await pp.click('#btReciboZap');
+await pp.waitForTimeout(400);
+igual('   no celular: o compartilhar recebe o PDF (e aí é só escolher o WhatsApp)',
+  await pp.evaluate(() => window.__partilhou), { n: 1, nome: 'recibo-pedido-1.pdf', tipo: 'application/pdf' });
+await pp.evaluate(() => fecharModal());
+
 /* ══════════════════════════════════════════════════════════════════════════ */
 secao('3. O segundo no Crediário');
 await pp.click(`#pl-${ped2.pedido} button:has-text("Vender")`);
@@ -213,6 +280,16 @@ igual('vendido no crediário: R$ 50 em 2x, e o pedido nº 2 ligado a ele',
   venda2 && [venda2.status, venda2.valor, venda2.parcelas], ['vendido', '50.00', 2]);
 await pp.evaluate(() => { fecharModal(); irPara('pedidosloja'); });
 await pp.waitForTimeout(1200);
+await pp.click(`#plh-${ped2.pedido} button:has-text("Recibo")`);
+await pp.waitForSelector('#plRecibo', { timeout: 10000 });
+const recibo2 = await pp.evaluate(() => document.getElementById('plRecibo').innerText);
+verdade('o recibo do crediário: 2x creme, total R$ 50, "Crediário (a prazo)" e as 2 parcelas com o vencimento',
+  /2x Creme de mãos\s+R\$ 50,00/.test(recibo2) && /R\$ 25,00 cada/.test(recibo2) && /TOTAL\s+R\$ 50,00/.test(recibo2)
+  && /Crediário \(a prazo\)\s+R\$ 50,00/.test(recibo2) && /2 parcelas:/.test(recibo2)
+  && /1ª vence \d\d\/\d\d\/\d{4}\s+R\$ 25,00/.test(recibo2) && /2ª vence/.test(recibo2), recibo2);
+verdade('   e a 390px o recibo cabe (as colunas não estouram a janela)',
+  await pp.evaluate(() => { const r = document.getElementById('plRecibo'); return r.scrollWidth <= r.clientWidth + 1; }));
+await pp.evaluate(() => fecharModal());
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 secao('4. O terceiro, cancelado');

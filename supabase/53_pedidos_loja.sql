@@ -208,6 +208,10 @@ begin
              'cupom', p.cupom, 'total', p.total_estimado,
              'vendidoEm', p.vendido_em, 'comandaId', p.comanda_id, 'crediarioId', p.crediario_id,
              'canceladoEm', p.cancelado_em, 'motivo', p.cancelado_motivo,
+             -- O que foi VENDIDO (a comanda): o total e as formas de pagamento.
+             'vendaTotal', (select ct.total from public.comandas_totais ct where ct.id = p.comanda_id),
+             'vendaFormas', (select jsonb_agg(distinct pg.forma) from public.pagamentos pg
+                              where pg.comanda_id = p.comanda_id),
              'itens', coalesce((select jsonb_agg(jsonb_build_object(
                          'produtoId', i.produto_id, 'descricao', i.descricao,
                          'qtd', i.qtd, 'preco', i.preco_unit) order by i.descricao)
@@ -330,6 +334,53 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
+-- 5b) O RECIBO
+--
+-- "Nos pedidos preciso ver o que eu vendi, um recibo com todos os itens, e
+-- mandar o PDF no WhatsApp ou imprimir." O recibo é o que foi VENDIDO — a
+-- comanda, com a lista conferida no balcão —, não o que a cliente pediu:
+-- tirou um item que não tinha, ele não aparece. Com o pagamento (as formas,
+-- e as parcelas, se foi no crediário) e quem vendeu.
+-- ---------------------------------------------------------------------------
+create or replace function public.recibo_do_pedido_loja(p_pedido uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare p public.pedidos_loja%rowtype; s public.saloes%rowtype; t record; c record;
+begin
+  select * into p from public.pedidos_loja where id = p_pedido;
+  if p.id is null then
+    raise exception 'Pedido não encontrado.' using errcode = 'check_violation';
+  end if;
+  if not public.ve_agenda_toda(p.salao_id) then
+    raise exception 'Só o balcão e a gestão veem o recibo.' using errcode = 'insufficient_privilege';
+  end if;
+  if p.status <> 'vendido' or p.comanda_id is null then
+    raise exception 'Este pedido ainda não foi vendido.' using errcode = 'check_violation';
+  end if;
+  select * into s from public.saloes where id = p.salao_id;
+  select ct.numero, ct.subtotal, ct.desconto, ct.acrescimo, ct.total, ct.fechada_em into t
+    from public.comandas_totais ct where ct.id = p.comanda_id;
+  select cl.nome, cl.telefone into c from public.clientes cl where cl.id = p.cliente_id;
+  return jsonb_build_object(
+    'salao', jsonb_build_object('nome', s.nome,
+               'telefone', coalesce(nullif(btrim(coalesce(s.whatsapp, '')), ''), s.telefone),
+               'endereco', s.endereco),
+    'numero', p.numero, 'comanda', t.numero,
+    'vendidoEm', coalesce(p.vendido_em, t.fechada_em),
+    'vendidoPor', (select pf.nome from public.perfis pf where pf.id = p.vendido_por),
+    'cliente', c.nome, 'telefone', c.telefone,
+    'itens', coalesce((select jsonb_agg(jsonb_build_object('descricao', i.descricao, 'qtd', i.qtd,
+                 'preco', i.preco_unit, 'total', round(i.qtd * i.preco_unit, 2)) order by i.descricao)
+                 from public.comanda_itens i where i.comanda_id = p.comanda_id), '[]'::jsonb),
+    'subtotal', t.subtotal, 'desconto', t.desconto, 'acrescimo', t.acrescimo, 'total', t.total,
+    'pagamentos', coalesce((select jsonb_agg(jsonb_build_object('forma', pg.forma, 'valor', pg.valor)
+                 order by (pg.forma = 'crediario'), pg.recebido_em)
+                 from public.pagamentos pg where pg.comanda_id = p.comanda_id), '[]'::jsonb),
+    'parcelas', coalesce((select jsonb_agg(jsonb_build_object('numero', pa.numero, 'valor', pa.valor,
+                 'venceEm', pa.vence_em) order by pa.numero)
+                 from public.crediario_parcelas pa where pa.crediario_id = p.crediario_id), '[]'::jsonb));
+end $$;
+
+-- ---------------------------------------------------------------------------
 -- 6) QUEM CHAMA
 -- ---------------------------------------------------------------------------
 revoke all on function public.fazer_pedido_loja(uuid, jsonb, text, uuid) from public, anon;
@@ -343,3 +394,5 @@ revoke all on function public.vender_pedido_no_crediario(uuid, jsonb, uuid, nume
 grant execute on function public.vender_pedido_no_crediario(uuid, jsonb, uuid, numeric, numeric, text, int, date) to authenticated;
 revoke all on function public.cancelar_pedido_loja(uuid, text) from public, anon;
 grant execute on function public.cancelar_pedido_loja(uuid, text) to authenticated;
+revoke all on function public.recibo_do_pedido_loja(uuid) from public, anon;
+grant execute on function public.recibo_do_pedido_loja(uuid) to authenticated;

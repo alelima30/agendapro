@@ -142,6 +142,11 @@ a.acao{text-decoration:none;display:inline-block}
   border:1px solid rgba(37,99,235,.2);
 }
 .vazio{padding:22px;text-align:center;color:rgba(237,244,243,.42);font-size:14px}
+/* ── Os avisos do sino (54_sino.sql) ────────────────────────────────────── */
+.aviso-form{display:grid;gap:8px;margin-top:10px}
+.aviso-form input,.aviso-form textarea{width:100%;background:#0F172A;border:1px solid rgba(37,99,235,.26);
+  border-radius:7px;padding:8px 10px;font:inherit;font-size:14px;color:inherit;resize:vertical}
+.aviso-form label input{width:auto;padding:5px 8px}
 /* ── Saúde do sistema (40_saude.sql) ────────────────────────────────────── */
 .saude-linha{display:flex;gap:11px;align-items:flex-start;padding:9px 0;
   border-top:1px solid rgba(37,99,235,.15)}
@@ -247,7 +252,7 @@ async function carregar(){
   try{
     // Os acessos de suporte vêm junto, mas não podem derrubar o painel: banco
     // sem o 38_suporte.sql instalado responde que a função não existe.
-    const [p, acessos, ajustes, adicionais] = await Promise.all([
+    const [p, acessos, ajustes, adicionais, avisos] = await Promise.all([
       Dados.chamar('painel_plataforma'),
       Dados.chamar('acessos_de_suporte', { p_limite: 30 })
         .catch(e => { console.info('[plataforma] acessos de suporte:', e.message); return null; }),
@@ -256,6 +261,9 @@ async function carregar(){
       // Os módulos adicionais (46_adicionais). Banco sem ele: a seção não aparece.
       Dados.chamar('adicionais_da_plataforma')
         .catch(e => { console.info('[plataforma] adicionais:', e.message); return null; }),
+      // Os avisos do sino (54_sino). Banco sem ele: a seção não aparece.
+      Dados.chamar('avisos_plataforma_admin')
+        .catch(e => { console.info('[plataforma] avisos:', e.message); return null; }),
     ]);
     /* O check-up vem à parte e não derruba o painel: banco sem o 40_saude.sql
        responde que a função não existe, e a tela diz isso no lugar dele. */
@@ -266,6 +274,7 @@ async function carregar(){
     painel.acessos = Array.isArray(acessos) ? acessos : null;
     painel.ajustes = (Array.isArray(ajustes) ? ajustes[0] : ajustes) || null;
     painel.adicionais = (Array.isArray(adicionais) ? adicionais[0] : adicionais) || null;
+    painel.avisos = Array.isArray(avisos) ? avisos : null;
     desenhar();
   }catch(e){
     console.error('[plataforma]', e);
@@ -420,6 +429,43 @@ function desenhar(){
           <button class="acao ${rem ? 'perigo' : ''}" onclick="ligarMensagemRemarcado(${!rem})">
             ${rem ? 'Desligar' : 'Ligar o aviso de remarcado'}</button>
         </div>
+      </div>`;
+  }
+
+  /* Os avisos do sino (54_sino): o que a plataforma escreve aparece no sino
+     do painel dos salões — para os donos e gerentes, ou para a equipe toda —
+     até a pessoa marcar como lido, ou até o dia de saída. */
+  if(painel.avisos){
+    const av = painel.avisos;
+    h += `<h2>Avisos para os salões</h2>
+      <div class="recado" id="ajusteAvisos">
+        <b>Escreva um aviso: ele aparece no sino do painel de todos os salões</b>
+        Novidade, manutenção marcada, um recado. Fica no sino até a pessoa marcar como
+        lido, ou até o dia de saída, se tiver.
+        <div class="aviso-form">
+          <input id="avTitulo" maxlength="120" placeholder="Título (ex.: Manutenção domingo, das 2h às 3h)">
+          <textarea id="avTexto" maxlength="2000" rows="3" placeholder="O texto do aviso"></textarea>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="avPara" class="plano">
+              <option value="gestao">Para donos e gerentes</option>
+              <option value="equipe">Para toda a equipe</option>
+            </select>
+            <label style="font-size:13px">Sai do ar em <input type="date" id="avAte"></label>
+            <button class="acao" id="btPublicarAviso" onclick="publicarAviso()">Publicar o aviso</button>
+          </div>
+        </div>
+        ${av.length ? `<div class="rolo" style="margin-top:12px"><table>
+          <thead><tr><th>Aviso</th><th>Para</th><th>Publicado</th><th>Situação</th><th class="num">Leram</th><th></th></tr></thead><tbody>
+          ${av.map(a => `<tr>
+            <td><div class="nome">${escapar(a.titulo)}</div><div class="slug">${escapar(a.texto)}</div></td>
+            <td>${a.para === 'equipe' ? 'toda a equipe' : 'donos e gerentes'}</td>
+            <td class="num">${quando(a.publicadoEm)}</td>
+            <td class="${a.noAr ? '' : 'morto'}">${a.noAr ? (a.ate ? 'no ar até ' + data(a.ate) : 'no ar') : 'fora do ar'}</td>
+            <td class="num">${Number(a.lidos) || 0}</td>
+            <td>${a.noAr ? `<button class="acao perigo" data-id="${escapar(a.id)}"
+                  onclick="tirarAvisoDoAr(this.dataset.id)">Tirar do ar</button>` : ''}</td>
+          </tr>`).join('')}
+          </tbody></table></div>` : ''}
       </div>`;
   }
 
@@ -696,6 +742,35 @@ async function ligarMensagemRemarcado(ligar){
   }catch(e){
     console.error('[plataforma] aviso de remarcado:', e);
     alert('Não consegui mudar.\n\n' + e.message);
+  }
+}
+
+/* ── Os avisos do sino ────────────────────────────────────────────────────── */
+async function publicarAviso(){
+  const val = id => (document.getElementById(id) || {}).value || '';
+  const titulo = val('avTitulo').trim(), texto = val('avTexto').trim();
+  const para = val('avPara') || 'gestao', ate = val('avAte') || null;
+  if(titulo.length < 3) return alert('Escreva o título do aviso.');
+  if(texto.length < 3) return alert('Escreva o texto do aviso.');
+  if(!confirm('Publicar este aviso para ' + (para === 'equipe' ? 'TODA A EQUIPE' : 'os DONOS E GERENTES')
+      + ' de todos os salões?\n\n' + titulo)) return;
+  try{
+    await Dados.chamar('publicar_aviso_plataforma', { p_titulo: titulo, p_texto: texto, p_para: para, p_ate: ate });
+    alert('Publicado. Aparece no sino dos salões em até um minuto.');
+    await carregar();
+  }catch(e){
+    console.error('[plataforma] publicar aviso:', e);
+    alert('Não consegui publicar.\n\n' + e.message);
+  }
+}
+async function tirarAvisoDoAr(id){
+  if(!confirm('Tirar este aviso do ar? Ele some do sino de todos os salões.')) return;
+  try{
+    await Dados.chamar('arquivar_aviso_plataforma', { p_aviso: id });
+    await carregar();
+  }catch(e){
+    console.error('[plataforma] tirar aviso:', e);
+    alert('Não consegui tirar do ar.\n\n' + e.message);
   }
 }
 

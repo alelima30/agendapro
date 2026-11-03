@@ -194,3 +194,34 @@ select t_texto('com 5 esperando, o sexto espera a conversa do WhatsApp',
   erro_de($$select t_pedir('[{"id":"55310000-0000-0000-0000-0000000000b1","qtd":1}]')$$),
   'Você já tem pedidos esperando o salão. Aguarde a resposta pelo WhatsApp.');
 select set_config('request.jwt.claim.sub', '', false);
+
+\echo ''
+\echo '7. O recibo (o que foi VENDIDO)'
+select t_como('b5300000-0000-0000-0000-00000000000b', format('select public.recibo_do_pedido_loja(%L)',
+  :'p1'::jsonb->>'pedido')) as rc \gset
+select t_texto('a recepção tira o recibo do nº 1: os itens da comanda, o total e o Pix',
+  (select string_agg((i->>'qtd')::numeric::int || 'x ' || (i->>'descricao') || ' ' || (i->>'total'), ', ')
+     from jsonb_array_elements(:'rc'::jsonb->'itens') i)
+  || ' | ' || (:'rc'::jsonb->>'total') || ' | ' || (:'rc'::jsonb->'pagamentos'->0->>'forma'),
+  (select string_agg(ci.qtd::int || 'x ' || ci.descricao || ' ' || round(ci.qtd * ci.preco_unit, 2), ', ' order by ci.descricao)
+     from public.comanda_itens ci join public.pedidos_loja p on p.comanda_id = ci.comanda_id
+    where p.id = (:'p1'::jsonb->>'pedido')::uuid)
+  || ' | ' || (select ct.total from public.comandas_totais ct join public.pedidos_loja p on p.comanda_id = ct.id
+                where p.id = (:'p1'::jsonb->>'pedido')::uuid) || ' | pix');
+select t_texto('   com o nome do salão e da cliente', (:'rc'::jsonb->'salao'->>'nome') || ' | ' || (:'rc'::jsonb->>'cliente'),
+  'Loja da Ana | Maria Souza');
+select t_texto('quem atende não tira recibo',
+  erro_de(format($$select t_como('d5300000-0000-0000-0000-00000000000d', 'select public.recibo_do_pedido_loja(''%s'')')$$,
+    :'p1'::jsonb->>'pedido')), 'Só o balcão e a gestão veem o recibo.');
+select t_texto('   nem a cliente (o recibo vai para ela pelo salão)',
+  erro_de(format($$select t_como('c5300000-0000-0000-0000-00000000000c', 'select public.recibo_do_pedido_loja(''%s'')')$$,
+    :'p1'::jsonb->>'pedido')), 'Só o balcão e a gestão veem o recibo.');
+select t_texto('pedido cancelado não tem recibo',
+  erro_de(format($$select t_como('a5300000-0000-0000-0000-00000000000a', 'select public.recibo_do_pedido_loja(''%s'')')$$,
+    :'p3'::jsonb->>'pedido')), 'Este pedido ainda não foi vendido.');
+select t_verdade('a lista do painel diz o total vendido e a forma',
+  (select (x->>'vendaTotal') is not null and x->'vendaFormas' ? 'pix'
+     from jsonb_array_elements(t_como('a5300000-0000-0000-0000-00000000000a',
+       'select public.pedidos_loja_painel(''55300000-0000-0000-0000-00000000000a'')')) x
+    where x->>'id' = :'p1'::jsonb->>'pedido'));
+select set_config('request.jwt.claim.sub', '', false);
