@@ -1188,6 +1188,28 @@ with conferencia(ordem, item, veredito, detalhe) as (
                 or not exists (select 1 from pg_proc where proname = 'pedidos_loja_painel' and prosrc like '%vendaTotal%')
               then 'cole as duas partes de novo (53_pedidos_loja)' else '' end
   union all
+  /* A cliente excluiu a conta (56): a marca na ficha e o aviso no sino. */
+  select 71, 'Cliente que excluiu a conta: marca na ficha e aviso',
+         case when not exists (select 1 from information_schema.columns where table_schema = 'public'
+                                 and table_name = 'clientes' and column_name = 'conta_excluida_em')
+                or not exists (select 1 from pg_trigger where tgname = 'tg_cliente_conta_excluida')
+                or to_regprocedure('public.ver_contas_excluidas(uuid)') is null
+              then 'FALTA' else 'certo' end,
+         case when not exists (select 1 from information_schema.columns where table_schema = 'public'
+                                 and table_name = 'clientes' and column_name = 'conta_excluida_em')
+                or not exists (select 1 from pg_trigger where tgname = 'tg_cliente_conta_excluida')
+                or to_regprocedure('public.ver_contas_excluidas(uuid)') is null
+              then 'cole as duas partes de novo (56_conta_excluida)' else '' end
+  union all
+  /* A sessão de pacote pago na mensagem (21): "R$ 0,00 — sessão do pacote". */
+  select 72, 'Sessão de pacote pago: R$ 0,00 na mensagem',
+         case when not exists (select 1 from pg_proc where proname = 'pecas_agendamento'
+                                 and prosrc like '%sessão do pacote%')
+              then 'FALTA' else 'certo' end,
+         case when not exists (select 1 from pg_proc where proname = 'pecas_agendamento'
+                                 and prosrc like '%sessão do pacote%')
+              then 'cole as duas partes de novo (21_notificacoes)' else '' end
+  union all
   /* A loja pelo link e os pacotes no Relatórios (55). */
   select 70, 'Relatórios: loja pelo link e pacotes',
          case when to_regprocedure('public.relatorio_vendas(uuid,date,date)') is null

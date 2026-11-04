@@ -217,7 +217,7 @@ select t_verdade('   e as mensagens das terças novas dizem "já pago (Pix)", e 
                where a.pacote_cliente_id = :'pc2' and n.corpo like '%a pagar%')
   and exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
                where a.pacote_cliente_id = :'pc2' and n.tipo = 'lembrete' and n.status = 'pendente'
-                 and n.corpo like '%Pacote já pago (Pix)%' and n.corpo like '%R$ 220,00 (valor do pacote)%')
+                 and n.corpo like '%Pacote já pago (Pix)%' and n.corpo like '%R$ 0,00 — sessão do pacote%')
   and exists (select 1 from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
                where a.pacote_cliente_id = :'pc2' and n.tipo = 'lembrete' and n.status = 'pendente')
   and public.pecas_agendamento(t_sessao(:'pc', 1))->>'pagamento' = 'Pacote a pagar no salão');

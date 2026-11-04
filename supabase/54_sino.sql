@@ -21,7 +21,9 @@
 --   mensagens     mensagens do WhatsApp que falharam nos últimos 7 dias;
 --   franquia      80% ou mais das mensagens do mês usadas;
 --   assinatura    teste no fim, assinatura vencendo (no Pix) ou vencida,
---                 pagamento pendente.
+--                 pagamento pendente;
+--   conta_excluida  clientes que excluíram a conta do link (56), até o balcão
+--                 ver o aviso.
 --
 -- E os AVISOS DO AGENDAPRO: o que a plataforma escreve no admin (novidade,
 -- manutenção, recado) aparece no sino de todos os salões até a pessoa
@@ -79,7 +81,7 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare
   v_toda boolean; v_gestor boolean; v_prof uuid; v_hoje date; v_fuso text;
   v_itens jsonb := '[]'::jsonb; v_avisos jsonb; n int; v_valor numeric;
-  v_uso int; v_teto int; s record; v_cfg jsonb;
+  v_uso int; v_teto int; s record; v_cfg jsonb; v_nomes text[]; v_hor int; v_pac int;
 begin
   if auth.uid() is null or p_salao is null or not public.e_equipe(p_salao) then
     raise exception 'Só a equipe do salão vê os avisos.' using errcode = 'insufficient_privilege';
@@ -138,6 +140,25 @@ begin
      where x.saldo > 0;
     if n > 0 then
       v_itens := v_itens || jsonb_build_object('tipo', 'parcelas', 'qtd', n, 'valor', v_valor);
+    end if;
+
+    -- Clientes que excluíram a conta do link (56) e o balcão ainda não viu:
+    -- quem, e quantas ainda têm horário marcado ou pacote ativo.
+    select count(*), (array_agg(c.nome order by c.conta_excluida_em desc))[1:3],
+           count(*) filter (where exists (select 1 from public.agendamentos a
+                                           where a.cliente_id = c.id and a.arquivado_em is null
+                                             and a.status in ('pendente', 'confirmado') and a.inicio > now())),
+           count(*) filter (where exists (select 1 from public.pacote_clientes pc
+                                           where pc.cliente_id = c.id and pc.cancelado_em is null
+                                             and pc.vence_em >= v_hoje))
+      into n, v_nomes, v_hor, v_pac
+      from public.clientes c
+     where c.salao_id = p_salao and c.conta_excluida_em is not null
+       and c.conta_excluida_vista_em is null
+       and c.conta_excluida_em > now() - interval '30 days';
+    if n > 0 then
+      v_itens := v_itens || jsonb_build_object('tipo', 'conta_excluida', 'qtd', n,
+        'nomes', to_jsonb(coalesce(v_nomes, '{}'::text[])), 'comHorario', v_hor, 'comPacote', v_pac);
     end if;
   end if;
 

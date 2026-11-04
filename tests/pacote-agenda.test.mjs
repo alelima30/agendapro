@@ -352,6 +352,41 @@ secao('8. As mensagens do pacote (45), no histórico e nas chaves da dona');
     where salao_id = $1 and tipo like 'pacote%' and status = 'pendente'`, [SALAO]);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('9. Tocar na cliente do pacote: todos os horários, o pagamento e o que resta');
+{
+  // "Preciso clicar em cima e ver todos os horários e tudo que marquei,
+  // pagamentos e horários, dias."
+  const { ctx, p: pd } = await abrirPainel(dDona, 'dona');
+  await pd.evaluate(() => irPara('pacotes'));
+  await pd.waitForSelector('#listaPacotes .pk-nome', { timeout: 15000 });
+  await pd.click('#listaPacotes .pk-nome:has-text("Maria Souza")');
+  await pd.waitForSelector('#pkDetHorarios', { timeout: 10000 }).catch(() => {});
+  const banco4 = (await linhas(`select status, count(*)::int n from public.agendamentos where pacote_cliente_id = $1 group by status`, [vMaria.id]));
+  const n = st => (banco4.find(x => x.status === st) || {}).n || 0;
+  const det = await pd.evaluate(() => ({
+    titulo: document.getElementById('modalTitulo').textContent,
+    kpis: [...document.querySelectorAll('#pkDetKpis .kpi')].map(k => [k.querySelector('.r').textContent, k.querySelector('.v').textContent]),
+    linhas: [...document.querySelectorAll('#pkDetHorarios tbody tr')].map(tr => tr.innerText.replace(/\s+/g, ' ').trim()),
+    info: document.getElementById('pkDetInfo').innerText.replace(/\s+/g, ' ') }));
+  const kpi = r => Number((det.kpis.find(k => k[0] === r) || [])[1]);
+  igual('abre a Maria, com cada horário do pacote (data, hora, serviço, quem atende e a situação)',
+    [det.titulo, det.linhas.length, det.linhas.every(l => /ter \d\d\/\d\d · 14:00/.test(l) && /Mão/.test(l) && /Ju Unhas/.test(l))],
+    ['Maria Souza', Object.values(banco4).reduce((t, x) => t + x.n, 0), true]);
+  igual('   as contas batem com o banco: feitas, faltas, marcadas e o que resta',
+    [kpi('feitas'), kpi('faltas'), kpi('marcadas'), kpi('restam para marcar')],
+    [n('concluido'), n('faltou'), n('pendente') + n('confirmado'), Math.max(0, 4 - (Object.values(banco4).reduce((t, x) => t + x.n, 0) - n('cancelado')))]);
+  verdade('   e diz o pagamento e o vencimento', /Pagamento/.test(det.info) && /(Pago|A receber)/.test(det.info) && /Vence/.test(det.info), det.info);
+  verdade('   a feita aparece como "feita"', det.linhas.some(l => /feita/.test(l)) === (n('concluido') > 0), JSON.stringify(det.linhas));
+  await pd.click('#pkDetHorarios tbody tr:first-child button:has-text("Abrir")');
+  await pd.waitForTimeout(600);
+  verdade('   e "Abrir" leva ao atendimento daquele horário',
+    await pd.evaluate(() => document.getElementById('fundo').classList.contains('on')
+      && !document.getElementById('pkDetHorarios')));
+  verdade('   a 390px a janela cabe', await pd.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  await ctx.close();
+}
+
 verdade('sem erro de JavaScript nem alerta', erros.length === 0, erros.join(' | '));
 await nav.close();
 await banco.end();

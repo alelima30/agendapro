@@ -240,27 +240,40 @@ e('e diz quantas sessões ela ainda tem',
 await c.click('.boas-cta');
 await c.waitForTimeout(1200);
 const naLista = await c.evaluate(() =>
-  [...document.querySelectorAll('#listaServicos .sv-cartao-preco')].map(v => v.textContent.trim()));
-console.log('      o que aparece no lugar do preço: ' + JSON.stringify(naLista));
-/* ⚠ Pode legitimamente mostrar R$ 40 se HOJE não for um dos dias do pacote —
-   o pacote foi criado de segunda a quarta. Então a asserção aceita os dois, e
-   o que ela cobra é que o texto seja UM DOS DOIS, nunca vazio nem quebrado. */
+  [...document.querySelectorAll('#listaServicos [onclick^="alternarServico"]')].map(el => ({
+    id: (el.getAttribute('onclick').match(/'([^']+)'/) || [])[1],
+    preco: ((el.querySelector('.sv-cartao-preco') || {}).textContent || '').replace(/\s+/g, ' ').trim() })));
+console.log('      o que aparece no lugar do preço: ' + JSON.stringify(naLista.map(v => v.preco)));
+const doPacote = await c.evaluate(() => (((typeof meusPacotes !== 'undefined' ? meusPacotes : [])[0]) || {}).servicos || []);
 e('o preço ou o aviso do pacote aparecem',
-  naLista.length > 0 && naLista.every(v => /R\$|pacote/i.test(v)),
-  JSON.stringify(naLista));
-
-const hojeVale = await c.evaluate(() => {
-  const p = (typeof meusPacotes !== 'undefined' ? meusPacotes : [])[0];
-  return p ? (p.dias || []).includes(new Date().getDay()) : false;
-});
-console.log('      hoje é dia de pacote? ' + (hojeVale ? 'sim' : 'não'));
-if(hojeVale){
-  e('e como hoje vale, diz "no seu pacote"',
-    naLista.some(v => /pacote/i.test(v)), JSON.stringify(naLista));
-} else {
-  e('e como hoje NÃO vale, mostra o preço normal',
-    naLista.every(v => /R\$/.test(v)), JSON.stringify(naLista));
-}
+  naLista.length > 0 && naLista.every(v => /R\$/.test(v.preco)), JSON.stringify(naLista));
+/* ⚠ "Não está aparecendo pra ela que o pacote é grátis, porque primeiro
+   aparece o procedimento e depois o dia." Antes daqui o teste aceitava o preço
+   cheio quando HOJE não era dia do pacote — era o defeito, escrito como regra.
+   A lista vem antes do dia: o serviço do pacote diz R$ 0,00, seja qual for
+   o dia de hoje, e o resto continua com o preço. */
+const cobertos = naLista.filter(v => doPacote.includes(v.id)), outros = naLista.filter(v => !doPacote.includes(v.id));
+e('antes de escolher o dia (seja qual for hoje), o serviço do pacote diz "R$ 0,00 · no seu pacote"',
+  cobertos.length > 0 && cobertos.every(v => /R\$ 0,00 · no seu pacote/.test(v.preco))
+  && outros.every(v => !/pacote/i.test(v.preco)), JSON.stringify(naLista));
+await c.evaluate(id => alternarServico(id), cobertos[0] && cobertos[0].id);
+await c.waitForTimeout(300);
+const nota = await c.evaluate(() => ((document.getElementById('pacNota') || {}).textContent || '').replace(/\s+/g, ' ').trim());
+e('   escolhido, o resumo diz R$ 0,00, os dias em que o pacote vale e quantas sessões restam',
+  /vale segunda, terça e quarta/.test(nota) && /resta(m)? \d+ sess/.test(nota)
+  && /R\$ 0,00 — está no seu pacote/.test(await c.evaluate(() => document.getElementById('listaServicos').innerText)), nota);
+// O calendário: os dias do pacote ganham a marca, os outros não.
+// O caminho de verdade: para mim → quem atende ("tanto faz") → o dia.
+await c.evaluate(() => { irPara('quem'); escolherQuem('mim'); });
+await c.waitForTimeout(400);
+await c.evaluate(() => { if(tela === 'prof'){ escolherProf(null); irPara('quando'); } });
+await c.waitForSelector('#listaDias .dia', { timeout: 10000 }).catch(() => {});
+const dias = await c.evaluate(() => [...document.querySelectorAll('#listaDias .dia')].map(b => {
+  const dt = (b.getAttribute('onclick').match(/'([\d-]+)'/) || [])[1];
+  return { dow: new Date(dt + 'T12:00:00').getDay(), pac: b.classList.contains('dia-pac'), vagas: !b.classList.contains('sem') };
+}));
+e('no calendário, só os dias do pacote (com vaga) levam a marca "pacote"',
+  dias.some(d => d.pac) && dias.every(d => d.pac === (d.vagas && [1, 2, 3].includes(d.dow))), JSON.stringify(dias));
 e('sem erro de JavaScript no link',
   errosC.length === 0, errosC.slice(0, 3).join(' | '));
 

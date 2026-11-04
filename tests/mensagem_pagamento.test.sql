@@ -140,8 +140,8 @@ insert into public.pacote_clientes (id, pacote_id, cliente_id, sessoes, vence_em
           '6e400000-0000-0000-0000-000000000001', 4, current_date + 60);
 update public.agendamentos set pacote_cliente_id = '6e700000-0000-0000-0000-000000000001'
  where id = '6e500000-0000-0000-0000-000000000002';
-select t_verdade('   atendimento pelo pacote: "R$ 0,00" e "Pacote (já pago)"',
-  public.pecas_agendamento('6e500000-0000-0000-0000-000000000002')->>'valor' = 'R$ 0,00'
+select t_verdade('   atendimento pelo pacote: "R$ 0,00 — sessão do pacote" e "Pacote (já pago)"',
+  public.pecas_agendamento('6e500000-0000-0000-0000-000000000002')->>'valor' = 'R$ 0,00 — sessão do pacote'
   and public.pecas_agendamento('6e500000-0000-0000-0000-000000000002')->>'pagamento' = 'Pacote (já pago)');
 
 \echo ''

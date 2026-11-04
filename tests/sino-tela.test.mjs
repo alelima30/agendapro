@@ -242,6 +242,42 @@ secao('7. Tela estreita (320px): o topo cabe com o sino');
   await ctx.close();
 }
 
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('8. A cliente excluiu a conta: o sino avisa, e a ficha mostra');
+{
+  // A Vera cria conta pelo link (a ficha nasce), tem horário marcado, e exclui a conta.
+  const vera = novaAba();
+  await vera.criarConta({ email:`vera-${m}@t.com`, senha:'senhadavera1', nome:'Vera Exclui', telefone:'+5511' + tel() });
+  await vera.chamar('cadastrar_minha_ficha', { p_salao: SALAO });
+  const fichaVera = (await linha(`select id from public.clientes where salao_id = $1 and nome = 'Vera Exclui'`, [SALAO])).id;
+  await banco.query(`insert into public.agendamentos (salao_id, cliente_id, profissional_id, inicio, fim, status, origem, valor_previsto)
+    values ($1, $2, $3, now() + interval '4 days', now() + interval '4 days 45 minutes', 'confirmado', 'online', 50)`, [SALAO, fichaVera, PROF]);
+  await vera.chamar('excluir_minha_conta', { p_confirmacao: 'EXCLUIR' });
+  igual('excluiu: a ficha fica, desligada, com o dia em que a conta sumiu',
+    await linha(`select perfil_id is null as solta, conta_excluida_em is not null as marcada from public.clientes where id = $1`, [fichaVera]),
+    { solta: true, marcada: true });
+  const { ctx, p } = await abrirPainel(390);
+  await p.waitForFunction(() => getComputedStyle(document.getElementById('btSino')).display !== 'none', null, { timeout: 15000 }).catch(() => {});
+  await p.click('#btSino');
+  await p.waitForSelector('#sinoPainel:not([hidden]) .sino-item', { timeout: 10000 }).catch(() => {});
+  const txt = await texto(p, '#sinoPainel');
+  verdade('o sino diz "Vera Exclui excluiu a conta do link", e que ela ainda tem horário marcado',
+    /Vera Exclui excluiu a conta do link/.test(txt) && /Ainda tem horário marcado/.test(txt), txt);
+  await p.click('#sinoPainel .sino-item:has-text("excluiu a conta do link")');
+  await p.waitForTimeout(1500);
+  igual('   tocar leva a Clientes, e o aviso sai do sino (visto)',
+    [await p.evaluate(() => telaAtual),
+     !!(await linha(`select conta_excluida_vista_em from public.clientes where id = $1`, [fichaVera])).conta_excluida_vista_em,
+     await p.evaluate(() => ((sinoDados || {}).itens || []).some(i => i.tipo === 'conta_excluida'))],
+    ['clientes', true, false]);
+  await p.evaluate(async () => { const novo = await carregarTudo(); if(novo){ bd = novo; pintar(); } });
+  await p.waitForTimeout(800);
+  verdade('   e em Clientes a ficha dela mostra "excluiu a conta do link em …"',
+    await p.evaluate(() => [...document.querySelectorAll('#listaClientes tbody tr')]
+      .some(tr => /Vera Exclui/.test(tr.innerText) && /excluiu a conta do link em \d\d\/\d\d/.test(tr.innerText))));
+  await ctx.close();
+}
+
 // Os avisos deste teste saem do ar: a bancada é dividida com os outros testes.
 await banco.query(`update public.avisos_plataforma set arquivado_em = now()
   where titulo like 'Novidade: o sino %' or titulo like 'Só para o seu salão %'`);

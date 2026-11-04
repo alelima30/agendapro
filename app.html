@@ -385,6 +385,13 @@ body.carregando-tudo .tela{ display:none }
   justify-content:flex-end;background:var(--painel);flex-wrap:wrap;
 }
 .modal-p:empty{display:none}
+/* O nome da cliente no pacote abre o detalhe dela. Só tokens do tema. */
+.pk-nome{background:none;border:0;padding:0;font:inherit;font-weight:700;color:var(--marca);
+  text-decoration:underline;text-underline-offset:3px;cursor:pointer;text-align:left}
+.pk-det-kpis{grid-template-columns:repeat(auto-fit,minmax(92px,1fr))}
+.pk-det-kpis .kpi .v{font-size:20px}
+.pk-det-info{display:grid;gap:6px;font-size:14px}
+.pk-det-info span{display:inline-block;min-width:112px;color:var(--txt2);font-size:13px}
 /* Os pedidos da loja: a linha do histórico (o vendido com o total e o
    Recibo) e o recibo em letra de máquina. Só tokens do tema. */
 .pl-hist{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
@@ -2162,7 +2169,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.0b181f';
+const VERSAO_APP = 'v9.17b7eb';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3353,7 +3360,8 @@ function pintarClientes(){
       const f = faltasDoCliente(c.id);
       return `<tr>
         <td><b>${escapar(c.nome)}</b>${c.peloLink
-          ? ' <span class="tag t-conc" title="Ela mesma fez o cadastro pelo link do salão">cadastrou pelo link</span>' : ''}${c.exigeConfirmacao
+          ? ' <span class="tag t-conc" title="Ela mesma fez o cadastro pelo link do salão">cadastrou pelo link</span>' : ''}${c.contaExcluidaEm
+          ? ` <span class="tag t-canc" title="Ela excluiu a conta do link. A ficha, o histórico e os horários continuam no salão.">excluiu a conta do link em ${escapar(quandoDoPedidoLoja(c.contaExcluidaEm).split(' às ')[0])}</span>` : ''}${c.exigeConfirmacao
           ? ' <span class="tag t-pend" title="O que ela marcar pelo link espera sua confirmação">confirma antes</span>' : ''}${
           c.obs ? `<br><span style="font-size:12px;color:var(--txt2)">${escapar(c.obs)}</span>` : ''}${
           resumoDoLembrete(c.id) ? `<br><span class="lembrete-na-lista">${escapar(resumoDoLembrete(c.id))}</span>` : ''}</td>
@@ -3565,7 +3573,8 @@ function pintarPacotes(){
                desconto — e o dono precisa ver isso antes da cliente chegar. */
             const ss = sessoesDaVenda(v.id);
             const prox = ss.find(a => a.data >= hoje());
-            return `<tr><td>${escapar(c.nome || '—')} ${c.perfilId
+            return `<tr><td><button type="button" class="pk-nome" onclick="abrirDetalheDoPacote('${v.id}')"
+                  title="Ver os horários, o pagamento e tudo deste pacote">${escapar(c.nome || '—')}</button> ${c.perfilId
                 ? '<span class="tag t-ok">com conta</span>'
                 : '<span class="tag t-pend" title="Peça para ela entrar no link do salão e criar a conta com este WhatsApp">sem conta ainda</span>'}
                 ${v.pagoEm ? `<span class="tag t-ok">pago · ${escapar(nomeFormaDoPacote(v.formaPagamento))}</span>`
@@ -3573,7 +3582,7 @@ function pintarPacotes(){
                 <br><span class="pk-fixa">vence ${porExtenso(v.venceEm)}</span>
                 ${ss.length ? `<br><span class="pk-fixa">agenda fixa · ${ss.length} ${ss.length === 1 ? 'horário' : 'horários'}${
                   prox ? ' · próximo ' + diaDoPacote(prox.data) + ' ' + hm(prox.inicio) : ''}</span>` : ''}</td>
-              <td class="pk-acoes">${vejoTudo() && pacoteAReceber(v)
+              <td class="pk-acoes"><button class="btn btn-peq" onclick="abrirDetalheDoPacote('${v.id}')">Ver horários</button>${vejoTudo() && pacoteAReceber(v)
                 ? `<button class="btn btn-peq btn-p" onclick="abrirReceberPacote('${v.id}')">Recebi</button>` : ''}${
                 vejoTudo() && ss.length
                 ? `<button class="btn btn-peq" onclick="abrirVenderPacote('${p.id}', '${v.id}')">Renovar</button>` : ''}${
@@ -4356,6 +4365,73 @@ function mandarPacoteNoZap(vid){
   }
   fecharModal();
   window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener');
+}
+
+/* ── O DETALHE DA CLIENTE NO PACOTE ───────────────────────────────────────
+   "Não consigo ver os horários e detalhes de cada cliente: preciso clicar em
+   cima e ver todos os horários, tudo que marquei, pagamentos e dias." A
+   linha da lista diz só o resumo (o próximo horário); aqui vai tudo: cada
+   sessão com a data, a hora, o procedimento, quem atende e como ficou —
+   feita, faltou (gastou a sessão), cancelada (devolvida), marcada,
+   reservada até o pagamento —, quantas restam, o vencimento e o pagamento.
+   Tocar num horário abre o atendimento, de onde se remarca ou troca quem
+   atendeu. Os horários são os que o painel já tem (a agenda inteira do
+   salão); nada aqui grava. */
+function abrirDetalheDoPacote(vid){
+  const v = (bd.pacote_clientes || []).find(x => x.id === vid);
+  if(!v) return;
+  const p = pacotesDoSalao().find(x => x.id === v.pacoteId) || {};
+  const c = (bd.clientes || []).find(x => x.id === v.clienteId) || {};
+  const todas = agendaDoSalao().filter(a => a.pacoteClienteId === vid)
+    .sort((x, y) => x.data.localeCompare(y.data) || x.inicio - y.inicio);
+  const conta = st => todas.filter(a => a.status === st).length;
+  const feitas = conta('concluido'), faltas = conta('faltou');
+  const marcadas = todas.filter(a => ['pendente', 'confirmado', 'em_atendimento'].includes(a.status)).length;
+  const usadas = todas.filter(a => a.status !== 'cancelado').length;
+  const total = Number(v.sessoes || p.sessoes) || 0;
+  const restam = Math.max(0, total - usadas);
+  const situacao = a => a.status === 'concluido' ? ['feita', 't-ok']
+    : a.status === 'faltou' ? ['faltou · gastou a sessão', 't-canc']
+    : a.status === 'cancelado' ? ['cancelada · sessão devolvida', 't-canc']
+    : a.status === 'em_atendimento' ? ['em atendimento', 't-conf']
+    : aguardaPagamentoDoPacote(a) ? ['reservada até o pagamento', 't-pend']
+    : a.status === 'pendente' ? ['a confirmar', 't-pend'] : ['marcada', 't-conf'];
+  const anoAgora = hoje().slice(0, 4);
+  const quando = a => diaDoPacote(a.data) + (a.data.slice(0, 4) !== anoAgora ? '/' + a.data.slice(0, 4) : '') + ' · ' + hm(a.inicio);
+  const valor = Number(v.valor) || 0;
+  const pagamento = v.pagoEm
+    ? `<b>Pago</b> · ${real(valor)} em ${escapar(quandoDoPedidoLoja(v.pagoEm).split(' às ')[0])}${
+        v.formaPagamento ? ' · ' + escapar(nomeFormaDoPacote(v.formaPagamento)) : ''}`
+    : pacoteAReceber(v) ? `<b style="color:var(--alerta)">A receber</b> · ${real(valor)}`
+    : valor ? real(valor) : 'Sem valor registrado neste pacote.';
+  const cobre = servicosDoPacote(p.id).map(id => (acharServico(id) || {}).nome).filter(Boolean).join(', ');
+  const kpi = (n, r) => `<div class="kpi"><div class="v">${n}</div><div class="r">${r}</div></div>`;
+  abrirModal(c.nome || 'Cliente', `
+    <p style="margin:-4px 0 12px;color:var(--txt2)" id="pkDetSub"><b style="color:var(--txt)">${escapar(p.nome || 'Pacote')}</b>${
+      cobre ? ' · ' + escapar(cobre) : ''}</p>
+    <div class="kpis pk-det-kpis" id="pkDetKpis">
+      ${kpi(total, 'sessões no pacote')}${kpi(feitas, 'feitas')}${kpi(faltas, 'faltas')}${kpi(marcadas, 'marcadas')}${kpi(restam, 'restam para marcar')}
+    </div>
+    <div class="pk-det-info" id="pkDetInfo">
+      <div><span>Pagamento</span>${pagamento}</div>
+      <div><span>Vence</span>${escapar(porExtenso(v.venceEm))}</div>
+      <div><span>Conta no link</span>${c.perfilId ? 'tem conta — vê o pacote e marca pelo link'
+        : 'sem conta ainda — peça para ela criar a conta no link com este WhatsApp'}</div>
+    </div>
+    <h3 class="secao" style="margin:16px 0 6px">Os horários (${todas.length})</h3>
+    ${todas.length ? `<table class="tabela" id="pkDetHorarios"><thead><tr>
+        <th>Quando</th><th>Serviço</th><th>Profissional</th><th>Situação</th><th></th></tr></thead><tbody>
+      ${todas.map(a => { const [rot, cls] = situacao(a); return `<tr>
+        <td data-r="Quando"><b>${escapar(quando(a))}</b></td>
+        <td data-r="Serviço">${escapar(rotuloServicos(a) || '—')}</td>
+        <td data-r="Profissional">${escapar((acharProf(a.profissionalId) || {}).nome || '—')}</td>
+        <td data-r="Situação"><span class="tag ${cls}">${escapar(rot)}</span></td>
+        <td data-acoes><button class="btn btn-peq" onclick="fecharModal();abrirDetalhe('${a.id}')">Abrir</button></td>
+      </tr>`; }).join('')}
+      </tbody></table>`
+      : '<div class="vazio">Nenhum horário marcado neste pacote ainda.</div>'}`,
+    [...(vejoTudo() && pacoteAReceber(v) ? [['Recebi', `fecharModal();abrirReceberPacote('${vid}')`, 'btn-p']] : []),
+     ['Fechar', 'fecharModal()', '']]);
 }
 
 function abrirReceberPacote(vid){
@@ -17469,6 +17545,21 @@ function linhasDoSino(d){
         t: pct >= 100 ? 'As mensagens do mês acabaram' : 'Você já usou ' + pct + '% das mensagens do mês',
         s: (Number(i.usado) || 0) + ' de ' + (Number(i.teto) || 0) + '. Veja em Plano como ter mais.' });
     }
+    else if(i.tipo === 'conta_excluida'){
+      // A cliente excluiu a conta do link (56): a ficha fica; quem tem horário
+      // ou pacote pede uma ligação.
+      const nomes = (i.nomes || []).filter(Boolean);
+      const hor = Number(i.comHorario) || 0, pac = Number(i.comPacote) || 0;
+      L.push({ ic: 'usuario', tela: 'clientes', marcar: 'contas', urgente: hor > 0,
+        t: q === 1 && nomes[0] ? nomes[0] + ' excluiu a conta do link'
+          : sinoPlural(q, 'cliente excluiu', 'clientes excluíram') + ' a conta do link',
+        s: (q > 1 && nomes.length ? nomes.join(', ') + (q > nomes.length ? ' e mais ' + (q - nomes.length) : '') + '. ' : '')
+          + (hor ? (q === 1 ? 'Ainda tem horário marcado: a ficha e os lembretes continuam. Vale confirmar com ela.'
+                            : sinoPlural(hor, 'ainda tem', 'ainda têm') + ' horário marcado. As fichas continuam em Clientes.')
+            : pac ? (q === 1 ? 'Tem pacote ativo, que continua no salão. A ficha fica em Clientes.'
+                             : sinoPlural(pac, 'tem', 'têm') + ' pacote ativo. As fichas continuam em Clientes.')
+            : (q === 1 ? 'A ficha e o histórico dela continuam em Clientes.' : 'As fichas e o histórico continuam em Clientes.')) });
+    }
     else if(i.tipo === 'assinatura'){
       const dias = Number(i.dias) || 0;
       const t = { inadimplente: 'Pagamento da assinatura pendente',
@@ -17487,7 +17578,7 @@ function linhasDoSino(d){
 // O número do sino: cada horário, pedido e parcela conta; o resto, um.
 function contaDoSino(d){
   if(!d) return 0;
-  const porUnidade = ['a_confirmar', 'sinal', 'pedidos_loja', 'pedidos', 'parcelas'];
+  const porUnidade = ['a_confirmar', 'sinal', 'pedidos_loja', 'pedidos', 'parcelas', 'conta_excluida'];
   return (d.itens || []).reduce((n, i) => n + (porUnidade.includes(i.tipo) ? (Number(i.qtd) || 0) : 1), 0)
     + (d.avisos || []).length;
 }
@@ -17559,6 +17650,12 @@ function sinoIr(k){
   const l = ((painel && painel._linhas) || [])[k];
   fecharSino();
   if(!l) return;
+  // Ver o aviso da conta excluída é tê-lo visto: sai do sino (a marca na ficha fica).
+  if(l.marcar === 'contas'){
+    Dados.chamar('ver_contas_excluidas', { p_salao: salaoAtual })
+      .then(() => pedirSino(true))
+      .catch(e => console.info('[AgendaPro] contas excluídas:', e.message));
+  }
   irPara(l.tela);
   if(l.aba && typeof trocarAbaSalao === 'function') setTimeout(() => trocarAbaSalao(l.aba), 60);
   if(l.ancora) setTimeout(() => {

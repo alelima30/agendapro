@@ -122,6 +122,7 @@ preparar() {
   carregar "$RAIZ/supabase/53_pedidos_loja.sql"
   carregar "$RAIZ/supabase/54_sino.sql"
   carregar "$RAIZ/supabase/55_relatorio_vendas.sql"
+  carregar "$RAIZ/supabase/56_conta_excluida.sql"
   carregar "$AQUI/00_ajuda.sql"
 }
 

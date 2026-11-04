@@ -2457,8 +2457,9 @@ begin
     'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
     'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'),
     'valor', case
-      when v_pacote and v_pc_valor > 0
+      when v_pacote and v_pacote_a_pagar and v_pc_valor > 0
         then 'R$ ' || translate(to_char(v_pc_valor, 'FM999,999,990.00'), ',.', '.,') || ' (valor do pacote)'
+      when v_pacote then 'R$ 0,00 — sessão do pacote'
       else 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,') end,
     'pagamento', case
       when v_pacote and v_pacote_a_pagar then 'Pacote a pagar no salão'
@@ -2617,6 +2618,12 @@ update public.notificacoes n
    and n.agendamento_id is not null
    and n.variaveis is not null
    and jsonb_array_length(n.variaveis) <> 6;
+update public.notificacoes n
+   set variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, n.tipo), n.variaveis),
+       corpo     = coalesce(public.texto_agendamento(n.agendamento_id, n.tipo), n.corpo)
+ where n.status = 'pendente'
+   and n.agendamento_id is not null
+   and n.corpo like '%(valor do pacote)%';
 update public.notificacoes
    set status = 'cancelado', motivo = 'modelo antigo do resumo do dia'
  where status = 'pendente' and tipo = 'resumo' and modelo = 'agendapro_resumo';
@@ -9517,7 +9524,7 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare
   v_toda boolean; v_gestor boolean; v_prof uuid; v_hoje date; v_fuso text;
   v_itens jsonb := '[]'::jsonb; v_avisos jsonb; n int; v_valor numeric;
-  v_uso int; v_teto int; s record; v_cfg jsonb;
+  v_uso int; v_teto int; s record; v_cfg jsonb; v_nomes text[]; v_hor int; v_pac int;
 begin
   if auth.uid() is null or p_salao is null or not public.e_equipe(p_salao) then
     raise exception 'Só a equipe do salão vê os avisos.' using errcode = 'insufficient_privilege';
@@ -9566,6 +9573,22 @@ begin
      where x.saldo > 0;
     if n > 0 then
       v_itens := v_itens || jsonb_build_object('tipo', 'parcelas', 'qtd', n, 'valor', v_valor);
+    end if;
+    select count(*), (array_agg(c.nome order by c.conta_excluida_em desc))[1:3],
+           count(*) filter (where exists (select 1 from public.agendamentos a
+                                           where a.cliente_id = c.id and a.arquivado_em is null
+                                             and a.status in ('pendente', 'confirmado') and a.inicio > now())),
+           count(*) filter (where exists (select 1 from public.pacote_clientes pc
+                                           where pc.cliente_id = c.id and pc.cancelado_em is null
+                                             and pc.vence_em >= v_hoje))
+      into n, v_nomes, v_hor, v_pac
+      from public.clientes c
+     where c.salao_id = p_salao and c.conta_excluida_em is not null
+       and c.conta_excluida_vista_em is null
+       and c.conta_excluida_em > now() - interval '30 days';
+    if n > 0 then
+      v_itens := v_itens || jsonb_build_object('tipo', 'conta_excluida', 'qtd', n,
+        'nomes', to_jsonb(coalesce(v_nomes, '{}'::text[])), 'comHorario', v_hor, 'comPacote', v_pac);
     end if;
   end if;
   select count(*) into n from public.pedidos pe
@@ -9779,6 +9802,41 @@ begin
 end $$;
 revoke all on function public.relatorio_vendas(uuid, date, date) from public, anon;
 grant execute on function public.relatorio_vendas(uuid, date, date) to authenticated;
+
+alter table public.clientes add column if not exists conta_excluida_em timestamptz;
+alter table public.clientes add column if not exists conta_excluida_vista_em timestamptz;
+create or replace function public.tg_cliente_conta_excluida()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if old.perfil_id is not null and new.perfil_id is null
+     and not exists (select 1 from public.perfis p where p.id = old.perfil_id) then
+    new.conta_excluida_em := now();
+    new.conta_excluida_vista_em := null;
+  elsif new.perfil_id is not null and old.perfil_id is null then
+    new.conta_excluida_em := null;
+    new.conta_excluida_vista_em := null;
+  end if;
+  return new;
+end $$;
+revoke all on function public.tg_cliente_conta_excluida() from public, anon, authenticated;
+drop trigger if exists tg_cliente_conta_excluida on public.clientes;
+create trigger tg_cliente_conta_excluida
+  before update of perfil_id on public.clientes
+  for each row execute function public.tg_cliente_conta_excluida();
+create or replace function public.ver_contas_excluidas(p_salao uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not public.ve_agenda_toda(p_salao) then
+    raise exception 'Só o balcão e a gestão veem este aviso.' using errcode = 'insufficient_privilege';
+  end if;
+  update public.clientes set conta_excluida_vista_em = now()
+   where salao_id = p_salao and conta_excluida_em is not null and conta_excluida_vista_em is null;
+  get diagnostics n = row_count;
+  return jsonb_build_object('ok', true, 'vistas', n);
+end $$;
+revoke all on function public.ver_contas_excluidas(uuid) from public, anon;
+grant execute on function public.ver_contas_excluidas(uuid) to authenticated;
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();

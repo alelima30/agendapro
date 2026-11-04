@@ -9303,10 +9303,17 @@ begin
        "chega sem valor e pagamento". Agora vai o preço do pacote, e o
        pagamento diz se já foi pago, e como, ou se é a pagar. Pacote ligado
        sem valor (cortesia, ou vendido antes de o valor existir) segue como
-       antes. */
+       antes.
+
+       ⚠ E DEPOIS: "R$ 250,00 (valor do pacote)" em CADA sessão fazia a
+       cliente achar que pagava R$ 250 toda vez. Pacote PAGO: a sessão diz
+       "R$ 0,00 — sessão do pacote" (e a linha do pagamento, "Pacote já pago
+       (Pix)"). Pacote A PAGAR continua com o valor do pacote: é o que ela
+       ainda deve. */
     'valor', case
-      when v_pacote and v_pc_valor > 0
+      when v_pacote and v_pacote_a_pagar and v_pc_valor > 0
         then 'R$ ' || translate(to_char(v_pc_valor, 'FM999,999,990.00'), ',.', '.,') || ' (valor do pacote)'
+      when v_pacote then 'R$ 0,00 — sessão do pacote'
       else 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,') end,
     'pagamento', case
       when v_pacote and v_pacote_a_pagar then 'Pacote a pagar no salão'
@@ -9590,6 +9597,16 @@ update public.notificacoes n
    and n.agendamento_id is not null
    and n.variaveis is not null
    and jsonb_array_length(n.variaveis) <> 6;
+
+/* A sessão de pacote pago passou a dizer "R$ 0,00 — sessão do pacote" (ver
+   `pecas_agendamento`). O que já está na fila com "(valor do pacote)" é
+   refeito — o pacote a pagar sai igual, o pago sai com o texto novo. */
+update public.notificacoes n
+   set variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, n.tipo), n.variaveis),
+       corpo     = coalesce(public.texto_agendamento(n.agendamento_id, n.tipo), n.corpo)
+ where n.status = 'pendente'
+   and n.agendamento_id is not null
+   and n.corpo like '%(valor do pacote)%';
 
 /* O resumo pendente com o modelo antigo (a lista numa linha só) não tem como
    sair: o nome mudou. Cancela, dizendo por quê — o de amanhã já nasce certo. */

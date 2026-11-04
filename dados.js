@@ -95,7 +95,9 @@ const COLUNAS = {
   clientes:      { salaoId:'salao_id', perfilId:'perfil_id', criadoEm:'criado_em',
                    exigeConfirmacao:'exige_confirmacao',
                    // Cadastrou pelo link, sem agendar (48_cadastro_link.sql).
-                   peloLink:'pelo_link' },
+                   peloLink:'pelo_link',
+                   // Excluiu a conta do link (56_conta_excluida.sql). Só o banco escreve.
+                   contaExcluidaEm:'conta_excluida_em', contaExcluidaVistaEm:'conta_excluida_vista_em' },
   /* Os lembretes da equipe sobre a cliente (41_ficha_equipe.sql): tabela à
      parte porque a cliente logada lê a própria ficha, e estes ela não lê. */
   clientes_lembretes: { salaoId:'salao_id', clienteId:'cliente_id',
@@ -234,6 +236,8 @@ const VAZIO_E_NULO = new Set([
      escondido porque nada exercitava o caminho de "a pessoa saiu da lista e
      depois voltou". */
   'marketing_saiu_em', 'encaixe_por',
+  // A cliente excluiu a conta do link (56_conta_excluida.sql): só o banco escreve.
+  'conta_excluida_em', 'conta_excluida_vista_em',
   /* Estas cinco chegaram com o 16_comissao.sql, e quem as cobrou foi o
      `colunas.test.js` no minuto em que ele passou a ler a pasta inteira em
      vez de uma lista escrita à mão.

@@ -2517,8 +2517,9 @@ begin
     'data',     to_char(a.inicio at time zone v_fuso, 'DD/MM/YYYY'),
     'hora',     to_char(a.inicio at time zone v_fuso, 'HH24:MI'),
     'valor', case
-      when v_pacote and v_pc_valor > 0
+      when v_pacote and v_pacote_a_pagar and v_pc_valor > 0
         then 'R$ ' || translate(to_char(v_pc_valor, 'FM999,999,990.00'), ',.', '.,') || ' (valor do pacote)'
+      when v_pacote then 'R$ 0,00 — sessão do pacote'
       else 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,') end,
     'pagamento', case
       when v_pacote and v_pacote_a_pagar then 'Pacote a pagar no salão'

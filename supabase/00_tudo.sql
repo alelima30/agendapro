@@ -61,6 +61,7 @@
 --   53_pedidos_loja.sql      o pedido da loja gravado (cadastro antes) e a venda no painel, com crediário
 --   54_sino.sql              o sino do painel: o que pede ação e os avisos do AgendaPro
 --   55_relatorio_vendas.sql  a loja pelo link e os pacotes no Relatórios
+--   56_conta_excluida.sql    a cliente excluiu a conta: a marca na ficha e o aviso no sino
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -9370,10 +9371,17 @@ begin
        "chega sem valor e pagamento". Agora vai o preço do pacote, e o
        pagamento diz se já foi pago, e como, ou se é a pagar. Pacote ligado
        sem valor (cortesia, ou vendido antes de o valor existir) segue como
-       antes. */
+       antes.
+
+       ⚠ E DEPOIS: "R$ 250,00 (valor do pacote)" em CADA sessão fazia a
+       cliente achar que pagava R$ 250 toda vez. Pacote PAGO: a sessão diz
+       "R$ 0,00 — sessão do pacote" (e a linha do pagamento, "Pacote já pago
+       (Pix)"). Pacote A PAGAR continua com o valor do pacote: é o que ela
+       ainda deve. */
     'valor', case
-      when v_pacote and v_pc_valor > 0
+      when v_pacote and v_pacote_a_pagar and v_pc_valor > 0
         then 'R$ ' || translate(to_char(v_pc_valor, 'FM999,999,990.00'), ',.', '.,') || ' (valor do pacote)'
+      when v_pacote then 'R$ 0,00 — sessão do pacote'
       else 'R$ ' || translate(to_char(v_total, 'FM999,999,990.00'), ',.', '.,') end,
     'pagamento', case
       when v_pacote and v_pacote_a_pagar then 'Pacote a pagar no salão'
@@ -9657,6 +9665,16 @@ update public.notificacoes n
    and n.agendamento_id is not null
    and n.variaveis is not null
    and jsonb_array_length(n.variaveis) <> 6;
+
+/* A sessão de pacote pago passou a dizer "R$ 0,00 — sessão do pacote" (ver
+   `pecas_agendamento`). O que já está na fila com "(valor do pacote)" é
+   refeito — o pacote a pagar sai igual, o pago sai com o texto novo. */
+update public.notificacoes n
+   set variaveis = coalesce(public.variaveis_agendamento(n.agendamento_id, n.tipo), n.variaveis),
+       corpo     = coalesce(public.texto_agendamento(n.agendamento_id, n.tipo), n.corpo)
+ where n.status = 'pendente'
+   and n.agendamento_id is not null
+   and n.corpo like '%(valor do pacote)%';
 
 /* O resumo pendente com o modelo antigo (a lista numa linha só) não tem como
    sair: o nome mudou. Cancela, dizendo por quê — o de amanhã já nasce certo. */
@@ -21406,7 +21424,9 @@ grant execute on function public.recibo_do_pedido_loja(uuid) to authenticated;
 --   mensagens     mensagens do WhatsApp que falharam nos últimos 7 dias;
 --   franquia      80% ou mais das mensagens do mês usadas;
 --   assinatura    teste no fim, assinatura vencendo (no Pix) ou vencida,
---                 pagamento pendente.
+--                 pagamento pendente;
+--   conta_excluida  clientes que excluíram a conta do link (56), até o balcão
+--                 ver o aviso.
 --
 -- E os AVISOS DO AGENDAPRO: o que a plataforma escreve no admin (novidade,
 -- manutenção, recado) aparece no sino de todos os salões até a pessoa
@@ -21464,7 +21484,7 @@ returns jsonb language plpgsql stable security definer set search_path = public 
 declare
   v_toda boolean; v_gestor boolean; v_prof uuid; v_hoje date; v_fuso text;
   v_itens jsonb := '[]'::jsonb; v_avisos jsonb; n int; v_valor numeric;
-  v_uso int; v_teto int; s record; v_cfg jsonb;
+  v_uso int; v_teto int; s record; v_cfg jsonb; v_nomes text[]; v_hor int; v_pac int;
 begin
   if auth.uid() is null or p_salao is null or not public.e_equipe(p_salao) then
     raise exception 'Só a equipe do salão vê os avisos.' using errcode = 'insufficient_privilege';
@@ -21523,6 +21543,25 @@ begin
      where x.saldo > 0;
     if n > 0 then
       v_itens := v_itens || jsonb_build_object('tipo', 'parcelas', 'qtd', n, 'valor', v_valor);
+    end if;
+
+    -- Clientes que excluíram a conta do link (56) e o balcão ainda não viu:
+    -- quem, e quantas ainda têm horário marcado ou pacote ativo.
+    select count(*), (array_agg(c.nome order by c.conta_excluida_em desc))[1:3],
+           count(*) filter (where exists (select 1 from public.agendamentos a
+                                           where a.cliente_id = c.id and a.arquivado_em is null
+                                             and a.status in ('pendente', 'confirmado') and a.inicio > now())),
+           count(*) filter (where exists (select 1 from public.pacote_clientes pc
+                                           where pc.cliente_id = c.id and pc.cancelado_em is null
+                                             and pc.vence_em >= v_hoje))
+      into n, v_nomes, v_hor, v_pac
+      from public.clientes c
+     where c.salao_id = p_salao and c.conta_excluida_em is not null
+       and c.conta_excluida_vista_em is null
+       and c.conta_excluida_em > now() - interval '30 days';
+    if n > 0 then
+      v_itens := v_itens || jsonb_build_object('tipo', 'conta_excluida', 'qtd', n,
+        'nomes', to_jsonb(coalesce(v_nomes, '{}'::text[])), 'comHorario', v_hor, 'comPacote', v_pac);
     end if;
   end if;
 
@@ -21800,3 +21839,72 @@ end $$;
 
 revoke all on function public.relatorio_vendas(uuid, date, date) from public, anon;
 grant execute on function public.relatorio_vendas(uuid, date, date) to authenticated;
+
+-- ###########################################################################
+-- ## 56_conta_excluida.sql
+-- ###########################################################################
+
+-- ===========================================================================
+-- 56_conta_excluida.sql — a cliente excluiu a conta: o salão fica sabendo
+--
+-- O pedido: "e quando algum cliente excluir a conta dele, o que aparece pro
+-- dono do salão?" Não aparecia nada. A exclusão (36) tira só o login dela: a
+-- ficha é do SALÃO e continua em Clientes (`clientes.perfil_id` vira nulo),
+-- com os horários marcados — e os lembretes, que vão para o WhatsApp da
+-- ficha. O dono não tinha como saber que ela não entra mais pelo link.
+--
+-- Agora a ficha guarda QUANDO a conta sumiu (`conta_excluida_em`), Clientes
+-- mostra "excluiu a conta do link em 04/11", e o sino avisa o balcão — com
+-- quantas ainda têm horário marcado ou pacote ativo, que é o que pede uma
+-- ligação. Visto o aviso, ele sai do sino (`conta_excluida_vista_em`); a
+-- marca na ficha fica.
+--
+-- ── COMO O BANCO SABE ─────────────────────────────────────────────────────
+-- Pelo próprio caminho da exclusão: apagar a conta (auth.users) apaga o
+-- perfil, e a chave `clientes.perfil_id ... on delete set null` desliga a
+-- ficha. O gatilho abaixo vê esse desligamento e confere que o perfil não
+-- existe mais — então foi a CONTA que sumiu (pelo botão Excluir conta ou
+-- pelo painel do Supabase), e não outra coisa desligando a ficha. Se ela
+-- voltar e criar conta de novo com o mesmo WhatsApp, a ficha é religada e a
+-- marca sai.
+-- ===========================================================================
+
+alter table public.clientes add column if not exists conta_excluida_em timestamptz;
+alter table public.clientes add column if not exists conta_excluida_vista_em timestamptz;
+
+create or replace function public.tg_cliente_conta_excluida()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if old.perfil_id is not null and new.perfil_id is null
+     and not exists (select 1 from public.perfis p where p.id = old.perfil_id) then
+    new.conta_excluida_em := now();
+    new.conta_excluida_vista_em := null;
+  elsif new.perfil_id is not null and old.perfil_id is null then
+    -- Voltou: criou conta de novo e a ficha foi religada.
+    new.conta_excluida_em := null;
+    new.conta_excluida_vista_em := null;
+  end if;
+  return new;
+end $$;
+revoke all on function public.tg_cliente_conta_excluida() from public, anon, authenticated;
+drop trigger if exists tg_cliente_conta_excluida on public.clientes;
+create trigger tg_cliente_conta_excluida
+  before update of perfil_id on public.clientes
+  for each row execute function public.tg_cliente_conta_excluida();
+
+-- O balcão viu o aviso do sino: sai de lá (a marca na ficha fica).
+create or replace function public.ver_contas_excluidas(p_salao uuid)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not public.ve_agenda_toda(p_salao) then
+    raise exception 'Só o balcão e a gestão veem este aviso.' using errcode = 'insufficient_privilege';
+  end if;
+  update public.clientes set conta_excluida_vista_em = now()
+   where salao_id = p_salao and conta_excluida_em is not null and conta_excluida_vista_em is null;
+  get diagnostics n = row_count;
+  return jsonb_build_object('ok', true, 'vistas', n);
+end $$;
+
+revoke all on function public.ver_contas_excluidas(uuid) from public, anon;
+grant execute on function public.ver_contas_excluidas(uuid) to authenticated;

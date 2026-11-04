@@ -261,14 +261,16 @@ begin
   perform t_texto('agora a mensagem do horário diz que o pacote está pago',
     (select public.pecas_agendamento(a.id)->>'pagamento' from public.agendamentos a
       where a.pacote_cliente_id = pc.id limit 1), 'Pacote já pago (Pix)');
-  perform t_texto('com o valor do pacote',
+  -- Pago, cada sessão diz R$ 0,00 — e não "R$ 300,00" em cada uma, que fazia
+  -- a cliente achar que pagava o pacote toda vez.
+  perform t_texto('e o valor da sessão é R$ 0,00 (sessão do pacote)',
     (select public.pecas_agendamento(a.id)->>'valor' from public.agendamentos a
-      where a.pacote_cliente_id = pc.id limit 1), 'R$ 300,00 (valor do pacote)');
+      where a.pacote_cliente_id = pc.id limit 1), 'R$ 0,00 — sessão do pacote');
   -- O lembrete da véspera, que nasceu "a pagar", é reescrito quando paga.
-  perform t_igual('os lembretes que ainda vão sair são reescritos: pago no Pix, com o valor',
+  perform t_igual('os lembretes que ainda vão sair são reescritos: pago no Pix, sessão R$ 0,00',
     (select count(*)::int from public.notificacoes n join public.agendamentos a on a.id = n.agendamento_id
       where a.pacote_cliente_id = pc.id and n.tipo = 'lembrete' and n.status = 'pendente'
-        and n.corpo like '%R$ 300,00 (valor do pacote)%' and n.corpo like '%Pacote já pago (Pix)%'
+        and n.corpo like '%R$ 0,00 — sessão do pacote%' and n.corpo like '%Pacote já pago (Pix)%'
         and n.variaveis::text like '%Pacote já pago (Pix)%'), 4);
 end $$;
 delete from public.plataforma_ajustes where chave = 'mensagensComPagamento';
