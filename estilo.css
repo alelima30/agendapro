@@ -3262,9 +3262,14 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
    e a cor de marca muda de salão para salão — o recado ficaria dourado num,
    rosa noutro, e em algum deles sem contraste nenhum. */
 .vv-pacote{
-  display:inline-block; font-size:12px; font-weight:700; line-height:1.2;
-  color:var(--ok); text-align:right; max-width:88px;
+  display:inline-block; font-size:13px; font-weight:700; line-height:1.25;
+  color:var(--ok);
 }
+/* Estava com largura máxima de 88px e alinhado à direita: no cartão da
+   lista, "R$ 0,00 · no seu pacote" quebrava em duas linhas, a segunda
+   recuada, enquanto o preço dos outros serviços fica numa linha só, à
+   esquerda. Agora segue o preço: à esquerda, e quebra só se o cartão não
+   couber. */
 .cs-min{ font-size:12px; color:var(--txt2); font-variant-numeric:tabular-nums }
 
 /* Sobrando um card no fim da categoria, ele ocupa a linha inteira e deita: a
