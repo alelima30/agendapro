@@ -3879,6 +3879,8 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .dia-cartao .dc-nome{ font-weight:700; font-size:14.5px }
 .dia-cartao .dc-sub{ font-size:13px; color:var(--txt2); margin-top:2px }
 /* As marcas da cliente (41_ficha_equipe.sql), embaixo do horário. */
+/* De qual pacote é a sessão (e qual sessão): na cor de destaque do tema. */
+.dia-cartao .dc-pacote{ display:block; font-size:12.5px; font-weight:700; color:var(--ac-600); margin-top:3px }
 .dia-cartao .dc-lembrete{ display:block; font-size:12.5px; font-weight:600; color:var(--txt); margin-top:3px }
 .lembrete-na-lista{ font-size:12px; font-weight:600; color:var(--txt) }
 /* Na grade do dia, dentro do bloco na cor da profissional: herda a letra

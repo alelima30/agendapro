@@ -250,6 +250,15 @@ h2{font-size:19px;font-weight:700;letter-spacing:-.02em}
 .ag .ag-pend{float:right;margin:0 0 2px 4px;padding:1px 6px;border-radius:99px;font-style:normal;
   font-size:11px;font-weight:800;line-height:1.35;background:#FEF3C7;color:#92400E;white-space:nowrap}
 .ag.curto .ag-pend{padding:0 5px}
+/* "pacote" no bloco da grade: no começo da segunda linha (a do serviço), que
+   corta com reticências pelo fim — a etiqueta nunca é a parte cortada. Fundo
+   sólido do cartão do tema e a letra de destaque: o bloco tem a cor do
+   profissional, qualquer uma, e a etiqueta não pode depender dela. No bloco
+   baixo, que só tem uma linha, ela vai ao lado do nome. */
+.ag .ag-pac{display:inline-block;margin-right:5px;padding:0 6px;border-radius:99px;font-style:normal;
+  font-size:10.5px;font-weight:800;line-height:1.5;background:var(--painel);color:var(--ac-600);vertical-align:1px}
+.ag.curto b{min-width:0}
+.ag.curto .ag-pac{flex:none;margin:0 0 0 5px}
 .vazio-slot{position:absolute;left:0;right:0;cursor:pointer}
 .vazio-slot:hover{background:rgba(37,99,235,.09)}
 
@@ -2169,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.3e08f1';
+const VERSAO_APP = 'v9.12246a';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -2889,13 +2898,15 @@ function pintarAgenda(){
       const zap = zapDoCliente(a.clienteId);
       html += `<div class="ag ${a.status}${curto}" style="top:${y(a.inicio)}px;height:${alt}px;
                     background:${corDoProf(p)};color:${letraSobre(corDoProf(p))}" title="${hm(a.inicio)} · ${escapar(nomeCliente(a.clienteId))} · ${escapar(rotuloServicos(a))}${
+                      a.pacoteClienteId ? ' · ' + escapar(rotuloDoPacote(a)) : ''}${
                       a.status === 'pendente' ? ' · a confirmar' : ''}${
                       resumoDoLembrete(a.clienteId) ? ' · ' + escapar(resumoDoLembrete(a.clienteId)) : ''}"
                     onclick="event.stopPropagation();abrirDetalhe('${a.id}')">
                  ${a.status === 'pendente' ? `<i class="ag-pend">${aguardaPagamentoDoPacote(a)
                    ? 'aguardando pagamento' : 'a confirmar'}</i>` : ''}
-                 <b>${hm(a.inicio)} ${escapar(nomeCliente(a.clienteId))}</b>
-                 <span>${escapar(rotuloServicos(a))}</span>${resumoDoLembrete(a.clienteId) ? `
+                 <b>${hm(a.inicio)} ${escapar(nomeCliente(a.clienteId))}</b>${
+                   a.pacoteClienteId && curto && a.status !== 'pendente' ? '<i class="ag-pac">pacote</i>' : ''}
+                 <span>${a.pacoteClienteId ? '<i class="ag-pac">pacote</i>' : ''}${escapar(rotuloServicos(a))}</span>${resumoDoLembrete(a.clienteId) ? `
                  <span class="ag-lembrete">${escapar(resumoDoLembrete(a.clienteId))}</span>` : ''}${zap ? `
                  <button class="ag-zap" aria-label="Falar no WhatsApp"
                          title="Falar com ${escapar(nomeCliente(a.clienteId))} no WhatsApp"
@@ -3075,6 +3086,7 @@ function cartaoDoDia(a){
           <span class="dc-sub">${hm(a.inicio)}–${hm(a.fim)} · ${
             escapar(rotuloServicos(a))} · ${
             escapar((acharProf(a.profissionalId) || {}).nome || '—')}</span>
+          ${a.pacoteClienteId ? `<span class="dc-pacote">${escapar(rotuloDoPacote(a))}</span>` : ''}
           ${resumoDoLembrete(a.clienteId) ? `<span class="dc-lembrete">${
             escapar(resumoDoLembrete(a.clienteId))}</span>` : ''}
         </span>
@@ -3234,12 +3246,14 @@ function pintarVariosDias(){
                width:calc(${larg}% - 6px);
                background:${corDoProf(p)};color:${letraSobre(corDoProf(p))}"
         title="${hm(a.inicio)} · ${escapar(nomeCliente(a.clienteId))} · ${escapar(p ? p.nome : '')}${
+          a.pacoteClienteId ? ' · ' + escapar(rotuloDoPacote(a)) : ''}${
           a.status === 'pendente' ? ' · a confirmar' : ''}${
           resumoDoLembrete(a.clienteId) ? ' · ' + escapar(resumoDoLembrete(a.clienteId)) : ''}"
         onclick="event.stopPropagation();abrirDetalhe('${a.id}')">
         ${a.status === 'pendente' ? '<i class="ag-pend">a confirmar</i>' : ''}
-        <b>${hm(a.inicio)} ${escapar(nomeCliente(a.clienteId))}</b>
-        <span>${escapar(p ? p.nome : '')}</span></div>`;
+        <b>${hm(a.inicio)} ${escapar(nomeCliente(a.clienteId))}</b>${
+          a.pacoteClienteId && alt < 42 && a.status !== 'pendente' ? '<i class="ag-pac">pacote</i>' : ''}
+        <span>${a.pacoteClienteId ? '<i class="ag-pac">pacote</i>' : ''}${escapar(p ? p.nome : '')}</span></div>`;
     }
     html += '</div>';
   }
@@ -4183,6 +4197,26 @@ const aguardaPagamentoDoPacote = a => !!a && a.status === 'pendente'
 const sessoesDaVenda = vid => agendaDoSalao()
   .filter(a => a.pacoteClienteId === vid && a.status !== 'cancelado')
   .sort((x, y) => x.data.localeCompare(y.data) || x.inicio - y.inicio);
+/* ── O PACOTE NA AGENDA ────────────────────────────────────────────────────
+   "Na agenda tem que aparecer pacote a pessoa marcada." O cartão mostrava
+   R$ 0,00 e nada dizia por quê — quem olhava a agenda achava que era
+   cortesia, ou erro. Agora diz de qual pacote é e qual sessão é ("Pacote Unha
+   em dia · sessão 2 de 4"). A conta é a mesma do "Ver horários": as sessões
+   do vínculo que não foram canceladas, por data (a falta também gasta). */
+function sessaoDoPacote(a){
+  const v = vendaDoAgendamento(a);
+  if(!v) return null;
+  const p = pacotesDoSalao().find(x => x.id === v.pacoteId) || {};
+  const ss = sessoesDaVenda(v.id);
+  const i = ss.findIndex(x => x.id === a.id);
+  return { nome: p.nome || 'pacote', n: i >= 0 ? i + 1 : null,
+           total: Number(v.sessoes || p.sessoes) || null };
+}
+function rotuloDoPacote(a){
+  const sp = sessaoDoPacote(a);
+  if(!sp) return a && a.pacoteClienteId ? 'Pacote' : '';
+  return 'Pacote ' + sp.nome + (sp.n && sp.total ? ' · sessão ' + sp.n + ' de ' + sp.total : '');
+}
 const diaDoPacote = d => DIAS_CURTOS[new Date(d + 'T12:00').getDay()] + ' ' + d.slice(8, 10) + '/' + d.slice(5, 7);
 
 let montagem = null;

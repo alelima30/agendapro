@@ -16,7 +16,8 @@
         até trocar o horário;
      4. "A receber" no topo, "Recebi", e o horário passa a dizer "já paga";
      5. Renovar abre as próximas 4 terças no mesmo esquema;
-     6. quem atende não vê a aba.
+     6. quem atende não vê a aba;
+     … e, no fim, a agenda diz que o atendimento é do pacote (10).
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -384,6 +385,39 @@ secao('9. Tocar na cliente do pacote: todos os horários, o pagamento e o que re
     await pd.evaluate(() => document.getElementById('fundo').classList.contains('on')
       && !document.getElementById('pkDetHorarios')));
   verdade('   a 390px a janela cabe', await pd.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  await ctx.close();
+}
+
+secao('10. Na agenda, o atendimento diz que é do pacote');
+{
+  // "Na agenda tem que aparecer pacote a pessoa marcada." (relatado com print:
+  // o cartão dizia R$ 0,00 e nada mais.)
+  const ses = await linhas(`select id, to_char(inicio at time zone 'America/Sao_Paulo', 'YYYY-MM-DD') d
+    from public.agendamentos where pacote_cliente_id = $1 and status <> 'cancelado' order by inicio`, [vMaria.id]);
+  const total = (await linhas(`select sessoes from public.pacote_clientes where id = $1`, [vMaria.id]))[0].sessoes;
+  const alvo = ses[1] || ses[0], n = ses.indexOf(alvo) + 1;
+  // No mesmo dia, um horário que NÃO é de pacote: não leva a marca.
+  await banco.query(`insert into public.agendamentos (salao_id, cliente_id, profissional_id, inicio, fim, status, origem, valor_previsto)
+    values ($1, $2, $3, ($4::date + time '09:00') at time zone 'America/Sao_Paulo',
+            ($4::date + time '09:45') at time zone 'America/Sao_Paulo', 'confirmado', 'recepcao', 40)`, [SALAO, JOANA.id, JU.id, alvo.d]);
+  const { ctx, p: pa } = await abrirPainel(dDona, 'dona');
+  await pa.evaluate(d => { irPara('agenda'); diaAtual = d; vistaAgenda = 'mes'; pintar(); }, alvo.d);
+  await pa.waitForTimeout(600);
+  const cartoes = await pa.evaluate(() => [...document.querySelectorAll('#listaDoDia .dia-cartao')].map(c => ({
+    t: c.innerText.replace(/\s+/g, ' '), pac: !!c.querySelector('.dc-pacote') })));
+  const daMaria = cartoes.find(c => /Maria Souza/.test(c.t)) || {}, daJoana = cartoes.find(c => /Joana Lima/.test(c.t) && /09:00/.test(c.t)) || {};
+  verdade(`no cartão do dia (vista Mês): "Pacote Mão e pé mensal · sessão ${n} de ${total}"`,
+    (daMaria.t || '').includes(`Pacote Mão e pé mensal · sessão ${n} de ${total}`), daMaria.t);
+  verdade('   e o horário fora do pacote, no mesmo dia, não leva a marca', daJoana.t && !daJoana.pac, JSON.stringify(daJoana));
+  const naGrade = () => pa.evaluate(() => [...document.querySelectorAll('.ag')].map(b => ({
+    maria: /Maria Souza/.test(b.innerText), joana9: /09:00 Joana Lima/.test(b.innerText), pac: !!b.querySelector('.ag-pac') })));
+  await pa.evaluate(() => trocarVista('dia')); await pa.waitForTimeout(600);
+  let g = await naGrade();
+  verdade('na grade do dia, o bloco da Maria leva a etiqueta "pacote"; o da Joana às 9h, não',
+    g.some(b => b.maria && b.pac) && g.some(b => b.joana9) && !g.some(b => b.joana9 && b.pac), JSON.stringify(g));
+  await pa.evaluate(() => trocarVista('semana')); await pa.waitForTimeout(600);
+  g = await naGrade();
+  verdade('   e na grade da semana também', g.some(b => b.maria && b.pac) && !g.some(b => b.joana9 && b.pac), JSON.stringify(g));
   await ctx.close();
 }
 
