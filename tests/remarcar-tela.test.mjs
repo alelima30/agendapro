@@ -21,7 +21,8 @@
      8. excluir o pacote: o Excluir fica à vista no cartão; com cliente
         dentro, a janela não exclui — mostra quem está, com o Tirar de cada
         uma; tirada a última, a mesma janela oferece o Excluir, e o pacote
-        sai da lista (o histórico fica). O que nunca foi vendido, apaga;
+        sai da lista (o histórico fica). O que nunca foi vendido, apaga — e
+        o segundo toque, com a internet lenta, não dá erro;
      9. a 390px a janela cabe; nenhum erro de JavaScript.
    =========================================================================== */
 import fs from 'node:fs';
@@ -331,9 +332,32 @@ await p.click('#listaPacotes .pk-botoes .btn-perigo'); await p.waitForTimeout(60
 jx = await janelaExcluir();
 verdade('o que nunca foi vendido: pelo cartão, a janela pergunta e diz que será apagado',
   /Excluir o pacote Nunca vendido\?/.test(jx.texto) && /nunca foi vendido e será apagado/.test(jx.texto), JSON.stringify(jx));
+/* "Não consegui excluir o pacote. Não achei este pacote." (relatado com
+   print): na internet do celular, o segundo toque saía com o primeiro ainda
+   andando. Aqui a resposta demora 1,5 s, como lá. */
+await p.route('**/rpc/excluir_pacote', async r => { await new Promise(x => setTimeout(x, 1500)); await r.continue(); });
+dialogos.length = 0;
+await p.click('#modalPe .btn:has-text("Excluir o pacote")'); await p.waitForTimeout(300);
+igual('enquanto exclui, a janela trava e o botão diz "Excluindo…"', await p.evaluate(() =>
+  [...document.querySelectorAll('#modalPe .btn')].map(b => b.textContent.trim() + (b.disabled ? '' : ' (solto)'))),
+  ['Cancelar', 'Excluindo…']);
+await p.evaluate(pid => confirmarExcluirPacote(pid), solto.id);   // o segundo toque, se passasse
+await p.waitForTimeout(3500);
+await p.unroute('**/rpc/excluir_pacote');
+igual('o segundo toque não faz nada: nenhum erro, e some do banco e da lista', [dialogos,
+  (await linha(`select count(*)::int n from public.pacotes where id = $1`, [solto.id])).n,
+  await p.evaluate(() => /Nunca vendido/.test(document.getElementById('listaPacotes').innerText))], [[], 0, false]);
+// A tela atrasada: excluído noutro aparelho, ainda aparece aqui.
+const outro = await dona.inserir('pacotes', { salaoId: SALAO, nome:'Excluído noutro aparelho', preco:90,
+  sessoes:2, validadeDias:30, dias:[0,1,2,3,4,5,6], ativo:true });
+await p.evaluate(async () => { const novo = await carregarTudo(); if(novo) bd = novo; fecharModal(); pintarPacotes(); });
+await banco.query(`delete from public.pacotes where id = $1`, [outro.id]);
+dialogos.length = 0;
+await p.click('#listaPacotes .pk-botoes .btn-perigo'); await p.waitForTimeout(600);
 await p.click('#modalPe .btn:has-text("Excluir o pacote")'); await p.waitForTimeout(2500);
-igual('e some do banco e da lista', [(await linha(`select count(*)::int n from public.pacotes where id = $1`, [solto.id])).n,
-  await p.evaluate(() => /Nunca vendido/.test(document.getElementById('listaPacotes').innerText))], [0, false]);
+igual('já excluído noutro aparelho: sem erro, a janela fecha e ele sai da lista', [dialogos,
+  await p.evaluate(() => document.getElementById('fundo').classList.contains('on')),
+  await p.evaluate(() => /Excluído noutro aparelho/.test(document.getElementById('listaPacotes').innerText))], [[], false, false]);
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 secao('9. Quem atendeu: a troca depois da hora');

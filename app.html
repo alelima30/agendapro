@@ -2169,7 +2169,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.3b6e9c';
+const VERSAO_APP = 'v9.3e08f1';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3720,30 +3720,81 @@ function excluirPacote(pid){
      ['Excluir o pacote', `confirmarExcluirPacote('${pid}')`, 'btn-perigo']]);
 }
 
-async function confirmarExcluirPacote(pid){
-  if(!souGestor()) return;
-  const p = pacotesDoSalao().find(x => x.id === pid);
-  if(!p) return;
-  const vendido = (bd.pacote_clientes || []).some(v => v.pacoteId === pid);
-  if(!NA_NUVEM){
-    if(vendido){ p.arquivadoEm = new Date().toISOString(); p.ativo = false; }
-    else{
-      bd.pacotes = (bd.pacotes || []).filter(x => x.id !== pid);
-      bd.pacote_servicos = (bd.pacote_servicos || []).filter(x => x.pacoteId !== pid);
-    }
-    salvar(); fecharModal(); pintarPacotes();
-    return;
+/* ⚠ UM TOQUE SÓ, NAS AÇÕES DO PACOTE.
+
+   Relatado com print: "Não consegui excluir o pacote. Não achei este
+   pacote." — e o pacote TINHA sido excluído. Na internet do celular a
+   resposta demora; o segundo toque em "Excluir o pacote" saía com o primeiro
+   ainda andando, o primeiro apagava, e o segundo chegava ao banco quando já
+   não havia o que apagar. Erro na tela para uma exclusão que deu certo.
+
+   Enquanto a ação anda, um segundo toque não faz nada, e os botões da janela
+   (e o que foi tocado) ficam travados, com o principal dizendo o que está
+   acontecendo. Vale para Excluir, Receber, Desfazer pagamento e Tirar.
+   Quem confere de verdade continua sendo o banco: um pagamento repetido ele
+   já recusava ("Este pacote já está pago"). */
+const _pacoteEmCurso = new Set();
+async function pacoteUmaVez(chave, aviso, fn){
+  if(_pacoteEmCurso.has(chave)) return;
+  _pacoteEmCurso.add(chave);
+  const fundo = document.getElementById('fundo');
+  const bts = new Set(fundo && fundo.classList.contains('on')
+    ? fundo.querySelectorAll('.modal button') : []);
+  /* O botão tocado: pelo evento do clique (no iPhone, tocar não dá foco ao
+     botão), e pelo foco como reserva. Na janela Excluir há um Tirar por
+     cliente — o "Tirando…" vai no dela, e não no primeiro da lista. */
+  const ev = window.event;
+  const tocado = (ev && ev.target && ev.target.closest && ev.target.closest('button'))
+    || (document.activeElement && document.activeElement.tagName === 'BUTTON' ? document.activeElement : null);
+  if(tocado) bts.add(tocado);
+  const antes = [...bts].map(b => [b, b.disabled, b.innerHTML]);
+  for(const b of bts) b.disabled = true;
+  if(aviso){
+    const alvo = tocado && tocado.textContent.trim() === aviso[0] ? tocado
+      : [...bts].find(b => b.textContent.trim() === aviso[0]);
+    if(alvo) alvo.textContent = aviso[1];
   }
-  try{
-    try{ await _filaGravacao; }catch(e){}
-    await Dados.chamar('excluir_pacote', { p_pacote: pid });
+  try{ return await fn(); }
+  finally{
+    _pacoteEmCurso.delete(chave);
+    // A janela trocada (fechou, ou abriu outra) já levou os botões velhos.
+    for(const [b, d, h] of antes)
+      if(document.body.contains(b)){ b.disabled = d; b.innerHTML = h; }
+  }
+}
+
+function confirmarExcluirPacote(pid){
+  return pacoteUmaVez('excluir:' + pid, ['Excluir o pacote', 'Excluindo…'], async () => {
+    if(!souGestor()) return;
+    const p = pacotesDoSalao().find(x => x.id === pid);
+    if(!p) return;
+    const vendido = (bd.pacote_clientes || []).some(v => v.pacoteId === pid);
+    if(!NA_NUVEM){
+      if(vendido){ p.arquivadoEm = new Date().toISOString(); p.ativo = false; }
+      else{
+        bd.pacotes = (bd.pacotes || []).filter(x => x.id !== pid);
+        bd.pacote_servicos = (bd.pacote_servicos || []).filter(x => x.pacoteId !== pid);
+      }
+      salvar(); fecharModal(); pintarPacotes();
+      return;
+    }
+    try{
+      try{ await _filaGravacao; }catch(e){}
+      await Dados.chamar('excluir_pacote', { p_pacote: pid });
+    }catch(e){
+      /* "Não achei este pacote": ele já não está no banco — excluído por um
+         toque anterior ou noutro aparelho. É o que ela queria: a tela só
+         estava atrasada. Recarrega e segue, sem erro. */
+      if(!/Não achei este pacote/.test(e.message || '')){
+        alert('Não consegui excluir o pacote.\n\n' + (e.message || e));
+        return;
+      }
+    }
     const novo = await carregarTudo();
     if(novo) bd = novo;
     fecharModal();
     pintarPacotes();
-  }catch(e){
-    alert('Não consegui excluir o pacote.\n\n' + (e.message || e));
-  }
+  });
 }
 
 function salvarPacote(pid){
@@ -4487,7 +4538,10 @@ function abrirReceberPacote(vid){
     <p class="ajuda">Entra no faturamento de hoje.</p>`,
     [['Cancelar', 'fecharModal()'], ['Receber', `receberPacote('${vid}')`, 'btn-p']]);
 }
-async function receberPacote(vid){
+function receberPacote(vid){
+  return pacoteUmaVez('receber:' + vid, ['Receber', 'Recebendo…'], () => receberPacoteAgora(vid));
+}
+async function receberPacoteAgora(vid){
   const valor = Math.round(Number(String(document.getElementById('rpValor').value).replace(',', '.')) * 100) / 100;
   if(!(valor > 0)){ alert('Diga quanto ela pagou.'); return; }
   const venda = (bd.pacote_clientes || []).find(x => x.id === vid) || {};
@@ -4508,7 +4562,10 @@ async function receberPacote(vid){
     alert('Não consegui registrar o pagamento.\n\n' + (e.message || e));
   }
 }
-async function desfazerRecebimento(vid){
+function desfazerRecebimento(vid){
+  return pacoteUmaVez('desfazer:' + vid, null, () => desfazerRecebimentoAgora(vid));
+}
+async function desfazerRecebimentoAgora(vid){
   if(!souGestor()) return;
   if(!confirm('Desfazer o pagamento deste pacote?\n\nO valor sai do faturamento e o pacote '
             + 'volta a ficar a receber. As sessões que ainda vão acontecer voltam a ficar '
@@ -4533,7 +4590,10 @@ async function desfazerRecebimento(vid){
    on*="…". */
 /* `deExcluir`: veio da janela Excluir o pacote — tirada, ela volta para lá
    (com a próxima cliente, ou já com o Excluir, se foi a última). */
-async function tirarDoPacote(vendaId, nome, deExcluir){
+function tirarDoPacote(vendaId, nome, deExcluir){
+  return pacoteUmaVez('tirar:' + vendaId, ['Tirar', 'Tirando…'], () => tirarDoPacoteAgora(vendaId, nome, deExcluir));
+}
+async function tirarDoPacoteAgora(vendaId, nome, deExcluir){
   if(!souGestor()) return;
   const vem = sessoesDaVenda(vendaId).filter(sessaoAindaVem).length;
   if(!confirm('Tirar ' + (nome || 'esta cliente') + ' do pacote?\n\n'
