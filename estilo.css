@@ -5153,6 +5153,10 @@ label.pedido-chave{ font-weight:600 }
 .pk-fixa{ font-size:12.5px; color:var(--txt2) }
 .pk-acoes{ text-align:right }
 .pk-acoes .btn{ margin:2px 0 2px 4px }
+/* Editar e Excluir lado a lado, embaixo do preço (à esquerda no celular,
+   como o próprio preço). */
+.pk-botoes{ display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; margin-top:6px }
+@media (max-width:640px){ .pk-botoes{ justify-content:flex-start } }
 .pk-fixa-chave{ display:flex; gap:10px; align-items:flex-start; cursor:pointer }
 .pk-fixa-chave input{ width:auto; margin-top:3px }
 .pk-semanas{ display:flex; flex-direction:column; gap:10px }

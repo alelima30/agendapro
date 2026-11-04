@@ -20361,17 +20361,32 @@ grant execute on function public.trocar_quem_atende(uuid, uuid) to authenticated
 --
 -- E o banco segura o resto: apagar direto (pela API, pela sincronização do
 -- painel) um pacote com cliente ou com histórico é recusado.
+--
+-- ── "SÓ SE NÃO TIVER NENHUM ATENDIMENTO MAIS A FAZER" ─────────────────────
+-- O segundo pedido: "os pacotes só poderão ser excluídos se não tiver nenhum
+-- atendimento mais a se fazer, ou seja, antes de excluir tem que retirar,
+-- desvincular". Contar só a validade deixava um furo: o vínculo vencido com
+-- uma sessão ainda marcada para a frente (remarcada para depois do
+-- vencimento, por exemplo). Ninguém aparecia "no pacote", o pacote saía da
+-- lista — e o horário continuava na agenda como sessão de um pacote que não
+-- estava mais em lugar nenhum. Agora esse vínculo também conta como gente
+-- no pacote, até ser tirado (o Tirar cancela as sessões que ainda viriam).
 -- ===========================================================================
 
 alter table public.pacotes add column if not exists arquivado_em timestamptz;
 
--- Quem está NO pacote agora: não cancelado e ainda dentro da validade.
+-- Quem está NO pacote agora: não cancelado, e ainda dentro da validade OU
+-- com sessão do pacote ainda por acontecer (as mesmas que o Tirar cancela).
 create or replace function public.clientes_no_pacote(p_pacote uuid)
 returns text language sql stable security definer set search_path = public as $$
-  select string_agg(c.nome, ', ' order by c.nome)
+  select string_agg(distinct c.nome, ', ' order by c.nome)
     from public.pacote_clientes pc join public.clientes c on c.id = pc.cliente_id
    where pc.pacote_id = p_pacote and pc.cancelado_em is null
-     and pc.vence_em >= public.hoje_no_salao(c.salao_id)
+     and (pc.vence_em >= public.hoje_no_salao(c.salao_id)
+          or exists (select 1 from public.agendamentos a
+                      where a.pacote_cliente_id = pc.id
+                        and a.status in ('pendente', 'confirmado')
+                        and a.inicio > now()))
 $$;
 
 create or replace function public.excluir_pacote(p_pacote uuid)
@@ -20388,7 +20403,7 @@ begin
   end if;
   v_quem := public.clientes_no_pacote(p_pacote);
   if v_quem is not null then
-    raise exception 'Ainda tem cliente neste pacote (%). Tire do pacote primeiro, ou espere vencer.', v_quem
+    raise exception 'Ainda tem cliente neste pacote (%). Tire do pacote primeiro (botão Tirar) e depois exclua.', v_quem
       using errcode = 'check_violation';
   end if;
   if not exists (select 1 from public.pacote_clientes pc where pc.pacote_id = p_pacote) then
@@ -20411,7 +20426,7 @@ begin
   if pg_trigger_depth() > 1 then return old; end if;
   v_quem := public.clientes_no_pacote(old.id);
   if v_quem is not null then
-    raise exception 'Ainda tem cliente neste pacote (%). Tire do pacote primeiro, ou espere vencer.', v_quem
+    raise exception 'Ainda tem cliente neste pacote (%). Tire do pacote primeiro (botão Tirar) e depois exclua.', v_quem
       using errcode = 'check_violation';
   end if;
   if exists (select 1 from public.pacote_clientes pc where pc.pacote_id = old.id) then

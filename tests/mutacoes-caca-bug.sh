@@ -166,8 +166,8 @@ troca app.html \
 
 echo "18. painel: pacote conta pelo dia aberto na agenda"
 troca app.html \
-  "    const vivas = vendas.filter(v => v.venceEm >= hoje());" \
-  "    const vivas = vendas.filter(v => v.venceEm >= diaAtual);" \
+  "const clienteNoPacote = v => v.venceEm >= hoje() || sessoesDaVenda(v.id).some(sessaoAindaVem);" \
+  "const clienteNoPacote = v => v.venceEm >= diaAtual || sessoesDaVenda(v.id).some(sessaoAindaVem);" \
   && rodar "contagem muda ao andar na agenda"
 
 echo "19. painel: busca de cliente exige acento"

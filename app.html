@@ -2169,7 +2169,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.17b7eb';
+const VERSAO_APP = 'v9.f8d308';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3498,6 +3498,12 @@ const servicosDoPacote = pid => (bd.pacote_servicos || [])
   .filter(x => x.pacoteId === pid).map(x => x.servicoId);
 const vendasDoPacote = pid => (bd.pacote_clientes || [])
   .filter(x => x.pacoteId === pid && !x.canceladoEm);
+/* Quem ainda está NO pacote: dentro da validade, OU com sessão do pacote
+   ainda por acontecer (vencido, mas com um horário remarcado para depois).
+   É a mesma conta do banco (`clientes_no_pacote`, 50_pacote_excluir.sql):
+   "só excluir se não tiver nenhum atendimento mais a se fazer". */
+const sessaoAindaVem = a => (a.status === 'pendente' || a.status === 'confirmado') && a.data >= hoje();
+const clienteNoPacote = v => v.venceEm >= hoje() || sessoesDaVenda(v.id).some(sessaoAindaVem);
 
 function pintarPacotes(){
   const alvo = document.getElementById('listaPacotes');
@@ -3535,7 +3541,7 @@ function pintarPacotes(){
     // Pelo dia de HOJE, e não pelo dia aberto na agenda: com a agenda em
     // 45 dias à frente, o pacote vendido hoje sumia da lista (achado pelo
     // caça-bug).
-    const vivas = vendas.filter(v => v.venceEm >= hoje());
+    const vivas = vendas.filter(clienteNoPacote);
     return `<div class="card" style="margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <div>
@@ -3555,8 +3561,10 @@ function pintarPacotes(){
         </div>
         <div class="ao-lado">
           <div style="font-size:19px;font-weight:800">${real(p.preco)}</div>
-          ${souGestor() ? `<button class="btn btn-peq" style="margin-top:6px"
-                  onclick="abrirPacote('${p.id}')">Editar</button>` : ''}
+          ${souGestor() ? `<div class="pk-botoes">
+            <button class="btn btn-peq" onclick="abrirPacote('${p.id}')">Editar</button>
+            <button class="btn btn-peq btn-perigo" onclick="excluirPacote('${p.id}')">Excluir</button>
+          </div>` : ''}
         </div>
       </div>
       <p style="font-size:13px;color:var(--txt2);margin-top:10px">
@@ -3668,27 +3676,55 @@ function abrirPacote(pid){
 }
 
 /* ── EXCLUIR O PACOTE ─────────────────────────────────────────────────────
-   "Só excluir quando não tiver pessoas nesse pacote." Com cliente dentro
-   (vínculo vivo, dentro da validade), não exclui e diz quem. Sem ninguém:
+   "Só excluir quando não tiver pessoas nesse pacote", e depois: "só se não
+   tiver nenhum atendimento mais a se fazer — antes de excluir, tem que
+   retirar, desvincular". O Excluir fica à vista no cartão (antes, só dentro
+   do Editar, e o dono não achava). Com cliente dentro, a janela não exclui:
+   mostra quem está, com os horários que ainda vêm, e o Tirar de cada uma ali
+   mesmo; tirada a última, a mesma janela oferece o Excluir. Sem ninguém:
    nunca vendido, apaga; já vendido, sai da lista e o histórico fica. Quem
    decide e confere é o banco (`excluir_pacote`, 50_pacote_excluir.sql). */
-async function excluirPacote(pid){
+function excluirPacote(pid){
   if(!souGestor()) return;
   const p = pacotesDoSalao().find(x => x.id === pid);
   if(!p) return;
-  const dentro = vendasDoPacote(pid).filter(v => v.venceEm >= hoje())
-    .map(v => nomeCliente(v.clienteId)).filter(Boolean);
+  const dentro = vendasDoPacote(pid).filter(clienteNoPacote);
   if(dentro.length){
-    alert('Não dá para excluir o pacote "' + p.nome + '": ainda tem cliente nele ('
-        + dentro.join(', ') + ').\n\nTire as clientes do pacote primeiro (botão Tirar, na '
-        + 'lista de Pacotes), ou espere o pacote delas vencer.');
+    abrirModal('Excluir o pacote', `
+      <p style="font-size:14px">Para excluir <b>${escapar(p.nome)}</b>, primeiro tire do
+        pacote quem ainda está nele (${dentro.length}).</p>
+      <table class="tab" style="margin-top:10px" id="pkExcluirLista"><tbody>${dentro.map(v => {
+        const vem = sessoesDaVenda(v.id).filter(sessaoAindaVem);
+        const nome = nomeCliente(v.clienteId);
+        return `<tr><td><b>${escapar(nome)}</b><br><span class="pk-fixa">${vem.length
+            ? vem.length + (vem.length === 1 ? ' horário marcado' : ' horários marcados')
+              + ' · próximo ' + diaDoPacote(vem[0].data) + ' ' + hm(vem[0].inicio)
+            : 'sem horário marcado · vence ' + porExtenso(v.venceEm)}</span></td>
+          <td class="pk-acoes"><button class="btn btn-peq" data-quem="${escapar(nome)}"
+               onclick="tirarDoPacote('${v.id}', this.dataset.quem, '${pid}')">Tirar</button></td></tr>`;
+      }).join('')}</tbody></table>
+      <p style="font-size:12.5px;color:var(--txt3);margin-top:10px">Ao tirar, os horários
+        do pacote que ainda iam acontecer saem da agenda. O que ela já fez continua no
+        histórico.</p>`,
+      [['Fechar', 'fecharModal()']]);
     return;
   }
   const vendido = (bd.pacote_clientes || []).some(v => v.pacoteId === pid);
-  if(!confirm('Excluir o pacote "' + p.nome + '"?\n\n' + (vendido
-      ? 'Ele já foi vendido antes: sai da lista e não pode mais ser vendido, mas o '
-        + 'histórico de quem teve o pacote continua guardado.'
-      : 'Ele nunca foi vendido e será apagado.'))) return;
+  abrirModal('Excluir o pacote', `
+    <p style="font-size:14px">Excluir o pacote <b>${escapar(p.nome)}</b>?</p>
+    <p style="font-size:13.5px;color:var(--txt2);margin-top:8px">${vendido
+      ? 'Ninguém está mais nele. Ele já foi vendido antes: sai da lista e não pode mais ser '
+        + 'vendido, mas o histórico de quem teve o pacote continua guardado.'
+      : 'Ele nunca foi vendido e será apagado.'}</p>`,
+    [['Cancelar', 'fecharModal()'],
+     ['Excluir o pacote', `confirmarExcluirPacote('${pid}')`, 'btn-perigo']]);
+}
+
+async function confirmarExcluirPacote(pid){
+  if(!souGestor()) return;
+  const p = pacotesDoSalao().find(x => x.id === pid);
+  if(!p) return;
+  const vendido = (bd.pacote_clientes || []).some(v => v.pacoteId === pid);
   if(!NA_NUVEM){
     if(vendido){ p.arquivadoEm = new Date().toISOString(); p.ativo = false; }
     else{
@@ -4495,8 +4531,15 @@ async function desfazerRecebimento(vid){
    nome — virava código rodando no painel do dono no clique. Achado pelo
    caça-bug; o `seguranca.test.mjs` agora reprova dado de gente dentro de
    on*="…". */
-async function tirarDoPacote(vendaId, nome){
+/* `deExcluir`: veio da janela Excluir o pacote — tirada, ela volta para lá
+   (com a próxima cliente, ou já com o Excluir, se foi a última). */
+async function tirarDoPacote(vendaId, nome, deExcluir){
+  if(!souGestor()) return;
+  const vem = sessoesDaVenda(vendaId).filter(sessaoAindaVem).length;
   if(!confirm('Tirar ' + (nome || 'esta cliente') + ' do pacote?\n\n'
+    + (vem ? (vem === 1 ? 'O horário do pacote que ainda ia acontecer sai'
+                        : 'Os ' + vem + ' horários do pacote que ainda iam acontecer saem')
+             + ' da agenda.\n' : '')
     + 'Os atendimentos que ela já fez pelo pacote continuam no histórico. '
     + 'Ela deixa de ter as sessões que ainda sobravam.')) return;
   try{
@@ -4504,6 +4547,7 @@ async function tirarDoPacote(vendaId, nome){
     const novo = await carregarTudo();
     if(novo) bd = novo;
     pintarPacotes();
+    if(deExcluir) excluirPacote(deExcluir);
   }catch(e){
     alert('Não consegui tirar.\n\n' + (e.message || e));
   }

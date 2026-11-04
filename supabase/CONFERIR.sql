@@ -1210,6 +1210,18 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                  and prosrc like '%sessão do pacote%')
               then 'cole as duas partes de novo (21_notificacoes)' else '' end
   union all
+  /* Excluir pacote: quem tem sessão do pacote ainda por fazer conta como
+     cliente no pacote, mesmo vencido (50) — tire primeiro, depois exclua. */
+  select 73, 'Excluir pacote: tirar antes quem tem horário',
+         case when to_regprocedure('public.clientes_no_pacote(uuid)') is null
+                or not exists (select 1 from pg_proc where proname = 'clientes_no_pacote'
+                                 and prosrc like '%a.inicio > now()%')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.clientes_no_pacote(uuid)') is null
+                or not exists (select 1 from pg_proc where proname = 'clientes_no_pacote'
+                                 and prosrc like '%a.inicio > now()%')
+              then 'cole a parte 2 de novo (50_pacote_excluir)' else '' end
+  union all
   /* A loja pelo link e os pacotes no Relatórios (55). */
   select 70, 'Relatórios: loja pelo link e pacotes',
          case when to_regprocedure('public.relatorio_vendas(uuid,date,date)') is null

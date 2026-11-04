@@ -9,7 +9,10 @@
 --      apagando direto;
 --   4. tirada a cliente: sai da lista (arquivado) e o histórico fica;
 --   5. vendido e vencido: o mesmo — arquiva, não apaga;
---   6. excluir o salão (a conta) ainda leva tudo junto, em cascata.
+--   6. vencido, mas com sessão do pacote ainda marcada para a frente: conta
+--      como cliente no pacote — só depois de tirar (e o Tirar cancela a
+--      sessão que viria) ele sai;
+--   7. excluir o salão (a conta) ainda leva tudo junto, em cascata.
 -- ===========================================================================
 \set ON_ERROR_STOP on
 
@@ -32,7 +35,8 @@ insert into public.servicos (id, salao_id, nome, duracao_min, intervalo_min, pre
 insert into public.pacotes (id, salao_id, nome, preco, sessoes, validade_dias) values
   ('55200000-0000-0000-0000-0000000000b1', '55000000-0000-0000-0000-00000000000a', 'Nunca vendido', 100, 4, 30),
   ('55200000-0000-0000-0000-0000000000b2', '55000000-0000-0000-0000-00000000000a', 'Com cliente',   200, 4, 30),
-  ('55200000-0000-0000-0000-0000000000b3', '55000000-0000-0000-0000-00000000000a', 'Vencido',       150, 4, 30);
+  ('55200000-0000-0000-0000-0000000000b3', '55000000-0000-0000-0000-00000000000a', 'Vencido',       150, 4, 30),
+  ('55200000-0000-0000-0000-0000000000b4', '55000000-0000-0000-0000-00000000000a', 'Vencido com horário', 150, 4, 30);
 insert into public.pacote_servicos (pacote_id, servico_id) values
   ('55200000-0000-0000-0000-0000000000b1', '55100000-0000-0000-0000-0000000000a1'),
   ('55200000-0000-0000-0000-0000000000b2', '55100000-0000-0000-0000-0000000000a1'),
@@ -44,8 +48,18 @@ insert into public.pacote_clientes (id, pacote_id, cliente_id, sessoes, vence_em
   ('55300000-0000-0000-0000-0000000000c2', '55200000-0000-0000-0000-0000000000b2',
    'c5100000-0000-0000-0000-00000000000a', 4, current_date + 20),
   ('55300000-0000-0000-0000-0000000000c3', '55200000-0000-0000-0000-0000000000b3',
+   'c5100000-0000-0000-0000-00000000000b', 4, current_date - 5),
+  ('55300000-0000-0000-0000-0000000000c4', '55200000-0000-0000-0000-0000000000b4',
    'c5100000-0000-0000-0000-00000000000b', 4, current_date - 5);
 grant usage on schema auth to anon, authenticated;
+
+create or replace function t_tirar(p_quem uuid, p_venda uuid) returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claim.sub', p_quem::text, true);
+  perform set_config('role', 'authenticated', true);
+  perform public.cancelar_pacote_cliente(p_venda);
+  perform set_config('role', 'postgres', true);
+end $$;
 
 create or replace function t_excluir(p_quem uuid, p_pac uuid) returns jsonb language plpgsql as $$
 declare r jsonb;
@@ -77,10 +91,10 @@ select t_verdade('sumiu, com os serviços dele',
 \echo '3. Com cliente dentro: não exclui, e diz quem'
 select t_texto('pela função',
   erro_de($$select t_excluir('a5000000-0000-0000-0000-00000000000a', '55200000-0000-0000-0000-0000000000b2')$$),
-  'Ainda tem cliente neste pacote (Maria Souza). Tire do pacote primeiro, ou espere vencer.');
+  'Ainda tem cliente neste pacote (Maria Souza). Tire do pacote primeiro (botão Tirar) e depois exclua.');
 select t_texto('nem apagando direto',
   erro_de($$delete from public.pacotes where id = '55200000-0000-0000-0000-0000000000b2'$$),
-  'Ainda tem cliente neste pacote (Maria Souza). Tire do pacote primeiro, ou espere vencer.');
+  'Ainda tem cliente neste pacote (Maria Souza). Tire do pacote primeiro (botão Tirar) e depois exclua.');
 select t_verdade('e o pacote continua, ativo, com a cliente',
   (select ativo and arquivado_em is null from public.pacotes where id = '55200000-0000-0000-0000-0000000000b2'));
 
@@ -104,7 +118,29 @@ select t_verdade('e o vínculo vencido continua no histórico',
   exists (select 1 from public.pacote_clientes where id = '55300000-0000-0000-0000-0000000000c3'));
 
 \echo ''
-\echo '6. Excluir o salão ainda leva tudo junto'
+\echo '6. Vencido, mas com sessão ainda por fazer: tire primeiro'
+insert into public.profissionais (id, salao_id, nome) values
+  ('55400000-0000-0000-0000-0000000000d1', '55000000-0000-0000-0000-00000000000a', 'Ju');
+insert into public.agendamentos (id, salao_id, cliente_id, profissional_id, inicio, fim, status, origem,
+                                 valor_previsto, pacote_cliente_id) values
+  ('55500000-0000-0000-0000-0000000000e1', '55000000-0000-0000-0000-00000000000a',
+   'c5100000-0000-0000-0000-00000000000b', '55400000-0000-0000-0000-0000000000d1',
+   now() + interval '4 days', now() + interval '4 days 45 minutes', 'confirmado', 'recepcao', 0,
+   '55300000-0000-0000-0000-0000000000c4');
+select t_texto('a Joana tem o pacote vencido, mas uma sessão marcada: não exclui',
+  erro_de($$select t_excluir('a5000000-0000-0000-0000-00000000000a', '55200000-0000-0000-0000-0000000000b4')$$),
+  'Ainda tem cliente neste pacote (Joana Lima). Tire do pacote primeiro (botão Tirar) e depois exclua.');
+select t_verdade('   nem apagando direto',
+  erro_de($$delete from public.pacotes where id = '55200000-0000-0000-0000-0000000000b4'$$) like 'Ainda tem cliente neste pacote (Joana Lima)%');
+select t_tirar('a5000000-0000-0000-0000-00000000000a', '55300000-0000-0000-0000-0000000000c4');
+select t_texto('tirada do pacote, a sessão que viria sai da agenda',
+  (select status || ' | ' || cancelado_motivo from public.agendamentos where id = '55500000-0000-0000-0000-0000000000e1'),
+  'cancelado | pacote cancelado');
+select t_texto('   e aí o pacote sai (arquivado: já foi vendido)', t_excluir('a5000000-0000-0000-0000-00000000000a',
+  '55200000-0000-0000-0000-0000000000b4')->>'acao', 'arquivado');
+
+\echo ''
+\echo '7. Excluir o salão ainda leva tudo junto'
 delete from public.saloes where id = '55000000-0000-0000-0000-00000000000a';
 select t_verdade('o salão e os pacotes (com histórico) saíram em cascata',
   not exists (select 1 from public.pacotes where salao_id = '55000000-0000-0000-0000-00000000000a'));
