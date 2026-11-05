@@ -159,7 +159,25 @@ await p.click('.cr-venda .cr-parcela >> nth=0 >> button:has-text("Recebi")');
 await p.waitForSelector('#crValor');
 await p.fill('#crValor', '60');
 await p.selectOption('#crForma', 'dinheiro');
+/* ⚠ O TOQUE DUPLO (caça-bug): a parcela aceita pagamento parcial, e na
+   internet do celular o segundo toque saía com o primeiro andando — "recebi
+   R$ 60" virava R$ 120 recebidos. Aqui a resposta demora 1,5 s, como lá. */
+const idParcela = ((await p.getAttribute('#fundo button:has-text("Receber")', 'onclick')) || '').match(/'([^']+)'/)[1];
+await p.route('**/rpc/receber_parcela', async r => { await new Promise(x => setTimeout(x, 1500)); await r.continue(); });
 await p.click('#fundo button:has-text("Receber")');
+await p.waitForTimeout(300);
+igual('enquanto grava, a janela trava e o botão diz "Recebendo…"', await p.evaluate(() =>
+  [...document.querySelectorAll('#modalPe .btn')].map(b => b.textContent.trim() + (b.disabled ? '' : ' (solto)'))),
+  ['Cancelar', 'Recebendo…']);
+await p.evaluate(id => receberParcela(id), idParcela);   // o segundo toque, se passasse
+await p.waitForTimeout(3000);
+await p.unroute('**/rpc/receber_parcela');
+/* Com R$ 60 de R$ 100, o banco recusaria o segundo ("tem R$ 40 em aberto")
+   e a tela mostraria erro; com R$ 40, ele passaria. Por isso as duas: um
+   recebimento só, e nenhum alerta. */
+igual('   e o segundo toque não faz nada: um recebimento só, de R$ 60, e nenhum alerta', [
+  (await linha(`select count(*)::int n, sum(valor)::text v from public.crediario_recebimentos where parcela_id = $1`, [idParcela])),
+  erros.filter(e => /alerta/.test(e))], [{ n: 1, v: '60.00' }, []]);
 await p.waitForFunction(() => /Recebido R\$\s?60,00/.test((document.getElementById('crCorpo') || {}).innerText || ''),
   null, { timeout: 15000 }).catch(() => {});
 const cartao = await texto(p, '.cr-venda');

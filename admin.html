@@ -753,7 +753,18 @@ async function ligarMensagemRemarcado(ligar){
 }
 
 /* ── Os avisos do sino ────────────────────────────────────────────────────── */
+/* Um aviso por toque: depois do "OK" da pergunta, o segundo toque saía com
+   o primeiro ainda andando e o sino recebia o aviso duas vezes. */
+let _publicandoAviso = false;
 async function publicarAviso(){
+  if(_publicandoAviso) return;
+  _publicandoAviso = true;
+  const bt = document.getElementById('btPublicarAviso');
+  if(bt) bt.disabled = true;
+  try{ await publicarAvisoAgora(); }
+  finally{ _publicandoAviso = false; if(bt) bt.disabled = false; }
+}
+async function publicarAvisoAgora(){
   const val = id => (document.getElementById(id) || {}).value || '';
   const titulo = val('avTitulo').trim(), texto = val('avTexto').trim();
   const para = val('avPara') || 'gestao', ate = val('avAte') || null, salao = val('avSalao') || null;

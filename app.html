@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.12246a';
+const VERSAO_APP = 'v9.fc639b';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -3746,11 +3746,18 @@ function excluirPacote(pid){
    (e o que foi tocado) ficam travados, com o principal dizendo o que está
    acontecendo. Vale para Excluir, Receber, Desfazer pagamento e Tirar.
    Quem confere de verdade continua sendo o banco: um pagamento repetido ele
-   já recusava ("Este pacote já está pago"). */
-const _pacoteEmCurso = new Set();
-async function pacoteUmaVez(chave, aviso, fn){
-  if(_pacoteEmCurso.has(chave)) return;
-  _pacoteEmCurso.add(chave);
+   já recusava ("Este pacote já está pago").
+
+   O caça-bug seguinte achou a mesma classe em outros botões, e um deles com
+   dinheiro: RECEBER PARCELA do crediário aceita pagamento parcial, então o
+   toque duplo de "recebi R$ 50" virava R$ 100 recebidos — parcela quitada e
+   caixa com dinheiro que não entrou. A trava passou a ser do painel inteiro
+   (`umaVez`) e vale também lá, no Desfazer do crediário, no Fechar caixa, no
+   Cancelar e nos estados do pedido, e no Gerar link do convite. */
+const _acaoEmCurso = new Set();
+async function umaVez(chave, aviso, fn){
+  if(_acaoEmCurso.has(chave)) return;
+  _acaoEmCurso.add(chave);
   const fundo = document.getElementById('fundo');
   const bts = new Set(fundo && fundo.classList.contains('on')
     ? fundo.querySelectorAll('.modal button') : []);
@@ -3770,12 +3777,14 @@ async function pacoteUmaVez(chave, aviso, fn){
   }
   try{ return await fn(); }
   finally{
-    _pacoteEmCurso.delete(chave);
+    _acaoEmCurso.delete(chave);
     // A janela trocada (fechou, ou abriu outra) já levou os botões velhos.
     for(const [b, d, h] of antes)
       if(document.body.contains(b)){ b.disabled = d; b.innerHTML = h; }
   }
 }
+
+const pacoteUmaVez = umaVez;
 
 function confirmarExcluirPacote(pid){
   return pacoteUmaVez('excluir:' + pid, ['Excluir o pacote', 'Excluindo…'], async () => {
@@ -5069,7 +5078,10 @@ function trocarPapelConvite(){
     : '<option value="">— todo mundo já tem login —</option>';
 }
 
-async function gerarConvite(){
+function gerarConvite(){
+  return umaVez('convite', ['Gerar link', 'Gerando…'], gerarConviteAgora);
+}
+async function gerarConviteAgora(){
   const escolhido = document.querySelector('input[name="vPapel"]:checked');
   const papel = escolhido ? escolhido.value : 'recepcao';
   const nome = (document.getElementById('vNome').value || '').trim();
@@ -5446,7 +5458,10 @@ function fecharGaveta(){
      ['Fechar caixa', 'confirmarFecharGaveta()', 'btn-p']]);
 }
 
-async function confirmarFecharGaveta(){
+function confirmarFecharGaveta(){
+  return umaVez('fechar-caixa', ['Fechar caixa', 'Fechando…'], confirmarFecharGavetaAgora);
+}
+async function confirmarFecharGavetaAgora(){
   const k = caixaAberto();
   const contado = Number(document.getElementById('gContado').value);
   const obs = (document.getElementById('gObs').value || '').trim() || null;
@@ -8358,7 +8373,14 @@ function mudarAcrescimo(comId, v){
   c.acrescimo = novo; salvar(); abrirComanda(comId);
 }
 
+/* ⚠ O SEGUNDO TOQUE EM "REGISTRAR PAGAMENTO". A comanda grava na hora e
+   reabre com o campo já preenchido com o que FALTA — no mesmo botão. Depois
+   de um pagamento parcial, o toque duplo registrava o restante sem a cliente
+   ter pago (o banco só recusa passar do total). Achado pelo caça-bug: um
+   segundo registro na mesma comanda em menos de 1,5 s é ignorado. */
+const _ultimoPagamento = {};
 function receber(comId){
+  if(Date.now() - (_ultimoPagamento[comId] || 0) < 1500) return;
   if(travadaSeFechada(comId)) return;
   const c = bd.comandas.find(x => x.id === comId);
   const valor = parseFloat(document.getElementById('cValor').value) || 0;
@@ -8388,6 +8410,7 @@ function receber(comId){
      a soma dobra, e o banco recusou — "excede o que falta nesta comanda". O
      sintoma apareceu como "a comanda paga não fecha". */
   c.pagamentos.push({id:id(), forma: document.getElementById('cForma').value, valor});
+  _ultimoPagamento[comId] = Date.now();
   salvar(); abrirComanda(comId);
 }
 
@@ -16657,7 +16680,10 @@ function abrirReceberParcela(vendaId, parcelaId){
     [['Cancelar', 'fecharModal()', ''], ['Receber', `receberParcela('${escapar(parcelaId)}')`, 'btn-p']]);
 }
 
-async function receberParcela(parcelaId){
+function receberParcela(parcelaId){
+  return umaVez('parcela:' + parcelaId, ['Receber', 'Recebendo…'], () => receberParcelaAgora(parcelaId));
+}
+async function receberParcelaAgora(parcelaId){
   const valor = Math.round(Number(String(document.getElementById('crValor').value).replace(',', '.')) * 100) / 100;
   if(!(valor > 0)){ alert('Diga quanto ela pagou.'); return; }
   try{
@@ -16670,7 +16696,10 @@ async function receberParcela(parcelaId){
   }
 }
 
-async function desfazerRecebimentoCrediario(recId){
+function desfazerRecebimentoCrediario(recId){
+  return umaVez('desfazer-receb:' + recId, null, () => desfazerRecebimentoCrediarioAgora(recId));
+}
+async function desfazerRecebimentoCrediarioAgora(recId){
   if(!souGestor()) return;
   if(!confirm('Desfazer este recebimento?\n\nA parcela volta a ficar em aberto e o valor sai do caixa.')) return;
   try{
@@ -17027,7 +17056,10 @@ function mandarCombinadoNoZap(comId){
   window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(linhas.join('\n')), '_blank', 'noopener');
 }
 
-async function desfazerVendaCrediario(comId){
+function desfazerVendaCrediario(comId){
+  return umaVez('desfazer-cred:' + comId, null, () => desfazerVendaCrediarioAgora(comId));
+}
+async function desfazerVendaCrediarioAgora(comId){
   if(emSuporte()) return avisoDoSuporte('desfazer a venda no crediário');
   if(!confirm('Desfazer a venda no crediário?\n\nAs parcelas saem, e a comanda volta a ficar aberta '
       + 'com o valor a receber, para você registrar do jeito certo. Só dá enquanto nenhuma parcela foi recebida.')) return;
@@ -17587,7 +17619,10 @@ async function confirmarVendaPedidoLoja(){
   }
 }
 
-async function cancelarPedidoLoja(id){
+function cancelarPedidoLoja(id){
+  return umaVez('cancelar-pedido-loja:' + id, null, () => cancelarPedidoLojaAgora(id));
+}
+async function cancelarPedidoLojaAgora(id){
   if(emSuporte()) return avisoDoSuporte('cancelar pedido');
   const p = (Array.isArray(pedidosLojaDados) ? pedidosLojaDados : []).find(x => x.id === id);
   if(!p) return;
@@ -21086,7 +21121,10 @@ function pintarPedidos(){
   carregarPedidos();
 }
 
-async function mudarPedido(id, status){
+function mudarPedido(id, status){
+  return umaVez('pedido:' + id, null, () => mudarPedidoAgora(id, status));
+}
+async function mudarPedidoAgora(id, status){
   let motivo = null;
   if(status === 'cancelado'){
     motivo = prompt('Cancelar este pedido?\n\nEscreva o motivo — ele vai para a cliente (ex.: acabou a massa).');
