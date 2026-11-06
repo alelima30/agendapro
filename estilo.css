@@ -4060,6 +4060,16 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
 .pd-dia-h b{ font-size:14.5px; flex:1 1 auto; min-width:76px }
 .pd-dia.fechado b{ color:var(--txt3); font-weight:600 }
 .pd-faixa{ display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap }
+/* O passo "Mais recursos": um cartão por recurso, nas cores do tema. */
+.pd-rec{ border:1px solid var(--borda); border-radius:12px; padding:12px 14px; margin-top:10px;
+  background:var(--painel) }
+.pd-rec-cab{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+.pd-rec-cab b{ font-size:15px }
+.pd-rec-txt{ font-size:13.5px; color:var(--txt2); margin:4px 0 8px; line-height:1.45 }
+.pd-rec-depois{ background:transparent; border-style:dashed }
+.pd-rec-depois .pd-rec-txt{ margin-bottom:0 }
+.pd-rec-ok{ font-size:13px; font-weight:700; color:var(--ok) }
+.pd-rec-rot{ font-size:13px; font-weight:700; color:var(--txt); margin:10px 0 6px }
 /* ⚠ 118px, e não 86. Com 86 o campo cabia "09:0" e cortava o resto — e num
    navegador em inglês, que mostra "07:00 PM", sobrava menos ainda. Hora
    cortada pela metade num editor de horário é o pior lugar possível para

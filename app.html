@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.fc639b';
+const VERSAO_APP = 'v9.1d53e7';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -7000,7 +7000,7 @@ function abrirModal(titulo, corpo, botoes){
      nenhum — "0", "—", "50" soltos, sem dizer o que era cada caixa. */
   rotularTabelas(document.getElementById('modalCorpo'), true);
 }
-function fecharModal(){ document.getElementById('fundo').classList.remove('on'); }
+function fecharModal(){ document.getElementById('fundo').classList.remove('on'); pdVoltarDaJanela(); }
 document.addEventListener('keydown', e => { if(e.key === 'Escape') fecharModal(); });
 
 /* ── Novo agendamento ────────────────────────────────────────────────── */
@@ -19629,6 +19629,10 @@ const PD_PASSOS = [
     sub:'O logo, a cor e a foto de capa da página que a cliente abre. Dá '
       + 'para pular e fazer depois em Meu negócio → Aparência.',
     desenhar: pdDesenharCara },
+  { titulo:'Mais recursos',
+    sub:'O que mais o AgendaPro faz. Ligue agora o que quiser — o resto fica '
+      + 'para depois, cada um na sua aba.',
+    desenhar: pdDesenharRecursos },
   { titulo:'Pronto — este é o seu link',
     sub:'É este endereço que você manda para a cliente. Ele já está no ar.',
     desenhar: pdDesenhar8 },
@@ -20766,6 +20770,216 @@ function pdCopiarLink(bt, id){
   }
 }
 
+/* ── Passo 10 · mais recursos ─────────────────────────────────────────────
+   "O passo a passo está com tudo o que adicionamos?" Não estava: o pacote, o
+   sinal no Pix, a loja no link, o convite da equipe e as mensagens chegaram
+   depois, cada um na sua aba, e o dono novo só descobria se fosse procurar.
+
+   É UM passo, e não um por recurso: o assistente continua curto. Um cartão
+   para cada, com "Ligar agora" (ou o que ligar quer dizer ali) e "Depois".
+   Tudo grava na hora, nos MESMOS lugares das telas próprias e com as mesmas
+   regras do plano — não existe "o pacote do assistente". O que ficou para
+   depois o "Pronto" lembra, dizendo onde está.
+
+   O pacote e o convite abrem a janela de sempre. O assistente fica POR CIMA
+   de tudo (z-index), então ele sai da frente enquanto a janela está aberta e
+   volta sozinho, no mesmo passo, quando ela fecha (`pdVoltarDaJanela`, no
+   `fecharModal`). */
+let pdRecursosDepois = new Set();
+const PD_RECURSO = {
+  pacote:    ['o pacote', '<b>Pacotes</b>'],
+  sinal:     ['o sinal no Pix', '<b>Meu negócio → Dados → Formas de pagamento</b>'],
+  loja:      ['a loja no link', '<b>Meu negócio → Dados → Produtos à venda</b>'],
+  mensagens: ['as mensagens', '<b>Meu negócio → Notificações</b>'],
+  equipe:    ['o convite da equipe', '<b>Equipe → Convidar alguém</b>'],
+};
+function pdRecursoDepois(chave, sim){
+  if(sim) pdRecursosDepois.add(chave); else pdRecursosDepois.delete(chave);
+  pdDesenhar();
+}
+function pdCartaoRecurso(chave, titulo, texto, corpo){
+  const onde = PD_RECURSO[chave][1];
+  if(pdRecursosDepois.has(chave)) return `
+    <div class="pd-rec pd-rec-depois" data-rec="${chave}">
+      <div class="pd-rec-cab"><b>${titulo}</b>
+        <button type="button" class="btn btn-peq" onclick="pdRecursoDepois('${chave}', false)">Ver de novo</button></div>
+      <p class="pd-rec-txt">Fica para depois — está em ${onde}.</p>
+    </div>`;
+  return `
+    <div class="pd-rec" data-rec="${chave}">
+      <div class="pd-rec-cab"><b>${titulo}</b>
+        <button type="button" class="btn btn-peq" onclick="pdRecursoDepois('${chave}', true)">Depois</button></div>
+      <p class="pd-rec-txt">${texto}</p>
+      ${corpo}
+    </div>`;
+}
+
+var pdVoltaDaJanela = false;
+function pdAbrirJanela(abrir){
+  pdVoltaDaJanela = true;
+  document.getElementById('primeiroDia').hidden = true;
+  abrir();
+}
+/* Chamado pelo `fecharModal`. Janela que fecha e abre outra na mesma volta
+   não traz o assistente de volta no meio — só quando não sobrou janela. */
+function pdVoltarDaJanela(){
+  if(!pdVoltaDaJanela) return;
+  setTimeout(() => {
+    if(!pdVoltaDaJanela || document.getElementById('fundo').classList.contains('on')) return;
+    pdVoltaDaJanela = false;
+    const painel = document.getElementById('primeiroDia');
+    if(painel){ painel.hidden = false; pdDesenhar(); }
+  }, 0);
+}
+
+function pdPagamentoAtual(){
+  const sl = acharSalao(salaoAtual) || {};
+  return Funcionamento.pagamentos((sl.cfg || {}).pagamentos) || {};
+}
+function pdSinal(pct){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  const pag = pdPagamentoAtual(), antes = pag.sinal || {};
+  const sinal = pct ? { tipo:'pct', valor: pct, prazoMin: antes.prazoMin || 60,
+                        titular: antes.titular || '', regra: antes.regra || '' } : null;
+  sl.cfg = Object.assign({}, sl.cfg, { pagamentos: Funcionamento.pagamentos({
+    formas: pag.formas || [], obs: pag.obs || '', pix: pag.pix || '', sinal }) });
+  pdGravar();
+}
+function pdLoja(sim){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  sl.cfg = Object.assign({}, sl.cfg, { loja: !!sim });
+  pdGravar();
+}
+/* Os produtos que o assistente cadastra nascem com "Vender na página"
+   desligado (passo 6): com a loja ligada, o link continuava sem nada. */
+function pdProdutosNoLink(){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  for(const p of doSalao(bd.produtos || [])) if(p.ativo !== false) p.vendaOnline = true;
+  sl.cfg = Object.assign({}, sl.cfg, { loja: true });
+  pdGravar();
+}
+function pdNotif(campo, valor){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  sl.cfg = Object.assign({}, sl.cfg, { [campo]: valor });
+  pdGravar();
+}
+/* O lembrete numa régua só: "Não enviar" desliga, um tempo liga com aquele
+   tempo. O tempo gravado que não está na régua (3, 6, 12 h…) entra nela,
+   para a régua nunca mentir sobre o que está valendo. */
+const PD_LEMBRETE = { 30:'30 min antes', 60:'1 h antes', 120:'2 h antes', 180:'3 h antes',
+  360:'6 h antes', 720:'12 h antes', 1440:'24 h antes' };
+function pdOpcoesLembrete(atual){
+  const ops = [0, 60, 120, 1440];
+  if(atual && !ops.includes(atual) && PD_LEMBRETE[atual]) ops.push(atual);
+  return ops.sort((x, y) => x - y).map(m => [m, m ? PD_LEMBRETE[m] : 'Não enviar']);
+}
+function pdLembrete(m){
+  const sl = acharSalao(salaoAtual);
+  if(!sl) return;
+  sl.cfg = Object.assign({}, sl.cfg, m ? { notifLembrete: true, notifLembreteMin: m }
+                                       : { notifLembrete: false });
+  pdGravar();
+}
+function pdIrParaPagamento(){
+  const i = PD_PASSOS.findIndex(x => x.desenhar === pdDesenharPagamento);
+  if(i < 0) return;
+  pdPasso = i + 1;
+  pdMarcar({ passo: pdPasso });
+  pdDesenhar();
+}
+
+function pdDesenharRecursos(){
+  const sl = acharSalao(salaoAtual) || {};
+  const cfg = sl.cfg || {};
+  const plano = 'Não está no seu plano agora — veja em <b>Plano</b>.';
+  const cartoes = [];
+
+  // O pacote
+  const pacotes = pacotesDoSalao().filter(p => !p.arquivadoEm).length;
+  cartoes.push(pdCartaoRecurso('pacote', 'Pacote de sessões',
+    'A cliente paga adiantado por algumas sessões (ex.: 4 escovas no mês) e marca '
+    + 'pelo link sem pagar de novo — o serviço aparece para ela a R$&nbsp;0,00. Bom para '
+    + 'encher os dias parados.',
+    !moduloLiberado('pacotes') ? `<p class="ajuda">${plano}</p>`
+    : `<div class="pd-faixa">${pacotes ? `<span class="pd-rec-ok">✓ ${pacotes} ${
+        pacotes === 1 ? 'pacote criado' : 'pacotes criados'}</span>` : ''}
+        <button type="button" class="btn btn-peq${pacotes ? '' : ' btn-p'}"
+          onclick="pdAbrirJanela(() => abrirPacote(null))">${pacotes ? 'Criar outro' : 'Criar um pacote'}</button></div>`));
+
+  // O sinal no Pix
+  const pag = pdPagamentoAtual(), sinal = pag.sinal;
+  const pctAtual = sinal && sinal.tipo === 'pct' ? Number(sinal.valor) : null;
+  const outroSinal = sinal && !(sinal.tipo === 'pct' && [20, 30, 50].includes(pctAtual));
+  cartoes.push(pdCartaoRecurso('sinal', 'Sinal no Pix para garantir o horário',
+    'Quem marca pelo link vê o valor do sinal e a sua chave Pix. O horário fica '
+    + 'reservado, e você toca em <b>Recebi o sinal</b> quando o dinheiro cair.',
+    !pag.pix ? `<p class="ajuda">Precisa da chave Pix, que é para onde a cliente manda.</p>
+        <div class="pd-faixa"><button type="button" class="btn btn-peq" onclick="pdIrParaPagamento()"
+          >Preencher a chave Pix</button></div>`
+    : `<div class="regua" id="pdReguaSinal" style="justify-content:flex-start">${
+        [[0, 'Não cobrar'], [20, '20%'], [30, '30%'], [50, '50%']].map(([v, rot]) =>
+          `<button type="button" class="${(v === 0 && !sinal) || (v && pctAtual === v && !outroSinal) ? 'on' : ''}"
+             onclick="pdSinal(${v})">${rot}</button>`).join('')}</div>
+       <p class="ajuda" style="margin-top:8px">${outroSinal
+        ? `Seu sinal hoje: <b>${sinal.tipo === 'fixo' ? real(Number(sinal.valor)) + ' fixo'
+            : sinal.tipo === 'servicos' ? 'por serviço' : Number(sinal.valor) + '% do valor'}</b>. `
+        : ''}A porcentagem é do valor do atendimento. Valor fixo, por serviço, o prazo
+        para pagar e a regra ficam em ${PD_RECURSO.sinal[1]}.</p>`));
+
+  // A loja no link
+  const produtos = doSalao(bd.produtos || []).filter(p => p.ativo !== false);
+  const lojaLigada = usaLojaNoLink(sl);
+  const porque = porqueALojaNaoAparece(sl);
+  const semOnline = produtos.length && !produtos.some(p => p.vendaOnline);
+  cartoes.push(pdCartaoRecurso('loja', 'Seus produtos no link',
+    'A cliente vê os produtos na sua página, monta o pedido e ele chega em '
+    + '<b>Pedidos</b>, no painel. Você confere com ela e vende — Pix, dinheiro ou cartão.',
+    !moduloLiberado('loja') ? `<p class="ajuda">${plano}</p>`
+    : !produtos.length ? `<p class="ajuda">Você ainda não tem produto cadastrado. Quando
+        tiver, é só ligar aqui ou em ${PD_RECURSO.loja[1]}.</p>`
+    : `<div class="regua" id="pdReguaLoja" style="justify-content:flex-start">
+         <button type="button" class="${lojaLigada ? 'on' : ''}" onclick="pdLoja(true)">Mostrar no link</button>
+         <button type="button" class="${lojaLigada ? '' : 'on'}" onclick="pdLoja(false)">Não mostrar</button></div>
+       ${lojaLigada && semOnline ? `<div class="pd-faixa">
+          <button type="button" class="btn btn-peq btn-p" onclick="pdProdutosNoLink()">${
+            produtos.length === 1 ? 'Mostrar meu produto no link'
+            : 'Mostrar meus ' + produtos.length + ' produtos no link'}</button></div>
+          <p class="ajuda">Hoje nenhum está marcado para aparecer na página.</p>`
+        : lojaLigada && porque ? `<p class="ajuda" style="margin-top:8px">${porque}</p>`
+        : lojaLigada ? '<p class="ajuda" style="margin-top:8px"><span class="pd-rec-ok">✓ Os produtos já aparecem no seu link.</span></p>' : ''}`));
+
+  // As mensagens
+  const confirma = cfg.notifConfirma !== false, lembra = cfg.notifLembrete !== false;
+  const minutos = Number(cfg.notifLembreteMin) || 120;
+  cartoes.push(pdCartaoRecurso('mensagens', 'Mensagens no WhatsApp da cliente',
+    'A confirmação, assim que ela marca, e o lembrete antes do horário. Saem pelo número '
+    + 'do AgendaPro e contam na franquia de mensagens do seu plano.',
+    `<p class="pd-rec-rot">Confirmação, assim que ela marca</p>
+     <div class="regua" id="pdReguaConfirma" style="justify-content:flex-start">
+       <button type="button" class="${confirma ? 'on' : ''}" onclick="pdNotif('notifConfirma', true)">Enviar</button>
+       <button type="button" class="${confirma ? '' : 'on'}" onclick="pdNotif('notifConfirma', false)">Não enviar</button></div>
+     <p class="pd-rec-rot">Lembrete antes do horário</p>
+     <div class="regua" id="pdReguaLembrete" style="justify-content:flex-start">${
+       pdOpcoesLembrete(lembra ? minutos : 0).map(([m, r]) =>
+         `<button type="button" class="${(lembra ? minutos : 0) === m ? 'on' : ''}"
+            onclick="pdLembrete(${m})">${r}</button>`).join('')}</div>
+     <p class="ajuda" style="margin-top:8px">Em ${PD_RECURSO.mensagens[1]} aparece o estado real
+       de cada mensagem — <b>pendente</b> é a que ainda não saiu.</p>`));
+
+  // O convite da equipe
+  cartoes.push(pdCartaoRecurso('equipe', 'A equipe entra com o próprio login',
+    'Você gera um link e manda pelo WhatsApp. A recepção marca e desmarca horários sem '
+    + 'mexer em preço; quem atende vê a agenda e lança o que atendeu.',
+    `<div class="pd-faixa"><button type="button" class="btn btn-peq"
+        onclick="pdAbrirJanela(abrirConvite)">Convidar alguém</button></div>`));
+
+  return cartoes.join('');
+}
+
 function pdDesenhar8(){
   const sl = acharSalao(salaoAtual) || {};
   const base = pdLinkDoSalao();
@@ -20825,7 +21039,10 @@ function pdDesenhar8(){
     ${depois.length ? `
       <p class="ajuda" id="pdDepois" style="margin-top:10px">Ficou para depois, em
         <b>Meu negócio</b>: ${escapar(depois.join(', '))}. O link funciona sem
-        isso, mas fica mais completo com.</p>` : ''}`;
+        isso, mas fica mais completo com.</p>` : ''}
+    ${pdRecursosDepois.size ? `
+      <p class="ajuda" id="pdDepoisRec" style="margin-top:8px">Recursos para ligar depois: ${
+        [...pdRecursosDepois].map(k => PD_RECURSO[k][0] + ' (' + PD_RECURSO[k][1] + ')').join('; ')}.</p>` : ''}`;
 }
 
 /* ── Quando ele aparece sozinho ──────────────────────────────────────────── */

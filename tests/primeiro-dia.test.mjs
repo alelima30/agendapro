@@ -72,7 +72,7 @@ await p.evaluate(() => iniciar());
 await p.waitForTimeout(500);
 e('salão vazio: ele abre sozinho, no passo 1',
   await p.evaluate(() => !document.getElementById('primeiroDia').hidden
-    && document.getElementById('pdContador').textContent === 'Passo 1 de 10'),
+    && document.getElementById('pdContador').textContent === 'Passo 1 de 11'),
   await p.evaluate(() => document.getElementById('pdContador').textContent));
 
 /* ⚠ QUEM TRABALHA NA RECEPÇÃO NÃO DECIDE PREÇO DE SERVIÇO.
@@ -117,7 +117,7 @@ console.log('\nA barra de progresso');
 await p.evaluate(() => abrirPrimeiroDia(1));
 await p.waitForTimeout(200);
 const passos = [];
-for(let i = 1; i <= 10; i++){
+for(let i = 1; i <= 11; i++){
   passos.push(await p.evaluate(() => ({
     contador: document.getElementById('pdContador').textContent,
     titulo:   document.getElementById('pdTitulo').textContent,
@@ -126,17 +126,17 @@ for(let i = 1; i <= 10; i++){
     voltar:   document.getElementById('pdVoltar').style.visibility,
     proximo:  document.getElementById('pdProximo').textContent.trim(),
   })));
-  if(i < 10) await p.evaluate(() => pdAndar(1));
+  if(i < 11) await p.evaluate(() => pdAndar(1));
   await p.waitForTimeout(120);
 }
-e('os dez passos têm título e corpo',
+e('os onze passos têm título e corpo',
   passos.every(x => x.titulo.length > 3 && x.corpo > 100),
   JSON.stringify(passos.map(x => [x.titulo, x.corpo])));
 e('o contador acompanha — ' + passos.map((_, i) => i + 1).join(','),
-  passos.every((x, i) => x.contador === 'Passo ' + (i + 1) + ' de 10'),
+  passos.every((x, i) => x.contador === 'Passo ' + (i + 1) + ' de 11'),
   JSON.stringify(passos.map(x => x.contador)));
 e('a barra cresce até 100% — ' + passos.map(x => x.barra).join(' '),
-  passos[0].barra === '10%' && passos[9].barra === '100%'
+  passos[0].barra === '9%' && passos[10].barra === '100%'
   && passos.every((x, i) => i === 0 || parseInt(x.barra) > parseInt(passos[i-1].barra)),
   JSON.stringify(passos.map(x => x.barra)));
 /* Sumindo em vez de ficar invisível, os outros botões do rodapé pulariam de
@@ -144,8 +144,8 @@ e('a barra cresce até 100% — ' + passos.map(x => x.barra).join(' '),
 e('no passo 1 o "Voltar" fica invisível, mas ocupa o lugar dele',
   passos[0].voltar === 'hidden' && passos[1].voltar !== 'hidden');
 e('no último passo o botão diz "Terminei", e não "Próximo"',
-  /Terminei/.test(passos[9].proximo) && passos.slice(0, 9)
-    .every(x => /Próximo/.test(x.proximo)), passos[9].proximo);
+  /Terminei/.test(passos[10].proximo) && passos.slice(0, 10)
+    .every(x => /Próximo/.test(x.proximo)), passos[10].proximo);
 
 /* ── 3 · O horário ───────────────────────────────────────────────────────── */
 console.log('\nO horário de atendimento');
@@ -631,7 +631,7 @@ e('e "Remover" tira', await p.evaluate(() => !imagemDoSalao(acharSalao(salaoAtua
 
 /* O fim lembra, sem alarme, do que ficou para depois. */
 const lembra = await p.evaluate(() => {
-  abrirPrimeiroDia(10);
+  abrirPrimeiroDia(11);
   const comLogoFaltando = (document.getElementById('pdDepois') || {}).textContent || '';
   const sl = acharSalao(salaoAtual);
   sl.logo = 'data:image/png;base64,AAAA';
@@ -659,7 +659,7 @@ await p.evaluate(() => {
   }
   salvar();
 });
-await p.evaluate(() => { abrirPrimeiroDia(10); });
+await p.evaluate(() => { abrirPrimeiroDia(11); });
 await p.waitForTimeout(250);
 
 const fim = await p.evaluate(() => {
@@ -749,14 +749,14 @@ const voltou = await p.evaluate(() => {
 e('fechado no meio, recarregar NÃO abre o assistente sozinho',
   !voltou.abriu, JSON.stringify(voltou));
 e('e uma faixa oferece continuar, dizendo de que passo — ' + voltou.faixa,
-  /Continuar o passo a passo \(3 de 10\)/.test(voltou.faixa), JSON.stringify(voltou));
+  /Continuar o passo a passo \(3 de 11\)/.test(voltou.faixa), JSON.stringify(voltou));
 const continuou = await p.evaluate(() => {
   document.querySelector('#faixaPrimeiroDia button').click();
   return { abriu: !document.getElementById('primeiroDia').hidden,
            contador: document.getElementById('pdContador').textContent };
 });
 e('tocar em continuar recomeça exatamente dali — ' + continuou.contador,
-  continuou.abriu && continuou.contador === 'Passo 3 de 10', JSON.stringify(continuou));
+  continuou.abriu && continuou.contador === 'Passo 3 de 11', JSON.stringify(continuou));
 
 // Quem fechou ANTES de a marca `adiado` existir tem só o passo guardado.
 const antigo = await p.evaluate(() => {
@@ -774,7 +774,7 @@ e('quem já tinha fechado antes desta correção também não é mais interrompi
   !antigo, 'abriu sozinho com { passo: 1 } guardado');
 
 const terminou = await p.evaluate(() => {
-  pdPasso = 10; pdDesenhar(); pdAndar(1);     // "Terminei"
+  pdPasso = 11; pdDesenhar(); pdAndar(1);     // "Terminei"
   const marca = (acharSalao(salaoAtual).cfg || {}).primeiroDia || {};
   pdOferecido.clear();
   iniciar();
@@ -973,7 +973,7 @@ await cel.goto(BASE + 'app.html?demo=1');
 await cel.waitForTimeout(2200);
 
 const noCelular = [];
-for(const passo of [1,2,3,4,5,6,7,8,9,10]){
+for(const passo of [1,2,3,4,5,6,7,8,9,10,11]){
   await cel.evaluate(n => { abrirPrimeiroDia(n); }, passo);
   await cel.waitForTimeout(180);
   noCelular.push(await cel.evaluate(() => {
@@ -1037,6 +1037,131 @@ for(const passo of [1, 3, 10]){
 e('com a barra do navegador ocupando a tela, "Faço depois" e "Próximo" continuam à vista',
   rodape.every(x => x.dentro), JSON.stringify(rodape));
 
+/* ── 10 · Mais recursos ──────────────────────────────────────────────────
+   "O passo a passo está com tudo o que adicionamos?" Pacote, sinal no Pix,
+   loja no link, mensagens e o convite da equipe: um cartão para cada, com
+   "Ligar agora" ou "Depois", gravando nos mesmos lugares das telas próprias. */
+console.log('\nMais recursos');
+{
+await p.evaluate(() => {
+  document.getElementById('primeiroDia').hidden = true; fecharModal();
+  const sl = acharSalao(salaoAtual);
+  bd.pacotes = (bd.pacotes || []).filter(x => x.salaoId !== salaoAtual);
+  if(!servsAtivos().length) bd.servicos.push({ id:id(), salaoId:salaoAtual, nome:'Escova', duracaoMin:45,
+    intervaloMin:0, preco:60, ativo:true, aceitaOnline:true });
+  bd.produtos = (bd.produtos || []).filter(x => x.salaoId !== salaoAtual);
+  bd.produtos.push({ id:id(), salaoId:salaoAtual, nome:'Shampoo', marca:'', descricao:'', preco:40, custo:0,
+    estoque:0, comissaoPct:0, comissaoFixa:null, ativo:true, vendaOnline:false, foto:null });
+  sl.cfg = Object.assign({}, sl.cfg, { pagamentos:{ formas:['dinheiro'], obs:'' }, loja:null,
+    notifConfirma:true, notifLembrete:true, notifLembreteMin:120 });
+  pdRecursosDepois.clear();
+  salvar();
+  abrirPrimeiroDia(10);
+});
+await p.waitForTimeout(250);
+const rec = await p.evaluate(() => ({ titulo: document.getElementById('pdTitulo').textContent,
+  cartoes: [...document.querySelectorAll('#pdCorpo .pd-rec')].map(c => c.dataset.rec) }));
+e('o passo 10 é "Mais recursos", com um cartão para cada: pacote, sinal, loja, mensagens e equipe',
+  rec.titulo === 'Mais recursos' && JSON.stringify(rec.cartoes) === JSON.stringify(['pacote', 'sinal', 'loja', 'mensagens', 'equipe']),
+  JSON.stringify(rec));
+
+// Depois: o cartão recolhe dizendo onde fica, e o "Pronto" lembra.
+await p.click('.pd-rec[data-rec="pacote"] .pd-rec-cab button');
+await p.waitForTimeout(150);
+const depois = await p.evaluate(() => {
+  const c = document.querySelector('.pd-rec[data-rec="pacote"]');
+  const recolhido = c.classList.contains('pd-rec-depois') ? c.innerText.replace(/\s+/g, ' ') : '';
+  pdAndar(1);
+  const pronto = ((document.getElementById('pdDepoisRec') || {}).innerText || '').replace(/\s+/g, ' ');
+  pdAndar(-1);
+  return { recolhido, pronto };
+});
+e('"Depois" recolhe o cartão dizendo onde ele fica', /Fica para depois — está em Pacotes/.test(depois.recolhido), depois.recolhido);
+e('   e o "Pronto" lembra: "Recursos para ligar depois: o pacote (Pacotes)"',
+  /Recursos para ligar depois: o pacote \(Pacotes\)/.test(depois.pronto), depois.pronto);
+await p.click('.pd-rec[data-rec="pacote"] .pd-rec-cab button');   // "Ver de novo"
+await p.waitForTimeout(150);
+
+// O pacote: a janela de sempre, com o assistente saindo da frente e voltando.
+await p.click('.pd-rec[data-rec="pacote"] button:has-text("Criar um pacote")');
+await p.waitForTimeout(250);
+const janela = await p.evaluate(() => ({ assistente: !document.getElementById('primeiroDia').hidden,
+  modal: document.getElementById('fundo').classList.contains('on'), titulo: document.getElementById('modalTitulo').textContent }));
+e('"Criar um pacote" abre a janela de pacote, com o assistente fora da frente',
+  !janela.assistente && janela.modal && janela.titulo === 'Novo pacote', JSON.stringify(janela));
+await p.fill('#pkNome', 'Unha em Dia'); await p.fill('#pkPreco', '300'); await p.fill('#pkSessoes', '4');
+await p.evaluate(() => { document.querySelector('#pkServicos input').checked = true; });
+await p.click('#fundo button:has-text("Salvar")');
+await p.waitForTimeout(400);
+const voltou = await p.evaluate(() => ({ assistente: !document.getElementById('primeiroDia').hidden,
+  titulo: document.getElementById('pdTitulo').textContent,
+  cartao: document.querySelector('.pd-rec[data-rec="pacote"]').innerText.replace(/\s+/g, ' '),
+  pacotes: pacotesDoSalao().length }));
+e('salvo o pacote, o assistente volta no mesmo passo, dizendo que o pacote foi criado',
+  voltou.assistente && voltou.titulo === 'Mais recursos' && /✓ 1 pacote criado/.test(voltou.cartao) && voltou.pacotes === 1,
+  JSON.stringify(voltou));
+
+// O sinal: sem chave Pix, leva ao passo da chave; com ela, grava a porcentagem.
+await p.click('.pd-rec[data-rec="sinal"] button:has-text("Preencher a chave Pix")');
+await p.waitForTimeout(200);
+e('sem chave Pix, o sinal leva ao passo "Como a cliente paga"',
+  await p.evaluate(() => document.getElementById('pdTitulo').textContent === 'Como a cliente paga'));
+await p.evaluate(() => {
+  const sl = acharSalao(salaoAtual);
+  sl.cfg = Object.assign({}, sl.cfg, { pagamentos:{ formas:['pix', 'dinheiro'], obs:'', pix:'pix@salao.com' } });
+  abrirPrimeiroDia(10);
+});
+await p.waitForTimeout(200);
+await p.click('#pdReguaSinal button:has-text("30%")');
+await p.waitForTimeout(300);
+const sinal = await p.evaluate(() => JSON.stringify(Funcionamento.pagamentos(acharSalao(salaoAtual).cfg.pagamentos)));
+e('com a chave, "30%" grava o sinal de 30% (prazo de 1 hora), mantendo a chave e as formas',
+  /"formas":\["pix","dinheiro"\]/.test(sinal) && /"pix":"pix@salao.com"/.test(sinal)
+  && /"sinal":\{"tipo":"pct","valor":30,"prazoMin":60\}/.test(sinal), sinal);
+await p.click('#pdReguaSinal button:has-text("Não cobrar")');
+await p.waitForTimeout(300);
+e('   e "Não cobrar" tira o sinal', await p.evaluate(() =>
+  !Funcionamento.pagamentos(acharSalao(salaoAtual).cfg.pagamentos).sinal));
+
+// A loja: os produtos do assistente nascem fora da página; um toque os mostra.
+const lojaAntes = await p.evaluate(() => document.querySelector('.pd-rec[data-rec="loja"]').innerText.replace(/\s+/g, ' '));
+e('com a loja ligada e nenhum produto marcado, oferece "Mostrar meu produto no link"',
+  /Mostrar meu produto no link/.test(lojaAntes), lojaAntes);
+await p.click('.pd-rec[data-rec="loja"] button:has-text("Mostrar meu")');
+await p.waitForTimeout(300);
+const loja = await p.evaluate(() => ({ online: doSalao(bd.produtos).every(x => x.vendaOnline),
+  ligada: usaLojaNoLink(), txt: document.querySelector('.pd-rec[data-rec="loja"]').innerText.replace(/\s+/g, ' ') }));
+e('   um toque marca os produtos para a página, e o cartão diz que já aparecem',
+  loja.online && loja.ligada && /Os produtos já aparecem no seu link/.test(loja.txt), JSON.stringify(loja));
+await p.click('#pdReguaLoja button:has-text("Não mostrar")');
+await p.waitForTimeout(300);
+e('   e "Não mostrar" desliga a loja do link', await p.evaluate(() => !usaLojaNoLink()));
+
+// As mensagens: as mesmas chaves de Notificações.
+await p.click('#pdReguaLembrete button:has-text("Não enviar")'); await p.waitForTimeout(300);
+e('"Não enviar" no lembrete grava notifLembrete = false', await p.evaluate(() =>
+  acharSalao(salaoAtual).cfg.notifLembrete === false));
+await p.click('#pdReguaLembrete button:has-text("24 h antes")'); await p.waitForTimeout(300);
+e('   "24 h antes" liga de novo, com notifLembreteMin = 1440', await p.evaluate(() => {
+  const c = acharSalao(salaoAtual).cfg; return c.notifLembrete === true && c.notifLembreteMin === 1440; }));
+await p.click('#pdReguaConfirma button:has-text("Não enviar")'); await p.waitForTimeout(300);
+e('   e "Não enviar" na confirmação grava notifConfirma = false', await p.evaluate(() =>
+  acharSalao(salaoAtual).cfg.notifConfirma === false));
+await p.click('#pdReguaConfirma button:has-text("Enviar")'); await p.waitForTimeout(300);
+
+// O convite: a janela de sempre, e o assistente volta ao fechar.
+await p.click('.pd-rec[data-rec="equipe"] button:has-text("Convidar alguém")');
+await p.waitForTimeout(250);
+const conv = await p.evaluate(() => ({ assistente: !document.getElementById('primeiroDia').hidden,
+  titulo: document.getElementById('modalTitulo').textContent }));
+await p.evaluate(() => fecharModal()); await p.waitForTimeout(150);
+e('"Convidar alguém" abre a janela do convite, e fechá-la traz o assistente de volta',
+  !conv.assistente && conv.titulo === 'Convidar alguém'
+  && await p.evaluate(() => !document.getElementById('primeiroDia').hidden
+    && document.getElementById('pdTitulo').textContent === 'Mais recursos'), JSON.stringify(conv));
+await p.evaluate(() => { document.getElementById('primeiroDia').hidden = true; });
+}
+
 /* "Passo 1 de 10" saía cinza-escuro em cima do degradê: o `.pd-linha` do
    pedido (mesmo prefixo, outro dono) pintava por cima. */
 await cel.evaluate(() => abrirPrimeiroDia(1));
@@ -1045,7 +1170,7 @@ const contador = await cel.evaluate(() => {
   const el = document.getElementById('pdContador');
   return { cor: getComputedStyle(el).color, topo: getComputedStyle(el.closest('.pd-topo')).color };
 });
-e('"Passo 1 de 10" tem a cor do topo do assistente, não o cinza do pedido',
+e('"Passo 1 de 11" tem a cor do topo do assistente, não o cinza do pedido',
   contador.cor === contador.topo, JSON.stringify(contador));
 
 e('nada disso deu erro de JavaScript', erros.length === 0,

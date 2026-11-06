@@ -93,7 +93,7 @@ const textoDaJanela = p => p.evaluate(() => {
 secao('1) O passo a passo: sem "quem mais atende", e sem a escolha da comanda');
 {
   const { p, fechar } = await painel();
-  const passoDe = () => p.evaluate(() => (document.body.innerText.match(/Passo (\d+) de 10/) || [])[1]);
+  const passoDe = () => p.evaluate(() => (document.body.innerText.match(/Passo (\d+) de 11/) || [])[1]);
   verdade('o passo a passo abre sozinho para o salão novo', (await passoDe()) === '1');
   for(let i = 0; i < 4; i++){
     await p.getByRole('button', { name: 'Próximo →' }).filter({ visible: true }).first().click();
