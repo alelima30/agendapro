@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.1d53e7';
+const VERSAO_APP = 'v9.477d98';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -19766,11 +19766,60 @@ function pdFechar(terminou){
   iniciar();
 }
 
+/* ── O PASSO A PASSO OBEDECE O PLANO ─────────────────────────────────────────
+   Relatado com print: no passo 6, tocar em "Shampoo" deu "NÃO consegui
+   salvar no banco: o seu plano cobre 0 produtos, e o salão já tem 0" — e a
+   pergunta seguinte foi "mas eu não tenho uma semana?". O salão tinha nascido
+   no Grátis: o teste de 7 dias é UM por pessoa (39_teste_unico), e aquele
+   WhatsApp já tinha usado o dele. Nada dizia isso, e o assistente oferecia o
+   que o Grátis não tem (produtos, mais de 5 serviços, cor do link,
+   mensagens) para o banco recusar no meio.
+
+   Agora o passo 1 diz em que plano o salão está e por quê, e cada passo só
+   oferece o que o plano cobre — o resto ele explica, sem erro. Quem recusa
+   continua sendo o banco; a tela só não oferece o que vai ser negado. */
+function tetoDoPlano(chave){
+  if(!NA_NUVEM) return null;
+  const v = recursoDoPlano(chave);
+  return v == null || v === '' || isNaN(Number(v)) ? null : Number(v);
+}
+function pdNoGratis(){
+  const p = NA_NUVEM && planoEfetivo();
+  return !!(p && p.codigo === 'gratuito');
+}
+function pdAvisoDoPlano(){
+  if(!pdNoGratis()) return '';
+  const n = (v, um, varios) => v + ' ' + (v === 1 ? um : varios);
+  const partes = [n(limiteDoSalao(), 'profissional', 'profissionais')];
+  const sv = tetoDoPlano('max_servicos'), cl = tetoDoPlano('max_clientes'), ag = tetoDoPlano('agendamentos_mes');
+  if(sv != null) partes.push('até ' + n(sv, 'serviço', 'serviços'));
+  if(cl != null) partes.push(n(cl, 'cliente', 'clientes'));
+  if(ag != null) partes.push(n(ag, 'agendamento', 'agendamentos') + ' por mês');
+  return `<div class="aviso info" id="pdAvisoGratis" style="margin-bottom:14px">
+      <b>Este salão está no plano Grátis</b>, que é para conhecer o sistema:
+      ${escapar(partes.join(', '))} — sem produtos, pacotes nem mensagens no WhatsApp.<br>
+      O teste grátis de 7 dias, com tudo liberado, é <b>um por pessoa</b>: se este WhatsApp
+      ou e-mail já usou o teste, o salão novo começa no Grátis. Para liberar tudo, escolha
+      um plano em <b>Plano</b>, no menu.
+      ${OFERTA_DE_PLANO ? `<div class="pd-faixa" style="margin-top:8px"><button type="button" class="btn btn-peq"
+        onclick="pdFechar(); irPara('plano')">Ver os planos</button></div>` : ''}
+    </div>`;
+}
+/* O teto de serviços: o banco conta todos os do salão, ativos ou não. */
+function pdCabeServico(){
+  const teto = tetoDoPlano('max_servicos');
+  if(teto == null || doSalao(bd.servicos).length < teto) return true;
+  alert('O seu plano cobre até ' + teto + (teto === 1 ? ' serviço' : ' serviços')
+      + ', e o salão já tem ' + doSalao(bd.servicos).length + '.\n\n'
+      + 'Tire um para pôr outro no lugar, ou escolha um plano maior em Plano.');
+  return false;
+}
+
 /* ── Passo 1 · o estabelecimento ─────────────────────────────────────────── */
 function pdDesenhar1(){
   const sl = acharSalao(salaoAtual) || {};
   const end = Endereco.normalizar(sl.endereco);
-  return `
+  return pdAvisoDoPlano() + `
     <div class="campo"><label for="pdNome">Nome do estabelecimento</label>
       <input id="pdNome" value="${escapar(sl.nome || '')}" placeholder="Studio Bella">
     </div>
@@ -20117,6 +20166,7 @@ async function pdVirarServico(k, i){
     }
     bd.servicos = bd.servicos.filter(s => s.id !== ja.id);
   } else {
+    if(!pdCabeServico()) return;
     bd.servicos.push({ id:id(), salaoId:salaoAtual, nome,
       // A grafia que o salão já usa vence a do catálogo — senão a página da
       // cliente ganha uma segunda seção com o mesmo nome.
@@ -20133,6 +20183,7 @@ async function pdServicoAMao(){
   if(nome.length < 2){ alert('Informe o nome do serviço.'); return; }
   if(!dur || dur <= 0){ alert('A duração precisa ser maior que zero.'); return; }
   if(pdServicoIgual(nome)){ alert('Já existe um serviço com esse nome.'); return; }
+  if(!pdCabeServico()) return;
   const cat = (document.getElementById('pdSvCat') || {}).value || '';
   bd.servicos.push({ id:id(), salaoId:salaoAtual, nome,
     categoria: cat ? pdGrafiaDaCategoria(cat) : '',
@@ -20199,6 +20250,12 @@ async function pdTirarServico(sid){
 function pdDesenhar4(){
   const esc = [...pdCategoriasAtuais()].filter(k => (PD_SERVICOS[k] || []).length);
   let html = '';
+  const tetoSv = tetoDoPlano('max_servicos'), nSv = doSalao(bd.servicos).length;
+  if(tetoSv != null && (tetoSv <= 10 || nSv >= tetoSv)){
+    html += `<div class="aviso ${nSv >= tetoSv ? 'atencao' : 'info'}" id="pdTetoServicos" style="margin-bottom:10px">
+      O seu plano cobre até <b>${tetoSv} ${tetoSv === 1 ? 'serviço' : 'serviços'}</b> — o salão tem ${nSv}.${
+      nSv >= tetoSv ? ' Para pôr outro, tire um, ou escolha um plano maior em <b>Plano</b>.' : ''}</div>`;
+  }
   for(const k of esc){
     html += `<div class="pd-cat">${escapar(PD_ROTULO[k])}</div>`
       + PD_SERVICOS[k].map(([nome, dur, preco], i) => {
@@ -20468,6 +20525,15 @@ async function pdProdutoAMao(){
 }
 
 function pdDesenhar6(){
+  if(NA_NUVEM && (!moduloLiberado('loja') || tetoDoPlano('max_produtos') === 0)){
+    const p = planoEfetivo();
+    return `<div class="aviso info" id="pdSemProdutos">
+        <b>Produtos não estão no seu plano${p && p.nome ? ' (' + escapar(p.nome) + ')' : ''}.</b>
+        Nele o salão trabalha com a agenda e os serviços. Nos planos pagos você cadastra
+        produtos, vende na comanda e mostra no seu link.</div>
+      <p class="ajuda" style="margin-top:10px">Pode seguir para o próximo passo — este fica
+        para quando você assinar, na aba <b>Produtos</b>.</p>`;
+  }
   const sim = pdProdutosAtual();
   const regua = `
     <div class="regua" id="pdReguaProdutos" style="justify-content:flex-start">
@@ -20690,7 +20756,11 @@ function pdDesenharCara(){
       </label>
     </div>
     <p class="ajuda">Os botões, os ícones e os detalhes da página saem desta cor.
-      Modelos prontos, fundo e o resto ficam em <b>Meu negócio → Aparência</b>.</p>`;
+      Modelos prontos, fundo e o resto ficam em <b>Meu negócio → Aparência</b>.</p>${
+      NA_NUVEM && !moduloLiberado('aparencia') ? `
+    <div class="aviso info" id="pdCorNoPlano" style="margin-top:10px">No seu plano o link usa a cor
+      padrão: o logo e a capa aparecem, e a cor que você escolher fica guardada e passa a valer
+      quando assinar.</div>` : ''}`;
 }
 async function pdSubirImagem(chave, campo){
   await subirImagemSalao(chave, campo);
@@ -20955,10 +21025,13 @@ function pdDesenharRecursos(){
   // As mensagens
   const confirma = cfg.notifConfirma !== false, lembra = cfg.notifLembrete !== false;
   const minutos = Number(cfg.notifLembreteMin) || 120;
+  const semMensagens = tetoDoPlano('mensagens_mes') === 0;
   cartoes.push(pdCartaoRecurso('mensagens', 'Mensagens no WhatsApp da cliente',
     'A confirmação, assim que ela marca, e o lembrete antes do horário. Saem pelo número '
     + 'do AgendaPro e contam na franquia de mensagens do seu plano.',
-    `<p class="pd-rec-rot">Confirmação, assim que ela marca</p>
+    semMensagens ? `<p class="ajuda" id="pdSemMensagens">Seu plano não tem mensagens no WhatsApp —
+        elas entram nos planos com mensagens, em <b>Plano</b>.</p>`
+    : `<p class="pd-rec-rot">Confirmação, assim que ela marca</p>
      <div class="regua" id="pdReguaConfirma" style="justify-content:flex-start">
        <button type="button" class="${confirma ? 'on' : ''}" onclick="pdNotif('notifConfirma', true)">Enviar</button>
        <button type="button" class="${confirma ? '' : 'on'}" onclick="pdNotif('notifConfirma', false)">Não enviar</button></div>
