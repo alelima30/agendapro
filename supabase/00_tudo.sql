@@ -3101,6 +3101,10 @@ language sql stable security definer set search_path = public as $$
       -- peneirados na página (aplicarAtalhos). Nulo é o cartão com borda.
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
                       then s.cfg->'atalhos' end,
+      -- O acabamento do botão de baixo (metal e faixa de luz): só objeto
+      -- passa; a página peneira. Nulo é o liso de sempre.
+      'rodape', case when jsonb_typeof(s.cfg->'rodape') = 'object'
+                     then s.cfg->'rodape' end,
       -- O botão "Ver produtos": só 'metal' sai; nulo é o discreto de sempre.
       'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
       -- Com uma pessoa só no serviço, pular o "Com quem?". Nasce DESLIGADO
@@ -12567,6 +12571,11 @@ language sql stable security definer set search_path = public as $$
          o cartão com borda de sempre. */
       'atalhos', case when jsonb_typeof(c.cfg->'atalhos') = 'object'
                       then c.cfg->'atalhos' end,
+      /* O acabamento do botão de baixo ("Agendar horário" fixo no pé):
+         metal e faixa de luz. Só objeto passa, como os atalhos; a página
+         peneira os valores (aplicarRodape). Nulo é o botão liso de sempre. */
+      'rodape', case when jsonb_typeof(c.cfg->'rodape') = 'object'
+                     then c.cfg->'rodape' end,
       /* O botão "Ver produtos" igual ao Agendar horário. Só 'metal' sai;
          nulo é o discreto de sempre. */
       'botaoProdutos', case when c.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
@@ -12767,7 +12776,7 @@ language sql stable security definer set search_path = public as $$
              'atalhos','botaoProdutos','brilho','capaFoco','capaForma','cartoes','cor',
              'cores','fitaBorda','fitaBrilho','fitaCor','fitaMetal','fitaTempo','fundo',
              'fundoTipo','galeria','gradiente','intro','letra','logoBorda','logoForma',
-             'modo','moldura','slideDe','slideForma','tema','veu']
+             'modo','moldura','rodape','slideDe','slideForma','tema','veu']
       end
       || case when coalesce(public.recurso_bool(s.id, 'loja'), false) then '{}'::jsonb
               else '{"loja": "false"}'::jsonb end as cfg) c

@@ -1222,6 +1222,15 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                  and prosrc like '%a.inicio > now()%')
               then 'cole a parte 2 de novo (50_pacote_excluir)' else '' end
   union all
+  /* O botão de baixo do link metalizado: a vitrine entrega o `rodape` (25). */
+  select 74, 'Botão de baixo do link: acabamento metal',
+         case when not exists (select 1 from pg_proc where proname = 'vitrine'
+                                 and prosrc like '%''rodape''%')
+              then 'FALTA' else 'certo' end,
+         case when not exists (select 1 from pg_proc where proname = 'vitrine'
+                                 and prosrc like '%''rodape''%')
+              then 'cole a parte 2 de novo (25_loja)' else '' end
+  union all
   /* A loja pelo link e os pacotes no Relatórios (55). */
   select 70, 'Relatórios: loja pelo link e pacotes',
          case when to_regprocedure('public.relatorio_vendas(uuid,date,date)') is null

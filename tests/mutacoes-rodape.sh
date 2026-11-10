@@ -81,7 +81,7 @@ troca agendar.html \
 
 echo "6. tocar na prévia não leva às cores"
 troca app.html \
-  "  rodape:   ['.cor-linha[data-chave=\"rodape\"]', '.cor-linha[data-chave=\"letraRodape\"]']," \
+  "  rodape:   ['.cor-linha[data-chave=\"rodape\"]', '.cor-linha[data-chave=\"letraRodape\"]', '#reguaRodapeMetal']," \
   "" \
   && rodar "toque que não vai a lugar nenhum"
 
@@ -91,11 +91,35 @@ troca app.html \
   "         <div class=\"fone-rot\" data-cfg=\"tituloEquipe\">Quem corta</div>" \
   && rodar "prévia e link com títulos diferentes"
 
-echo "7. o botão de baixo sai do grupo dos botões"
+echo "7. as cores do botão de baixo somem do bloco dele"
 troca app.html \
-  "  ['coresBotoes', ['botao', 'letraAgendar', 'rodape', 'letraRodape']]," \
-  "  ['coresBotoes', ['botao', 'letraAgendar']]," \
+  "  ['coresRodape', ['rodape', 'letraRodape']]," \
+  "" \
   && rodar "a cor existe e ninguém acha"
+
+echo "9. o link ignora o metal escolhido"
+troca agendar.html \
+  "    raiz.setAttribute('data-rodape-metal', a.metal);" \
+  "" \
+  && rodar "metal salvo e botão liso no link"
+
+echo "10. a cor própria volta a apagar o metal"
+troca estilo.css \
+  "  background-color:var(--cor-rodape) !important; border-color:var(--cor-rodape) !important;" \
+  "  background:var(--cor-rodape) !important; border-color:var(--cor-rodape) !important;" \
+  && rodar "escolheu cor e o metal sumiu"
+
+echo "11. a faixa de luz liga com qualquer coisa"
+troca agendar.html \
+  "  if(m && a.brilho === true) raiz.setAttribute('data-rodape-brilho', 'sim');" \
+  "  if(a.brilho) raiz.setAttribute('data-rodape-brilho', 'sim');" \
+  && rodar "faixa de luz num botão liso"
+
+echo "12. a prévia mostra o botão liso"
+troca app.html \
+  "  const classes = (m ? ' metal' : '') + (m && aparencia.rodapeBrilho ? ' com-brilho' : '');" \
+  "  const classes = '';" \
+  && rodar "prévia lisa, link metalizado"
 
 echo ""
 echo "$morta mortas, $viva vivas"

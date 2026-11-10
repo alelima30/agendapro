@@ -169,6 +169,10 @@ language sql stable security definer set search_path = public as $$
       -- peneirados na página (aplicarAtalhos). Nulo é o cartão com borda.
       'atalhos', case when jsonb_typeof(s.cfg->'atalhos') = 'object'
                       then s.cfg->'atalhos' end,
+      -- O acabamento do botão de baixo (metal e faixa de luz): só objeto
+      -- passa; a página peneira. Nulo é o liso de sempre.
+      'rodape', case when jsonb_typeof(s.cfg->'rodape') = 'object'
+                     then s.cfg->'rodape' end,
       -- O botão "Ver produtos": só 'metal' sai; nulo é o discreto de sempre.
       'botaoProdutos', case when s.cfg->>'botaoProdutos' = 'metal' then 'metal' end,
       -- Com uma pessoa só no serviço, pular o "Com quem?". Nasce DESLIGADO

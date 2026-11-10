@@ -1068,6 +1068,27 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   font-size:10px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   background:var(--fone-pe-cor, var(--fone-marca)); color:var(--fone-pe-letra, var(--fone-marca-txt));
 }
+/* O metal e a faixa de luz do botão de baixo, na prévia: os números da
+   página (aplicarRodape), escritos pelo previaDoRodape. */
+.fone-pe-b.metal{
+  position:relative;
+  background-image:linear-gradient(100deg,
+    color-mix(in srgb, var(--fone-pe-cor) calc(100% - var(--fone-pe-sombra)), #000)       0%,
+    color-mix(in srgb, var(--fone-pe-cor) calc(100% - var(--fone-pe-luz) * .6), #fff)    20%,
+    color-mix(in srgb, var(--fone-pe-cor) calc(100% - var(--fone-pe-luz)), #fff)        40%,
+    var(--fone-pe-cor)                                                                  60%,
+    color-mix(in srgb, var(--fone-pe-cor) calc(100% - var(--fone-pe-sombra) * .9), #000) 100%);
+  border:1px solid color-mix(in srgb, var(--fone-pe-cor) 72%, #000);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.42), inset 0 -1px 0 rgba(0,0,0,.16);
+}
+.fone-pe-b.com-brilho::after{
+  content:""; position:absolute; top:0; bottom:0; left:0; width:38%;
+  background:linear-gradient(100deg, transparent,
+             rgba(255,255,255,.38) 45%, rgba(255,255,255,.55) 55%, transparent);
+  transform:translateX(-180%); pointer-events:none;
+  animation:brilho-metal 5.2s cubic-bezier(.4,0,.2,1) infinite;
+}
+@media (prefers-reduced-motion: reduce){ .fone-pe-b.com-brilho::after{ animation:none; opacity:0 } }
 .fone-fita-saco{
   flex:none; display:grid; place-items:center; width:20px; height:20px;
   border-radius:50%; background:rgba(255,255,255,.2);
@@ -2952,10 +2973,45 @@ body.tem-fundo-produto .pr-cartao{ background:var(--cor-fundo-produto) }
    e só com a classe, que só existe com a escolha. O desligado continua o de
    sempre: quem é diferente é o botão que se pode tocar. */
 body.tem-cor-rodape #btPrincipal:not(:disabled){
-  background:var(--cor-rodape) !important; border-color:var(--cor-rodape) !important;
+  background-color:var(--cor-rodape) !important; border-color:var(--cor-rodape) !important;
 }
+/* ⚠ `background-color`, e não `background`: o atalho `background` apaga a
+   imagem de fundo junto — e o metal do botão de baixo (logo abaixo) é uma
+   imagem. Com cor escolhida E metal, o atalho venceria o metal e o botão
+   voltaria liso sem ninguém pedir. */
 body.tem-cor-rodape #btPrincipal:not(:disabled):hover{
-  background:var(--cor-rodape-hover) !important; border-color:var(--cor-rodape-hover) !important;
+  background-color:var(--cor-rodape-hover) !important; border-color:var(--cor-rodape-hover) !important;
+}
+/* ── O BOTÃO DE BAIXO EM METAL (aplicarRodape) ────────────────────────────
+   O desenho do `.boas-cta` e da `.carrinho-fita`: uma cor só, com claro e
+   escuro, porque a luz bate em ângulo. A base é a cor escolhida para ele, ou
+   a dos botões. Só casa com o atributo, que só existe com metal escolhido. */
+[data-rodape-metal] #btPrincipal:not(:disabled){
+  --rp-base:var(--cor-rodape, var(--acao));
+  position:relative; overflow:hidden;
+  background-image:linear-gradient(100deg,
+    color-mix(in srgb, var(--rp-base) calc(100% - var(--rp-sombra)), #000)       0%,
+    color-mix(in srgb, var(--rp-base) calc(100% - var(--rp-luz) * .6), #fff)    20%,
+    color-mix(in srgb, var(--rp-base) calc(100% - var(--rp-luz)), #fff)        40%,
+    var(--rp-base)                                                              60%,
+    color-mix(in srgb, var(--rp-base) calc(100% - var(--rp-sombra) * .9), #000) 100%) !important;
+  border-color:color-mix(in srgb, var(--rp-base) 72%, #000) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.42),
+    inset 0 -1px 0 rgba(0,0,0,.16),
+    0 1px 2px rgba(0,0,0,.18),
+    0 10px 26px -10px color-mix(in srgb, var(--rp-base) 65%, transparent) !important;
+}
+/* A faixa de luz, a mesma do botão do Bem-vindo: passa e descansa. */
+[data-rodape-brilho] #btPrincipal:not(:disabled)::after{
+  content:""; position:absolute; top:0; bottom:0; left:0; width:38%;
+  background:linear-gradient(100deg, transparent,
+             rgba(255,255,255,.38) 45%, rgba(255,255,255,.55) 55%, transparent);
+  transform:translateX(-180%); pointer-events:none;
+  animation:brilho-metal 5.2s cubic-bezier(.4,0,.2,1) infinite;
+}
+@media (prefers-reduced-motion: reduce){
+  [data-rodape-brilho] #btPrincipal::after{ animation:none; opacity:0 }
 }
 body.tem-letra-rodape #btPrincipal:not(:disabled){ color:var(--cor-letra-rodape) !important }
 body.tem-letra-produtos .boas .boas-produtos{ color:var(--cor-letra-produtos) }

@@ -1350,6 +1350,9 @@ function bdDaVitrine(v){
       // O estilo dos atalhos (Pagamentos, Horários, Informações). Peneirado
       // no `aplicarAtalhos()`; nulo é o cartão com borda de sempre.
       atalhos: (s.atalhos && typeof s.atalhos === 'object') ? s.atalhos : null,
+      // O acabamento do botão de baixo. Peneirado no `aplicarRodape()`; nulo
+      // é o botão liso de sempre.
+      rodape: (s.rodape && typeof s.rodape === 'object') ? s.rodape : null,
       cfg: { diasLiberados: s.diasLiberados },
     }],
     servicos: (v.servicos || []).map(x => ({
@@ -7117,6 +7120,7 @@ function aplicarModo(s){
   else raiz.removeAttribute('data-capa');
 
   aplicarAtalhos(s.atalhos || c.atalhos);
+  aplicarRodape(s.rodape || c.rodape);
 
   /* ── A ESPESSURA DA MOLDURA ───────────────────────────────────────────
      Ausente vale `media`, que são os 5px de antes desta escolha existir.
@@ -7160,6 +7164,30 @@ function aplicarModo(s){
    ⚠ OS NÚMEROS SÃO PENEIRADOS AQUI, e não só no painel: chegam do banco, e
    a página não confia em número que veio de fora. Fora da faixa vira o teto;
    torto vira o da sombra suave; cor torta vira preto. */
+/* ── O BOTÃO DE BAIXO EM METAL ────────────────────────────────────────────
+   "No final esse Agendar horário tem como deixar metalizado? Deixar
+   configurável?" Os mesmos números de metal da fita (aplicarFita): o quanto
+   de claro e de escuro. Sem metal válido, NENHUM atributo — o estilo.css só
+   casa com ele, e o botão fica o liso de sempre. A faixa de luz só com metal,
+   e só `true` liga (o que vem do banco pode ser qualquer coisa). */
+function aplicarRodape(r){
+  const raiz = document.documentElement;
+  const a = (r && typeof r === 'object') ? r : {};
+  const NIVEL = { suave: ['18%','12%'], media: ['30%','18%'], forte: ['46%','30%'] };
+  const m = NIVEL[a.metal];
+  if(m){
+    raiz.setAttribute('data-rodape-metal', a.metal);
+    raiz.style.setProperty('--rp-luz', m[0]);
+    raiz.style.setProperty('--rp-sombra', m[1]);
+  } else {
+    raiz.removeAttribute('data-rodape-metal');
+    raiz.style.removeProperty('--rp-luz');
+    raiz.style.removeProperty('--rp-sombra');
+  }
+  if(m && a.brilho === true) raiz.setAttribute('data-rodape-brilho', 'sim');
+  else raiz.removeAttribute('data-rodape-brilho');
+}
+
 function aplicarAtalhos(a){
   const raiz = document.documentElement;
   /* A cor de cada um vale em QUALQUER estilo, inclusive no cartão com borda

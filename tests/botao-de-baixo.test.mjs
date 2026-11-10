@@ -21,6 +21,10 @@
      4. "Letra do botão de baixo" muda a letra.
      5. Tocar nele na prévia leva às duas cores dele.
      6. Cor torta vinda do banco é ignorada.
+     7. "Tem como deixar metalizado? Deixar configurável?" — Acabamento
+        (Liso/Suave/Médio/Forte) e Faixa de luz: nasce liso; o metal aparece
+        na prévia e no link, junto com a cor escolhida; a faixa só com metal;
+        valor torto do banco não liga nada.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -136,9 +140,9 @@ let previaAntes;
     await p.evaluate(() => ['.fone-rot[data-cfg="tituloServicos"]', '.fone-rot[data-cfg="tituloEquipe"]', '.fone-cta[data-cfg="agendar"]']
       .map(s => String((document.querySelector('#previaFone ' + s) || {}).textContent || '').trim())), linkAntes.palavras);
   const linhas = await p.evaluate(() => ['rodape', 'letraRodape'].map(k => {
-    const l = document.querySelector(`#coresBotoes .cor-linha[data-chave="${k}"]`);
+    const l = document.querySelector(`#coresRodape .cor-linha[data-chave="${k}"]`);
     return l ? [l.querySelector('b').textContent, l.querySelector('button').style.display] : null; }));
-  igual('Botões e atalhos tem "Botão de baixo" e "Letra do botão de baixo", sem escolha',
+  igual('o bloco "Botão de baixo" tem "Botão de baixo" e "Letra do botão de baixo", sem escolha',
     linhas, [['Botão de baixo', 'none'], ['Letra do botão de baixo', 'none']]);
 
   /* ══════════════════════════════════════════════════════════════════════ */
@@ -195,6 +199,64 @@ await porCores({ botao: BOTAO, rodape:'url(x)', letraRodape:'red' });
   const d = await noLink(p);
   igual('é ignorada: o botão de sempre, sem classe nova', [HEX(d.fundo), HEX(d.letra), d.classes],
     [HEX(linkAntes.fundo), HEX(linkAntes.letra), []]);
+  await fechar();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('7. O botão de baixo metalizado');
+const metalNoLink = p => p.evaluate(() => {
+  const b = document.getElementById('btPrincipal'), cs = getComputedStyle(b), d = getComputedStyle(b, '::after');
+  return { metal: document.documentElement.getAttribute('data-rodape-metal'),
+           gradiente: /linear-gradient/.test(cs.backgroundImage),
+           luz: d.content !== 'none' && d.animationName === 'brilho-metal', fundo: cs.backgroundColor }; });
+await porCores({ botao: BOTAO });
+{
+  const { p, fechar } = await link();
+  igual('sem escolha: liso, sem atributo, sem faixa de luz', await metalNoLink(p),
+    { metal: null, gradiente: false, luz: false, fundo: linkAntes.fundo });
+  await fechar();
+}
+{
+  const { p, fechar } = await painel();
+  const r0 = await p.evaluate(() => ({
+    acab: [...document.querySelectorAll('#reguaRodapeMetal button')].map(b => b.textContent.trim() + (b.classList.contains('on') ? '*' : '')),
+    luzDesligada: [...document.querySelectorAll('#reguaRodapeBrilho button')].every(b => b.disabled) }));
+  igual('o painel oferece Liso/Suave/Médio/Forte, com Liso marcado, e a faixa de luz desligada',
+    r0, { acab: ['Liso*', 'Suave', 'Médio', 'Forte'], luzDesligada: true });
+  await p.evaluate(() => escolherAparencia('rodapeMetal', 'media'));
+  await p.evaluate(() => escolherAparencia('rodapeBrilho', true));
+  await p.waitForTimeout(250);
+  const pv = await p.evaluate(() => { const b = document.querySelector('#previaFone .fone-pe-b');
+    return [b.classList.contains('metal'), /linear-gradient/.test(getComputedStyle(b).backgroundImage),
+            b.classList.contains('com-brilho')]; });
+  igual('a prévia mostra o metal e a faixa de luz na hora', pv, [true, true, true]);
+  await p.evaluate(() => salvarAparencia());
+  await p.waitForTimeout(1800);
+  igual('salvar grava o acabamento', (await cfgDe()).rodape, { metal: 'media', brilho: true });
+  await fechar();
+}
+{
+  const { p, fechar } = await link();
+  const d = await metalNoLink(p);
+  igual('no link: metal médio com a faixa de luz', [d.metal, d.gradiente, d.luz], ['media', true, true]);
+  await fechar();
+}
+// Com a cor própria do botão de baixo E metal: o metal não pode sumir.
+await dona.atualizar('saloes', SALAO, { cfg: Object.assign({}, BASE_CFG,
+  { cores: { botao: BOTAO, rodape: '#B45309' }, rodape: { metal: 'forte', brilho: false } }) });
+{
+  const { p, fechar } = await link();
+  const d = await metalNoLink(p);
+  igual('com cor própria: metal forte na cor escolhida, sem a faixa', [d.metal, d.gradiente, d.luz, HEX(d.fundo)],
+    ['forte', true, false, '#B45309']);
+  await fechar();
+}
+await dona.atualizar('saloes', SALAO, { cfg: Object.assign({}, BASE_CFG,
+  { cores: { botao: BOTAO }, rodape: { metal: 'ouro', brilho: 'sim' } }) });
+{
+  const { p, fechar } = await link();
+  igual('valor torto do banco: liso, sem faixa', await metalNoLink(p),
+    { metal: null, gradiente: false, luz: false, fundo: linkAntes.fundo });
   await fechar();
 }
 

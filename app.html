@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.2620d4';
+const VERSAO_APP = 'v9.521f9f';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -10934,6 +10934,21 @@ function pintarSalao(){
         tempos em tempos. Quem pediu ao celular para reduzir animações não vê
         o movimento — o acabamento fica de qualquer forma.</p>
 
+      <!-- O BOTAO DE BAIXO: o "Agendar horario" fixo no pe da pagina. "Tem
+           como deixar metalizado? Deixar configuravel?" As duas cores dele e
+           o acabamento, juntos. Nasce Liso, como sempre foi: nenhum link muda
+           sozinho. (Sem crase: template literal.) -->
+      <div class="ap-sub">Botão de baixo</div>
+      <p class="secao-sub" style="margin:0 0 6px">O botão fixo no pé da página
+        (“Agendar horário”), que acompanha a cliente enquanto ela rola.</p>
+      <div id="coresRodape" class="cores-grupo"></div>
+      <div class="rot" style="margin:12px 0 8px">Acabamento</div>
+      <div class="regua" id="reguaRodapeMetal" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaRodapeMetal" style="margin-top:9px"></p>
+      <div class="rot" style="margin:12px 0 8px">Faixa de luz</div>
+      <div class="regua" id="reguaRodapeBrilho" style="justify-content:flex-start"></div>
+      <p class="secao-sub" id="explicaRodapeBrilho" style="margin-top:9px"></p>
+
       <!-- O BOTAO VER PRODUTOS. Ao lado do Agendar horario, no cartao de
            boas-vindas, quando a casa vende. Discreto e o de sempre; "Igual ao
            Agendar horario" e o botao cheio, de metal, na cor dos produtos.
@@ -12073,6 +12088,10 @@ function lerAparencia(cfg){
        cairia no padrão sem nada explicando por quê. */
     fitaMetal: ['chapado','suave','forte'].includes(c.fitaMetal)
       ? c.fitaMetal : 'media',
+    /* O botão de baixo: nasce LISO (o de sempre) e sem faixa de luz. Só o que
+       a régua oferece entra, como na fita. */
+    rodapeMetal: ['suave','media','forte'].includes((c.rodape || {}).metal) ? c.rodape.metal : 'chapado',
+    rodapeBrilho: (c.rodape || {}).brilho === true,
     /* `!== false`, e não `|| true`: `false` é escolha legítima. */
     fitaBrilho: c.fitaBrilho !== false,
     fitaTempo: ['lenta','rapida'].includes(c.fitaTempo) ? c.fitaTempo : 'media',
@@ -12237,7 +12256,8 @@ const GRUPOS_DE_COR = [
   ['coresFrasesEquipe',   ['tituloEquipe', 'nomeEquipe']],
   ['coresIcones', ['icone', 'iconeDestaque']],
   ['coresBordas', ['borda', 'moldura']],
-  ['coresBotoes', ['botao', 'letraAgendar', 'rodape', 'letraRodape']],
+  ['coresBotoes', ['botao', 'letraAgendar']],
+  ['coresRodape', ['rodape', 'letraRodape']],
   ['coresProdutos', ['produtos', 'letraProdutos']],
   ['coresMolduraCartoes', ['fundoServico', 'fundoProduto']],
 ];
@@ -12471,6 +12491,32 @@ function pintarAparencia(){
      Cinco escolhas, e as cinco caem na mesma barra. A explicação embaixo diz
      o EFEITO, não o nome do botão: "quase sem relevo" ensina alguma coisa;
      "suave" repete o rótulo que a pessoa acabou de ler. */
+  /* ── O BOTÃO DE BAIXO ─────────────────────────────────────────────────
+     O mesmo metal da fita e do botão do Bem-vindo, na mesma escala. A faixa
+     de luz só existe com metal: num botão liso ela seria um risco branco. */
+  const RODAPE_METAL = [
+    ['chapado', 'Liso',   'A cor lisa, sem relevo — como o botão sempre foi.'],
+    ['suave',   'Suave',  'Um metal de leve, que se nota sem chamar atenção.'],
+    ['media',   'Médio',  'O mesmo metal do Agendar horário do Bem-vindo.'],
+    ['forte',   'Forte',  'Metal bem marcado, com claro e escuro bem separados.'],
+  ];
+  const rm = document.getElementById('reguaRodapeMetal');
+  if(rm){
+    rm.innerHTML = RODAPE_METAL.map(([v, rot]) =>
+      `<button type="button" class="${aparencia.rodapeMetal === v ? 'on' : ''}"
+               onclick="escolherAparencia('rodapeMetal','${v}')">${rot}</button>`).join('');
+    const ach = RODAPE_METAL.find(x => x[0] === aparencia.rodapeMetal);
+    document.getElementById('explicaRodapeMetal').textContent = ach ? ach[2] : '';
+    const liso = aparencia.rodapeMetal === 'chapado';
+    document.getElementById('reguaRodapeBrilho').innerHTML = [[false, 'Parada'], [true, 'Passando']].map(([v, rot]) =>
+      `<button type="button" class="${aparencia.rodapeBrilho === v ? 'on' : ''}" ${liso ? 'disabled' : ''}
+               onclick="escolherAparencia('rodapeBrilho',${v})">${rot}</button>`).join('');
+    document.getElementById('explicaRodapeBrilho').textContent = liso
+      ? 'Escolha um acabamento de metal para ligar a faixa de luz.'
+      : aparencia.rodapeBrilho ? 'Uma faixa de luz atravessa o botão de tempos em tempos.'
+      : 'O metal fica parado, sem a faixa de luz.';
+  }
+
   const FITA_METAL = [
     ['chapado', 'Lisa',    'Sem relevo nenhum: a cor lisa, como era antes.'],
     ['suave',   'Suave',   'Um relevo de leve, que se nota sem chamar atenção.'],
@@ -13934,8 +13980,12 @@ function previaDoRodape(sl, comServicos, temPr){
   const c = aparencia.cores || {};
   const fundo = corValida(c.rodape) ? c.rodape : corDoBotaoNaPrevia();
   const letra = corValida(c.letraRodape) ? c.letraRodape : letraSobre(fundo);
+  // O acabamento, com os mesmos números da página (aplicarRodape).
+  const m = { suave: ['18%','12%'], media: ['30%','18%'], forte: ['46%','30%'] }[aparencia.rodapeMetal];
+  const classes = (m ? ' metal' : '') + (m && aparencia.rodapeBrilho ? ' com-brilho' : '');
   return `<div class="fone-pe" data-cfg="rodape">
-    <span class="fone-pe-b" style="--fone-pe-cor:${fundo};--fone-pe-letra:${letra}">${escapar(rot)}</span></div>`;
+    <span class="fone-pe-b${classes}" style="--fone-pe-cor:${fundo};--fone-pe-letra:${letra}${
+      m ? `;--fone-pe-luz:${m[0]};--fone-pe-sombra:${m[1]}` : ''}">${escapar(rot)}</span></div>`;
 }
 
 /* A sombra dos atalhos, na escala da prévia (234/412, como o anel da logo).
@@ -14171,7 +14221,7 @@ const CONFIG_DA_PREVIA = {
   status:   ['.cor-linha[data-chave="card"]'],
   boas:     ['.cor-linha[data-chave="secundaria"]', '.cor-linha[data-chave="card"]'],
   agendar:  ['.cor-linha[data-chave="botao"]', '.cor-linha[data-chave="letraAgendar"]', '#reguaBrilho'],
-  rodape:   ['.cor-linha[data-chave="rodape"]', '.cor-linha[data-chave="letraRodape"]'],
+  rodape:   ['.cor-linha[data-chave="rodape"]', '.cor-linha[data-chave="letraRodape"]', '#reguaRodapeMetal'],
   produtos: ['#reguaBotaoProdutos', '.cor-linha[data-chave="produtos"]', '.cor-linha[data-chave="letraProdutos"]'],
   horario:  ['.cor-linha[data-chave="horario"]'],
   slide:    ['#reguaSlide', '#reguaSlideForma'],
@@ -14254,6 +14304,7 @@ function cfgDaAparencia(){
     slideForma: aparencia.slideForma,
     fitaMetal: aparencia.fitaMetal,
     fitaBrilho: aparencia.fitaBrilho,
+    rodape: { metal: aparencia.rodapeMetal, brilho: aparencia.rodapeBrilho },
     fitaTempo: aparencia.fitaTempo,
     /* ⚠ VAZIO VIRA NULO, e não a string vazia. Nulo é "não escolhi", e a
        página herda `--acao`; a string vazia atravessaria a vitrine como uma
