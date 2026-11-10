@@ -205,8 +205,9 @@ verdade('a tela de Aparência ganhou o seletor de modo', daTela.temModo);
 // dos atalhos da cor do texto de destaque) e a "Cor dos produtos" (o botão
 // Ver produtos e o carrinho). Cada uma uma vez só.
 // 35: a última a entrar foi a do "Agende seu horário" (aparencia-link.test.mjs).
-igual('as trinta e cinco cores aparecem uma a uma', daTela.temCores, 35);
-igual('nenhuma repetida', daTela.chavesUnicas, 35);
+// 35 + o botão de baixo e a letra dele + a cor de dentro dos serviços e a dos produtos.
+igual('as trinta e nove cores aparecem uma a uma', daTela.temCores, 39);
+igual('nenhuma repetida', daTela.chavesUnicas, 39);
 verdade('e a cor do papel fica junto das outras perguntas sobre fundo',
   daTela.papelJuntoDoFundo && daTela.papelForaDaLista,
   'ela ficou na lista das onze, longe de onde se pergunta pelo fundo');

@@ -253,6 +253,42 @@ troca app.html \
   "    moldura: ''," \
   && rodar "moldura salva some do painel"
 
+echo "33. a página ignora a cor de dentro"
+troca agendar.html \
+  "    raiz.setAttribute('data-at-fundo', '');" \
+  "" \
+  && rodar "cor de dentro salva e cartão branco no link"
+
+echo "34. a cor de dentro pinta também o Sem contorno"
+troca estilo.css \
+  "[data-at-fundo]:not([data-atalhos=\"limpo\"]) .recurso{ background:var(--at-fundo) }" \
+  "[data-at-fundo] .recurso{ background:var(--at-fundo) }" \
+  && rodar "caixa no estilo sem caixa"
+
+echo "35. a prévia ignora a cor de dentro"
+troca app.html \
+  "  return cores + dentro + \`;--fone-at-desfoque" \
+  "  return cores + \`;--fone-at-desfoque" \
+  && rodar "prévia branca, link creme"
+
+echo "36. a cor de dentro não é lida ao reabrir o painel"
+troca app.html \
+  "    fundo: corValida(a.fundo) ? a.fundo : ''," \
+  "    fundo: ''," \
+  && rodar "cor de dentro salva some do painel"
+
+echo "37. a página aceita cor de dentro torta do banco"
+troca agendar.html \
+  "  if(a && typeof a === 'object' && corValida(a.fundo)){" \
+  "  if(a && typeof a === 'object' && a.fundo){" \
+  && rodar "url(x) vira atributo"
+
+echo "38. a linha de cor volta a espremer o nome no celular"
+troca estilo.css \
+  ".cor-linha{ flex-wrap:wrap; row-gap:8px }" \
+  ".cor-linha{ row-gap:8px }" \
+  && rodar "uma palavra por linha"
+
 echo ""
 echo "$morta mortas, $viva vivas"
 [ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"

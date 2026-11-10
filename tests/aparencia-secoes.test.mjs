@@ -165,7 +165,10 @@ const ESPERADO = { apFundo:['papel', 'card', 'secundaria'], apTextos:['titulo', 
     'nomeSalao', 'rua', 'lugar', 'subtitulo', 'horario', 'bemVindo', 'convite',
     'legenda', 'tituloServicos', 'nomeServico', 'descServico', 'precoServico', 'duracao', 'verTodosServicos',
     'tituloProdutos', 'nomeProduto', 'precoProduto', 'verTodosProdutos', 'tituloEquipe', 'nomeEquipe'],
-  apIcones:['icone', 'iconeDestaque'], apBordas:['borda', 'moldura'], apBotoes:['botao', 'letraAgendar', 'produtos', 'letraProdutos'] };
+  // A cor de dentro dos cartões mora em Bordas, junto da "Moldura dos serviços";
+  // o botão de baixo, em Botões, junto do Agendar.
+  apIcones:['icone', 'iconeDestaque'], apBordas:['borda', 'moldura', 'fundoServico', 'fundoProduto'],
+  apBotoes:['botao', 'letraAgendar', 'rodape', 'letraRodape', 'produtos', 'letraProdutos'] };
 {
   const { p, fechar } = await painel();
   const t = await p.evaluate(() => ({

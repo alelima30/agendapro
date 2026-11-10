@@ -393,8 +393,9 @@ await porCores({});
     ajuda: document.querySelector('.cor-linha[data-chave="letraAgendar"] .cor-linha-ajuda').textContent,
     icones: [...document.querySelectorAll('#previaFone .fone-cta, #previaFone .fone-cta2')].map(b => !!b.querySelector('svg')),
   }));
+  // E o botão de baixo, com a letra dele, junto do Agendar (botao-de-baixo.test.mjs).
   igual('as duas linhas moram junto da cor de cada botão', [t.botoes, t.produtos],
-    [['botao', 'letraAgendar'], ['produtos', 'letraProdutos']]);
+    [['botao', 'letraAgendar', 'rodape', 'letraRodape'], ['produtos', 'letraProdutos']]);
   verdade('sem escolha, a linha diz que é automática', /automático/.test(t.ajuda), t.ajuda);
   igual('os botões da prévia têm o ícone, como na página', t.icones, [true, true]);
   await p.evaluate(() => { escolherCorSolta('letraAgendar', '#FFD54F'); escolherCorSolta('letraProdutos', '#00695C'); });

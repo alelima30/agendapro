@@ -938,8 +938,12 @@ const ATIVOS = ['pendente','confirmado','em_atendimento','concluido'];
    Barato de manter: é um mapa, não um segundo produto.
    ──────────────────────────────────────────────────────────────────────── */
 const VOCABULARIO = {
-  barbearia: { casa:'Barbearia',       quem:'barbeiro',     atende:'Quem corta',
-               acao:'Agendar corte',    oferecemos:'Nossos cortes' },
+  /* "Tem que aparecer Nossos serviços, e não cortes": barbearia faz barba,
+     sobrancelha, pigmentação — "Nossos cortes" sobre um cartão de Barba, e
+     "Agendar corte" para marcar a barba, diziam o que a casa não é. O
+     "barbeiro" fica: é quem atende, em qualquer serviço. */
+  barbearia: { casa:'Barbearia',       quem:'barbeiro',     atende:'Quem atende',
+               acao:'Agendar horário',  oferecemos:'Nossos serviços' },
   salao:     { casa:'Salão de beleza', quem:'profissional', atende:'Quem atende',
                acao:'Agendar horário',  oferecemos:'Nossos serviços' },
   manicure:  { casa:'Esmalteria',      quem:'manicure',     atende:'Quem atende',
@@ -7169,6 +7173,16 @@ function aplicarAtalhos(a){
      no "Com borda": nos outros dois estilos a borda é transparente. */
   if(a && typeof a === 'object' && corValida(a.moldura)) raiz.style.setProperty('--at-moldura', a.moldura);
   else raiz.style.removeProperty('--at-moldura');
+  /* A cor de dentro dos três, também uma só. O atributo só existe com a
+     escolha: sem ele, nenhuma regra nova casa e o cartão é o de sempre. No
+     "Sem contorno" o estilo.css não deixa pintar (não há cartão). */
+  if(a && typeof a === 'object' && corValida(a.fundo)){
+    raiz.style.setProperty('--at-fundo', a.fundo);
+    raiz.setAttribute('data-at-fundo', '');
+  } else {
+    raiz.style.removeProperty('--at-fundo');
+    raiz.removeAttribute('data-at-fundo');
+  }
   const vars = ['--at-desfoque', '--at-opacidade', '--at-distancia', '--at-cor'];
   const estilo = (a && typeof a === 'object' && ['limpo', 'sombra'].includes(a.estilo))
     ? a.estilo : null;
@@ -7386,6 +7400,26 @@ function aplicarCoresSoltas(s, p, escuro){
   document.body.classList.toggle('tem-letra-produtos', !!letraProdutos);
   if(letraAgendar) p('--cor-letra-agendar', letraAgendar);
   if(letraProdutos) p('--cor-letra-produtos', letraProdutos);
+  /* A cor de dentro dos cartões de serviço e de produto — o fundo da
+     moldura Clássica e da Curvada. Por classe: sem escolha, nenhuma regra
+     nova casa e o cartão fica com a cor dos Cartões, como sempre. */
+  const fundoServico = vale('fundoServico'), fundoProduto = vale('fundoProduto');
+  document.body.classList.toggle('tem-fundo-servico', !!fundoServico);
+  document.body.classList.toggle('tem-fundo-produto', !!fundoProduto);
+  if(fundoServico) p('--cor-fundo-servico', fundoServico);
+  if(fundoProduto) p('--cor-fundo-produto', fundoProduto);
+  /* O botão de baixo ("Agendar corte", "Continuar"…), com cor própria. Por
+     classe, como as letras de cima: sem escolha nenhuma regra nova casa, e
+     ele continua na Cor dos botões. Com só o fundo escolhido, a letra é a
+     que lê melhor nele — a mesma conta do botão. */
+  const rodape = vale('rodape'), letraRodape = vale('letraRodape');
+  document.body.classList.toggle('tem-cor-rodape', !!rodape);
+  document.body.classList.toggle('tem-letra-rodape', !!(rodape || letraRodape));
+  if(rodape){
+    p('--cor-rodape', rodape);
+    p('--cor-rodape-hover', mexer(rodape, escuro ? 0.14 : -0.14));
+  }
+  if(rodape || letraRodape) p('--cor-letra-rodape', letraRodape || letraSobre(rodape));
   // O Ver todos os produtos também por classe: sem escolha, a cor dele
   // depende de haver cor de produtos (tem-cor-produtos) ou não.
   const verProdutos = vale('verTodosProdutos');

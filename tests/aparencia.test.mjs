@@ -161,7 +161,8 @@ const titulos = await p.evaluate(() =>
     .map(e => e.textContent.trim()));
 igual('e o título dos serviços sai UMA vez — ' + JSON.stringify(titulos),
   titulos.length, 1);
-igual('com o vocabulário da barbearia', titulos[0], 'Nossos cortes');
+// "Tem que aparecer Nossos serviços, e não cortes" — a barbearia faz barba também.
+igual('com o vocabulário da barbearia', titulos[0], 'Nossos serviços');
 igual('sem erro de JavaScript', p.erros.length ? p.erros.join(' | ') : 0, 0);
 await p.close();
 

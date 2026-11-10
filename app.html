@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.477d98';
+const VERSAO_APP = 'v9.9aba6e';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -11001,6 +11001,22 @@ function pintarSalao(){
                 onclick="escolherMolduraAtalhos('')">automática</button>
       </div>
 
+      <!-- A COR DE DENTRO DOS TRES: o fundo do cartao, uma cor so, como a
+           moldura. "Nao estou achando o lugar de mudar a cor de dentro da
+           moldura": ela vinha so dos Cartoes, que pinta tambem os cartoes de
+           servico e de produto. Sem escolha, continua a dos Cartoes. Vale no
+           "Com contorno" e no "Com sombra"; no "Sem contorno" nao ha cartao. -->
+      <div class="cor-linha" style="margin-top:8px">
+        <input type="color" id="atFundo" class="cor-bolha"
+               oninput="escolherFundoAtalhos(this.value)" aria-label="Cor de dentro dos atalhos">
+        <span class="cor-linha-txt">
+          <b>Cor de dentro</b>
+          <span id="atFundoAjuda"></span>
+        </span>
+        <button type="button" class="btn btn-peq" id="atFundoHerdar"
+                onclick="escolherFundoAtalhos('')">automática</button>
+      </div>
+
       <!-- A COR DE CADA ATALHO: icone e nome juntos. Vale nos tres estilos.
            Sem escolha, os tres iguais: icone na cor da marca, nome em cinza. -->
       <div class="secao" style="margin:14px 0 2px">Cores dos atalhos</div>
@@ -11097,6 +11113,11 @@ function pintarSalao(){
       <div class="rot" style="margin:18px 0 8px">Moldura dos serviços</div>
       <div class="regua" id="reguaMoldura" style="justify-content:flex-start"></div>
       <p class="secao-sub" id="explicaMoldura" style="margin-top:9px"></p>
+      <!-- A COR DE DENTRO DOS CARTOES, junto da moldura deles. "Nao estou
+           achando a cor da moldura curvada para mudar a cor de dentro": ela
+           era a dos Cartoes, la no bloco de cores, que muda tambem os
+           atalhos e outras caixas da pagina. Sem escolha, continua a dela. -->
+      <div id="coresMolduraCartoes" class="cores-grupo" style="margin-top:6px"></div>
 
       </section>
 
@@ -11970,6 +11991,7 @@ function lerAtalhos(cru){
   return {
     estilo: ['limpo', 'sombra'].includes(a.estilo) ? a.estilo : 'borda',
     moldura: corValida(a.moldura) ? a.moldura : '',
+    fundo: corValida(a.fundo) ? a.fundo : '',
     cores: Object.fromEntries(CORES_ATALHO
       .map(([k]) => [k, a.cores && typeof a.cores === 'object' ? a.cores[k] : null])
       .filter(([, v]) => corValida(v))),
@@ -12113,7 +12135,10 @@ const CORES_SOLTAS = [
      consigo mudar a cor das letras: nossos serviços, ...". Medido no
      navegador antes de trocar o texto. */
   ['titulo',     'Títulos',         'O nome do salão e o nome de cada serviço e produto.'],
-  ['card',       'Cartões',         'O fundo dos cartões de serviço e de produto, que ficam sobre a página.'],
+  ['card',       'Cartões',         'O fundo dos cartões de serviço e de produto, que ficam sobre a página — e o de Pagamentos, Horários e Informações, enquanto não tiverem cor de dentro própria.'],
+  /* A cor de dentro de cada cartão, só dele. Sem escolha, a dos Cartões. */
+  ['fundoServico', 'Cor de dentro dos serviços', 'O fundo de cada cartão de serviço, na moldura Clássica e na Curvada.'],
+  ['fundoProduto', 'Cor de dentro dos produtos', 'O fundo de cada cartão de produto da vitrine.'],
   /* ⚠ OS ÍCONES SÃO DOIS, E NENHUM DOS DOIS SEGUE O TEXTO. Medido antes de
      separar: mudar "Textos" mudava o pino do endereço (o ícone herdava a cor
      da letra ao lado), e mudar "Destaque e preço" mudava os ícones dos três
@@ -12153,6 +12178,15 @@ const CORES_SOLTAS = [
      sempre — e a do Ver produtos é a que o estilo dele já dava. */
   ['letraAgendar',  'Letra do Agendar horário', 'A letra e o ícone do botão Agendar horário.'],
   ['letraProdutos', 'Letra do Ver produtos',    'A letra e o ícone do botão Ver produtos.'],
+  /* ── O BOTÃO DE BAIXO ──────────────────────────────────────────────────
+     "Na prévia não aparece lá no final o Agendar corte que aparece no link,
+     e não achei para mudar a cor." É o botão fixo no pé da página — o
+     "Agendar corte" da barbearia, o "Agendar horário" do salão, e o
+     "Continuar" dos passos. Pintava com a Cor dos botões, junto com o
+     Agendar do Bem-vindo, sem aparecer na prévia nem ter linha própria.
+     Sem escolha, continua assim: acompanha a Cor dos botões. */
+  ['rodape',      'Botão de baixo',  'O botão fixo no pé da página: o "Agendar horário" e o "Continuar" dos passos.'],
+  ['letraRodape', 'Letra do botão de baixo', 'A letra do botão fixo no pé da página.'],
   /* ── E CADA FRASE DE BAIXO ─────────────────────────────────────────────
      "Fez também de todas as frases abaixo?" O slide, os serviços, os
      produtos e quem atende: cada frase com a sua cor, herdando a de sempre
@@ -12191,8 +12225,9 @@ const GRUPOS_DE_COR = [
   ['coresFrasesEquipe',   ['tituloEquipe', 'nomeEquipe']],
   ['coresIcones', ['icone', 'iconeDestaque']],
   ['coresBordas', ['borda', 'moldura']],
-  ['coresBotoes', ['botao', 'letraAgendar']],
+  ['coresBotoes', ['botao', 'letraAgendar', 'rodape', 'letraRodape']],
   ['coresProdutos', ['produtos', 'letraProdutos']],
+  ['coresMolduraCartoes', ['fundoServico', 'fundoProduto']],
 ];
 
 function pintarAparencia(){
@@ -12330,6 +12365,9 @@ function pintarAparencia(){
       : chave === 'moldura' ? 'automático — a cor dos cartões, que recorta a logo da foto'
       : chave === 'produtos' ? 'acompanha a cor dos botões — a mesma do Agendar horário'
       : chave === 'letraAgendar' ? 'automático — branca ou preta, a que se lê melhor no botão'
+      : chave === 'rodape' ? 'acompanha a cor dos botões — a mesma do Agendar horário'
+      : chave === 'fundoServico' || chave === 'fundoProduto' ? 'acompanha "Cartões"'
+      : chave === 'letraRodape' ? 'automático — branca ou preta, a que se lê melhor no botão'
       : chave === 'letraProdutos' ? 'automático — a que o estilo do botão Ver produtos já dá'
       : chave === 'legenda' ? 'automático — branco, sobre a sombra da foto'
       : chave === 'verTodosProdutos' ? 'acompanha a cor dos produtos (ou o destaque, sem ela)'
@@ -12941,6 +12979,7 @@ function conferirLegibilidade(){
     if(r < 4.5) queixas.push(rot + ' (' + r.toFixed(1) + ':1 sobre o botão)');
   };
   noBotao('letraAgendar', 'a letra do Agendar horário', corDoBotaoNaPrevia());
+  noBotao('letraRodape', 'a letra do botão de baixo', corValida(c.rodape) ? c.rodape : corDoBotaoNaPrevia());
   noBotao('letraProdutos', 'a letra do Ver produtos', aparencia.botaoProdutos === 'metal'
     ? (corValida(c.produtos) ? c.produtos : corDoBotaoNaPrevia()) : cartao);
   /* ⚠ 2, E NÃO 4.5. Este cinza é apagado DE PROPÓSITO, e o padrão do próprio
@@ -13041,6 +13080,11 @@ function corHerdada(chave){
   if(chave === 'produtos') return corDoBotaoNaPrevia();
   // A letra dos botões, sem escolha: a que o botão já dava.
   if(chave === 'letraAgendar') return letraSobre(corDoBotaoNaPrevia());
+  // A cor de dentro dos cartões acompanha a dos Cartões.
+  if(chave === 'fundoServico' || chave === 'fundoProduto') return corValida(c.card) ? c.card : corHerdada('card');
+  // O botão de baixo acompanha a Cor dos botões; a letra, a que lê melhor nele.
+  if(chave === 'rodape') return corDoBotaoNaPrevia();
+  if(chave === 'letraRodape') return letraSobre(corValida(c.rodape) ? c.rodape : corDoBotaoNaPrevia());
   if(chave === 'letraProdutos') return letraDoVerProdutos();
   // A legenda do slide é branca sobre a sombra da foto, em qualquer tema; o
   // Ver todos os produtos é a cor dos produtos, ou o destaque sem ela.
@@ -13285,6 +13329,11 @@ function escolherMolduraAtalhos(hex){
   aparencia.atalhos.moldura = corValida(hex) ? hex : '';
   pintarAparencia();
 }
+/* A cor de dentro dos três. Vazio é "herdar": a dos Cartões. */
+function escolherFundoAtalhos(hex){
+  aparencia.atalhos.fundo = corValida(hex) ? hex : '';
+  pintarAparencia();
+}
 function escolherIntensidade(nome){
   Object.assign(aparencia.atalhos.sombra, SOMBRAS[nome], { intensidade: nome });
   pintarAparencia();
@@ -13347,7 +13396,7 @@ function pintarAtalhos(){
   const grad = aparencia.fundoTipo === 'gradiente' ? coresDoGradiente(aparencia.gradiente) : [];
   const atras = at.estilo === 'limpo'
     ? (grad.length ? grad : [corValida(c.papel) ? c.papel : corHerdada('papel')])
-    : [corValida(c.card) ? c.card : corHerdada('card')];
+    : [corValida(at.fundo) ? at.fundo : (corValida(c.card) ? c.card : corHerdada('card'))];
   for(const [k] of CORES_ATALHO){
     const id = 'atCor' + k[0].toUpperCase() + k.slice(1);
     const el = document.getElementById(id);
@@ -13374,6 +13423,26 @@ function pintarAtalhos(){
   const herdarMol = document.getElementById('atMolduraHerdar');
   herdarMol.style.display = temMol ? '' : 'none';
   herdarMol.disabled = !comBorda;
+  /* A cor de dentro: sem escolha, o quadrado mostra a dos Cartões, que é a
+     que os três já têm. O aviso de contraste mede contra o nome de cada um —
+     a cor escolhida dele, ou o texto (o cinza de sempre). */
+  const fun = document.getElementById('atFundo');
+  const temFun = corValida(at.fundo);
+  const comCartao = at.estilo !== 'limpo';
+  const vFun = (temFun ? at.fundo : (corValida(c.card) ? c.card : corHerdada('card'))).toLowerCase();
+  if(fun.value.toLowerCase() !== vFun) fun.value = vFun;
+  fun.disabled = !comCartao;
+  const nomeAtalho = corValida(c.texto) ? c.texto : corHerdada('texto');
+  const poucoFun = temFun && CORES_ATALHO.some(([k]) =>
+    contrasteEntre(corValida(at.cores[k]) ? at.cores[k] : nomeAtalho, at.fundo) < 3);
+  document.getElementById('atFundoAjuda').textContent = !comCartao
+    ? 'só nos estilos “Com contorno” e “Com sombra”'
+    : !temFun ? 'a mesma dos cartões de serviço, nos três'
+    : poucoFun ? 'escolhida por você · pouco contraste com o nome, mude a cor dos atalhos abaixo'
+    : 'escolhida por você · a mesma nos três';
+  const herdarFun = document.getElementById('atFundoHerdar');
+  herdarFun.style.display = temFun ? '' : 'none';
+  herdarFun.disabled = !comCartao;
 
   document.getElementById('explicaSombra').textContent = !ligado
     ? 'Escolha “Com sombra” para ajustar a sombra.'
@@ -13590,6 +13659,39 @@ function anelDaPrevia(){
   return `;--fone-anel:${ANEL_NA_PREVIA[aparencia.logoBorda] || '2.8px'};--fone-anel-cor:${cor}`;
 }
 
+/* ── O BOTÃO DE BAIXO, NA PRÉVIA ──────────────────────────────────────────
+   "Na prévia não aparece lá no final o Agendar corte que aparece no link."
+   O pé fixo da página (o `#btPrincipal` do agendar.html), com o MESMO rótulo
+   e a MESMA regra de quando aparece: pedido no restaurante, o "agendar" de
+   cada tipo de negócio quando há serviços, "Ver produtos" numa casa só de
+   produtos — e nada quando não há para onde ir. */
+/* ⚠ AS PALAVRAS DO LINK, POR TIPO DE NEGÓCIO — cópia do VOCABULARIO do
+   agendar.html. A prévia escrevia sempre "Nossos serviços", "Quem atende" e
+   "Agendar horário", e o link de uma estética dizia "Nossos tratamentos" e
+   "Agendar sessão": prévia que não bate com o link engana. Mudou lá, muda
+   aqui (o tests/vocabulario-previa.test.mjs compara as duas). */
+const VOC_DO_TIPO = {
+  estetica:    { acao:'Agendar sessão',   oferecemos:'Nossos tratamentos' },
+  clinica:     { acao:'Agendar consulta', oferecemos:'Nossos atendimentos' },
+  tatuagem:    { acao:'Agendar sessão',   oferecemos:'Nossos trabalhos', atende:'Quem tatua' },
+  pet:         { acao:'Agendar banho' },
+  outro:       { oferecemos:'O que oferecemos' },
+  restaurante: { acao:'Fazer reserva',    oferecemos:'Reservas' },
+};
+const VOC_PADRAO = { acao:'Agendar horário', oferecemos:'Nossos serviços', atende:'Quem atende' };
+const vocPrevia = (sl, chave) => (VOC_DO_TIPO[(sl || {}).tipo] || {})[chave] || VOC_PADRAO[chave];
+function previaDoRodape(sl, comServicos, temPr){
+  const rot = restaurantePainel() && temPr ? 'Faça seu pedido'
+    : comServicos ? vocPrevia(sl, 'acao')
+    : temPr ? 'Ver produtos' : '';
+  if(!rot) return '';
+  const c = aparencia.cores || {};
+  const fundo = corValida(c.rodape) ? c.rodape : corDoBotaoNaPrevia();
+  const letra = corValida(c.letraRodape) ? c.letraRodape : letraSobre(fundo);
+  return `<div class="fone-pe" data-cfg="rodape">
+    <span class="fone-pe-b" style="--fone-pe-cor:${fundo};--fone-pe-letra:${letra}">${escapar(rot)}</span></div>`;
+}
+
 /* A sombra dos atalhos, na escala da prévia (234/412, como o anel da logo).
    A opacidade e a cor não encolhem: são as mesmas da página. */
 function sombraDaPrevia(){
@@ -13597,7 +13699,9 @@ function sombraDaPrevia(){
   const cores = Object.entries(aparencia.atalhos.cores)
     .filter(([, v]) => corValida(v)).map(([n, v]) => `;--fone-at-${n}:${v}`).join('')
     + (corValida(aparencia.atalhos.moldura) ? `;--fone-at-moldura:${aparencia.atalhos.moldura}` : '');
-  return cores + `;--fone-at-desfoque:${(sb.desfoque * k).toFixed(1)}px`
+  // A cor de dentro, só com a escolha — como o `data-at-fundo` da prévia.
+  const dentro = corValida(aparencia.atalhos.fundo) ? `;--fone-at-fundo:${aparencia.atalhos.fundo}` : '';
+  return cores + dentro + `;--fone-at-desfoque:${(sb.desfoque * k).toFixed(1)}px`
        + `;--fone-at-distancia:${(sb.distancia * k).toFixed(1)}px`
        + `;--fone-at-opacidade:${Number(sb.opacidade)}%;--fone-at-cor:${sb.cor}`;
 }
@@ -13670,7 +13774,7 @@ function pintarPreviaFone(){
   const botoes = [];
   // No restaurante, como no link: o pedido primeiro (metal), a reserva depois.
   if(restaurante && temPr) botoes.push(['produtos', 'Faça seu pedido']);
-  if(comServicos) botoes.push(['agendar', restaurante ? 'Fazer reserva' : 'Agendar horário']);
+  if(comServicos) botoes.push(['agendar', vocPrevia(sl, 'acao')]);
   if(temPr && !restaurante) botoes.push(['produtos', 'Ver produtos']);
   if(!botoes.length && zapDaCasa(sl)) botoes.push(['agendar', 'Falar no WhatsApp']);
   const htmlBotoes = botoes.map(([q, rot], i) => {
@@ -13695,8 +13799,11 @@ function pintarPreviaFone(){
     `<div class="fone ${escuro ? 'fone-escuro' : ''}${
           cartoesFechados ? ' pouco-veu' : ''}${
           aparencia.fundoTipo === 'gradiente' ? ' com-grad' : ''}${
-          corValida((aparencia.cores || {}).papel) ? ' com-papel' : ''}"
-          data-modo="${aparencia.modo}" data-logo="${aparencia.logoForma}"
+          corValida((aparencia.cores || {}).papel) ? ' com-papel' : ''}${
+          corValida((aparencia.cores || {}).fundoServico) ? ' com-fundo-servico' : ''}${
+          corValida((aparencia.cores || {}).fundoProduto) ? ' com-fundo-produto' : ''}"
+          data-modo="${aparencia.modo}" data-logo="${aparencia.logoForma}"${
+            corValida(aparencia.atalhos.fundo) ? ' data-at-fundo' : ''}
           data-atalhos="${aparencia.atalhos.estilo}" data-cfg="fundo"
           style="--fone-marca:${escapar(corDoBotaoNaPrevia())};--fone-marca-txt:${
             letraSobre(corDoBotaoNaPrevia())}${coresDaPrevia()}${tonsDaMarcaNaPrevia()}${
@@ -13732,7 +13839,7 @@ function pintarPreviaFone(){
        </div>
        ${previaDoSlide(sl)}
        ${comServicos ? `<div class="fone-svs" data-cfg="servicos">
-         <div class="fone-rot" data-cfg="tituloServicos">Nossos serviços</div>
+         <div class="fone-rot" data-cfg="tituloServicos">${escapar(vocPrevia(sl, 'oferecemos'))}</div>
          ${svs.length ? previaDosServicos(svs)
          : '<p class="fone-nada">Cadastre serviços para vê-los aqui.</p>'}
        </div>` : ''}
@@ -13749,7 +13856,7 @@ function pintarPreviaFone(){
          <div class="fone-ver-todos" data-cfg="verTodosProdutos">Ver todos os produtos <span>${produtos.length}</span></div>
        </div>` : ''}
        ${eq.length ? `<div class="fone-svs" data-cfg="servicos">
-         <div class="fone-rot" data-cfg="tituloEquipe">Quem atende</div>
+         <div class="fone-rot" data-cfg="tituloEquipe">${escapar(vocPrevia(sl, 'atende'))}</div>
          ${eq.map(x => `<div class="fone-sv">
             <div class="fone-eq"${x.foto ? ` style="background-image:url('${escapar(x.foto)}')"` : ''}>${
               x.foto ? '' : escapar((x.nome || '?').charAt(0).toUpperCase())}</div>
@@ -13773,6 +13880,7 @@ function pintarPreviaFone(){
            <span>2 produtos · Ver meu pedido</span></span>
          <span class="fone-fita-zap"><span data-ico="whatsapp"></span>Enviar</span>
        </div>
+       ${previaDoRodape(sl, comServicos, temPr)}
      </div>
      <p class="secao-sub" style="text-align:center;margin-top:8px">
        Prévia — é assim que a cliente vê.<br>
@@ -13811,16 +13919,17 @@ const CONFIG_DA_PREVIA = {
   bemVindo: ['.cor-linha[data-chave="bemVindo"]'],
   convite:  ['.cor-linha[data-chave="convite"]'],
   pino:     ['.cor-linha[data-chave="icone"]'],
-  atalhos:  ['#reguaAtalhos', '#atMoldura', '#atCorPagamentos', '#atCorHorarios', '#atCorInformacoes'],
+  atalhos:  ['#reguaAtalhos', '#atMoldura', '#atFundo', '#atCorPagamentos', '#atCorHorarios', '#atCorInformacoes'],
   // O verde e o vermelho são do horário; o que se escolhe nele é o cartão
   // que o tinge.
   status:   ['.cor-linha[data-chave="card"]'],
   boas:     ['.cor-linha[data-chave="secundaria"]', '.cor-linha[data-chave="card"]'],
   agendar:  ['.cor-linha[data-chave="botao"]', '.cor-linha[data-chave="letraAgendar"]', '#reguaBrilho'],
+  rodape:   ['.cor-linha[data-chave="rodape"]', '.cor-linha[data-chave="letraRodape"]'],
   produtos: ['#reguaBotaoProdutos', '.cor-linha[data-chave="produtos"]', '.cor-linha[data-chave="letraProdutos"]'],
   horario:  ['.cor-linha[data-chave="horario"]'],
   slide:    ['#reguaSlide', '#reguaSlideForma'],
-  servicos: ['#reguaMoldura', '.cor-linha[data-chave="borda"]', '.cor-linha[data-chave="card"]'],
+  servicos: ['#reguaMoldura', '.cor-linha[data-chave="fundoServico"]', '.cor-linha[data-chave="borda"]', '.cor-linha[data-chave="card"]'],
   // E as de baixo, cada uma à sua linha.
   legenda:          ['.cor-linha[data-chave="legenda"]'],
   tituloServicos:   ['.cor-linha[data-chave="tituloServicos"]'],

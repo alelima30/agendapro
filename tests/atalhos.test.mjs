@@ -26,6 +26,9 @@
      5. o resto da capa não mexe, e voltar para "Com borda" devolve tudo;
      6. a cor de cada atalho — "a cor do Horários tem que ser configurável,
         também Informações e Pagamentos" —, nos três estilos.
+     7. a moldura dos três, numa cor só, e os modelos prontos.
+     8. a cor de dentro dos três — "não estou achando o lugar de mudar a cor
+        de dentro da moldura" —, e a linha de cor que não cabia no celular.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,8 +81,9 @@ const cfgDe = async () => (await dona.lista('saloes', { id: SALAO }))[0].cfg || 
 const nav = await chromium.launch({ executablePath: CHROMIUM });
 const erros = [];
 
-async function painel(){
-  const ctx = await nav.newContext({ viewport:{ width:1280, height:1000 } });
+async function painel(larg = 1280){
+  const ctx = await nav.newContext({ viewport:{ width:larg, height:1000 },
+    isMobile: larg < 700, hasTouch: larg < 700 });
   const p = await ctx.newPage();
   p.on('pageerror', e => erros.push('painel: ' + e.message));
   await p.addInitScript(([b, s]) => {
@@ -581,6 +585,134 @@ await porCfg({ atalhos:{ estilo:'borda', moldura: MOLDURA, cores:{ horarios:'#DC
     d.every(x => x.fundo === d[0].fundo && x.borda === d[0].borda && x.letra === d[0].letra),
     JSON.stringify(d.map(x => [x.fundo, x.borda, x.letra])));
   await pg.fechar();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   8 — A COR DE DENTRO DOS TRÊS
+   ══════════════════════════════════════════════════════════════════════════
+   "Não estou achando aqui o lugar de mudar a cor de dentro da moldura
+   Horários, Pagamentos e Informações. Aonde fica?" Ficava só nos Cartões,
+   que pinta também os cartões de serviço e de produto. Agora é uma cor só
+   para os três, ao lado da moldura — e sem escolha, a de sempre. */
+secao('8. A cor de dentro dos três, e a linha de cor no celular');
+const DENTRO = '#FDF2D0';
+await porCfg({});
+{
+  const { p, fechar } = await painel();
+  const f0 = await p.evaluate(() => ({
+    existe: !!document.getElementById('atFundo'),
+    ajuda: document.getElementById('atFundoAjuda').textContent,
+    herdar: document.getElementById('atFundoHerdar').style.display }));
+  igual('o painel tem "Cor de dentro", herdando a dos cartões',
+    f0, { existe: true, ajuda: 'a mesma dos cartões de serviço, nos três', herdar: 'none' });
+  const prev0 = await naPrevia(p);
+  igual('sem escolha, a prévia não ganha o atributo',
+    await p.evaluate(() => document.querySelector('#previaFone .fone').hasAttribute('data-at-fundo')), false);
+  await p.evaluate(v => { const el = document.getElementById('atFundo');
+    el.value = v.toLowerCase(); el.dispatchEvent(new Event('input', { bubbles: true })); }, DENTRO);
+  await p.waitForTimeout(250);
+  const prev = await naPrevia(p);
+  verdade('a prévia pinta o fundo dos três na hora — borda e letra como antes',
+    prev.every((x, i) => x.fundo === DENTRO && x.borda === prev0[i].borda && x.letra === prev0[i].letra),
+    JSON.stringify(prev.map(x => [x.fundo, x.borda, x.letra])));
+  await salvar(p);
+  igual('salvar grava a cor de dentro', (await cfgDe()).atalhos?.fundo, DENTRO.toLowerCase());
+  await fechar();
+}
+{
+  const { p, fechar } = await pagina();
+  const d = await naPagina(p);
+  verdade('no link, a cor de dentro nos três — borda e letra como antes',
+    d.every((x, i) => x.fundo === DENTRO && x.borda === antes[i].borda && x.letra === antes[i].letra),
+    JSON.stringify(d.map(x => [x.fundo, x.borda, x.letra])));
+  igual('o resto da capa não mexe (ABERTO, Bem-vindo e nome)', await resto(p), restoAntes);
+  await fechar();
+}
+await porCfg({ atalhos:{ estilo:'sombra', fundo: DENTRO } });
+{
+  const { p, fechar } = await pagina();
+  const d = await naPagina(p);
+  verdade('no "Com sombra", o fundo escolhido e a sombra junto',
+    d.every(x => x.fundo === DENTRO && x.sombra !== 'nenhuma' && x.borda === 'transparente'),
+    JSON.stringify(d.map(x => [x.fundo, x.borda, x.sombra])));
+  await fechar();
+}
+await porCfg({ atalhos:{ estilo:'limpo', fundo: DENTRO } });
+{
+  const { p, fechar } = await pagina();
+  const d = await naPagina(p);
+  verdade('no "Sem contorno" não há cartão: nada de fundo, nem o escolhido',
+    d.every(x => x.fundo === 'transparente'), JSON.stringify(d.map(x => x.fundo)));
+  await fechar();
+  const pn = await painel();
+  const c = await pn.p.evaluate(() => ({ desligado: document.getElementById('atFundo').disabled,
+    ajuda: document.getElementById('atFundoAjuda').textContent }));
+  igual('e o painel desliga a cor de dentro, dizendo por quê',
+    c, { desligado: true, ajuda: 'só nos estilos “Com contorno” e “Com sombra”' });
+  const pv = await naPrevia(pn.p);
+  verdade('a prévia também sem fundo', pv.every(x => x.fundo === 'transparente'), JSON.stringify(pv.map(x => x.fundo)));
+  await pn.fechar();
+}
+await porCfg({ atalhos:{ estilo:'borda', fundo:'url(x)' } });
+{
+  const { p, fechar } = await pagina();
+  const d = await naPagina(p);
+  igual('cor de dentro torta vinda do banco é ignorada: fica o cartão de sempre',
+    [d.map(x => x.fundo), await p.evaluate(() => document.documentElement.hasAttribute('data-at-fundo'))],
+    [antes.map(x => x.fundo), false]);
+  await fechar();
+}
+await porCfg({ atalhos:{ estilo:'borda', fundo: DENTRO } });
+{
+  const { p, fechar } = await painel();
+  const c = await p.evaluate(() => ({ v: document.getElementById('atFundo').value.toUpperCase(),
+    ajuda: document.getElementById('atFundoAjuda').textContent,
+    herdar: document.getElementById('atFundoHerdar').style.display }));
+  igual('reaberto, o painel mostra a cor de dentro salva', c,
+    { v: DENTRO, ajuda: 'escolhida por você · a mesma nos três', herdar: '' });
+  await salvar(p);
+  igual('e salvar de novo não apaga a cor de dentro',
+    String((await cfgDe()).atalhos?.fundo || '').toUpperCase(), DENTRO);
+  // Escura com o nome cinza de sempre: o painel avisa.
+  await p.evaluate(() => { const el = document.getElementById('atFundo');
+    el.value = '#2a2a2a'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await p.waitForTimeout(200);
+  verdade('cor de dentro escura com o nome cinza: avisa do pouco contraste',
+    /pouco contraste/.test(await p.evaluate(() => document.getElementById('atFundoAjuda').textContent)));
+  // "automática" volta para a dos Cartões, na prévia e no banco.
+  await p.evaluate(() => document.getElementById('atFundoHerdar').click());
+  await p.waitForTimeout(250);
+  const pv = await naPrevia(p);
+  await salvar(p);
+  igual('"automática" devolve a dos Cartões — na prévia e no banco',
+    [pv.map(x => x.fundo), (await cfgDe()).atalhos?.fundo || ''], [antes.map(x => x.fundo), '']);
+  await fechar();
+}
+{
+  const { p, fechar } = await pagina();
+  igual('e o link volta ao cartão de sempre', (await naPagina(p)).map(x => x.fundo), antes.map(x => x.fundo));
+  await fechar();
+}
+/* A linha de cor no celular. No print do dono, "Cor da moldura" quebrava uma
+   palavra por linha e o código HEX encostava no nome: quadrado, nome, código
+   e "automática" não cabiam numa fileira. Agora o nome tem espaço e o que
+   não cabe desce, sem cobrir nada. */
+await porCfg({ atalhos:{ estilo:'borda', moldura:'#C8A33C', fundo: DENTRO } });
+for(const larg of [360, 390]){
+  const { p, fechar } = await painel(larg);
+  const linhas = await p.evaluate(() => ['atMoldura', 'atFundo', 'atCorPagamentos'].map(id => {
+    const l = document.getElementById(id).closest('.cor-linha');
+    const r = e => e.getBoundingClientRect();
+    const t = r(l.querySelector('.cor-linha-txt')), h = r(l.querySelector('.cor-hex'));
+    const b = l.querySelector(':scope > button'), rb = b && b.offsetParent ? r(b) : null;
+    const cobre = (a, c) => a.left < c.right - 1 && c.left < a.right - 1 && a.top < c.bottom - 1 && c.top < a.bottom - 1;
+    return { id, nome: Math.round(t.width),
+      cobre: cobre(t, h) || (rb ? cobre(t, rb) || cobre(h, rb) : false),
+      sai: [h, rb].filter(Boolean).some(x => x.right > r(l).right + 1) };
+  }));
+  verdade(`a ${larg}px: o nome com pelo menos 110px, e nada cobre nada nem sai da linha`,
+    linhas.every(x => x.nome >= 110 && !x.cobre && !x.sai), JSON.stringify(linhas));
+  await fechar();
 }
 
 secao('Erros de JavaScript');

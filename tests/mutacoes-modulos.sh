@@ -204,8 +204,8 @@ troca app.html \
 
 echo "16. a prévia mantém o botão de agendar sem agendamento"
 troca app.html \
-  "  if(comServicos) botoes.push(['agendar', restaurante ? 'Fazer reserva' : 'Agendar horário']);" \
-  "  botoes.push(['agendar', restaurante ? 'Fazer reserva' : 'Agendar horário']);" \
+  "  if(comServicos) botoes.push(['agendar', vocPrevia(sl, 'acao')]);" \
+  "  botoes.push(['agendar', vocPrevia(sl, 'acao')]);" \
   && rodar "botão de agendar na prévia de uma loja"
 
 echo ""

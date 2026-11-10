@@ -1046,6 +1046,28 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
 .fone-fita[data-tempo="lenta"]{ --ff-tempo:8.5s }
 .fone-fita[data-tempo="rapida"]{ --ff-tempo:2.8s }
 .fone-fita > *{ position:relative; z-index:1 }
+/* A cor de dentro dos cartões, na prévia. Na Curvada o serviço é cartão; na
+   Clássica a prévia mostra a linha, que ganha o fundo e um respiro para a
+   cor aparecer. A equipe ("Quem atende") usa a mesma linha e não entra. */
+.fone.com-fundo-servico .fone-svs:has(> [data-cfg="tituloServicos"]) .fone-cartao{ background:var(--fone-fundoServico) }
+.fone.com-fundo-servico .fone-svs:has(> [data-cfg="tituloServicos"]) .fone-sv{
+  background:var(--fone-fundoServico); border-radius:10px; padding:5px;
+}
+.fone.com-fundo-produto .fone-pr{ background:var(--fone-fundoProduto) }
+/* O botão de baixo na prévia: o pé fixo da página, embaixo da fita, como no
+   link (a fita em cima, o botão embaixo). A fita deixa de sangrar para baixo
+   quando o pé vem depois dela. */
+.fone-fita:has(+ .fone-pe){ margin-bottom:0 }
+.fone-pe{
+  margin:0 -11px -11px; padding:7px 9px 8px;
+  background:var(--fone-card, var(--painel));
+  border-top:1px solid var(--fone-borda, var(--borda));
+}
+.fone-pe-b{
+  display:block; padding:7px 6px; border-radius:7px; text-align:center;
+  font-size:10px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  background:var(--fone-pe-cor, var(--fone-marca)); color:var(--fone-pe-letra, var(--fone-marca-txt));
+}
 .fone-fita-saco{
   flex:none; display:grid; place-items:center; width:20px; height:20px;
   border-radius:50%; background:rgba(255,255,255,.2);
@@ -2459,6 +2481,15 @@ body.sem-brilho .marca-selo{ animation:none }
 .cor-linha:last-child{ border-bottom:0 }
 .cor-linha .cor-livre{ flex:none; width:44px; height:44px }
 .cor-linha-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px }
+/* NO CELULAR, QUATRO PEÇAS NÃO CABEM NUMA FILEIRA: o quadrado, o nome, o
+   código HEX e o "automática". Espremido, o nome ficava com uns 80px e
+   quebrava uma palavra por linha, com o código encostado nele (o print do
+   dono, em "Cor da moldura"). Agora o nome guarda 120px; o que não cabe
+   desce para a linha de baixo, encostado à direita. Onde tudo cabe, nada
+   muda: o nome cresce primeiro, e a margem automática fica com zero. */
+.cor-linha{ flex-wrap:wrap; row-gap:8px }
+.cor-linha-txt{ flex:1 1 120px }
+.cor-linha > button{ margin-left:auto }
 .cor-linha-txt b{ font-size:14px; font-weight:600 }
 /* O estado — "acompanha a cor da marca" ou a explicação — em corpo menor:
    é o que a pessoa lê depois de achar a linha pelo nome. */
@@ -2482,6 +2513,12 @@ body.sem-brilho .marca-selo{ animation:none }
 /* No celular: 78px cortava o último caractere de 40 dos 42 campos ("#AA224"),
    medido a 412px. Sem o espaçamento entre letras e com 84px, cabem os sete. */
 @media (max-width:420px){ .cor-hex{ width:84px; padding:0 6px; letter-spacing:0 } }
+/* COM A LETRA AMPLIADA DO CELULAR (Configurações → Tamanho da fonte), os 84px
+   voltavam a cortar o código: "#F6EFE1" virava "#F6EFE" e meio — print do
+   dono. A caixa passa a crescer com a letra: oito caracteres na largura da
+   própria fonte, mais o respiro. Na letra normal isso dá menos que os 84/88px
+   de cima, e nada muda. */
+.cor-hex{ min-width:calc(8ch + 14px) }
 
 /* ── A TELA DE APARÊNCIA EM SEÇÕES ────────────────────────────────────────
    Uma seção por tipo de configuração, cada uma com título, uma linha do que
@@ -2880,6 +2917,22 @@ body.tem-cor-produtos .boas-b2.boas-produtos{
    segue a letra). ⚠ DEPOIS da regra de cima, e com a mesma força: a letra
    escolhida ganha da cor dos produtos no Ver produtos discreto. */
 body.tem-letra-agendar .boas .boas-cta:not(.boas-produtos){ color:var(--cor-letra-agendar) }
+/* A cor de dentro dos cartões de serviço e de produto, escolhida em
+   Aparência logo abaixo da moldura. Só com a classe, que só existe com a
+   escolha: sem ela, o fundo é o `--painel` de sempre (a cor dos Cartões). */
+body.tem-fundo-servico .sv-cartao{ background:var(--cor-fundo-servico) }
+body.tem-fundo-produto .pr-cartao{ background:var(--cor-fundo-produto) }
+/* O botão de baixo, com cor escolhida em Aparência ("Botão de baixo" e a
+   letra dele). `!important` porque o primário de todo o sistema também usa;
+   e só com a classe, que só existe com a escolha. O desligado continua o de
+   sempre: quem é diferente é o botão que se pode tocar. */
+body.tem-cor-rodape #btPrincipal:not(:disabled){
+  background:var(--cor-rodape) !important; border-color:var(--cor-rodape) !important;
+}
+body.tem-cor-rodape #btPrincipal:not(:disabled):hover{
+  background:var(--cor-rodape-hover) !important; border-color:var(--cor-rodape-hover) !important;
+}
+body.tem-letra-rodape #btPrincipal:not(:disabled){ color:var(--cor-letra-rodape) !important }
 body.tem-letra-produtos .boas .boas-produtos{ color:var(--cor-letra-produtos) }
 /* Os títulos de seção da capa, cada um com a sua cor. O `.cat` é de toda a
    página (e leva !important lá em cima): aqui só os três da capa, pelo id. */
@@ -3639,6 +3692,11 @@ body.tem-cor-produtos .ver-todos-produtos .ver-todos-n{
      caixas alinhadas (eram uma à direita e outra à esquerda). */
   .barra > .rel-de{ flex:1 1 100%; display:grid; grid-template-columns:30px 1fr; gap:8px }
   .barra > .rel-de input{ min-width:0; width:100% }
+  /* Os atalhos do período ("Este mês", "Mês passado", "30 dias", "Este ano"):
+     apertados no trilho, cada um quebrava em duas linhas no celular. Agora o
+     trilho ocupa a linha, os quatro dividem a largura e o nome não quebra. */
+  .barra > #relAtalhos{ display:flex; flex:1 1 100% }
+  .barra > #relAtalhos button{ flex:1 1 auto; padding:0 6px; white-space:nowrap; font-size:12.5px }
   /* O rodapé das janelas: os botões dividem a linha. Com três ("Arquivar",
      "Falar no WhatsApp", "Salvar") o último caía sozinho na linha de baixo,
      encostado à direita. */
@@ -4321,6 +4379,11 @@ body.tem-gradiente .boas, body.tem-papel .boas{
   box-shadow:0 var(--at-distancia, 4px) var(--at-desfoque, 16px)
              color-mix(in srgb, var(--at-cor, #000) var(--at-opacidade, 10%), transparent);
 }
+/* "Cor de dentro", escolhida em Aparência: o fundo dos três, numa cor só.
+   SÓ CASA COM A ESCOLHA (o `data-at-fundo` só existe com ela): quem nunca
+   escolheu fica com o cartão de sempre, a cor dos Cartões. E nunca no "Sem
+   contorno", que não tem cartão. Vem depois do `sombra` e pesa mais que ele. */
+[data-at-fundo]:not([data-atalhos="limpo"]) .recurso{ background:var(--at-fundo) }
 
 /* O cartão de status. O ponto pulsa uma vez ao aparecer — o suficiente para
    o olho achar, e nada que fique piscando. */
@@ -4561,6 +4624,8 @@ body.com-folha{ overflow:hidden }
   box-shadow:0 var(--fone-at-distancia, 2.3px) var(--fone-at-desfoque, 9.1px)
              color-mix(in srgb, var(--fone-at-cor, #000) var(--fone-at-opacidade, 10%), transparent);
 }
+/* A cor de dentro na prévia, com a mesma regra da página. */
+.fone[data-at-fundo]:not([data-atalhos="limpo"]) .fone-recurso{ background:var(--fone-at-fundo) }
 .fone-status{
   position:relative; z-index:1; display:flex; align-items:center; gap:6px;
   margin:0 0 10px; padding:6px 8px; border-radius:9px; font-size:9px;
