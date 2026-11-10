@@ -2620,6 +2620,31 @@ body.sem-brilho .marca-selo{ animation:none }
 }
 .modelo-barra > span{ flex:1 1 220px }
 
+/* ── COMBINAR COM A MINHA LOGO ────────────────────────────────────────────
+   O primeiro caminho do passo 2, antes dos modelos: um cartão com o botão de
+   um toque. Com a borda e o tom da marca do painel, para ser achado — é o
+   jeito mais curto de chegar numa página bonita. */
+.cor-logo{
+  display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; margin:0 0 14px;
+  padding:12px 14px; border:1px solid var(--ac-line, var(--borda)); border-radius:14px;
+  background:var(--ac-soft, var(--painel2));
+}
+.cor-logo-ic{ font-size:22px; line-height:1; flex:none }
+.cor-logo-txt{ flex:1 1 200px; min-width:0; display:flex; flex-direction:column; gap:2px }
+.cor-logo-txt b{ font-size:14.5px }
+.cor-logo-txt span{ font-size:12.5px; color:var(--txt2); line-height:1.4 }
+.cor-logo > .btn{ flex:1 1 auto }
+
+/* O aviso de leitura do topo da Aparência, com o "Arrumar para mim". Vazio,
+   não ocupa lugar. */
+.aviso-leitura{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:10px 0 4px;
+  padding:10px 12px; border:1px solid var(--borda); border-radius:12px;
+  background:var(--painel2); font-size:13.5px; line-height:1.4;
+}
+.aviso-leitura:empty{ display:none }
+.aviso-leitura > span{ flex:1 1 200px }
+
 /* A bolinha do tema pronto: a cor principal dele, para a escolha ser pelo
    olho e não pela leitura de dez nomes. */
 .bolinha-tema{

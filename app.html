@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.9aba6e';
+const VERSAO_APP = 'v9.2620d4';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -10619,6 +10619,11 @@ function pintarSalao(){
         salão, em <b>3 passos</b>. Tudo o que você mudar aparece na prévia — ao
         lado, no computador; no celular, no botão <b>Ver prévia</b>. No fim,
         toque em <b>Salvar</b>.</p>
+      <!-- O AVISO DE LEITURA, NO TOPO. O de sempre mora em Cores das letras,
+           dentro de Personalizar mais, onde quem nao mexe em cor nao passa.
+           Aqui ele aparece para todos, com o "Arrumar para mim" de um toque.
+           Vazio, some (estilo.css). (Sem crase: template literal.) -->
+      <div id="avisoLeituraTopo" class="aviso-leitura" role="status"></div>
 
       <div class="ap-grade">
       <div class="ap-controles">
@@ -10658,6 +10663,12 @@ function pintarSalao(){
         <p class="ap-sec-sub">Toque num modelo para ver na prévia. Se gostar, use; se não,
           volte ao que era. Suas fotos, serviços e produtos continuam os seus.</p>
         <div id="modeloBarra" class="modelo-barra" style="display:none" role="status"></div>
+        <!-- AS CORES DA LOGO. "Tem que estar bem facil para qualquer um
+             conseguir fazer uma aparencia bonita no link." Um toque le as
+             cores da logo e monta as da pagina, sempre legiveis; como os
+             modelos, so na previa ate "Usar estas cores".
+             (Sem crase: template literal.) -->
+        <div class="cor-logo" id="corDaLogo"></div>
         <div class="modelos" id="listaModelos"></div>
       
 <!-- ══════════ TEMAS PRONTOS ══════════
@@ -10906,6 +10917,7 @@ function pintarSalao(){
       <div id="coresFrasesEquipe" class="cores-grupo"></div>
       </details>
       <p class="secao-sub" id="avisoLegibilidade" style="margin-top:9px"></p>
+      <p class="secao-sub" id="leituraArrumadaSec" style="margin-top:6px"></p>
       
 
       </section>
@@ -12608,6 +12620,7 @@ function pintarAparencia(){
 /* Os cartões dos modelos: uma miniatura com o fundo, o cartão, a logo e o
    botão de cada um — escolher pelo olho, e não pelo nome. */
 function pintarModelos(){
+  pintarCorDaLogo();
   const lista = document.getElementById('listaModelos');
   if(!lista) return;
   lista.innerHTML = MODELOS_PRONTOS.map(m => {
@@ -12632,11 +12645,12 @@ function pintarModelos(){
     </button>`;
   }).join('');
   const barra = document.getElementById('modeloBarra');
-  const m = MODELOS_PRONTOS.find(x => x.id === modeloAtual);
+  const m = modeloAtual === 'logo' ? MODELO_DA_LOGO : MODELOS_PRONTOS.find(x => x.id === modeloAtual);
   barra.style.display = m ? '' : 'none';
   barra.innerHTML = m ? `<span>Você está vendo <b>${escapar(m.nome)}</b> na prévia.
       Nada foi salvo ainda.</span>
-    <button type="button" class="btn btn-p" onclick="usarModelo()">Usar este modelo</button>
+    <button type="button" class="btn btn-p" onclick="usarModelo()">${
+      m === MODELO_DA_LOGO ? 'Usar estas cores' : 'Usar este modelo'}</button>
     <button type="button" class="btn" onclick="voltarDoModelo()">Voltar ao que eu tinha</button>` : '';
 }
 
@@ -12666,7 +12680,7 @@ function experimentarModelo(id){
   pintarAparencia();
 }
 function usarModelo(){
-  const m = MODELOS_PRONTOS.find(x => x.id === modeloAtual);
+  const m = modeloAtual === 'logo' ? MODELO_DA_LOGO : MODELOS_PRONTOS.find(x => x.id === modeloAtual);
   salvarAparencia();
   const barra = document.getElementById('modeloBarra');
   if(!m || !barra) return;
@@ -12678,6 +12692,168 @@ function usarModelo(){
 function voltarDoModelo(){
   if(modeloAntes) aparencia = modeloAntes;
   modeloAntes = null; modeloAtual = null;
+  pintarAparencia();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AS CORES DA LOGO
+
+   "Tem que estar bem fácil para qualquer um conseguir fazer uma aparência
+   bonita no link." Escolher 39 cores que combinem e se leiam é trabalho de
+   quem entende de cor; a logo já traz as cores da casa. Um toque lê a logo,
+   acha a cor dela, decide página clara ou escura e monta o resto em volta —
+   com cada texto medido para ser legível. Como os modelos: só na prévia até
+   "Usar estas cores", e "Voltar ao que eu tinha" desfaz.
+
+   ── COMO A COR É ACHADA ─────────────────────────────────────────────────
+   A logo é reduzida a 64×64 num canvas. Os pontos transparentes, os quase
+   brancos, os quase pretos e os acinzentados não votam; os outros votam no
+   matiz deles (24 faixas de 15°), com peso maior para a cor viva e média.
+   A faixa vencedora, com as vizinhas, é a cor da casa. Logo sem cor
+   nenhuma (preto e branco) fica com o tom da tinta dela.
+
+   ── CLARA OU ESCURA ──────────────────────────────────────────────────────
+   Logo de fundo cheio (sem transparência): escura se a média dela é escura
+   — o selo preto e dourado da barbearia pede página escura. Logo recortada
+   (PNG transparente): ela vai ficar sobre a página, então escura só se a
+   tinta for clara — uma logo branca foi feita para fundo escuro.
+   ══════════════════════════════════════════════════════════════════════════ */
+// Lido como o nome de um modelo: "Você está vendo Cores da logo na prévia".
+const MODELO_DA_LOGO = { id:'logo', nome:'Cores da logo' };
+let lendoLogo = false;
+const CorDaLogo = (() => {
+  const hsl = (r, g, b) => {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+    if(mx === mn) return [0, 0, l];
+    const d = mx - mn, s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+    const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h * 60, s, l];
+  };
+  const hexDe = (r, g, b) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v)))
+    .toString(16).padStart(2, '0')).join('').toUpperCase();
+  const deHsl = (h, s, l) => {
+    const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return hexDe(f(0) * 255, f(8) * 255, f(4) * 255);
+  };
+  const rgb = hex => [1, 3, 5].map(i => parseInt(hex.substr(i, 2), 16));
+  /* Endereço de verdade ganha um "?cor" para o navegador buscar a logo de
+     novo COM permissão de leitura: a cópia que a tela já mostrou veio sem, e
+     um canvas com ela não deixa ler os pontos. */
+  function ler(url){
+    return new Promise((ok, erro) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const n = 64, cv = document.createElement('canvas');
+          cv.width = n; cv.height = n;
+          const ctx = cv.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(img, 0, 0, n, n);
+          ok(ctx.getImageData(0, 0, n, n).data);
+        } catch(e){ erro(e); }
+      };
+      img.onerror = () => erro(new Error('a logo não carregou'));
+      img.src = /^data:/.test(url) ? url : url + (url.includes('?') ? '&' : '?') + 'cor=1';
+    });
+  }
+  function analisar(px){
+    const faixas = Array.from({ length: 24 }, () => ({ p: 0, r: 0, g: 0, b: 0, n: 0 }));
+    const tinta = { r: 0, g: 0, b: 0, n: 0 };
+    let opacos = 0, somaL = 0;
+    for(let i = 0; i < px.length; i += 4){
+      if(px[i + 3] < 200) continue;
+      const r = px[i], g = px[i + 1], b = px[i + 2], [h, s, l] = hsl(r, g, b);
+      opacos++; somaL += l;
+      tinta.r += r; tinta.g += g; tinta.b += b; tinta.n++;
+      if(s < 0.22 || l < 0.12 || l > 0.92) continue;
+      const w = s * (1 - Math.abs(l - 0.5)), f = faixas[Math.floor(h / 15) % 24];
+      f.p += w; f.r += r * w; f.g += g * w; f.b += b * w; f.n++;
+    }
+    if(!opacos) throw new Error('a logo está vazia');
+    let k0 = 0, melhor = -1;
+    faixas.forEach((f, k) => {
+      const nota = f.p + 0.5 * (faixas[(k + 23) % 24].p + faixas[(k + 1) % 24].p);
+      if(nota > melhor){ melhor = nota; k0 = k; }
+    });
+    const f = faixas[k0], colorida = f.n >= opacos * 0.02 && f.p > 0;
+    const transparente = opacos < (px.length / 4) * 0.7, lMedia = somaL / opacos;
+    const escuro = transparente ? lMedia > 0.75 : lMedia < 0.38;
+    const marca = colorida ? hexDe(f.r / f.p, f.g / f.p, f.b / f.p)
+      : escuro ? '#E5E7EB' : (lMedia < 0.45 ? hexDe(tinta.r / tinta.n, tinta.g / tinta.n, tinta.b / tinta.n) : '#1F2937');
+    return { marca, escuro, colorida };
+  }
+  /* A página em volta da cor da casa. Cada tom sai do MESMO matiz, com a
+     saturação contida (papel e texto não podem gritar), e no fim cada cor que
+     carrega texto é medida contra o papel e o cartão — e corrigida se não se
+     lê. A cor da casa só muda se sumir no fundo. */
+  function paleta(a){
+    const [H, S0] = hsl(...rgb(a.marca));
+    const S = a.colorida ? S0 : 0;
+    const t = (s, l) => deHsl(H, Math.min(S, s), l);
+    const cores = !a.escuro
+      ? { papel: t(.30, .975), card: '#FFFFFF', titulo: t(.45, .16), texto: t(.18, .30),
+          discreto: t(.12, .48), secundaria: t(.55, .93), icone: t(.15, .44), borda: t(.25, .89),
+          moldura: '#FFFFFF' }
+      : { papel: t(.25, .07), card: t(.22, .115), titulo: t(.30, .94), texto: t(.15, .80),
+          discreto: t(.10, .62), secundaria: t(.35, .18), icone: t(.15, .68), borda: t(.20, .21),
+          moldura: a.marca };
+    const fundos = [cores.papel, cores.card];
+    cores.botao = corLegivel(a.marca, fundos, 2);
+    cores.destaque = corLegivel(a.marca, fundos, 4.5);
+    cores.iconeDestaque = corLegivel(a.marca, fundos, 3);
+    cores.titulo = corLegivel(cores.titulo, fundos, 4.5);
+    cores.texto = corLegivel(cores.texto, fundos, 4.5);
+    cores.discreto = corLegivel(cores.discreto, fundos, 2.5);
+    cores.icone = corLegivel(cores.icone, fundos, 3);
+    return { cor: a.marca, tema: a.escuro ? 'escuro' : 'claro', cores };
+  }
+  return { ler, analisar, paleta };
+})();
+
+function pintarCorDaLogo(){
+  const el = document.getElementById('corDaLogo');
+  if(!el) return;
+  const logo = imagemDoSalao(acharSalao(salaoAtual) || {}, 'logo');
+  el.innerHTML = `<span class="cor-logo-ic" aria-hidden="true">🎨</span>
+    <span class="cor-logo-txt"><b>Combinar com a minha logo</b>
+      <span>${logo ? 'Um toque: o sistema lê as cores da sua logo e monta as da página, sempre fáceis de ler.'
+        : 'Ponha a logo no passo 1, e um toque aqui monta as cores da página com as cores dela.'}</span></span>
+    <button type="button" class="btn btn-p" id="btCorDaLogo" ${logo && !lendoLogo ? '' : 'disabled'}
+            onclick="experimentarCoresDaLogo()">${lendoLogo ? 'Lendo as cores…' : 'Usar as cores da minha logo'}</button>`;
+}
+/* Experimenta como um modelo: guarda a aparência de antes (a primeira vez),
+   troca só as CORES — modo, letra, molduras e fotos ficam — e mostra a barra
+   de Usar/Voltar. O fundo em degradê vira cor lisa, para o papel novo
+   aparecer; foto de fundo continua. As cores próprias dos atalhos e da fita
+   saem, como num modelo: o conjunto é o da logo. */
+async function experimentarCoresDaLogo(){
+  const logo = imagemDoSalao(acharSalao(salaoAtual) || {}, 'logo');
+  if(!logo || lendoLogo) return;
+  lendoLogo = true;
+  pintarCorDaLogo();
+  let p;
+  try {
+    p = CorDaLogo.paleta(CorDaLogo.analisar(await CorDaLogo.ler(logo)));
+  } catch(e){
+    lendoLogo = false;
+    pintarCorDaLogo();
+    alert('Não consegui ler as cores da sua logo.\n\nEscolha um modelo pronto aqui embaixo, '
+      + 'ou a cor do salão no passo 3.');
+    return;
+  }
+  lendoLogo = false;
+  modeloAntes = modeloAntes || JSON.parse(JSON.stringify(aparencia));
+  modeloAtual = 'logo';
+  aparencia.cor = p.cor;
+  aparencia.tema = p.tema;
+  aparencia.cores = Object.assign({}, p.cores);
+  if(aparencia.fundoTipo === 'gradiente') aparencia.fundoTipo = 'cor';
+  aparencia.atalhos = lerAtalhos(Object.assign({}, aparencia.atalhos, { cores: {}, moldura: '', fundo: '' }));
+  const sombra = aparencia.atalhos.sombra;
+  sombra.intensidade = intensidadeDa(sombra);
+  aparencia.fitaCor = '';
   pintarAparencia();
 }
 
@@ -12907,6 +13083,68 @@ function limparCoresSoltas(){
    não olha na prévia porque ele rola junto com o resto.
 
    Então cada cor escolhida é medida contra as duas, e a queixa diz ONDE. */
+/* A cor mais parecida com a escolhida que SE LÊ sobre todos os fundos dela:
+   mesmo matiz, clareando ou escurecendo aos poucos (o que precisar de menos),
+   até passar o piso com uma folga. Sobre fundos que vão do claro ao escuro
+   (um degradê) pode não haver nenhuma: fica a que chegou mais perto. */
+function corLegivel(cor, fundos, piso){
+  if(!corValida(cor) || !fundos.length) return cor;
+  const pior = c => Math.min(...fundos.map(f => contrasteEntre(c, f)));
+  if(pior(cor) >= piso) return cor;
+  let melhor = cor, nota = pior(cor);
+  for(let i = 1; i <= 50; i++){
+    for(const d of [i / 50, -i / 50]){
+      const c = mexer(cor, d), v = pior(c);
+      if(v >= piso + 0.3) return c;
+      if(v > nota){ melhor = c; nota = v; }
+    }
+  }
+  return melhor;
+}
+
+/* ── ARRUMAR PARA MIM ─────────────────────────────────────────────────────
+   O aviso de leitura dizia o que estava ruim e deixava o conserto para o
+   dono — que escolheu a cor justamente por não entender de contraste. Um
+   toque agora troca SÓ as cores que não se leem, cada uma pela mais parecida
+   que se lê (corLegivel); fundos, botões e o resto ficam. "Desfazer" devolve
+   as de antes. O aviso continua só avisando: ninguém é obrigado. */
+let consertosDeLeitura = [];
+let leituraArrumada = null;    // { n, antes, depois } — o que o último "Arrumar" fez
+function arrumarLeitura(){
+  conferirLegibilidade();
+  const lista = consertosDeLeitura.slice();
+  if(!lista.length) return;
+  const antes = Object.assign({}, aparencia.cores);
+  const c = Object.assign({}, aparencia.cores);
+  /* O conserto mira acima do piso do aviso: 3:1 tira o aviso de um título,
+     mas deixa um cinza fraco. Texto vai a 4,5; o discreto, que é apagado de
+     propósito, a 2,5. */
+  for(const x of lista) c[x.chave] = corLegivel(x.cor, x.fundos, Math.max(x.piso, x.chave === 'discreto' ? 2.5 : 4.5));
+  aparencia.cores = c;
+  leituraArrumada = { n: lista.length, antes, depois: JSON.stringify(c) };
+  pintarAparencia();
+}
+function desfazerArrumarLeitura(){
+  if(!leituraArrumada) return;
+  aparencia.cores = Object.assign({}, leituraArrumada.antes);
+  leituraArrumada = null;
+  pintarAparencia();
+}
+function pintarAvisoDeLeitura(queixas){
+  const topo = document.getElementById('avisoLeituraTopo');
+  const sec = document.getElementById('leituraArrumadaSec');
+  const arrumou = leituraArrumada && !queixas.length
+    && JSON.stringify(aparencia.cores || {}) === leituraArrumada.depois;
+  const feito = arrumou ? `✓ Arrumei a leitura de ${leituraArrumada.n} ${leituraArrumada.n === 1 ? 'cor' : 'cores'}.
+    <button type="button" class="btn btn-peq" onclick="desfazerArrumarLeitura()">Desfazer</button>` : '';
+  if(sec) sec.innerHTML = feito;
+  if(topo) topo.innerHTML = queixas.length
+    ? `<span>⚠ ${queixas.length === 1 ? 'Uma parte' : queixas.length + ' partes'} da sua página
+         ${queixas.length === 1 ? 'está difícil' : 'estão difíceis'} de ler.</span>
+       <button type="button" class="btn btn-p btn-peq" onclick="arrumarLeitura()">Arrumar para mim</button>`
+    : feito;
+}
+
 function conferirLegibilidade(){
   const alvo = document.getElementById('avisoLegibilidade');
   if(!alvo) return;
@@ -12925,6 +13163,7 @@ function conferirLegibilidade(){
   const fundoMexido = gradiente || corValida(c.papel);
 
   const queixas = [];
+  const consertos = [];
   /* `onde` é para as frases do topo, que moram num lugar só: o quadro do
      Bem-vindo é um cartão, e o nome e o endereço ficam sobre o fundo
      escolhido — ou, sem escolha, sobre a coluna, que tem a cor dos cartões.
@@ -12942,6 +13181,7 @@ function conferirLegibilidade(){
        papel é ilegível na metade da tela, e não "meio legível". */
     const pior = Math.min(rc, rp);
     if(pior < piso){
+      consertos.push({ chave, cor, piso, fundos: soFundo ? fundos : soCartao ? [cartao] : [cartao, ...fundos] });
       queixas.push(rot + ' (' + pior.toFixed(1) + ':1 '
         + (rp < rc ? 'sobre o fundo' : onde === 'quadro' ? 'sobre o quadro' : 'sobre os cards') + ')');
     }
@@ -12976,7 +13216,10 @@ function conferirLegibilidade(){
   const noBotao = (chave, rot, fundo) => {
     if(!corValida(c[chave])) return;
     const r = contrasteEntre(c[chave], fundo);
-    if(r < 4.5) queixas.push(rot + ' (' + r.toFixed(1) + ':1 sobre o botão)');
+    if(r < 4.5){
+      consertos.push({ chave, cor: c[chave], piso: 4.5, fundos: [fundo] });
+      queixas.push(rot + ' (' + r.toFixed(1) + ':1 sobre o botão)');
+    }
   };
   noBotao('letraAgendar', 'a letra do Agendar horário', corDoBotaoNaPrevia());
   noBotao('letraRodape', 'a letra do botão de baixo', corValida(c.rodape) ? c.rodape : corDoBotaoNaPrevia());
@@ -12993,10 +13236,13 @@ function conferirLegibilidade(){
      sobre fundo claro, que é o acidente que esta cor nova torna possível. */
   olhar('discreto', 'os textos discretos', 2);
 
+  consertosDeLeitura = consertos;
   alvo.innerHTML = !queixas.length ? '' :
     '<b style="color:var(--alerta)">Difícil de ler:</b> '
     + escapar(queixas.join(', '))
-    + '. Dá para salvar assim mesmo — mas confira no celular antes.';
+    + '. Dá para salvar assim mesmo — mas confira no celular antes. '
+    + '<button type="button" class="btn btn-p btn-peq" onclick="arrumarLeitura()">Arrumar para mim</button>';
+  pintarAvisoDeLeitura(queixas);
 }
 
 /* Guardado como "corA,corB" — duas cores num campo de texto, e não um objeto.
