@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.521f9f';
+const VERSAO_APP = 'v9.565a8c';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -12504,17 +12504,23 @@ function pintarAparencia(){
   if(rm){
     rm.innerHTML = RODAPE_METAL.map(([v, rot]) =>
       `<button type="button" class="${aparencia.rodapeMetal === v ? 'on' : ''}"
-               onclick="escolherAparencia('rodapeMetal','${v}')">${rot}</button>`).join('');
+               onclick="escolherRodapeMetal('${v}')">${rot}</button>`).join('');
     const ach = RODAPE_METAL.find(x => x[0] === aparencia.rodapeMetal);
     document.getElementById('explicaRodapeMetal').textContent = ach ? ach[2] : '';
     const liso = aparencia.rodapeMetal === 'chapado';
+    /* ⚠ NENHUM DOS DOIS FICA DESLIGADO. Ficavam, com o botão liso — e no
+       celular um botão desligado é igual a um ligado que não responde:
+       "Parada e Passando não tá funcionando". Tocar em "Passando" no liso
+       liga o metal Médio junto (escolherRodapeBrilho) e a frase diz isso. */
     document.getElementById('reguaRodapeBrilho').innerHTML = [[false, 'Parada'], [true, 'Passando']].map(([v, rot]) =>
-      `<button type="button" class="${aparencia.rodapeBrilho === v ? 'on' : ''}" ${liso ? 'disabled' : ''}
-               onclick="escolherAparencia('rodapeBrilho',${v})">${rot}</button>`).join('');
+      `<button type="button" class="${aparencia.rodapeBrilho === v ? 'on' : ''}"
+               onclick="escolherRodapeBrilho(${v})">${rot}</button>`).join('');
     document.getElementById('explicaRodapeBrilho').textContent = liso
-      ? 'Escolha um acabamento de metal para ligar a faixa de luz.'
-      : aparencia.rodapeBrilho ? 'Uma faixa de luz atravessa o botão de tempos em tempos.'
-      : 'O metal fica parado, sem a faixa de luz.';
+      ? 'No botão liso não há faixa de luz. Toque em “Passando” e o acabamento Médio liga junto.'
+      : !aparencia.rodapeBrilho ? 'O metal fica parado, sem a faixa de luz.'
+      : rodapeMetalLigouJunto ? 'Liguei o acabamento Médio junto: a faixa de luz precisa do metal. '
+                              + 'Se preferir, troque para Suave ou Forte ali em cima.'
+      : 'Uma faixa de luz atravessa o botão de tempos em tempos.';
   }
 
   const FITA_METAL = [
@@ -13504,6 +13510,23 @@ function escolherBrilho(v){ aparencia.brilho = v;      pintarAparencia(); }
 // Uma função para as escolhas que são só "guarde este valor". As três de
 // cima ficam separadas porque já eram chamadas assim de outros lugares.
 function escolherAparencia(campo, valor){ aparencia[campo] = valor; pintarAparencia(); }
+/* O botão de baixo: a faixa de luz só existe com metal, e as duas escolhas
+   andam juntas em vez de uma travar a outra. "Passando" no liso liga o metal
+   Médio; "Liso" apaga a faixa. Assim `rodapeBrilho` ligado quer sempre dizer
+   que há metal — o que a página (aplicarRodape) também exige. */
+let rodapeMetalLigouJunto = false;     // só para a frase explicar o que aconteceu
+function escolherRodapeBrilho(v){
+  aparencia.rodapeBrilho = v === true;
+  rodapeMetalLigouJunto = aparencia.rodapeBrilho && aparencia.rodapeMetal === 'chapado';
+  if(rodapeMetalLigouJunto) aparencia.rodapeMetal = 'media';
+  pintarAparencia();
+}
+function escolherRodapeMetal(v){
+  aparencia.rodapeMetal = v;
+  rodapeMetalLigouJunto = false;
+  if(v === 'chapado') aparencia.rodapeBrilho = false;
+  pintarAparencia();
+}
 
 /* ── A ABERTURA ───────────────────────────────────────────────────────────
    O logo por um instante quando alguém abre o link (tocarIntro, na página

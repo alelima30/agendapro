@@ -25,6 +25,9 @@
         (Liso/Suave/Médio/Forte) e Faixa de luz: nasce liso; o metal aparece
         na prévia e no link, junto com a cor escolhida; a faixa só com metal;
         valor torto do banco não liga nada.
+     8. "Parada e Passando não tá funcionando": os dois botões nunca ficam
+        desligados. "Passando" no liso liga o metal Médio junto e diz isso;
+        "Liso" apaga a faixa.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -218,14 +221,35 @@ await porCores({ botao: BOTAO });
 }
 {
   const { p, fechar } = await painel();
-  const r0 = await p.evaluate(() => ({
-    acab: [...document.querySelectorAll('#reguaRodapeMetal button')].map(b => b.textContent.trim() + (b.classList.contains('on') ? '*' : '')),
-    luzDesligada: [...document.querySelectorAll('#reguaRodapeBrilho button')].every(b => b.disabled) }));
-  igual('o painel oferece Liso/Suave/Médio/Forte, com Liso marcado, e a faixa de luz desligada',
-    r0, { acab: ['Liso*', 'Suave', 'Médio', 'Forte'], luzDesligada: true });
-  await p.evaluate(() => escolherAparencia('rodapeMetal', 'media'));
-  await p.evaluate(() => escolherAparencia('rodapeBrilho', true));
-  await p.waitForTimeout(250);
+  const reguas = () => p.evaluate(() => {
+    const m = id => [...document.querySelectorAll('#' + id + ' button')].map(b => b.textContent.trim() + (b.classList.contains('on') ? '*' : ''));
+    return { acab: m('reguaRodapeMetal'), luz: m('reguaRodapeBrilho'),
+      algumDesligado: [...document.querySelectorAll('#reguaRodapeBrilho button, #reguaRodapeMetal button')].some(b => b.disabled),
+      frase: document.getElementById('explicaRodapeBrilho').textContent.replace(/\s+/g, ' ').trim() }; });
+  const tocar = async (regua, rot) => { await p.locator(`#${regua} button`, { hasText: rot }).first().click(); await p.waitForTimeout(250); };
+  const r0 = await reguas();
+  igual('o painel oferece Liso/Suave/Médio/Forte, com Liso e Parada marcados — e nenhum botão desligado',
+    [r0.acab, r0.luz, r0.algumDesligado], [['Liso*', 'Suave', 'Médio', 'Forte'], ['Parada*', 'Passando'], false]);
+  verdade('no liso, a frase diz o que o "Passando" faz', /Toque em “Passando” e o acabamento Médio liga junto/.test(r0.frase), r0.frase);
+
+  /* O print do dono: Liso marcado, tocou em "Passando" e nada aconteceu. */
+  await tocar('reguaRodapeBrilho', 'Passando');
+  const r1 = await reguas();
+  igual('tocar em "Passando" no liso liga a faixa E o metal Médio', [r1.acab, r1.luz],
+    [['Liso', 'Suave', 'Médio*', 'Forte'], ['Parada', 'Passando*']]);
+  verdade('e a frase conta que o Médio ligou junto', /Liguei o acabamento Médio junto/.test(r1.frase), r1.frase);
+  await tocar('reguaRodapeMetal', 'Forte');
+  const r2 = await reguas();
+  igual('trocar para Forte mantém a faixa passando', [r2.acab, r2.luz],
+    [['Liso', 'Suave', 'Médio', 'Forte*'], ['Parada', 'Passando*']]);
+  await tocar('reguaRodapeBrilho', 'Parada');
+  igual('"Parada" para a faixa e deixa o metal', await p.evaluate(() => [aparencia.rodapeMetal, aparencia.rodapeBrilho]), ['forte', false]);
+  await tocar('reguaRodapeBrilho', 'Passando');
+  await tocar('reguaRodapeMetal', 'Liso');
+  const r3 = await reguas();
+  igual('"Liso" apaga a faixa junto', [r3.acab, r3.luz, await p.evaluate(() => aparencia.rodapeBrilho)],
+    [['Liso*', 'Suave', 'Médio', 'Forte'], ['Parada*', 'Passando'], false]);
+  await tocar('reguaRodapeBrilho', 'Passando');     // volta ao Médio com a faixa, para o resto do teste
   const pv = await p.evaluate(() => { const b = document.querySelector('#previaFone .fone-pe-b');
     return [b.classList.contains('metal'), /linear-gradient/.test(getComputedStyle(b).backgroundImage),
             b.classList.contains('com-brilho')]; });

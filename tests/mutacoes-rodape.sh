@@ -121,6 +121,24 @@ troca app.html \
   "  const classes = '';" \
   && rodar "prévia lisa, link metalizado"
 
+echo "13. Passando no liso não liga o metal"
+troca app.html \
+  "  if(rodapeMetalLigouJunto) aparencia.rodapeMetal = 'media';" \
+  "" \
+  && rodar "toca em Passando e nada acontece"
+
+echo "14. Liso não apaga a faixa"
+troca app.html \
+  "  if(v === 'chapado') aparencia.rodapeBrilho = false;" \
+  "" \
+  && rodar "Passando marcado num botão liso"
+
+echo "15. os botões da faixa voltam a ficar desligados no liso"
+troca app.html \
+  "               onclick=\"escolherRodapeBrilho(\${v})\">\${rot}</button>\`).join('');" \
+  "               \${liso ? 'disabled' : ''} onclick=\"escolherRodapeBrilho(\${v})\">\${rot}</button>\`).join('');" \
+  && rodar "botão que parece ligado e não responde"
+
 echo ""
 echo "$morta mortas, $viva vivas"
 [ "$perdida" -eq 0 ] || echo "  ⚠ $perdida mutação(ões) não rodaram"

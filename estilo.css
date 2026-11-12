@@ -885,6 +885,11 @@ td, .tabela td, .hslot, .horas button, .cs-rodape .vv, .vv{
   font-weight:560;font-size:15px;font-variant-numeric:tabular-nums;transition:.15s;
 }
 .regua button:hover{border-color:var(--n-300);color:var(--txt)}
+/* Desligado tem de PARECER desligado. Sem isto o botão ficava igual a um
+   ligado, e no celular parecia defeito: toca e nada acontece. (A sombra dos
+   atalhos já apaga o bloco inteiro; ali o botão não apaga duas vezes.) */
+.regua button:disabled{opacity:.45;cursor:not-allowed}
+.at-sombra.desligado .regua button:disabled{opacity:1}
 /* Anel dourado em volta da ficha de tinta: o detalhe que amarra as duas
    cores sem colocá-las para brigar. */
 .regua button.on{box-shadow:0 0 0 3px var(--az-soft) !important}
