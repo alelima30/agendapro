@@ -28,9 +28,21 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from './pg.mjs';
 
 const RAIZ = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const BASE = process.env.BANCADA || 'http://127.0.0.1:8123';
+
+/* `usa_comanda()` não responde mais pela API (57_plano_fechado.sql): aberta a
+   quem tem conta, dizia de QUALQUER salão se ele paga ou não. Quem a chama é
+   o gatilho da comanda automática e a vitrine. O teste pergunta direto ao
+   banco, como dono dele — e confere, mais abaixo, que a API recusa. */
+const banco = new pg.Client({ host: process.env.PGHOST || '/tmp',
+  port: +(process.env.PGPORT || 5444), user: process.env.PGUSER || 'postgres',
+  database: process.env.PGBANCO || 'app' });
+await banco.connect();
+const usaComandaNoBanco = async salao =>
+  (await banco.query('select public.usa_comanda($1) as u', [salao])).rows[0].u;
 
 let passou = 0, falhou = 0;
 const ok  = m => { console.log('  ✓ ' + m); passou++; };
@@ -127,7 +139,7 @@ const desligar = () => d.atualizar('saloes', SALAO, { cfg:{ usaComanda: false } 
    ══════════════════════════════════════════════════════════════════════════ */
 secao('Salão novo, sem a chave no cfg');
 
-const semChave = await d.chamar('usa_comanda', { p_salao: SALAO });
+const semChave = await usaComandaNoBanco(SALAO);
 verdade('o salão nasce USANDO comanda — ' + JSON.stringify(semChave),
   semChave === true,
   'se nascesse desligado, todo salão de hoje passaria a gerar comanda '
@@ -145,7 +157,16 @@ secao('Interruptor desligado');
 
 await desligar();
 igual('o banco passa a responder que não usa comanda',
-  await d.chamar('usa_comanda', { p_salao: SALAO }), false);
+  await usaComandaNoBanco(SALAO), false);
+
+/* E pela API ninguém pergunta — nem a própria dona. A tela não precisa: ela
+   faz a mesma peneira com o que já carregou. */
+let recusaDaApi = null;
+try{ await d.chamar('usa_comanda', { p_salao: SALAO }); }
+catch(e){ recusaDaApi = e.message || String(e); }
+verdade('pela API a pergunta é recusada — ' + JSON.stringify(recusaDaApi),
+  recusaDaApi !== null && /permission denied|permiss/i.test(recusaDaApi),
+  'aberta, qualquer conta descobria de qualquer salão se ele está no Grátis');
 
 const a2 = await marcarNaRecepcao();
 igual('antes de concluir, nenhuma comanda', (await comandasDo(a2.id)).length, 0);
@@ -298,7 +319,7 @@ secao('Valor inválido no cfg');
 
 await d.atualizar('saloes', SALAO, { cfg:{ usaComanda:'abacaxi' } });
 let explodiu = null, resposta = null;
-try{ resposta = await d.chamar('usa_comanda', { p_salao: SALAO }); }
+try{ resposta = await usaComandaNoBanco(SALAO); }
 catch(e){ explodiu = e.message || String(e); }
 verdade('a função continua respondendo', explodiu === null, explodiu);
 igual('e cai no lado seguro: LIGADO', resposta, true);
@@ -320,5 +341,6 @@ await concluir(a5.id);
 igual('volta a não criar comanda sozinho',
   (await comandasDo(a5.id)).length, 0);
 
+await banco.end();
 console.log(`\n${passou} passaram, ${falhou} falharam`);
 process.exit(falhou ? 1 : 0);

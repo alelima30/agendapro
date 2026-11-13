@@ -91,11 +91,19 @@ insert into porta_aberta values
   -- Usadas DENTRO de policies. Se o anon perder o acesso, o RLS quebra.
   ('cliente_da_comanda',      'usada em policy; devolve um id, não dado'),
   ('salao_da_comanda',        'usada em policy; devolve um id, não dado'),
-  ('plano_efetivo',           'usada em policy e nos limites'),
-  ('limite_profissionais',    'usada nos limites de cota'),
-  ('recurso_num',             'usada nos limites de cota'),
-  ('recurso_bool',            'usada nos limites de cota'),
-  ('profissional_na_cota',    'usada nos limites de cota');
+  -- A vista pública `profissionais_publicos` a usa no filtro, e função dentro
+  -- de vista roda com a permissão de quem consulta. Não conta nada além do
+  -- que o link já mostra: quem está na cota é quem aparece lá.
+  ('profissional_na_cota',    'filtro da vista pública de profissionais');
+
+/* ⚠ `plano_efetivo`, `limite_profissionais`, `recurso_num` e `recurso_bool`
+   MORAVAM NESTA LISTA, com a justificativa "usada em policy e nos limites".
+   Deixou de ser verdade e ninguém voltou para conferir: nenhuma policy as
+   cita, e os limites chegam nelas por gatilho `security definer`. Enquanto
+   isso, qualquer visitante perguntava ao banco que plano um salão paga —
+   o id sai da vitrine. Fechadas no 57_plano_fechado.sql, e conferidas uma a
+   uma mais abaixo. Justificativa também envelhece: a pergunta de quem relê
+   esta lista é "isto AINDA é verdade?". */
 
 -- ── A CONFERÊNCIA ──────────────────────────────────────────────────────────
 -- Gatilho fica de fora: função que devolve `trigger` não é chamável pela API.
@@ -162,6 +170,94 @@ begin
       to_regprocedure('public.comissao_de(text,uuid,uuid,uuid)')::oid, 'EXECUTE')
     or has_function_privilege('authenticated',
       to_regprocedure('public.comissao_de(text,uuid,uuid,uuid)')::oid, 'EXECUTE'));
+end $$;
+
+/* ── A CONSULTA DO PLANO E DO USO (57_plano_fechado.sql) ───────────────────
+   Que plano um salão paga, o que ele tem liberado e quanto já usou no mês:
+   informação comercial dele, e de mais ninguém. O id do salão é público (a
+   vitrine entrega), então a pergunta não pode ter resposta para quem é de
+   fora — nem sem login, nem com uma conta qualquer, que se cria de graça.
+
+   Por NOME, com a assinatura que tiver: uma versão antiga esquecida no banco
+   com outros argumentos é a mesma porta. */
+do $$
+declare r record; n int := 0;
+begin
+  for r in
+    select p.oid, p.oid::regprocedure::text as f
+      from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+     where ns.nspname = 'public'
+       and p.proname in ('plano_efetivo', 'limite_profissionais',
+                         'recurso_num', 'recurso_bool', 'exigir_recurso',
+                         'teto_mensagens', 'usa_comanda',
+                         'mensagens_no_mes', 'pode_enviar')
+     order by 2
+  loop
+    n := n + 1;
+    perform t_falso('visitante sem login NÃO chama ' || r.f,
+      has_function_privilege('anon', r.oid, 'EXECUTE'));
+    perform t_falso('nem quem tem uma conta qualquer chama ' || r.f,
+      has_function_privilege('authenticated', r.oid, 'EXECUTE'));
+    perform t_verdade('o worker (service_role) continua chamando ' || r.f,
+      has_function_privilege('service_role', r.oid, 'EXECUTE'));
+  end loop;
+  perform t_igual('as nove funções da consulta existem — a busca não envelheceu',
+    n, 9);
+end $$;
+
+/* E o que protege o "de dentro": as nove só são alcançadas por caminho
+   `security definer`. Uma função comum (que roda como quem chamou) que passe
+   a citar uma delas e esteja ao alcance da API devolveria "permission denied"
+   ao dono do salão no meio do uso — o erro do `comanda_numera`, de novo. As
+   três de agora (`exigir_recurso`, `teto_mensagens`, `usa_comanda`) estão
+   fechadas elas mesmas; qualquer outra que apareça reprova aqui. */
+do $$
+declare r record; fora text := '';
+begin
+  for r in
+    select p.proname as nome
+      from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+     where ns.nspname = 'public'
+       and not p.prosecdef
+       and (has_function_privilege('anon', p.oid, 'EXECUTE')
+            or has_function_privilege('authenticated', p.oid, 'EXECUTE'))
+       and p.prosrc ~ '\m(plano_efetivo|limite_profissionais|recurso_num|recurso_bool|exigir_recurso|teto_mensagens|usa_comanda|mensagens_no_mes|pode_enviar)\M\s*\('
+     order by 1
+  loop
+    fora := fora || E'\n      • ' || r.nome || '()';
+  end loop;
+  if fora <> '' then
+    perform t_falha('função comum, ao alcance da API, chama a consulta do plano:' || fora
+      || E'\n      → ela roda como quem chamou, e quem chamou não tem mais esse direito.'
+      || ' Ou vira security definer (conferindo quem pede), ou sai do alcance da API.');
+  else
+    perform t_ok('ninguém de fora alcança a consulta do plano por tabela');
+  end if;
+end $$;
+
+/* Nem por vista ou policy: lá a função roda com a permissão de quem consulta. */
+do $$
+declare v text;
+begin
+  select string_agg(c.relname, ', ' order by c.relname) into v
+    from pg_class c join pg_namespace ns on ns.oid = c.relnamespace
+   where ns.nspname = 'public' and c.relkind in ('v', 'm')
+     and pg_get_viewdef(c.oid) ~ '\m(plano_efetivo|limite_profissionais|recurso_num|recurso_bool|exigir_recurso|teto_mensagens|usa_comanda|mensagens_no_mes|pode_enviar)\M';
+  perform t_texto('nenhuma vista usa a consulta fechada', coalesce(v, ''), '');
+
+  select string_agg(tablename || '.' || policyname, ', ' order by 1) into v
+    from pg_policies
+   where coalesce(qual, '') || ' ' || coalesce(with_check, '')
+         ~ '\m(plano_efetivo|limite_profissionais|recurso_num|recurso_bool|exigir_recurso|teto_mensagens|usa_comanda|mensagens_no_mes|pode_enviar)\M';
+  perform t_texto('nem policy nenhuma', coalesce(v, ''), '');
+end $$;
+
+/* A que ficou aberta, funcionando: sem ela a equipe some do link. */
+do $$
+begin
+  perform t_verdade('a vista pública de profissionais continua lendo a cota',
+    has_function_privilege('anon',
+      to_regprocedure('public.profissional_na_cota(uuid)')::oid, 'EXECUTE'));
 end $$;
 
 /* ── ⚠ TODO GATILHO PRECISA SER `security definer` ─────────────────────────

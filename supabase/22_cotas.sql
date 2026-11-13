@@ -355,12 +355,15 @@ returns boolean language sql stable security definer set search_path = public as
   end
 $$;
 
-revoke all on function public.mensagens_no_mes(uuid) from public, anon;
-revoke all on function public.teto_mensagens(uuid)   from public, anon;
-revoke all on function public.pode_enviar(uuid)      from public, anon;
-grant execute on function public.mensagens_no_mes(uuid) to authenticated;
-grant execute on function public.teto_mensagens(uuid)   to authenticated;
-grant execute on function public.pode_enviar(uuid)      to authenticated;
+-- Nem quem tem conta chama estas três: o uso e o teto de UM salão são dele,
+-- e conta qualquer um cria. Quem lê é o `uso_do_plano()`, que confere o
+-- gestor, e o worker (service_role). Ver o 57_plano_fechado.sql.
+revoke all on function public.mensagens_no_mes(uuid) from public, anon, authenticated;
+revoke all on function public.teto_mensagens(uuid)   from public, anon, authenticated;
+revoke all on function public.pode_enviar(uuid)      from public, anon, authenticated;
+grant execute on function public.mensagens_no_mes(uuid) to service_role;
+grant execute on function public.teto_mensagens(uuid)   to service_role;
+grant execute on function public.pode_enviar(uuid)      to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 2b) A RESERVA DA CLIENTE

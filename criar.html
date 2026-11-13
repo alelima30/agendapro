@@ -927,6 +927,21 @@ async function criarConta(){
 
       const criado = Array.isArray(r) ? r[0] : r;
       const apelido = (criado && criado.slug) || slug;
+      /* O HORÁRIO DA CIDADE. Todo salão nasce no horário de Brasília. Se o
+         aparelho de quem está criando está num dos fusos do Brasil que NÃO
+         são o de Brasília (Manaus, Cuiabá, Campo Grande, Porto Velho, Boa
+         Vista, Rio Branco, Noronha), o salão já nasce nele — senão o lembrete
+         sairia uma hora adiantado desde o primeiro dia. Fuso de fora do
+         Brasil não entra: é dono viajando ou celular desregulado, e dá para
+         trocar depois em Meu negócio. Falhar aqui não atrapalha o cadastro. */
+      try{
+        const doAparelho = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const OUTROS = ['America/Manaus', 'America/Cuiaba', 'America/Campo_Grande',
+          'America/Porto_Velho', 'America/Boa_Vista', 'America/Rio_Branco',
+          'America/Eirunepe', 'America/Noronha'];
+        if(criado && criado.salao_id && OUTROS.includes(doAparelho))
+          await Dados.atualizar('saloes', criado.salao_id, { fuso: doAparelho });
+      }catch(e){ console.info('[AgendaPro] fuso do salão novo:', e.message); }
       const url = location.href.replace(/\/[^\/]*$/, '/')
                 + 'agendar.html?salao=' + apelido;
       /* Quem ganha o teste é o BANCO (39_teste_unico): o WhatsApp ou o e-mail

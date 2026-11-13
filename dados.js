@@ -222,6 +222,8 @@ const VAZIO_E_NULO = new Set([
   'sinal_pago', 'sinal_ate', 'nascimento_dia', 'arquivado_em',
   // O pagamento do pacote (43_pacote_agenda.sql): vazio é "não combinado".
   'valor', 'pago_em', 'comanda_id',
+  // O carimbo da troca de fuso (58_fuso.sql). Só o banco escreve; vazio é nulo.
+  'fuso_mudou_em',
   /* Os quatro recortes da regra de preço. Todos opcionais na tela: campo em
      branco quer dizer "não recorta", e tem que chegar no banco como NULL.
      Vazio como texto num `date` ou num `int` derruba a gravação inteira da
@@ -987,6 +989,18 @@ const Nuvem = {
     return v && v.salao ? v : null;
   },
 
+  /* ── O FUSO DO SALÃO, AGORA (58_fuso.sql) ───────────────────────────────
+     Uma coluna de uma linha. O painel pergunta a cada sincronização porque
+     ele ESCREVE os horários com o fuso que tem na memória ('14:00 America/
+     Sao_Paulo'): se o dono trocou o fuso em outro aparelho, a tela aberta
+     aqui passaria a gravar com uma hora de erro sem ninguém notar. Com a
+     resposta diferente da memória, a tela se recarrega inteira.
+     Nulo = não deu para saber (sem acesso à linha); a tela segue como está. */
+  async fusoDoSalao(id){
+    const r = await rest('saloes?id=eq.' + encodeURIComponent(id) + '&select=fuso');
+    return (Array.isArray(r) && r[0] && r[0].fuso) || null;
+  },
+
   /* ── O QUE É DELA ─────────────────────────────────────────────────────
      Marcar devolve um SEGREDO daquela marcação, e é ele que abre "meus
      horários", cancelar e a lista de espera. Quem tem o segredo é quem
@@ -1180,6 +1194,8 @@ const Demo = {
   async salaoPorSlug(slug){
     return (lerDemo().saloes || []).find(s => s.slug === slug) || null;
   },
+  // A demonstração vive no relógio do aparelho: não há fuso para conferir.
+  async fusoDoSalao(){ return null; },
 };
 
 /* ===========================================================================

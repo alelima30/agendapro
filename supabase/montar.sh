@@ -70,6 +70,8 @@ cat > "$SAIDA" <<'CAB'
 --   54_sino.sql              o sino do painel: o que pede ação e os avisos do AgendaPro
 --   55_relatorio_vendas.sql  a loja pelo link e os pacotes no Relatórios
 --   56_conta_excluida.sql    a cliente excluiu a conta: a marca na ficha e o aviso no sino
+--   57_plano_fechado.sql     a consulta do plano e do uso deixa de responder a quem é de fora
+--   58_fuso.sql              o fuso do salão: escolher, e trocar sem mexer em nenhum horário marcado
 --
 -- A ORDEM IMPORTA, e não é só arrumação: o 02 fecha o balcão que o Supabase
 -- abre sozinho em toda tabela e vista nova, e só consegue fechar o que o 01
@@ -99,7 +101,7 @@ end $$;
 
 CAB
 
-for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql 36_excluir_conta.sql 37_pedidos.sql 38_suporte.sql 39_teste_unico.sql 40_saude.sql 41_ficha_equipe.sql 42_travas.sql 43_pacote_agenda.sql 44_pacote_comissao.sql 45_pacote_mensagens.sql 46_adicionais.sql 47_crediario.sql 48_cadastro_link.sql 49_remarcar.sql 50_pacote_excluir.sql 51_google.sql 52_mensagens_novas.sql 53_pedidos_loja.sql 54_sino.sql 55_relatorio_vendas.sql 56_conta_excluida.sql; do
+for f in 01_schema.sql 02_rls.sql 03_onboarding.sql 04_imagens.sql 05_agenda.sql 06_vitrine.sql 07_plataforma.sql 08_conta.sql 09_cliente.sql 10_campanhas.sql 11_equipe.sql 12_relatorios.sql 13_cobranca.sql 14_motor.sql 15_comanda.sql 16_comissao.sql 17_caixa.sql 18_painel.sql 19_teto_online.sql 20_corrida.sql 21_notificacoes.sql 22_cotas.sql 23_assinatura_cartao.sql 24_produtos.sql 25_loja.sql 26_estoque.sql 27_pacotes.sql 28_sem_comanda.sql 29_confirmacao.sql 30_painel.sql 31_dias_servico.sql 32_produto_cadastro.sql 33_preco_regras.sql 34_cupons.sql 35_acesso.sql 36_excluir_conta.sql 37_pedidos.sql 38_suporte.sql 39_teste_unico.sql 40_saude.sql 41_ficha_equipe.sql 42_travas.sql 43_pacote_agenda.sql 44_pacote_comissao.sql 45_pacote_mensagens.sql 46_adicionais.sql 47_crediario.sql 48_cadastro_link.sql 49_remarcar.sql 50_pacote_excluir.sql 51_google.sql 52_mensagens_novas.sql 53_pedidos_loja.sql 54_sino.sql 55_relatorio_vendas.sql 56_conta_excluida.sql 57_plano_fechado.sql 58_fuso.sql; do
   {
     echo ''
     echo '-- ###########################################################################'

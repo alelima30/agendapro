@@ -246,9 +246,11 @@ create trigger tg_agend_sem_comanda
 -- ---------------------------------------------------------------------------
 -- 5) Quem pode perguntar
 --
--- `usa_comanda()` responde sobre CONFIGURAÇÃO, não sobre dinheiro: a página
--- pública nunca precisa dela, e a equipe precisa para a tela saber o que
--- esconder. Fica com `authenticated`.
+-- `usa_comanda()` responde sobre CONFIGURAÇÃO — e sobre o PLANO, desde que
+-- o Grátis ficou sem caixa: aberta a quem tem conta, dizia de qualquer salão
+-- se ele paga ou não. A tela não a chama (ela faz a mesma peneira com o que
+-- já carregou); quem chama é o gatilho da comanda automática e a vitrine,
+-- os dois `security definer`. Fechada a todos. Ver o 57_plano_fechado.sql.
 -- ---------------------------------------------------------------------------
-revoke all on function public.usa_comanda(uuid) from public, anon;
-grant execute on function public.usa_comanda(uuid) to authenticated;
+revoke all on function public.usa_comanda(uuid) from public, anon, authenticated;
+grant execute on function public.usa_comanda(uuid) to service_role;

@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.e9f876';
+const VERSAO_APP = 'v9.28ccf4';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -10141,6 +10141,164 @@ const TIPOS_NEGOCIO = [
   ['outro',     'Outro'],
 ];
 
+/* ── O HORÁRIO DA CIDADE DO SALÃO (58_fuso.sql) ───────────────────────────
+   `saloes.fuso` manda em tudo — o "agora" da agenda, o "hoje" do caixa, a
+   hora de cada lembrete, os horários que o link oferece — e não havia onde
+   escolher: todo salão nascia no horário de Brasília e ficava. Em Manaus,
+   Cuiabá, Campo Grande, Porto Velho, Boa Vista e Rio Branco a agenda parece
+   certa (14:00 é 14:00), mas o relógio por baixo está uma ou duas horas
+   adiantado: o lembrete de "2 horas antes" sai 3 horas antes, e o link para
+   de oferecer o horário das 14:00 quando ainda são 13:00.
+
+   A LISTA É DE HORA, NÃO DE NOME DE FUSO. "America/Porto_Velho" não diz nada
+   a ninguém; "Rondônia — agora 13:32" diz, porque a pessoa olha o relógio da
+   parede e escolhe a linha que bate. É o único jeito de errar pouco.
+
+   ⚠ TROCAR NÃO MEXE EM HORÁRIO MARCADO. O banco move os instantes guardados
+   junto com o fuso (quem marcou às 14:00 continua às 14:00) e trava a agenda
+   por 90 segundos, para os outros aparelhos do salão — que ainda pensam no
+   relógio antigo — se atualizarem antes de alguém gravar. Por isso a troca é
+   uma ação à parte, com confirmação, e NÃO um campo do "Salvar dados": salvar
+   o cadastro nunca escreve `fuso`. */
+const FUSOS_DO_BRASIL = [
+  ['America/Sao_Paulo',    'Horário de Brasília'],
+  ['America/Manaus',       'Amazonas (Manaus)'],
+  ['America/Cuiaba',       'Mato Grosso'],
+  ['America/Campo_Grande', 'Mato Grosso do Sul'],
+  ['America/Porto_Velho',  'Rondônia'],
+  ['America/Boa_Vista',    'Roraima'],
+  ['America/Rio_Branco',   'Acre'],
+  ['America/Eirunepe',     'Oeste do Amazonas (Eirunepé)'],
+  ['America/Noronha',      'Fernando de Noronha'],
+];
+// Só o formato que o banco aceita — e o único que vai parar num onclick.
+const FUSO_BEM_ESCRITO = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){1,2}$/;
+
+function nomeDoFuso(fuso){
+  const f = FUSOS_DO_BRASIL.find(x => x[0] === fuso);
+  return f ? f[1] : String(fuso || '');
+}
+// "14:32" naquele fuso; vazio se o navegador não conhece o nome.
+function horaNoFuso(fuso, quando){
+  try{
+    return new Intl.DateTimeFormat('pt-BR', { timeZone: fuso,
+      hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).format(quando || new Date());
+  }catch(e){ return ''; }
+}
+// A hora do APARELHO, do mesmo jeito.
+function horaDoAparelho(quando){
+  const d = quando || new Date();
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+// Quantos minutos o relógio do salão está à frente (+) ou atrás (−) do aparelho.
+function minutosEntreSalaoEAparelho(fuso, quando){
+  const d = quando || new Date();
+  let p;
+  try{ p = instanteParaTela(d.toISOString(), fuso); }catch(e){ return 0; }
+  const [a, m, dia] = p.data.split('-').map(Number);
+  const noSalao = Date.UTC(a, m - 1, dia) / 60000 + p.min;
+  const aqui = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 60000
+             + d.getHours() * 60 + d.getMinutes();
+  return Math.round(noSalao - aqui);
+}
+
+/* O relógio do aparelho discorda do do salão: é exatamente o salão que
+   precisa desta tela — ou o dono viajando. A frase serve aos dois, porque
+   pergunta a única coisa que os separa: o aparelho está NO salão? */
+function dicaDoFuso(sl){
+  const dif = minutosEntreSalaoEAparelho(sl.fuso);
+  if(Math.abs(dif) < 30) return '';
+  return `<div class="aviso atencao" id="fusoDica" style="margin-top:10px">
+      <b>O relógio deste aparelho marca ${horaDoAparelho()}</b>, e o do salão
+      ${horaNoFuso(sl.fuso)}. Se este aparelho está no salão, escolha acima a
+      linha que mostra <b>${horaDoAparelho()}</b>.</div>`;
+}
+
+function campoDoFuso(sl){
+  // A demonstração vive no relógio do aparelho, e o salão dela não tem fuso.
+  if(!NA_NUVEM || !sl || !sl.fuso) return '';
+  const lista = FUSOS_DO_BRASIL.slice();
+  if(!lista.some(x => x[0] === sl.fuso)) lista.push([sl.fuso, sl.fuso]);
+  const opcoes = lista.map(([f, nome]) => {
+    const h = horaNoFuso(f);
+    return `<option value="${escapar(f)}"${f === sl.fuso ? ' selected' : ''}>`
+         + escapar(nome) + (h ? ' — agora ' + h : '') + '</option>';
+  }).join('');
+  return `
+      <div class="linha-fina" style="margin:18px 0"></div>
+      <h3 class="secao">Horário da sua cidade</h3>
+      <p class="secao-sub">É o relógio que o sistema segue: o <b>agora</b> da
+        agenda, o <b>hoje</b> do caixa e a hora de sair cada lembrete. Escolha
+        a linha que mostra a mesma hora do relógio da sua parede.</p>
+      <div class="campo"><label for="cFuso">Fuso horário</label>
+        <select id="cFuso" onchange="pedirTrocaDeFuso(this.value)"${souGestor() ? '' : ' disabled'}>
+          ${opcoes}
+        </select>
+        <span class="ajuda">Trocar <b>não muda nenhum horário marcado</b>: quem
+          marcou às 14:00 continua às 14:00.</span></div>
+      ${dicaDoFuso(sl)}`;
+}
+
+function pedirTrocaDeFuso(novo){
+  const sl = acharSalao(salaoAtual);
+  const sel = document.getElementById('cFuso');
+  /* A lista volta para o fuso de agora na mesma hora: ela só muda de verdade
+     quando o banco confirmar. Cancelar a janela não pode deixar a tela
+     dizendo "Manaus" num salão que continua em Brasília. */
+  if(sel && sl) sel.value = sl.fuso;
+  if(!sl || !novo || novo === sl.fuso || !FUSO_BEM_ESCRITO.test(novo)) return;
+  if(!souGestor()) return;
+  const de = horaNoFuso(sl.fuso), para = horaNoFuso(novo);
+  abrirModal('Trocar o horário do salão', `
+    <p style="font-size:14px">Trocar de <b>${escapar(nomeDoFuso(sl.fuso))}</b>
+      (agora ${de}) para <b>${escapar(nomeDoFuso(novo))}</b> (agora ${para})?</p>
+    <div class="aviso ok" style="margin-top:12px">
+      <b>Os horários marcados não mudam.</b> Quem marcou às 14:00 continua às
+      14:00 — e os bloqueios e as folgas também ficam onde estão.</div>
+    <p style="font-size:13.5px;color:var(--txt2);margin-top:12px">O que muda é
+      o relógio do sistema: o "agora" da agenda, o "hoje" do caixa e a hora dos
+      lembretes passam a seguir <b>${para}</b>.</p>
+    <p style="font-size:13.5px;color:var(--txt2);margin-top:8px">Por
+      <b>1 minuto</b> ninguém consegue marcar nem remarcar: é o tempo de os
+      outros aparelhos do salão se atualizarem sozinhos.</p>`,
+    [['Cancelar', 'fecharModal()'],
+     ['Trocar o horário', `confirmarTrocaDeFuso('${novo}')`, 'btn-p']]);
+}
+
+function confirmarTrocaDeFuso(novo){
+  return umaVez('fuso', ['Trocar o horário', 'Trocando…'], async () => {
+    if(!souGestor() || !FUSO_BEM_ESCRITO.test(novo)) return;
+    let r;
+    try{
+      // O que estiver a caminho do banco chega antes, no relógio em que foi escrito.
+      try{ await _filaGravacao; }catch(e){}
+      r = await Dados.chamar('mudar_fuso', { p_salao: salaoAtual, p_fuso: novo });
+      if(Array.isArray(r)) r = r[0];
+    }catch(e){
+      alert('Não consegui trocar o horário do salão. Nada foi alterado.\n\n' + (e.message || e));
+      return;
+    }
+    // A agenda inteira de novo: os instantes mudaram no banco junto com o fuso.
+    const novoBd = await carregarTudo();
+    if(novoBd) bd = novoBd;
+    _hojeVisto = null;
+    diaAtual = hoje();
+    const n = Number((r && r.agendamentos) || 0), b = Number((r && r.bloqueios) || 0);
+    const partes = [];
+    if(n) partes.push(n === 1 ? '1 horário marcado' : n + ' horários marcados');
+    if(b) partes.push(b === 1 ? '1 bloqueio' : b + ' bloqueios');
+    abrirModal('Horário do salão trocado', `
+      <p style="font-size:14px">Pronto: o salão agora segue
+        <b>${escapar(nomeDoFuso(novo))}</b> — agora são <b>${horaNoFuso(novo)}</b>.</p>
+      ${partes.length ? `<div class="aviso ok" style="margin-top:12px"><b>${partes.join(' e ')}</b>
+        ${n + b === 1 ? 'continua' : 'continuam'} exatamente na mesma hora.</div>` : ''}
+      <p style="font-size:13.5px;color:var(--txt2);margin-top:12px">A agenda fica
+        travada por 1 minuto. Se alguém da equipe estiver com o AgendaPro aberto,
+        a tela dele se atualiza sozinha.</p>`,
+      [['Entendi', 'location.reload()', 'btn-p']]);
+  });
+}
+
 function pintarSalao(){
   const sl = acharSalao(salaoAtual);
   if(!sl) return;
@@ -10297,6 +10455,8 @@ function pintarSalao(){
             ${Endereco.UFS.map(u => `<option ${end.uf === u ? 'selected' : ''}>${u}</option>`).join('')}
           </select></div>
       </div>
+
+      ${campoDoFuso(sl)}
 
       <!-- ══════════ HORARIOS, PAGAMENTOS E SOBRE ══════════
            O que a pagina da cliente mostra logo abaixo do endereco: os
@@ -19340,10 +19500,52 @@ function _montarSoAgenda(agsCrus, itensCrus){
   return d.agendamentos;
 }
 
+/* ── O FUSO DO SALÃO MUDOU EM OUTRO APARELHO ──────────────────────────────
+   Esta tela ESCREVE o horário junto com o fuso que tem na memória ('14:00
+   America/Sao_Paulo') e LÊ os instantes do banco com o mesmo fuso. Se o dono
+   trocou o fuso no celular dele, o banco moveu os instantes para a mesma
+   hora de parede no fuso novo — e esta tela, com o fuso velho, passaria a
+   mostrar tudo uma hora fora e a gravar com uma hora de erro.
+
+   Então a cada sincronização (40 segundos, e ao voltar para a aba) ela
+   pergunta o fuso ao banco: uma coluna de uma linha. Se mudou, nada do que
+   está aberto vale mais — nem o formulário pela metade, que seria gravado
+   no relógio errado. Avisa e recarrega.
+
+   O banco cobre o intervalo: por 90 segundos depois da troca ele recusa
+   gravar horário neste salão (o `aa_fuso_recente`, 58_fuso.sql). */
+let _fusoTrocado = false;
+async function conferirFuso(){
+  if(_fusoTrocado) return true;
+  if(!NA_NUVEM || !salaoAtual || !bd) return false;
+  const deQuem = salaoAtual;
+  const sl = acharSalao(deQuem);
+  if(!sl || !sl.fuso || typeof Dados.fusoDoSalao !== 'function') return false;
+  let noBanco = null;
+  try{ noBanco = await Dados.fusoDoSalao(deQuem); }
+  catch(e){ console.info('[AgendaPro] fuso do salão:', e.message); return false; }
+  // Trocou de estabelecimento enquanto a pergunta voltava: a resposta é do outro.
+  if(deQuem !== salaoAtual) return false;
+  if(!noBanco || noBanco === sl.fuso) return false;
+  _fusoTrocado = true;
+  abrirModal('O horário do salão foi ajustado', `
+    <p style="font-size:14px">O salão agora segue <b>${escapar(nomeDoFuso(noBanco))}</b>
+      — lá são <b>${horaNoFuso(noBanco)}</b>.</p>
+    <div class="aviso ok" style="margin-top:12px"><b>Os horários marcados continuam os
+      mesmos.</b> Esta tela vai se atualizar para acompanhar o relógio novo.</div>`,
+    [['Atualizar agora', 'location.reload()', 'btn-p']]);
+  setTimeout(() => location.reload(), 4000);
+  return true;
+}
+
 async function sincronizarAgenda(){
   if(!NA_NUVEM || !salaoAtual || !_baixado) return 0;
   if(_gravando) return 0;                    // o retrato mudaria embaixo
   if(document.hidden) return 0;              // aba escondida não precisa
+  /* ANTES do guarda da janela aberta, de propósito: formulário aberto no
+     relógio antigo é justamente o que não pode ser gravado. */
+  if(await conferirFuso()) return 0;
+  if(_gravando) return 0;                    // começou a gravar enquanto perguntava
   /* Janela aberta: repintar por baixo de um formulário preenchido pela metade
      é exatamente o tipo de "ajuda" que faz perder trabalho. Quem diz que a
      janela está aberta é a classe `on` no `#fundo` — foi o que `abrirModal()`

@@ -3486,12 +3486,12 @@ returns boolean language sql stable security definer set search_path = public as
     else public.mensagens_no_mes(p_salao) < public.teto_mensagens(p_salao)
   end
 $$;
-revoke all on function public.mensagens_no_mes(uuid) from public, anon;
-revoke all on function public.teto_mensagens(uuid)   from public, anon;
-revoke all on function public.pode_enviar(uuid)      from public, anon;
-grant execute on function public.mensagens_no_mes(uuid) to authenticated;
-grant execute on function public.teto_mensagens(uuid)   to authenticated;
-grant execute on function public.pode_enviar(uuid)      to authenticated;
+revoke all on function public.mensagens_no_mes(uuid) from public, anon, authenticated;
+revoke all on function public.teto_mensagens(uuid)   from public, anon, authenticated;
+revoke all on function public.pode_enviar(uuid)      from public, anon, authenticated;
+grant execute on function public.mensagens_no_mes(uuid) to service_role;
+grant execute on function public.teto_mensagens(uuid)   to service_role;
+grant execute on function public.pode_enviar(uuid)      to service_role;
 create or replace function public.teto_mensagens_salao(p_salao uuid)
 returns int language sql stable set search_path = public as $$
   select case when x.t is null then null else floor(x.t * 0.9)::int end
@@ -4618,8 +4618,8 @@ drop trigger if exists tg_agend_sem_comanda on public.agendamentos;
 create trigger tg_agend_sem_comanda
   after update of status on public.agendamentos
   for each row execute function public.tg_agendamento_sem_comanda();
-revoke all on function public.usa_comanda(uuid) from public, anon;
-grant execute on function public.usa_comanda(uuid) to authenticated;
+revoke all on function public.usa_comanda(uuid) from public, anon, authenticated;
+grant execute on function public.usa_comanda(uuid) to service_role;
 
 create or replace function public.confirma_automatico(p_salao uuid)
 returns boolean language sql stable security definer set search_path = public as $$
@@ -9190,8 +9190,8 @@ end $$;
 revoke all on function public.crediario_teto_mensagens(uuid) from public, anon, authenticated;
 revoke all on function public.crediario_mensagens_no_mes(uuid) from public, anon, authenticated;
 revoke all on function public.pode_enviar_tipo(uuid, text) from public, anon, authenticated;
-revoke all on function public.mensagens_no_mes(uuid) from public, anon;
-grant execute on function public.mensagens_no_mes(uuid) to authenticated;
+revoke all on function public.mensagens_no_mes(uuid) from public, anon, authenticated;
+grant execute on function public.mensagens_no_mes(uuid) to service_role;
 revoke all on function public.mensagens_do_crediario() from public, anon;
 grant execute on function public.mensagens_do_crediario() to authenticated;
 revoke all on function public.mensagem_remarcado() from public, anon;
@@ -9845,6 +9845,225 @@ begin
 end $$;
 revoke all on function public.ver_contas_excluidas(uuid) from public, anon;
 grant execute on function public.ver_contas_excluidas(uuid) to authenticated;
+
+do $$
+declare r record;
+begin
+  for r in
+    select p.oid::regprocedure as funcao
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname in ('plano_efetivo', 'limite_profissionais',
+                         'recurso_num', 'recurso_bool', 'exigir_recurso',
+                         'teto_mensagens', 'usa_comanda',
+                         'mensagens_no_mes', 'pode_enviar')
+  loop
+    execute format('revoke all on function %s from public, anon, authenticated', r.funcao);
+    execute format('grant execute on function %s to service_role', r.funcao);
+  end loop;
+end $$;
+
+alter table public.saloes add column if not exists fuso_mudou_em timestamptz;
+create table if not exists public.fuso_mudancas (
+  id            bigint generated always as identity primary key,
+  salao_id      uuid not null references public.saloes(id) on delete cascade,
+  de            text not null,
+  para          text not null,
+  quando        timestamptz not null default now(),
+  quem          uuid,
+  agendamentos  int not null default 0,
+  bloqueios     int not null default 0,
+  lembretes     int not null default 0,
+  campanhas     int not null default 0,
+  obs           text
+);
+create index if not exists ix_fuso_mudancas_salao on public.fuso_mudancas(salao_id, id);
+alter table public.fuso_mudancas enable row level security;
+revoke all on public.fuso_mudancas from public, anon, authenticated;
+create or replace function public.fuso_valido(p_fuso text)
+returns boolean language sql stable set search_path = public as $$
+  select p_fuso is not null
+     and (p_fuso = 'UTC' or p_fuso ~ '^[A-Za-z_]+(/[A-Za-z0-9_+-]+){1,2}$')
+     and p_fuso !~* '^(posix|right)/'
+     and exists (select 1 from pg_timezone_names z where z.name = p_fuso)
+$$;
+create or replace function public.fuso_mover_horarios(p_salao uuid, p_de text, p_para text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  c_longe constant interval := interval '876000 hours';
+  g        record;
+  v_parados text[] := '{}';
+  v_cmd    text;
+  n_ag int := 0; n_bl int := 0; n_no int := 0; n_ca int := 0;
+  v_obs    text;
+begin
+  if p_de is not distinct from p_para then
+    return jsonb_build_object('agendamentos', 0, 'bloqueios', 0, 'lembretes', 0, 'campanhas', 0);
+  end if;
+  if not public.fuso_valido(p_de) then
+    insert into public.fuso_mudancas (salao_id, de, para, quem, obs)
+    values (p_salao, coalesce(p_de, ''), p_para, auth.uid(),
+            'o fuso anterior não era válido: nenhum horário foi movido');
+    return jsonb_build_object('agendamentos', 0, 'bloqueios', 0, 'lembretes', 0, 'campanhas', 0);
+  end if;
+  perform public.travar_agenda(p_salao);
+  for g in
+    select c.relname as tabela, t.tgname
+      from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+     where t.tgrelid in ('public.agendamentos'::regclass, 'public.bloqueios'::regclass)
+       and not t.tgisinternal and t.tgenabled = 'D'
+  loop
+    v_parados := v_parados || format('alter table public.%I disable trigger %I', g.tabela, g.tgname);
+  end loop;
+  alter table public.agendamentos disable trigger user;
+  alter table public.bloqueios    disable trigger user;
+  update public.agendamentos
+     set inicio = inicio + c_longe, fim = fim + c_longe
+   where salao_id = p_salao;
+  update public.agendamentos
+     set inicio = ((inicio - c_longe) at time zone p_de) at time zone p_para,
+         fim    = (((inicio - c_longe) at time zone p_de) at time zone p_para) + (fim - inicio),
+         sinal_ate = case when sinal_ate is null then null
+                          else least(sinal_ate,
+                                     ((inicio - c_longe) at time zone p_de) at time zone p_para) end
+   where salao_id = p_salao;
+  get diagnostics n_ag = row_count;
+  update public.bloqueios
+     set inicio = (inicio at time zone p_de) at time zone p_para,
+         fim    = ((inicio at time zone p_de) at time zone p_para) + (fim - inicio)
+   where salao_id = p_salao;
+  get diagnostics n_bl = row_count;
+  alter table public.agendamentos enable trigger user;
+  alter table public.bloqueios    enable trigger user;
+  foreach v_cmd in array v_parados loop
+    execute v_cmd;
+  end loop;
+  update public.notificacoes
+     set quando = (quando at time zone p_de) at time zone p_para
+   where salao_id = p_salao and status = 'pendente' and quando > now();
+  get diagnostics n_no = row_count;
+  update public.campanhas
+     set agendada_para = (agendada_para at time zone p_de) at time zone p_para
+   where salao_id = p_salao and status in ('rascunho', 'agendada')
+     and agendada_para is not null and agendada_para > now();
+  get diagnostics n_ca = row_count;
+  insert into public.fuso_mudancas
+    (salao_id, de, para, quem, agendamentos, bloqueios, lembretes, campanhas, obs)
+  values (p_salao, p_de, p_para, auth.uid(), n_ag, n_bl, n_no, n_ca, v_obs);
+  return jsonb_build_object('agendamentos', n_ag, 'bloqueios', n_bl,
+                            'lembretes', n_no, 'campanhas', n_ca);
+exception
+  when exclusion_violation then
+    raise exception 'Não deu para trocar o fuso: dois horários do mesmo profissional ficariam um em cima do outro. Nada foi alterado. Fale com o suporte.'
+      using errcode = 'exclusion_violation';
+end $$;
+create or replace function public.tg_salao_fuso()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.fuso := nullif(btrim(coalesce(new.fuso, '')), '');
+  if tg_op = 'INSERT' then
+    if new.fuso is null then new.fuso := 'America/Sao_Paulo'; end if;
+    if new.fuso <> 'America/Sao_Paulo' and not public.fuso_valido(new.fuso) then
+      raise exception 'Não conheço o fuso horário "%". Use um nome como America/Sao_Paulo ou America/Manaus.', new.fuso
+        using errcode = 'check_violation';
+    end if;
+    new.fuso_mudou_em := null;
+    return new;
+  end if;
+  if new.fuso is null then
+    raise exception 'O salão precisa de um fuso horário.' using errcode = 'check_violation';
+  end if;
+  if new.fuso is distinct from old.fuso then
+    if not public.fuso_valido(new.fuso) then
+      raise exception 'Não conheço o fuso horário "%". Use um nome como America/Sao_Paulo ou America/Manaus.', new.fuso
+        using errcode = 'check_violation';
+    end if;
+    new.fuso_mudou_em := case
+      when old.criado_em > now() - interval '10 minutes' then old.fuso_mudou_em
+      else now() end;
+  elsif coalesce(current_setting('role', true), 'none') in ('anon', 'authenticated') then
+    new.fuso_mudou_em := old.fuso_mudou_em;
+  end if;
+  return new;
+end $$;
+drop trigger if exists tg_salao_fuso on public.saloes;
+create trigger tg_salao_fuso
+  before insert or update on public.saloes
+  for each row execute function public.tg_salao_fuso();
+create or replace function public.tg_salao_fuso_mover()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.fuso is distinct from old.fuso then
+    perform public.fuso_mover_horarios(new.id, old.fuso, new.fuso);
+  end if;
+  return null;
+end $$;
+drop trigger if exists tg_salao_fuso_mover on public.saloes;
+create trigger tg_salao_fuso_mover
+  after update of fuso on public.saloes
+  for each row execute function public.tg_salao_fuso_mover();
+create or replace function public.tg_fuso_recem_mudado()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from public.saloes s
+              where s.id = new.salao_id
+                and s.fuso_mudou_em is not null
+                and s.fuso_mudou_em > now() - interval '90 seconds') then
+    raise exception 'O relógio do salão acabou de ser ajustado. Espere um minuto, atualize a página e tente de novo.'
+      using errcode = 'object_not_in_prerequisite_state';
+  end if;
+  return new;
+end $$;
+drop trigger if exists aa_fuso_recente on public.agendamentos;
+create trigger aa_fuso_recente
+  before insert or update of inicio, fim on public.agendamentos
+  for each row execute function public.tg_fuso_recem_mudado();
+drop trigger if exists aa_fuso_recente on public.bloqueios;
+create trigger aa_fuso_recente
+  before insert or update of inicio, fim on public.bloqueios
+  for each row execute function public.tg_fuso_recem_mudado();
+create or replace function public.mudar_fuso(p_salao uuid, p_fuso text)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare
+  v_de   text;
+  v_para text := nullif(btrim(coalesce(p_fuso, '')), '');
+  v_log  public.fuso_mudancas%rowtype;
+begin
+  if auth.uid() is null or p_salao is null
+     or not (public.e_gestor(p_salao) or public.is_super()) then
+    raise exception 'Só quem administra o salão troca o fuso horário.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if v_para is null or not public.fuso_valido(v_para) then
+    raise exception 'Não conheço o fuso horário "%".', coalesce(p_fuso, '')
+      using errcode = 'check_violation';
+  end if;
+  select s.fuso into v_de from public.saloes s where s.id = p_salao for update;
+  if not found then
+    raise exception 'Não achei este salão.' using errcode = 'no_data_found';
+  end if;
+  if v_de = v_para then
+    return jsonb_build_object('ok', true, 'mudou', false, 'fuso', v_para);
+  end if;
+  update public.saloes set fuso = v_para where id = p_salao;
+  select * into v_log from public.fuso_mudancas
+   where salao_id = p_salao order by id desc limit 1;
+  return jsonb_build_object(
+    'ok', true, 'mudou', true, 'de', v_de, 'fuso', v_para,
+    'agendamentos', coalesce(v_log.agendamentos, 0),
+    'bloqueios',    coalesce(v_log.bloqueios, 0),
+    'lembretes',    coalesce(v_log.lembretes, 0),
+    'campanhas',    coalesce(v_log.campanhas, 0));
+end $$;
+revoke all on function public.fuso_valido(text)                      from public, anon, authenticated;
+revoke all on function public.fuso_mover_horarios(uuid, text, text)  from public, anon, authenticated;
+revoke all on function public.tg_salao_fuso()                        from public, anon, authenticated;
+revoke all on function public.tg_salao_fuso_mover()                  from public, anon, authenticated;
+revoke all on function public.tg_fuso_recem_mudado()                 from public, anon, authenticated;
+revoke all on function public.mudar_fuso(uuid, text)                 from public, anon;
+grant execute on function public.mudar_fuso(uuid, text) to authenticated;
 
 alter table public.agendamentos
   add column if not exists gerenciar_token uuid not null default gen_random_uuid();

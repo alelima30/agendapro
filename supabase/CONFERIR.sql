@@ -1231,6 +1231,43 @@ with conferencia(ordem, item, veredito, detalhe) as (
                                  and prosrc like '%''rodape''%')
               then 'cole a parte 2 de novo (25_loja)' else '' end
   union all
+  /* A consulta do plano fechada (57): quem é de fora não pergunta ao banco
+     que plano um salão paga nem quanto ele usa. */
+  select 75, 'Consulta do plano fechada para quem é de fora',
+         case when exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                            where n.nspname = 'public'
+                              and p.proname in ('plano_efetivo', 'limite_profissionais', 'recurso_num',
+                                                'recurso_bool', 'exigir_recurso', 'teto_mensagens',
+                                                'usa_comanda', 'mensagens_no_mes', 'pode_enviar')
+                              and (has_function_privilege('anon', p.oid, 'execute')
+                                   or has_function_privilege('authenticated', p.oid, 'execute')))
+              then 'FALTA' else 'certo' end,
+         case when exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                            where n.nspname = 'public'
+                              and p.proname in ('plano_efetivo', 'limite_profissionais', 'recurso_num',
+                                                'recurso_bool', 'exigir_recurso', 'teto_mensagens',
+                                                'usa_comanda', 'mensagens_no_mes', 'pode_enviar')
+                              and (has_function_privilege('anon', p.oid, 'execute')
+                                   or has_function_privilege('authenticated', p.oid, 'execute')))
+              then 'cole a parte 2 de novo (57_plano_fechado)' else '' end
+  union all
+  /* O fuso do salão (58): escolher, e trocar sem mexer em horário marcado. */
+  select 76, 'Fuso horário do salão: escolha e troca sem mexer nos horários',
+         case when to_regprocedure('public.mudar_fuso(uuid,text)') is null
+                or not exists (select 1 from pg_trigger where tgname = 'tg_salao_fuso_mover'
+                                 and tgrelid = 'public.saloes'::regclass)
+                or not exists (select 1 from pg_trigger where tgname = 'aa_fuso_recente'
+                                 and tgrelid = 'public.agendamentos'::regclass)
+                or has_function_privilege('anon', 'public.mudar_fuso(uuid,text)', 'execute')
+              then 'FALTA' else 'certo' end,
+         case when to_regprocedure('public.mudar_fuso(uuid,text)') is null
+                or not exists (select 1 from pg_trigger where tgname = 'tg_salao_fuso_mover'
+                                 and tgrelid = 'public.saloes'::regclass)
+                or not exists (select 1 from pg_trigger where tgname = 'aa_fuso_recente'
+                                 and tgrelid = 'public.agendamentos'::regclass)
+                or has_function_privilege('anon', 'public.mudar_fuso(uuid,text)', 'execute')
+              then 'cole a parte 2 de novo (58_fuso)' else '' end
+  union all
   /* A loja pelo link e os pacotes no Relatórios (55). */
   select 70, 'Relatórios: loja pelo link e pacotes',
          case when to_regprocedure('public.relatorio_vendas(uuid,date,date)') is null

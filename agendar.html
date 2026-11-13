@@ -6436,7 +6436,37 @@ function mostrarPedidoEnviado(prof, unit, filho){
    O instante também não é calculado aqui: é devolvido exatamente como o banco
    mandou (veja `instantes`, lá em cima).
    ──────────────────────────────────────────────────────────────────────── */
+/* ── O RELÓGIO DO SALÃO MUDOU COM ESTA PÁGINA ABERTA? (58_fuso.sql) ──────
+   Esta página desenha "14:00" com o fuso que veio na vitrine, e devolve ao
+   banco o instante que recebeu. Se o salão trocou o fuso depois de ela abrir,
+   o banco moveu a agenda para a mesma hora de parede no fuso novo — e o
+   "14:00" daqui passou a ser 13:00 lá. A cliente marcaria uma hora errada sem
+   ver nada de estranho.
+
+   Antes de marcar, a página pergunta o fuso de novo (a mesma vitrine, que é
+   pública). Mudou: recarrega, em vez de marcar. A pergunta tem prazo: rede
+   lenta não segura a marcação, e o banco ainda recusa por 90 segundos depois
+   de uma troca. */
+async function relogioDoSalaoMudou(){
+  if(!NA_NUVEM || !salao || !salao.slug || !salao.fuso) return false;
+  let fresco = null;
+  try{
+    fresco = await Promise.race([
+      Dados.vitrine(salao.slug),
+      new Promise(r => setTimeout(() => r(null), 3000)),
+    ]);
+  }catch(e){ console.info('[AgendaPro] relógio do salão:', e.message); return false; }
+  const f = fresco && fresco.salao && fresco.salao.fuso;
+  return !!(f && f !== salao.fuso);
+}
+
 async function confirmarNaNuvem(profId, prof){
+  if(await relogioDoSalaoMudou()){
+    alert('O salão acabou de ajustar o relógio dele. Vou atualizar a página: '
+        + 'escolha o horário de novo, por favor.');
+    location.reload();
+    return;
+  }
   const aviso = document.getElementById('avisoConfirmar');
   const bp = document.getElementById('btPrincipal');
   const rotulo = bp.textContent;

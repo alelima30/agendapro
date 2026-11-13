@@ -25,11 +25,22 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from './pg.mjs';
 const exigir = createRequire(import.meta.url);
 const { chromium } = exigir(process.env.PLAYWRIGHT || 'playwright');
 const CHROMIUM = process.env.CHROMIUM || '/opt/pw-browsers/chromium';
 const RAIZ = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const BASE = process.env.BANCADA || 'http://127.0.0.1:8123';
+
+/* `usa_comanda()` saiu do alcance da API (57_plano_fechado.sql): quem tem
+   conta descobria de qualquer salão se ele paga. O teste pergunta direto ao
+   banco, como dono dele. */
+const banco = new pg.Client({ host: process.env.PGHOST || '/tmp',
+  port: +(process.env.PGPORT || 5444), user: process.env.PGUSER || 'postgres',
+  database: process.env.PGBANCO || 'app' });
+await banco.connect();
+const usaComandaNoBanco = async salao =>
+  (await banco.query('select public.usa_comanda($1) as u', [salao])).rows[0].u;
 
 let ok = 0, ruim = 0;
 const e = (m, c, d) => c ? (console.log('  ✓ ' + m), ok++)
@@ -138,7 +149,7 @@ await p.waitForTimeout(3500);
 const apesDeRecarregar = await abas();
 e('recarregando, a aba continua fora — foi ao banco',
   !apesDeRecarregar.includes('caixa'), JSON.stringify(apesDeRecarregar));
-const noBanco = await dona.chamar('usa_comanda', { p_salao: SALAO });
+const noBanco = await usaComandaNoBanco(SALAO);
 e('e o banco concorda com a tela — ' + JSON.stringify(noBanco), noBanco === false,
   'a tela escondeu a aba e o banco continua achando que usa comanda');
 
@@ -171,7 +182,7 @@ await dona.atualizar('saloes', SALAO, { cfg:{ usaComanda:'false' } });
 await p.reload();
 await p.waitForTimeout(3500);
 const comTexto = await abas();
-const bancoTexto = await dona.chamar('usa_comanda', { p_salao: SALAO });
+const bancoTexto = await usaComandaNoBanco(SALAO);
 console.log('      banco: ' + JSON.stringify(bancoTexto)
           + ' · abas: ' + JSON.stringify(comTexto));
 e('com a string "false", tela e banco continuam concordando',
@@ -183,7 +194,7 @@ await dona.atualizar('saloes', SALAO, { cfg:{ usaComanda:'abacaxi' } });
 await p.reload();
 await p.waitForTimeout(3500);
 const comLixo = await abas();
-const bancoLixo = await dona.chamar('usa_comanda', { p_salao: SALAO });
+const bancoLixo = await usaComandaNoBanco(SALAO);
 console.log('      banco: ' + JSON.stringify(bancoLixo)
           + ' · abas: ' + JSON.stringify(comLixo));
 e('com lixo no cfg, os dois caem em LIGADO',
@@ -228,5 +239,6 @@ e('e nada disso deu erro de JavaScript', erros.length === 0,
   erros.slice(0, 3).join(' | '));
 
 await nav.close();
+await banco.end();
 console.log(`\n${ok} passaram, ${ruim} falharam`);
 process.exit(ruim ? 1 : 0);
