@@ -21,6 +21,12 @@
      4. Logo que não carrega: avisa e não mexe em nada.
      5. "Arrumar para mim" (no topo e na seção): some o aviso, só as cores
         ruins mudam, fundos e botões ficam, e "Desfazer" devolve.
+     6. O QUE A CAÇA-BUG ACHOU: "Cartões" em preto numa página clara deixava
+        o link inteiro preto com letra escura (nome de serviço a 1,3:1) e o
+        aviso calado; e letra clara escolhida sobre cartão escuro era acusada
+        de ilegível, medida contra um papel que nem aparece. Agora o aviso
+        pega o cartão escolhido, a cor de dentro dos serviços, dos produtos e
+        dos atalhos — e o conserto é conferido NO LINK de verdade.
    =========================================================================== */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -200,6 +206,83 @@ await p.evaluate(() => document.querySelector('#avisoLegibilidade .btn').click()
 await p.waitForTimeout(300);
 igual('o botão da seção arruma igual', await p.evaluate(() => [document.getElementById('avisoLegibilidade').textContent.trim(),
   /Arrumei/.test(document.getElementById('leituraArrumadaSec').textContent)]), ['', true]);
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+secao('6. O aviso pega o cartão escuro e as cores de dentro — e não acusa página certa');
+// A cor da marca fixa (roxo): o preço herdado sai dela, e o teste não pode depender da logo de cima.
+const por = async (cores, atalhos) => { await p.evaluate(([c, a]) => { aparencia.cor = '#7C3AED'; aparencia.tema = 'claro'; aparencia.fundoTipo = 'cor';
+    aparencia.cores = c; Object.assign(aparencia.atalhos, { estilo:'borda', fundo:'', cores:{} }, a || {});
+    leituraArrumada = null; pintarAparencia(); }, [cores, atalhos || null]); await p.waitForTimeout(200); };
+const avisoTopo = () => p.evaluate(() => document.getElementById('avisoLeituraTopo').textContent.replace(/\s+/g, ' ').trim());
+const avisoSec  = () => p.evaluate(() => document.getElementById('avisoLegibilidade').textContent.replace(/\s+/g, ' ').trim());
+const arrumar   = async () => { await p.click('#avisoLeituraTopo .btn'); await p.waitForTimeout(300); };
+
+// a) "Cartões" em preto numa página clara: o link inteiro fica preto.
+await por({ card:'#000000' });
+const a1 = await avisoSec();
+verdade('"Cartões" em preto numa página clara: o aviso acusa os títulos, o texto e o preço',
+  /os títulos \(1\.3:1 sobre os cards\)/.test(a1) && /o texto \(/.test(a1) && /o preço \(/.test(a1), a1);
+await arrumar();
+const d1 = await p.evaluate(() => ({ aviso: document.getElementById('avisoLegibilidade').textContent.trim(), card: aparencia.cores.card,
+  c: ['titulo', 'texto', 'destaque'].map(k => Math.round(contrasteEntre(aparencia.cores[k], '#000000') * 10) / 10) }));
+verdade('"Arrumar para mim" clareia títulos, texto e preço (4,5:1 ou mais no cartão) e não toca no cartão',
+  !d1.aviso && d1.card === '#000000' && d1.c.every(x => x >= 4.5), JSON.stringify(d1));
+await p.evaluate(() => salvarAparencia());
+await p.waitForTimeout(1800);
+{
+  // No LINK de verdade: o nome do serviço e o "Entrar na minha conta" se leem sobre o cartão preto.
+  const c2 = await nav.newContext({ viewport:{ width:390, height:844 }, isMobile:true, hasTouch:true });
+  const q = await c2.newPage();
+  q.on('pageerror', e => erros.push('link: ' + e.message));
+  await q.goto(BASE + '/agendar.html?salao=' + cr[0].slug);
+  await q.waitForFunction(() => document.querySelectorAll('.sv-cartao').length >= 1, null, { timeout: 15000 });
+  await q.waitForTimeout(600);
+  const r = await q.evaluate(() => { const lum = c => { const v = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c).slice(1, 4).map(Number).map(x => { x /= 255;
+        return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+    const ct = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return Math.round((x + 0.05) / (y + 0.05) * 10) / 10; };
+    const card = document.querySelector('.sv-cartao'), nome = card.querySelector('.sv-cartao-txt b');
+    const conta = document.querySelector('.cartao, .opcao');
+    return { fundo: getComputedStyle(card).backgroundColor, nome: ct(getComputedStyle(nome).color, getComputedStyle(card).backgroundColor),
+      conta: conta ? ct(getComputedStyle(conta.querySelector('b') || conta).color, getComputedStyle(conta).backgroundColor) : 99 }; });
+  verdade('no link: cartão preto, e o nome do serviço e o "Entrar na minha conta" com 4,5:1 ou mais',
+    r.fundo === 'rgb(0, 0, 0)' && r.nome >= 4.5 && r.conta >= 4.5, JSON.stringify(r));
+  await c2.close();
+}
+
+// b) Página certa não é acusada: sem fundo escolhido, a coluna tem a cor dos cartões.
+await por({ card:'#000000', texto:'#FFFFFF', titulo:'#FFFFFF', destaque:'#FFD54F', icone:'#FFFFFF', discreto:'#CCCCCC' });
+igual('cartão preto com letras claras escolhidas: nenhum aviso (o papel de fábrica não aparece)',
+  [await avisoTopo(), await avisoSec()], ['', '']);
+
+// c) A cor de dentro dos serviços, que é outra superfície.
+await por({ fundoServico:'#000000' });
+const a3 = await avisoSec();
+verdade('"Cor de dentro dos serviços" preta: acusa o nome e o preço DO SERVIÇO, e não os títulos da página',
+  /o nome do serviço \(1\.3:1 sobre o quadro\)/.test(a3) && /o preço do serviço \(/.test(a3) && !/os títulos/.test(a3), a3);
+await arrumar();
+igual('e o conserto mexe só nas frases do cartão de serviço',
+  [await avisoSec(), await p.evaluate(() => Object.keys(aparencia.cores).sort())], ['', ['fundoServico', 'nomeServico', 'precoServico']]);
+
+// d) A dos produtos.
+await por({ fundoProduto:'#000000' });
+verdade('"Cor de dentro dos produtos" preta: acusa o nome do produto', /o nome do produto \(1\.3:1 sobre o quadro\)/.test(await avisoSec()), await avisoSec());
+
+// e) A cor de dentro dos três atalhos: o conserto mora em atalhos.cores.
+await por({}, { fundo:'#1A1A1A' });
+const a5 = await avisoSec();
+verdade('"Cor de dentro" dos atalhos escura: acusa o nome dos três',
+  ['Pagamentos', 'Horários', 'Informações'].every(n => new RegExp('o nome de ' + n + ' \\(.*sobre a cor de dentro\\)').test(a5)), a5);
+await arrumar();
+const d5 = await p.evaluate(() => ({ aviso: document.getElementById('avisoLegibilidade').textContent.trim(),
+  c: ['pagamentos', 'horarios', 'informacoes'].map(k => Math.round(contrasteEntre(aparencia.atalhos.cores[k] || '#000000', '#1A1A1A') * 10) / 10),
+  soltas: Object.keys(aparencia.cores).length }));
+verdade('"Arrumar para mim" dá cor legível aos três nomes, sem mexer nas cores soltas',
+  !d5.aviso && d5.c.every(x => x >= 4.5) && d5.soltas === 0, JSON.stringify(d5));
+await p.click('#avisoLeituraTopo .btn');           // Desfazer
+await p.waitForTimeout(300);
+igual('"Desfazer" devolve os atalhos como estavam', await p.evaluate(() => aparencia.atalhos.cores), {});
+await por({}, { fundo:'#1A1A1A', estilo:'limpo' });
+igual('no "Sem contorno" não há cartão: nenhum aviso', await avisoSec(), '');
 
 secao('Erros de JavaScript');
 igual('nenhum', erros, []);

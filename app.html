@@ -2178,7 +2178,7 @@ function ligarViradaDoDia(){
 
    Sobe a cada correção publicada. É o mesmo número do `sw.js`, e é de
    propósito: se os dois discordassem, o carimbo mentiria. */
-const VERSAO_APP = 'v9.565a8c';
+const VERSAO_APP = 'v9.e9f876';
 
 function recarregarDeVerdade(){
   /* Recarregar com F5 pode devolver a mesma página do cache. Isto derruba o
@@ -13166,19 +13166,25 @@ function arrumarLeitura(){
   conferirLegibilidade();
   const lista = consertosDeLeitura.slice();
   if(!lista.length) return;
-  const antes = Object.assign({}, aparencia.cores);
+  const antes = { cores: Object.assign({}, aparencia.cores), atalhos: Object.assign({}, aparencia.atalhos.cores) };
   const c = Object.assign({}, aparencia.cores);
+  const a = Object.assign({}, aparencia.atalhos.cores);
   /* O conserto mira acima do piso do aviso: 3:1 tira o aviso de um título,
-     mas deixa um cinza fraco. Texto vai a 4,5; o discreto, que é apagado de
-     propósito, a 2,5. */
-  for(const x of lista) c[x.chave] = corLegivel(x.cor, x.fundos, Math.max(x.piso, x.chave === 'discreto' ? 2.5 : 4.5));
+     mas deixa um cinza fraco. Texto vai a 4,5; o que é apagado de propósito
+     (piso 2: o discreto, a duração, o bairro) vai a 3. */
+  for(const x of lista){
+    const nova = corLegivel(x.cor, x.fundos, x.piso <= 2 ? 3 : 4.5);
+    if(x.atalho) a[x.atalho] = nova; else c[x.chave] = nova;
+  }
   aparencia.cores = c;
-  leituraArrumada = { n: lista.length, antes, depois: JSON.stringify(c) };
+  aparencia.atalhos.cores = a;
+  leituraArrumada = { n: lista.length, antes, depois: JSON.stringify([c, a]) };
   pintarAparencia();
 }
 function desfazerArrumarLeitura(){
   if(!leituraArrumada) return;
-  aparencia.cores = Object.assign({}, leituraArrumada.antes);
+  aparencia.cores = Object.assign({}, leituraArrumada.antes.cores);
+  aparencia.atalhos.cores = Object.assign({}, leituraArrumada.antes.atalhos);
   leituraArrumada = null;
   pintarAparencia();
 }
@@ -13186,7 +13192,7 @@ function pintarAvisoDeLeitura(queixas){
   const topo = document.getElementById('avisoLeituraTopo');
   const sec = document.getElementById('leituraArrumadaSec');
   const arrumou = leituraArrumada && !queixas.length
-    && JSON.stringify(aparencia.cores || {}) === leituraArrumada.depois;
+    && JSON.stringify([aparencia.cores || {}, aparencia.atalhos.cores]) === leituraArrumada.depois;
   const feito = arrumou ? `✓ Arrumei a leitura de ${leituraArrumada.n} ${leituraArrumada.n === 1 ? 'cor' : 'cores'}.
     <button type="button" class="btn btn-peq" onclick="desfazerArrumarLeitura()">Desfazer</button>` : '';
   if(sec) sec.innerHTML = feito;
@@ -13213,6 +13219,16 @@ function conferirLegibilidade(){
      Um fundo cinza-médio escolhido por ele não tem letra de fábrica que se
      leia bem, e o tom automático só escolhe a MENOS pior. */
   const fundoMexido = gradiente || corValida(c.papel);
+  /* ⚠ E COM O CARTÃO ESCOLHIDO À MÃO, TAMBÉM. "Cartões" em preto numa página
+     clara deixava o link inteiro preto com letra escura — nome de serviço a
+     1,3:1, medido no link — e este aviso ficava calado: só olhava a letra
+     herdada quando o FUNDO mudava. O claro/escuro acompanha o fundo, não o
+     cartão; então é aqui que esse caso tem de ser pego. Com o cartão mexido
+     entram também o preço e os ícones herdados, que saem da cor da marca. */
+  const cartaoMexido = corValida(c.card);
+  const comFoto = aparencia.fundoTipo === 'imagem';
+  const herdadaEntra = chave => (fundoMexido && chave in t)
+    || (cartaoMexido && (chave in t || chave === 'destaque' || chave === 'icone'));
 
   const queixas = [];
   const consertos = [];
@@ -13223,9 +13239,15 @@ function conferirLegibilidade(){
      frase que se lê bem no quadro escuro onde ela está. */
   const olhar = (chave, rot, piso, onde) => {
     const cor = corValida(c[chave]) ? c[chave]
-      : (fundoMexido && chave in t) ? corHerdada(chave) : null;
+      : herdadaEntra(chave) ? corHerdada(chave) : null;
     if(!cor) return;                          // herdada sobre fundo de fábrica
-    const soCartao = onde === 'quadro' || (onde === 'topo' && !fundoMexido);
+    /* ⚠ SEM FUNDO ESCOLHIDO NÃO EXISTE TEXTO SOBRE O PAPEL: a coluna da página
+       (`.app`, no agendar.html) tem a cor dos CARTÕES e cobre tudo. Medir a
+       letra contra o papel de fábrica acusava letra branca em cartão preto —
+       cinco "difíceis de ler" numa página certa — e o "Arrumar para mim"
+       estragava a página para calar o aviso. Com foto de fundo a coluna é
+       transparente, e a conta de antes continua. */
+    const soCartao = onde === 'quadro' || (!fundoMexido && (onde === 'topo' || !comFoto));
     const soFundo = onde === 'topo' && fundoMexido;
     const rc = soFundo ? Infinity : contrasteEntre(cor, cartao);
     const rp = soCartao ? Infinity : Math.min(...fundos.map(f => contrasteEntre(cor, f)));
@@ -13252,14 +13274,30 @@ function conferirLegibilidade(){
   olhar('convite',   'a frase do Bem-vindo',      4.5, 'quadro');
   // As de baixo: os títulos de seção moram na coluna; o resto, nos cartões.
   olhar('tituloServicos',   'o título dos serviços',     2,   'topo');
-  olhar('nomeServico',      'o nome do serviço',         3,   'quadro');
-  olhar('descServico',      'a descrição do serviço',    2,   'quadro');
-  olhar('precoServico',     'o preço do serviço',        3,   'quadro');
-  olhar('duracao',          'a duração do serviço',      2,   'quadro');
+  /* ⚠ OS CARTÕES DE SERVIÇO E DE PRODUTO PODEM TER COR DE DENTRO PRÓPRIA
+     ("Cor de dentro dos serviços" e "dos produtos"). Com ela, as frases do
+     cartão são medidas contra ELA — escolhidas OU herdadas: a herdada vinha
+     garantida pelo pai contra a cor dos Cartões, e a cor de dentro é outra.
+     Sem ela, é a conta de sempre: só a frase escolhida, contra os Cartões. */
+  const noCartao = (chave, rot, piso, dentro) => {
+    const proprio = corValida(dentro);
+    const cor = corValida(c[chave]) ? c[chave] : proprio ? corHerdada(chave) : null;
+    if(!cor) return;
+    const f = proprio ? dentro : cartao;
+    const r = contrasteEntre(cor, f);
+    if(r < piso){
+      consertos.push({ chave, cor, piso, fundos: [f] });
+      queixas.push(rot + ' (' + r.toFixed(1) + ':1 sobre o quadro)');
+    }
+  };
+  noCartao('nomeServico',  'o nome do serviço',       3, c.fundoServico);
+  noCartao('descServico',  'a descrição do serviço',  2, c.fundoServico);
+  noCartao('precoServico', 'o preço do serviço',      3, c.fundoServico);
+  noCartao('duracao',      'a duração do serviço',    2, c.fundoServico);
   olhar('verTodosServicos', 'o Ver todos os serviços',   3,   'quadro');
   olhar('tituloProdutos',   'o título dos produtos',     2,   'topo');
-  olhar('nomeProduto',      'o nome do produto',         3,   'quadro');
-  olhar('precoProduto',     'o preço do produto',        3,   'quadro');
+  noCartao('nomeProduto',  'o nome do produto',       3, c.fundoProduto);
+  noCartao('precoProduto', 'o preço do produto',      3, c.fundoProduto);
   olhar('verTodosProdutos', 'o Ver todos os produtos',   3,   'quadro');
   olhar('tituloEquipe',     'o título da equipe',        2,   'topo');
   olhar('nomeEquipe',       'o nome de quem atende',     3,   'quadro');
@@ -13287,6 +13325,22 @@ function conferirLegibilidade(){
      Ele deixa passar o cinza fraco que o projeto já usa e pega o cinza claro
      sobre fundo claro, que é o acidente que esta cor nova torna possível. */
   olhar('discreto', 'os textos discretos', 2);
+
+  /* Os três atalhos com "Cor de dentro" própria: o nome de cada um (a cor
+     escolhida dele, ou o texto) contra ela. No "Sem contorno" não há cartão.
+     O conserto destes mora em `atalhos.cores`, e não nas cores soltas. */
+  const at = aparencia.atalhos || {};
+  if(corValida(at.fundo) && at.estilo !== 'limpo'){
+    const nomeAt = corValida(c.texto) ? c.texto : corHerdada('texto');
+    for(const [k, rot] of CORES_ATALHO){
+      const cor = corValida((at.cores || {})[k]) ? at.cores[k] : nomeAt;
+      const r = contrasteEntre(cor, at.fundo);
+      if(r < 3){
+        consertos.push({ atalho: k, cor, piso: 3, fundos: [at.fundo] });
+        queixas.push('o nome de ' + rot + ' (' + r.toFixed(1) + ':1 sobre a cor de dentro)');
+      }
+    }
+  }
 
   consertosDeLeitura = consertos;
   alvo.innerHTML = !queixas.length ? '' :

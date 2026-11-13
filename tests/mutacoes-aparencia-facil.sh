@@ -87,9 +87,45 @@ troca app.html \
 
 echo "7. o Arrumar mexe também nos fundos"
 troca app.html \
-  "  for(const x of lista) c[x.chave] = corLegivel(x.cor, x.fundos, Math.max(x.piso, x.chave === 'discreto' ? 2.5 : 4.5));" \
-  "  for(const x of lista) c[x.chave] = corLegivel(x.cor, x.fundos, Math.max(x.piso, x.chave === 'discreto' ? 2.5 : 4.5)); c.card = '#F3F4F6';" \
+  "    if(x.atalho) a[x.atalho] = nova; else c[x.chave] = nova;" \
+  "    if(x.atalho) a[x.atalho] = nova; else c[x.chave] = nova; c.card = '#F3F4F6';" \
   && rodar "cartão trocado sem pedir"
+
+echo "8. o cartão escolhido volta a não ser medido"
+troca app.html \
+  "    || (cartaoMexido && (chave in t || chave === 'destaque' || chave === 'icone'));" \
+  "    || false;" \
+  && rodar "Cartões preto, link ilegível e aviso calado"
+
+echo "9. a letra volta a ser medida contra o papel que não aparece"
+troca app.html \
+  "    const soCartao = onde === 'quadro' || (!fundoMexido && (onde === 'topo' || !comFoto));" \
+  "    const soCartao = onde === 'quadro' || (onde === 'topo' && !fundoMexido);" \
+  && rodar "página certa acusada de ilegível"
+
+echo "10. a cor de dentro dos serviços não é medida"
+troca app.html \
+  "    const cor = corValida(c[chave]) ? c[chave] : proprio ? corHerdada(chave) : null;" \
+  "    const cor = corValida(c[chave]) ? c[chave] : null;" \
+  && rodar "cartão de serviço preto com nome escuro, sem aviso"
+
+echo "11. os atalhos com cor de dentro ficam fora do aviso"
+troca app.html \
+  "  if(corValida(at.fundo) && at.estilo !== 'limpo'){" \
+  "  if(false){" \
+  && rodar "atalho escuro com nome cinza, sem aviso"
+
+echo "12. o Sem contorno acusa um cartão que não existe"
+troca app.html \
+  "  if(corValida(at.fundo) && at.estilo !== 'limpo'){" \
+  "  if(corValida(at.fundo)){" \
+  && rodar "aviso de um fundo que não aparece"
+
+echo "13. o conserto do atalho vai parar nas cores soltas"
+troca app.html \
+  "    if(x.atalho) a[x.atalho] = nova; else c[x.chave] = nova;" \
+  "    c[x.chave || x.atalho] = nova;" \
+  && rodar "arrumou e o atalho continua ilegível"
 
 echo ""
 echo "$morta mortas, $viva vivas"
